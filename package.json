@@ -1,9 +1,9 @@
 {
-  "name": "signal-desktop",
-  "productName": "Signal",
-  "description": "Private messaging from your desktop",
-  "desktopName": "signal.desktop",
-  "repository": "https://github.com/signalapp/Signal-Desktop.git",
+  "name": "signal-desktop-unofficial",
+  "productName": "Signal Unofficial",
+  "description": "Private messaging from your desktop (UNOFFICIAL)",
+  "desktopName": "signal.desktop.unofficial",
+  "repository": "https://github.com/dennisameling/Signal-Desktop.git",
   "version": "5.21.0",
   "license": "AGPL-3.0-only",
   "author": {
@@ -74,13 +74,13 @@
   "dependencies": {
     "@popperjs/core": "2.9.2",
     "@react-spring/web": "9.2.6",
-    "@signalapp/signal-client": "0.9.5",
+    "@signalapp/signal-client": "https://github.com/dennisameling/libsignal-node.git#c5beba88c6a32f60c92af1a9c47c9e39e4b95c20",
     "@sindresorhus/is": "0.8.0",
     "abort-controller": "3.0.0",
     "array-move": "2.1.0",
     "axe-core": "4.1.4",
     "backbone": "1.4.0",
-    "better-sqlite3": "https://github.com/signalapp/better-sqlite3#2fa02d2484e9f9a10df5ac7ea4617fb2dff30006",
+    "better-sqlite3": "https://github.com/dennisameling/better-sqlite3#9f85fb20113bf596ed093598a593cc31dfebd3fb",
     "bezier-easing": "2.1.0",
     "blob-util": "2.0.2",
     "blueimp-load-image": "5.14.0",
@@ -154,7 +154,7 @@
     "redux-ts-utils": "3.2.2",
     "reselect": "4.0.0",
     "rimraf": "2.6.2",
-    "ringrtc": "https://github.com/signalapp/signal-ringrtc-node.git#9b4ff947378ab11295d8718cae75e9a35ddb3e61",
+    "ringrtc": "https://github.com/dennisameling/signal-ringrtc-node.git#cb48c86bf0882e3f3afea1b5da8f3fe773ac9f44",
     "rotating-file-stream": "2.1.5",
     "sanitize.css": "11.0.0",
     "semver": "5.4.1",
@@ -165,7 +165,7 @@
     "underscore": "1.12.1",
     "uuid": "3.3.2",
     "websocket": "1.0.28",
-    "zkgroup": "https://github.com/signalapp/signal-zkgroup-node.git#0d2b3874d2e671fa5fdcc2154065cc061f977672",
+    "zkgroup": "https://github.com/dennisameling/signal-zkgroup-node.git#076b4efbafcb127f5a88fe65761641c436befb59",
     "zod": "3.5.1"
   },
   "devDependencies": {
@@ -270,17 +270,17 @@
     "mocha": "4.1.0",
     "mocha-testcheck": "1.0.0-rc.0",
     "node-gyp": "^6.1.0",
-    "node-sass": "4.14.1",
+    "node-sass": "^5.0.0",
     "node-sass-import-once": "1.2.0",
     "npm-run-all": "4.1.5",
     "nyc": "11.4.1",
     "patch-package": "6.4.7",
     "prettier": "^2.2.1",
     "react-docgen-typescript": "1.2.6",
-    "sass-loader": "7.2.0",
+    "sass-loader": "^10.1.1",
     "sinon": "11.1.1",
     "snyk": "1.316.1",
-    "spectron": "5.0.0",
+    "spectron": "^13.0.0",
     "style-loader": "1.0.0",
     "terser-webpack-plugin": "5.1.1",
     "ts-loader": "4.1.0",
@@ -298,10 +298,10 @@
     "sharp/color/color-string": "1.5.5"
   },
   "engines": {
-    "node": "14.16.0"
+    "node": "15.14.0"
   },
   "build": {
-    "appId": "org.whispersystems.signal-desktop",
+    "appId": "com.dennisameling.signal-desktop",
     "mac": {
       "asarUnpack": [
         "**/*.node",
@@ -309,7 +309,7 @@
         "node_modules/@signalapp/signal-client/build/*.node",
         "node_modules/mac-screen-capture-permissions/build/Release/*.node"
       ],
-      "artifactName": "${name}-mac-${version}.${ext}",
+      "artifactName": "${name}-mac-${version}-${arch}.${ext}",
       "category": "public.app-category.social-networking",
       "darkModeSupport": true,
       "hardenedRuntime": true,
@@ -335,12 +335,7 @@
         "node_modules/zkgroup/libzkgroup.*",
         "node_modules/@signalapp/signal-client/build/*.node"
       ],
-      "artifactName": "${name}-win-${version}.${ext}",
-      "certificateSubjectName": "Signal Messenger, LLC",
-      "certificateSha1": "8C9A0B5C852EC703D83EF7BFBCEB54B796073759",
-      "signingHashAlgorithms": [
-        "sha256"
-      ],
+      "artifactName": "${name}-win-${version}-${arch}.${ext}",
       "publisherName": "Signal Messenger, LLC",
       "icon": "build/icons/win/icon.ico",
       "publish": [
@@ -354,7 +349,8 @@
       ]
     },
     "nsis": {
-      "deleteAppDataOnUninstall": true
+      "deleteAppDataOnUninstall": true,
+      "include": "build/installer.nsh"
     },
     "linux": {
       "category": "Network;InstantMessaging;Chat",

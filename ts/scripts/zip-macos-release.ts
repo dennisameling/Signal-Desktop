@@ -34,7 +34,9 @@ export function zipMacOSRelease(): void {
   rimraf.sync(zipPath);
 
   const appName = `${packageJSON.productName}.app`;
-  const appPath = path.join('release', 'mac', appName);
+  // On non-x64 systems, the folder is called "mac-arm64" for example
+  const folderName = `mac${process.arch !== 'x64' ? `-${process.arch}` : ''}`;
+  const appPath = path.join('release', folderName, appName);
 
   const tmpPath = path.join('release', 'tmp');
   const appDir = path.dirname(appPath);

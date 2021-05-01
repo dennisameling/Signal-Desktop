@@ -191,7 +191,7 @@ export function getUpdatesBase(): string {
   return config.get('updatesUrl');
 }
 export function getCertificateAuthority(): string {
-  return config.get('certificateAuthority');
+  return config.get('certificateAuthorityUpdates');
 }
 export function getProxyUrl(): string | undefined {
   return process.env.HTTPS_PROXY || process.env.https_proxy;
@@ -199,12 +199,13 @@ export function getProxyUrl(): string | undefined {
 
 export function getUpdatesFileName(): string {
   const prefix = getChannel();
+  const archSuffix = process.arch !== 'x64' ? `-${process.arch}` : '';
 
   if (platform === 'darwin') {
-    return `${prefix}-mac.yml`;
+    return `${prefix}-mac${archSuffix}.yml`;
   }
 
-  return `${prefix}.yml`;
+  return `${prefix}${archSuffix}.yml`;
 }
 
 function getChannel(): string {

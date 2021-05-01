@@ -1,0 +1,43 @@
+version: 2.1
+jobs:
+  build:
+    machine:
+      image: ubuntu-2004:202101-01
+    resource_class: arm.medium
+    steps:
+      - run: uname -a
+      - run: python --version
+      - run: git clone --single-branch --branch multi-arch-support https://github.com/dennisameling/signal-desktop .
+      - run: sudo apt-get install xvfb git-lfs build-essential
+      - run: git lfs install
+      - run:
+          name: Install NodeJS + Yarn
+          command: |
+            nvm install 16.13.2
+            nvm alias default 16.13.2
+            nvm use 16.13.2
+            npm install -g yarn@1.22.10
+      - run: yarn install --frozen-lockfile
+      - run: yarn generate
+      - run: yarn prepare-beta-build
+      - run:
+          command: yarn build
+          environment:
+            DISABLE_INSPECT_FUSE: on
+      - run: xvfb-run --auto-servernum yarn test-node
+      - run:
+          command: xvfb-run --auto-servernum yarn test-electron
+          environment:
+            LANG: en_US
+            LANGUAGE: en_US
+      - run:
+          command: xvfb-run --auto-servernum yarn test-release
+          environment:
+            NODE_ENV: production
+      - store_artifacts:
+          path: "${CIRCLE_WORKING_DIRECTORY}/release/signal-desktop-linux-*"
+
+workflows:
+  signal:
+    jobs:
+      - build

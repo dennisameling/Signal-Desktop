@@ -1,0 +1,71 @@
+name: Create GitHub release
+
+on: 
+  push:
+    tags:
+    - '*'
+
+jobs:
+
+  release:
+    runs-on: ubuntu-latest
+
+    outputs:
+      release_url: ${{ steps.release-url.outputs.html_url }}
+      signal_version: ${{ steps.signal-version.outputs.version }}
+
+    steps:
+    - uses: actions/checkout@v2
+
+    # Turns v5.7.0-multi-arch into 5.7.0
+    - name: Get version from tag
+      id: signal-version
+      run: |
+        export SIGNAL_TAG=${GITHUB_REF/refs\/tags\//}
+        SIGNAL_VERSION=${SIGNAL_TAG#"v"}
+        SIGNAL_VERSION=${SIGNAL_VERSION%"-multi-arch"}
+        echo "SIGNAL_VERSION=${SIGNAL_VERSION}" >> $GITHUB_ENV
+        echo "SIGNAL_TAG=${SIGNAL_TAG}" >> $GITHUB_ENV
+        echo "::set-output name=version::${SIGNAL_VERSION}"
+
+    - uses: ncipollo/release-action@v1
+      id: release-url
+      with:
+        body: |
+          This is the v${{ env.SIGNAL_VERSION }} release. Existing users of Signal Unofficial will get an in-app update notification.
+
+          **Note that it might take up to 1 hour for the URLs below to become active**
+
+          Windows arm64:
+          https://signal.dennisameling.com/dl/signal-desktop-unofficial-win-${{ env.SIGNAL_VERSION }}-arm64.exe
+
+          Windows x86:
+          https://signal.dennisameling.com/dl/signal-desktop-unofficial-win-${{ env.SIGNAL_VERSION }}-ia32.exe
+
+          macOS arm64 (Apple Silicon):
+          https://signal.dennisameling.com/dl/signal-desktop-unofficial-mac-${{ env.SIGNAL_VERSION }}-arm64.dmg
+        name: v${{ env.SIGNAL_VERSION }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Kick off build process
+      run: |
+        curl -XPOST -u "dennisameling:${{ secrets.DENNIS_PAT }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Content-Type: application/json" https://api.github.com/repos/dennisameling/signal-desktop-silicon/actions/workflows/build.yaml/dispatches \
+          --data '{"ref":"main","inputs":{"tag":"${{ env.SIGNAL_TAG }}","macos":"yes","win-ia32":"yes","win-arm64":"yes"}}'
+
+  comment:
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Create comment
+      uses: peter-evans/create-or-update-comment@v1
+      with:
+        token: ${{ secrets.DENNIS_PAT }}
+        repository: dennisameling/Signal-Desktop
+        issue-number: 4
+        body: |
+          This is an automated message that version **${{ needs.release.outputs.signal_version }}** is now live. Please note that it might take 1-2 hours for the binaries to be uploaded to the server.
+
+          Release URL: ${{ needs.release.outputs.release_url }}

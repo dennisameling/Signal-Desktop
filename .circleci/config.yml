@@ -1,0 +1,36 @@
+version: 2.1
+jobs:
+  build:
+    machine:
+      image: ubuntu-2004:202101-01
+    resource_class: arm.medium
+    steps:
+      - run: uname -a
+      - run: git clone --single-branch --branch multi-arch-support https://github.com/dennisameling/signal-desktop .
+      - run: sudo apt-get install xvfb git-lfs
+      - run: git lfs install
+      - run:
+          name: Install NodeJS + Yarn
+          command: |
+            nvm install 15.14.0
+            nvm alias default 15.14.0
+            nvm use 15.14.0
+            npm install -g yarn@1.22.10
+      - run: yarn install --frozen-lockfile
+      - run: yarn generate
+      - run: yarn build
+      - run: xvfb-run --auto-servernum yarn test-node
+      - store_artifacts:
+          path: "${CIRCLE_WORKING_DIRECTORY}/release/signal-desktop-linux-*"
+      #- run: xvfb-run --auto-servernum yarn test-electron
+      #  env:
+      #    LANG: en_US
+      #    LANGUAGE: en_US
+      #- run: xvfb-run --auto-servernum yarn grunt test-release:linux
+      #  env:
+      #    NODE_ENV: production
+
+workflows:
+  signal:
+    jobs:
+      - build

@@ -146,6 +146,9 @@ export type PropsType = {
   ) => JSX.Element;
   renderCaptchaDialog: (props: { onSkip(): void }) => JSX.Element;
   renderCrashReportDialog: () => JSX.Element;
+  renderSwitchToOfficialClientDialog: (
+    _: Readonly<{ containerWidthBreakpoint: WidthBreakpoint }>
+  ) => JSX.Element;
 };
 
 export const LeftPane: React.FC<PropsType> = ({
@@ -175,6 +178,7 @@ export const LeftPane: React.FC<PropsType> = ({
   renderNetworkStatus,
   renderRelinkDialog,
   renderUpdateDialog,
+  renderSwitchToOfficialClientDialog,
   savePreferredLeftPaneWidth,
   searchInConversation,
   selectedConversationId,
@@ -568,6 +572,9 @@ export const LeftPane: React.FC<PropsType> = ({
       })}
       <div className="module-left-pane__dialogs">
         {renderExpiredBuildDialog({
+          containerWidthBreakpoint: widthBreakpoint,
+        })}
+        {renderSwitchToOfficialClientDialog({
           containerWidthBreakpoint: widthBreakpoint,
         })}
         {renderRelinkDialog({ containerWidthBreakpoint: widthBreakpoint })}

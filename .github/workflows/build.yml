@@ -1,0 +1,289 @@
+# We use this workflow with self-hosted runners at https://github.com/dennisameling/signal-desktop-silicon (private repo)
+name: Build Signal Desktop
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The tag at dennisameling/signal-desktop that you want to build'
+        required: false
+        default: ''
+      macos:
+        description: 'Run on macOS (Apple Silicon)? Type "yes"'
+        required: false
+        default: ''
+      macos-x64:
+        description: 'Run on macOS x64? Type "yes"'
+        required: false
+        default: ''
+      win-ia32:
+        description: 'Run on Windows 32-bit? Type "yes"'
+        required: false
+        default: ''
+      win-arm64:
+        description: 'Run on Windows arm64? Type "yes"'
+        required: false
+        default: ''
+
+jobs:
+  macos:
+    if: github.event.inputs.tag != '' && github.event.inputs.macos == 'yes'
+    defaults:
+      run:
+        shell: "/usr/bin/arch -arch arm64e /bin/bash --noprofile --norc -eo pipefail {0}"
+
+    runs-on: [self-hosted, macOS]
+
+    env:
+      CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        repository: dennisameling/signal-desktop
+        ref: ${{ github.event.inputs.tag }}
+
+    - name: Add custom node version to path
+      run: echo "$HOME/.nodenv/versions/15.14.0/bin" >> $GITHUB_PATH
+
+    - name: Install yarn
+      run: |
+        mkdir -p yarn/node_modules
+        npm install --prefix ./yarn yarn
+        echo "./yarn/node_modules/yarn/bin" >> $GITHUB_PATH
+
+    - name: Install Desktop node_modules
+      run: yarn install --frozen-lockfile
+      
+    
+    - name: Fix electron codesigning broken by @electron/fuse
+      run: |
+        cp -R ./node_modules/electron/dist/Electron.app ./node_modules/electron/dist/Electron.bak
+        rm -r ./node_modules/electron/dist/Electron.app
+        mv ./node_modules/electron/dist/Electron.bak ./node_modules/electron/dist/Electron.app
+        codesign --deep --force -s - ./node_modules/electron/dist/Electron.app
+
+    - run: yarn generate
+    - run: yarn build
+    - run: yarn test-node
+    - name: Prepare release signing
+      run: |
+        echo ${{ secrets.SIGN_RELEASE_PUBLIC_KEY }} >> public.key
+        echo ${{ secrets.SIGN_RELEASE_PRIVATE_KEY }} >> private.key
+    - run: yarn sign-release
+
+    # Notarize build
+    - run: yarn notarize
+      env:
+        APPLE_USERNAME: ${{ secrets.NOTARIZATION_USERNAME }}
+        APPLE_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }}
+      
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: signal-desktop-apple-silicon
+        path: |
+          release/*.dmg
+          release/*.zip
+          release/*.blockmap
+          release/*.sig
+          release/latest*.yml
+    # Temp disabled due to issues with Spectron upgrade
+    #- run: yarn test-electron
+    #- run: yarn grunt test-release:osx
+    #  env:
+    #    NODE_ENV: production
+    
+  macos-x64:
+    if: github.event.inputs.tag != '' && github.event.inputs.macos-x64 == 'yes'
+
+    runs-on: [macos-latest]
+
+    env:
+      CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        repository: dennisameling/signal-desktop
+        ref: ${{ github.event.inputs.tag }}
+
+    - uses: actions/setup-node@v2
+      with:
+        node-version: '15.14.0'
+
+    - name: Install yarn
+      run: npm i -g yarn
+
+    - name: Install Desktop node_modules
+      run: yarn install --frozen-lockfile
+
+    - run: yarn generate
+    - run: yarn build
+    - run: yarn test-node
+    - name: Prepare release signing
+      run: |
+        echo ${{ secrets.SIGN_RELEASE_PUBLIC_KEY }} >> public.key
+        echo ${{ secrets.SIGN_RELEASE_PRIVATE_KEY }} >> private.key
+    - run: yarn sign-release
+    
+    # Notarize build
+    - run: yarn notarize
+      env:
+        APPLE_USERNAME: ${{ secrets.NOTARIZATION_USERNAME }}
+        APPLE_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }}
+      
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: signal-desktop-mac-x64
+        path: |
+          release/*.dmg
+          release/*.zip
+          release/*.blockmap
+          release/*.sig
+          release/latest*.yml
+    # Temp disabled due to issues with Spectron upgrade
+    #- run: yarn test-electron
+    #- run: yarn grunt test-release:osx
+    #  env:
+    #    NODE_ENV: production
+
+  win-ia32:
+    if: github.event.inputs.tag != '' && github.event.inputs.win-ia32 == 'yes'
+
+    runs-on: [self-hosted, Windows, X86]
+
+    env:
+      CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        repository: dennisameling/signal-desktop
+        ref: ${{ github.event.inputs.tag }}
+
+    - uses: actions/setup-node@v2
+      with:
+        node-version: '15.14.0'
+        architecture: x86
+
+    - run: npm install -g yarn
+
+    - name: Install Desktop node_modules
+      run: yarn install --frozen-lockfile
+
+    - run: yarn generate
+    - run: yarn build
+    - run: yarn test-node
+    - name: Prepare release signing
+      shell: bash
+      run: |
+        echo ${{ secrets.SIGN_RELEASE_PUBLIC_KEY }} >> public.key
+        echo ${{ secrets.SIGN_RELEASE_PRIVATE_KEY }} >> private.key
+    - run: yarn sign-release
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: signal-desktop-win-ia32
+        path: |
+          release/*.exe
+          release/*.exe.sig
+          release/latest*.yml
+    - name: Kill leftover Electron.exe processes
+      run: Get-Process "electron" | Stop-Process
+    # Temp disabled due to issues with Spectron upgrade
+    #- run: yarn test-electron
+    #- run: yarn grunt test-release:osx
+    #  env:
+    #    NODE_ENV: production
+
+  win-arm64:
+    if: github.event.inputs.tag != '' && github.event.inputs.win-arm64 == 'yes'
+
+    runs-on: [self-hosted, Windows, ARM64]
+
+    env:
+      CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        repository: dennisameling/signal-desktop
+        ref: ${{ github.event.inputs.tag }}
+
+    # We've built + installed Node 15.14.0 + yarn manually on arm64, since NodeJS
+    # isn't providing pre-built binaries yet (though they guarantee them to build, so we built it ourselves)
+
+    # Waiting for prebuilt arm64 node.lib: https://github.com/nodejs/build/issues/2450
+    # For now compiled manually
+    - name: Download arm64 node.lib
+      run: |
+        $nodePath = "C:\Windows\ServiceProfiles\NetworkService\AppData\Local\node-gyp\Cache\15.14.0\arm64"
+        If(!(test-path $nodePath))
+        {
+          New-Item -ItemType Directory -Force -Path $nodePath
+          Invoke-WebRequest https://github.com/dennisameling/signal-native-deps/releases/download/0.1/node.lib -OutFile "$($nodePath)\node.lib"
+        }
+
+    - name: Install Desktop node_modules
+      run: yarn install --frozen-lockfile
+
+    # PR to add this to 7zip-bin: https://github.com/develar/7zip-bin/pull/13
+    - name: Download and add 7za.exe for arm64
+      run: |
+        $zipPath = ".\node_modules\7zip-bin\win\arm64"
+        If(!(test-path $zipPath))
+        {
+          New-Item -ItemType Directory -Force -Path $zipPath
+          Invoke-WebRequest https://github.com/dennisameling/signal-native-deps/releases/download/0.1/7za.exe -OutFile "$($zipPath)\7za.exe"
+        }
+
+    # TODO create PR for native signtool
+    - name: Use x86 signtool on Windows arm64 (lacks native version)
+      run: |
+        $codesignPath = "C:\Windows\ServiceProfiles\NetworkService\AppData\Local\electron-builder\Cache\winCodeSign"
+        $signtoolPath = "$($codesignPath)\winCodeSign-2.6.0\windows-10"
+        If(!(test-path "$($signtoolPath)\arm64"))
+        {
+          New-Item -ItemType Directory -Force -Path $codesignPath
+          Invoke-WebRequest https://github.com/dennisameling/signal-native-deps/releases/download/0.1/winCodeSign-2.6.0.zip -OutFile "$($codesignPath)\winCodeSign-2.6.0.zip"
+          Expand-Archive -LiteralPath "$($codesignPath)\winCodeSign-2.6.0.zip" -DestinationPath $codesignPath
+          Copy-Item -Path "$($signtoolPath)\ia32\*" -Destination "$($signtoolPath)\arm64" -PassThru -Recurse
+        }
+
+    - run: yarn generate
+    - run: yarn build
+    - name: Prepare release signing
+      shell: bash
+      run: |
+        echo ${{ secrets.SIGN_RELEASE_PUBLIC_KEY }} >> public.key
+        echo ${{ secrets.SIGN_RELEASE_PRIVATE_KEY }} >> private.key
+    - run: yarn sign-release
+    - run: yarn test-node
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: signal-desktop-win-arm64
+        path: |
+          release/*.exe
+          release/*.exe.sig
+          release/latest*.yml
+    - name: Kill leftover Electron.exe processes
+      run: Get-Process "electron" | Stop-Process
+    # Temp disabled due to issues with Spectron upgrade
+    #- run: yarn test-electron
+    #- run: yarn grunt test-release:osx
+    #  env:
+    #    NODE_ENV: production

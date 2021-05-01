@@ -19,7 +19,7 @@ export function getProxyUrl(): string | undefined {
 }
 
 export function getCertificateAuthority(): string {
-  return config.get('certificateAuthority');
+  return config.get('certificateAuthorityUpdates');
 }
 
 export function getGotOptions(): GotOptions {

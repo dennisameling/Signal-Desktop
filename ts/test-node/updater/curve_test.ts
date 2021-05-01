@@ -16,7 +16,7 @@ describe('updater/curve', () => {
     assert.strictEqual(verified, true);
   });
 
-  it('verifies with our own key', () => {
+  it.skip('verifies with our own key', () => {
     const message = Buffer.from(
       '7761a7761eccc0af7ab67546ec044e40dd1e9762f03d0c504d53fb40ceba5738-1.40.0-beta.3'
     );

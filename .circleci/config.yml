@@ -1,0 +1,33 @@
+version: 2.1
+jobs:
+  build:
+    type: approval
+    machine:
+      image: ubuntu-2004:202101-01
+    resource_class: arm.medium
+    steps:
+      - checkout
+      - run: uname -a
+      - run: sudo apt-get install xvfb
+      - run: nvm install 14.16.0
+      - run: nvm use 14.16.0
+      - run: npm install -g yarn@1.22.10
+      - run: yarn install --frozen-lockfile
+      - run: yarn generate
+      - run: yarn build
+      - run: xvfb-run --auto-servernum yarn test-node
+      - store_artifacts:
+          path: "${CIRCLE_WORKING_DIRECTORY}/release/signal-desktop-linux-*.dmg"
+      #- run: xvfb-run --auto-servernum yarn test-electron
+      #  env:
+      #    LANG: en_US
+      #    LANGUAGE: en_US
+      #- run: xvfb-run --auto-servernum yarn grunt test-release:linux
+      #  env:
+      #    NODE_ENV: production
+
+workflows:
+  signal:
+    jobs:
+      - build:
+          type: approval

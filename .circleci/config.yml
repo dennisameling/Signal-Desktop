@@ -28,5 +28,4 @@ jobs:
 workflows:
   signal:
     jobs:
-      - build:
-          type: approval
+      - build

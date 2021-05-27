@@ -7,7 +7,8 @@ jobs:
     steps:
       - checkout
       - run: uname -a
-      - run: sudo apt-get install xvfb
+      - run: sudo apt-get install xvfb git-lfs
+      - run: git lfs install
       - run:
           name: Install NodeJS + Yarn
           command: |

@@ -4006,7 +4006,7 @@
         "description": "Shown if you click a group link and we can't get information about it"
     },
     "GroupV2--join--link-revoked--title": {
-        "message": "Nu se poate realiza alăturarea la grup.",
+        "message": "Alăturarea la grup nu se poate realiza",
         "description": "Shown if you click a group link and we can't get information about it"
     },
     "GroupV2--join--link-revoked": {

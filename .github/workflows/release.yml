@@ -52,7 +52,7 @@ jobs:
         curl -XPOST -u "dennisameling:${{ secrets.DENNIS_PAT }}" \
           -H "Accept: application/vnd.github.v3+json" \
           -H "Content-Type: application/json" https://api.github.com/repos/dennisameling/signal-desktop-silicon/actions/workflows/build.yaml/dispatches \
-          --data '{"ref":"main","inputs":{"tag":"${{ env.SIGNAL_TAG }}","macos":"yes","win-ia32":"yes","win-arm64":"yes"}}'
+          --data '{"ref":"main","inputs":{"tag":"${{ env.SIGNAL_TAG }}","macos":"yes","win-all":"yes"}}'
 
   comment:
     needs: release

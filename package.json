@@ -382,7 +382,13 @@
         "node_modules/sharp"
       ],
       "target": [
-        "deb"
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "build/icons/png"
     },

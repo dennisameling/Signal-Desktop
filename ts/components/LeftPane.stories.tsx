@@ -151,6 +151,7 @@ const useProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
       eraseCrashReports={action('eraseCrashReports')}
     />
   ),
+  renderSwitchToOfficialClientDialog: () => <div />,
   selectedConversationId: undefined,
   selectedMessageId: undefined,
   savePreferredLeftPaneWidth: action('savePreferredLeftPaneWidth'),

@@ -58,6 +58,7 @@ import { SmartRelinkDialog } from './RelinkDialog';
 import { SmartUpdateDialog } from './UpdateDialog';
 import { SmartCaptchaDialog } from './CaptchaDialog';
 import { SmartCrashReportDialog } from './CrashReportDialog';
+import { SmartSwitchToOfficialClientDialog } from './SwitchToOfficialClientDialog';
 
 function renderExpiredBuildDialog(
   props: Readonly<{ containerWidthBreakpoint: WidthBreakpoint }>
@@ -90,6 +91,11 @@ function renderCaptchaDialog({ onSkip }: { onSkip(): void }): JSX.Element {
 }
 function renderCrashReportDialog(): JSX.Element {
   return <SmartCrashReportDialog />;
+}
+function renderSwitchToOfficialClientDialog(
+  props: Readonly<{ containerWidthBreakpoint: WidthBreakpoint }>
+): JSX.Element {
+  return <SmartSwitchToOfficialClientDialog {...props} />;
 }
 
 const getModeSpecificProps = (
@@ -194,6 +200,7 @@ const mapStateToProps = (state: StateType) => {
     renderUpdateDialog,
     renderCaptchaDialog,
     renderCrashReportDialog,
+    renderSwitchToOfficialClientDialog,
     theme: getTheme(state),
   };
 };

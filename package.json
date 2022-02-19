@@ -87,7 +87,7 @@
     "array-move": "2.1.0",
     "axe-core": "4.1.4",
     "backbone": "1.4.0",
-    "better-sqlite3": "https://github.com/dennisameling/better-sqlite3#a072df9d9d2382c5a13a34cc3f222fb6e12ee246",
+    "better-sqlite3": "https://github.com/dennisameling/better-sqlite3#9f75e03191aaad589b9fc5dd0892b46565dd59bd",
     "bezier-easing": "2.1.0",
     "blob-util": "2.0.2",
     "blueimp-load-image": "5.14.0",

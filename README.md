@@ -2,7 +2,11 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Signal Unofficial (arm64)
 
-This repository is a fork of the official Signal destop with added support for arm64 on Windows and Apple Silicon you can download our [releases](https://github.com/dennisameling/Signal-Desktop/releases) for your device.
+This repository is a fork of the official Signal destop with added support for arm64 on Windows and Linux. You can download our [releases](https://github.com/dennisameling/Signal-Desktop/releases) for your device.
+
+On Linux ARM64, use the Pi-Apps store to keep it up to date.  
+[![badge](https://github.com/Botspot/pi-apps/blob/master/icons/badge.png?raw=true)](https://github.com/Botspot/pi-apps)  
+Pi-Apps will monitor this repo for new releases and will request to install new versions from here as they become available.  
 
 ## Ending support for Signal Unofficial on macOS
 

@@ -1,10 +1,16 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 package signalservice;
 
 option java_package         = "org.whispersystems.signalservice.internal.storage";
 option java_outer_classname = "SignalStorageProtos";
+
+enum OptionalBool {
+  UNSET = 0;
+  ENABLED = 1;
+  DISABLED = 2;
+}
 
 message StorageManifest  {
   optional uint64 version = 1;
@@ -39,14 +45,19 @@ message ManifestRecord {
       GROUPV1 = 2;
       GROUPV2 = 3;
       ACCOUNT = 4;
+      STORY_DISTRIBUTION_LIST = 5;
+      STICKER_PACK = 6;
+      CALL_LINK = 7;
     }
 
     optional bytes raw  = 1;
     optional Type  type = 2;
   }
 
-  optional uint64     version = 1;
-  repeated Identifier keys    = 2;
+  optional uint64      version = 1;
+  optional uint32 sourceDevice = 3;
+  repeated Identifier     keys = 2;
+  // Next ID: 4
 }
 
 message StorageRecord {
@@ -55,30 +66,47 @@ message StorageRecord {
     GroupV1Record groupV1 = 2;
     GroupV2Record groupV2 = 3;
     AccountRecord account = 4;
+    StoryDistributionListRecord storyDistributionList = 5;
+    StickerPackRecord stickerPack = 6;
+    CallLinkRecord callLink = 7;
   }
 }
 
 message ContactRecord {
   enum IdentityState {
-    DEFAULT    = 0;
-    VERIFIED   = 1;
+    DEFAULT = 0;
+    VERIFIED = 1;
     UNVERIFIED = 2;
   }
 
-  optional string        serviceUuid         = 1;
-  optional string        serviceE164         = 2;
-  optional bytes         profileKey          = 3;
-  optional bytes         identityKey         = 4;
-  optional IdentityState identityState       = 5;
-  optional string        givenName           = 6;
-  optional string        familyName          = 7;
-  optional string        username            = 8;
-  optional bool          blocked             = 9;
-  optional bool          whitelisted         = 10;
-  optional bool          archived            = 11;
-  optional bool          markedUnread        = 12;
-  optional uint64        mutedUntilTimestamp = 13;
-  optional bool          hideStory           = 14;
+  message Name {
+    optional string given = 1;
+    optional string family = 2;
+  }
+
+  optional string aci = 1;
+  optional string serviceE164 = 2;
+  optional string pni = 15;
+  optional bytes profileKey = 3;
+  optional bytes identityKey = 4;
+  optional IdentityState identityState = 5;
+  optional string givenName = 6;
+  optional string familyName = 7;
+  optional string username = 8;
+  optional bool blocked = 9;
+  optional bool whitelisted = 10;
+  optional bool archived = 11;
+  optional bool markedUnread = 12;
+  optional uint64 mutedUntilTimestamp = 13;
+  optional bool hideStory = 14;
+  optional uint64 unregisteredAtTimestamp = 16;
+  optional string systemGivenName = 17;
+  optional string systemFamilyName = 18;
+  optional string systemNickname = 19;
+  optional bool hidden = 20;
+  optional bool pniSignatureVerified = 21;
+  optional Name nickname = 22;
+  optional string note = 23;
 }
 
 message GroupV1Record {
@@ -91,26 +119,34 @@ message GroupV1Record {
 }
 
 message GroupV2Record {
-  optional bytes  masterKey                    = 1;
-  optional bool   blocked                      = 2;
-  optional bool   whitelisted                  = 3;
-  optional bool   archived                     = 4;
-  optional bool   markedUnread                 = 5;
-  optional uint64 mutedUntilTimestamp          = 6;
-  optional bool   dontNotifyForMentionsIfMuted = 7;
-  optional bool   hideStory                    = 8;
+  enum StorySendMode {
+    DEFAULT = 0;
+    DISABLED = 1;
+    ENABLED = 2;
+  }
+
+  optional bytes masterKey = 1;
+  optional bool blocked = 2;
+  optional bool whitelisted = 3;
+  optional bool archived = 4;
+  optional bool markedUnread = 5;
+  optional uint64 mutedUntilTimestamp = 6;
+  optional bool dontNotifyForMentionsIfMuted = 7;
+  optional bool hideStory = 8;
+  reserved /* storySendEnabled */ 9; // removed
+  optional StorySendMode storySendMode = 10;
 }
 
 message AccountRecord {
   enum PhoneNumberSharingMode {
-    EVERYBODY     = 0;
-    CONTACTS_ONLY = 1;
+    UNKNOWN     = 0;
+    EVERYBODY = 1;
     NOBODY        = 2;
   }
 
   message PinnedConversation {
     message Contact {
-      optional string uuid = 1;
+      optional string serviceId = 1;
       optional string e164 = 2;
     }
 
@@ -121,26 +157,96 @@ message AccountRecord {
     }
   }
 
-  optional bytes                  profileKey                   = 1;
-  optional string                 givenName                    = 2;
-  optional string                 familyName                   = 3;
-  optional string                 avatarUrl                    = 4;
-  optional bool                   noteToSelfArchived           = 5;
-  optional bool                   readReceipts                 = 6;
-  optional bool                   sealedSenderIndicators       = 7;
-  optional bool                   typingIndicators             = 8;
-  optional bool                   proxiedLinkPreviews          = 9;
-  optional bool                   noteToSelfMarkedUnread       = 10;
-  optional bool                   linkPreviews                 = 11;
-  optional PhoneNumberSharingMode phoneNumberSharingMode       = 12;
-  optional bool                   notDiscoverableByPhoneNumber = 13;
-  repeated PinnedConversation     pinnedConversations          = 14;
-  optional bool                   preferContactAvatars         = 15;
-  optional uint32                 universalExpireTimer         = 17;
-  optional bool                   primarySendsSms              = 18;
-  optional string                 e164                         = 19;
-  repeated string                 preferredReactionEmoji       = 20;
-  optional bytes                  subscriberId                 = 21;
-  optional string                 subscriberCurrencyCode       = 22;
-  optional bool                   displayBadgesOnProfile       = 23;
+  message UsernameLink {
+    enum Color {
+      UNKNOWN = 0;
+      BLUE = 1;
+      WHITE = 2;
+      GREY = 3;
+      OLIVE = 4;
+      GREEN = 5;
+      ORANGE = 6;
+      PINK = 7;
+      PURPLE = 8;
+    }
+
+    optional bytes entropy = 1; // 32 bytes of entropy used for encryption
+    optional bytes serverId = 2; // 16 bytes of encoded UUID provided by the server
+    optional Color color = 3; // color of the QR code itself
+  }
+
+  optional bytes profileKey = 1;
+  optional string givenName = 2;
+  optional string familyName = 3;
+  optional string avatarUrl = 4;
+  optional bool noteToSelfArchived = 5;
+  optional bool readReceipts = 6;
+  optional bool sealedSenderIndicators = 7;
+  optional bool typingIndicators = 8;
+  reserved 9; // proxiedLinkPreviews
+  optional bool noteToSelfMarkedUnread = 10;
+  optional bool linkPreviews = 11;
+  optional PhoneNumberSharingMode phoneNumberSharingMode = 12;
+  optional bool notDiscoverableByPhoneNumber = 13;
+  repeated PinnedConversation pinnedConversations = 14;
+  optional bool preferContactAvatars = 15;
+  optional uint32 universalExpireTimer = 17;
+  optional bool primarySendsSms = 18;
+  reserved 19; // deprecatedE164
+  repeated string preferredReactionEmoji = 20;
+  optional bytes subscriberId = 21;
+  optional string subscriberCurrencyCode = 22;
+  optional bool displayBadgesOnProfile = 23;
+  optional bool donorSubscriptionManuallyCancelled = 24;
+  optional bool keepMutedChatsArchived = 25;
+  optional bool hasSetMyStoriesPrivacy = 26;
+  optional bool hasViewedOnboardingStory = 27;
+  reserved 28; // deprecatedStoriesDisabled
+  optional bool storiesDisabled = 29;
+  optional OptionalBool storyViewReceiptsEnabled = 30;
+  reserved 31; // hasReadOnboardingStory
+  optional bool hasSeenGroupStoryEducationSheet = 32;
+  optional string username = 33;
+  optional bool hasCompletedUsernameOnboarding = 34;
+  optional UsernameLink usernameLink = 35;
+  optional bytes backupsSubscriberId = 36;
+  optional string backupsSubscriberCurrencyCode = 37;
+  optional bool backupsSubscriptionManuallyCancelled = 38;
+}
+
+message StoryDistributionListRecord {
+  optional bytes identifier = 1;
+  optional string name = 2;
+  repeated string recipientServiceIds = 3;
+  optional uint64 deletedAtTimestamp = 4;
+  optional bool allowsReplies = 5;
+  optional bool isBlockList = 6;
+}
+
+message StickerPackRecord {
+  optional bytes packId = 1; // 16 bytes
+  optional bytes packKey = 2; // 32 bytes, used to derive the AES-256 key
+                              // aesKey = HKDF(
+                              //   input = packKey,
+                              //   salt = 32 zero bytes,
+                              //   info = "Sticker Pack"
+                              // )
+  optional uint32 position = 3; // When displayed sticker packs should be first sorted
+                                // in descending order by zero-based `position` and
+                                // then by ascending `packId` (lexicographically,
+                                // packId can be treated as a hex string).
+                                // When installing a sticker pack the client should find
+                                // the maximum `position` among currently known stickers
+                                // and use `max_position + 1` as the value for the new
+                                // `position`.
+  optional uint64 deletedAtTimestamp = 4; // Timestamp in milliseconds. When present and
+                                          // non-zero - `packKey` and `position` should
+                                          // be unset
+}
+
+message CallLinkRecord {
+  optional bytes rootKey = 1; // 16 bytes
+  optional bytes adminPasskey = 2; // Non-empty when the current user is an admin
+  optional uint64 deletedAtTimestampMs = 3; // When present and non-zero, `adminPasskey`
+                                            // should be cleared
 }

@@ -1,14 +1,14 @@
-// Copyright 2017-2021 Signal Messenger, LLC
+// Copyright 2017 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { join } from 'path';
 import type { BrowserWindow, NativeImage } from 'electron';
 import { Menu, Tray, app, nativeImage } from 'electron';
 import * as log from '../ts/logging/log';
-import type { LocaleMessagesType } from '../ts/types/I18N';
+import type { LocalizerType } from '../ts/types/I18N';
 
 export type SystemTrayServiceOptionsType = Readonly<{
-  messages: LocaleMessagesType;
+  i18n: LocalizerType;
 
   // For testing
   createTrayInstance?: (icon: NativeImage) => Tray;
@@ -24,7 +24,7 @@ export type SystemTrayServiceOptionsType = Readonly<{
 export class SystemTrayService {
   private browserWindow?: BrowserWindow;
 
-  private readonly messages: LocaleMessagesType;
+  private readonly i18n: LocalizerType;
 
   private tray?: Tray;
 
@@ -38,9 +38,9 @@ export class SystemTrayService {
 
   private createTrayInstance: (icon: NativeImage) => Tray;
 
-  constructor({ messages, createTrayInstance }: SystemTrayServiceOptionsType) {
+  constructor({ i18n, createTrayInstance }: SystemTrayServiceOptionsType) {
     log.info('System tray service: created');
-    this.messages = messages;
+    this.i18n = i18n;
     this.boundRender = this.render.bind(this);
     this.createTrayInstance = createTrayInstance || (icon => new Tray(icon));
   }
@@ -117,6 +117,10 @@ export class SystemTrayService {
     this.isQuitting = true;
   }
 
+  isVisible(): boolean {
+    return this.tray !== undefined;
+  }
+
   private render(): void {
     if (this.isEnabled && this.browserWindow) {
       this.renderEnabled();
@@ -155,7 +159,7 @@ export class SystemTrayService {
           id: 'toggleWindowVisibility',
           ...(browserWindow?.isVisible()
             ? {
-                label: this.messages.hide.message,
+                label: this.i18n('icu:hide'),
                 click: () => {
                   log.info(
                     'System tray service: hiding the window from the context menu'
@@ -167,21 +171,21 @@ export class SystemTrayService {
                 },
               }
             : {
-                label: this.messages.show.message,
+                label: this.i18n('icu:show'),
                 click: () => {
                   log.info(
                     'System tray service: showing the window from the context menu'
                   );
                   if (this.browserWindow) {
                     this.browserWindow.show();
-                    forceOnTop(this.browserWindow);
+                    focusAndForceToTop(this.browserWindow);
                   }
                 },
               }),
         },
         {
           id: 'quit',
-          label: this.messages.quit.message,
+          label: this.i18n('icu:quit'),
           click: () => {
             log.info(
               'System tray service: quitting the app from the context menu'
@@ -219,13 +223,15 @@ export class SystemTrayService {
       if (!browserWindow) {
         return;
       }
-      if (!browserWindow.isVisible()) {
+      if (browserWindow.isVisible()) {
+        browserWindow.hide();
+      } else {
         browserWindow.show();
+        focusAndForceToTop(browserWindow);
       }
-      forceOnTop(browserWindow);
     });
 
-    result.setToolTip(this.messages.signalDesktop.message);
+    result.setToolTip(this.i18n('icu:signalDesktop'));
 
     return result;
   }
@@ -245,6 +251,7 @@ function getIcon(unreadCount: number) {
     case 'darwin':
       iconSize = '16';
       break;
+    case 'linux':
     case 'win32':
       iconSize = '32';
       break;
@@ -267,7 +274,7 @@ function getDefaultIcon(): NativeImage {
   return defaultIcon;
 }
 
-function forceOnTop(browserWindow: BrowserWindow) {
+export function focusAndForceToTop(browserWindow: BrowserWindow): void {
   // On some versions of GNOME the window may not be on top when restored.
   // This trick should fix it.
   // Thanks to: https://github.com/Enrico204/Whatsapp-Desktop/commit/6b0dc86b64e481b455f8fce9b4d797e86d000dc1

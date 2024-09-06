@@ -2,129 +2,138 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
+import { pick } from 'lodash';
 import { getDefaultConversation } from '../helpers/getDefaultConversation';
+import { filterAndSortConversations } from '../../util/filterAndSortConversations';
+import type { ConversationType } from '../../state/ducks/conversations';
 
-import {
-  filterAndSortConversationsByTitle,
-  filterAndSortConversationsByRecent,
-} from '../../util/filterAndSortConversations';
+type CheckProps = Pick<ConversationType, 'title' | 'activeAt' | 'e164'>;
 
-describe('filterAndSortConversationsByTitle', () => {
-  const conversations = [
-    getDefaultConversation({
-      title: '+16505551234',
-      e164: '+16505551234',
-      name: undefined,
-      profileName: undefined,
-    }),
-    getDefaultConversation({
-      name: 'Carlos Santana',
-      title: 'Carlos Santana',
-      e164: '+16505559876',
-      username: 'thisismyusername',
-    }),
-    getDefaultConversation({
-      name: 'Aaron Aardvark',
-      title: 'Aaron Aardvark',
-    }),
-    getDefaultConversation({
-      name: 'Belinda Beetle',
-      title: 'Belinda Beetle',
-    }),
-    getDefaultConversation({
-      name: 'Belinda Zephyr',
-      title: 'Belinda Zephyr',
-    }),
-  ];
+function check({
+  searchTerm,
+  input,
+  expected,
+}: {
+  searchTerm: string;
+  input: Array<CheckProps>;
+  expected: Array<CheckProps>;
+}) {
+  const conversations = input.map(props => {
+    return getDefaultConversation(props);
+  });
+  const results = filterAndSortConversations(conversations, searchTerm, 'US');
+  const actual = results.map(convo => {
+    return pick(convo, 'title', 'activeAt');
+  });
+  assert.sameDeepMembers(actual, expected);
+}
 
-  it('without a search term, sorts conversations by title (but puts no-name contacts at the bottom)', () => {
-    const titles = filterAndSortConversationsByTitle(
-      conversations,
-      '',
-      'US'
-    ).map(contact => contact.title);
-    assert.deepEqual(titles, [
-      'Aaron Aardvark',
-      'Belinda Beetle',
-      'Belinda Zephyr',
-      'Carlos Santana',
-      '+16505551234',
-    ]);
+describe('filterAndSortConversations', () => {
+  it('finds a conversation by title', () => {
+    check({
+      searchTerm: 'yes',
+      input: [{ title: 'no' }, { title: 'yes' }, { title: 'no' }],
+      expected: [{ title: 'yes' }],
+    });
   });
 
-  it('can search for contacts by title', () => {
-    const titles = filterAndSortConversationsByTitle(
-      conversations,
-      'belind',
-      'US'
-    ).map(contact => contact.title);
-    assert.sameMembers(titles, ['Belinda Beetle', 'Belinda Zephyr']);
+  it('finds a conversation when the search term is at the end of a long title', () => {
+    check({
+      searchTerm: 'burrito',
+      input: [
+        { title: 'no' },
+        {
+          title: 'A long long long title ending with burrito',
+        },
+        { title: 'no' },
+      ],
+      expected: [
+        {
+          title: 'A long long long title ending with burrito',
+        },
+      ],
+    });
   });
 
-  it('can search for contacts by phone number (and puts no-name contacts at the bottom)', () => {
-    const titles = filterAndSortConversationsByTitle(
-      conversations,
-      '650555',
-      'US'
-    ).map(contact => contact.title);
-    assert.sameMembers(titles, ['Carlos Santana', '+16505551234']);
+  it('finds a conversation by phone number', () => {
+    check({
+      searchTerm: '9876',
+      input: [
+        { title: 'no', e164: undefined },
+        { title: 'yes', e164: '+16505559876' },
+        { title: 'no', e164: undefined },
+      ],
+      expected: [{ title: 'yes' }],
+    });
   });
 
-  it('can search for contacts by formatted phone number (and puts no-name contacts at the bottom)', () => {
-    const titles = filterAndSortConversationsByTitle(
-      conversations,
-      '(650)555 12-34',
-      'US'
-    ).map(contact => contact.title);
-    assert.sameMembers(titles, ['+16505551234']);
+  describe('no search term', () => {
+    it('sorts by recency first', () => {
+      check({
+        searchTerm: '',
+        input: [
+          { title: 'B', activeAt: 2 },
+          { title: 'A', activeAt: 1 },
+          { title: 'C', activeAt: 3 },
+        ],
+        expected: [
+          { title: 'C', activeAt: 3 },
+          { title: 'B', activeAt: 2 },
+          { title: 'A', activeAt: 1 },
+        ],
+      });
+    });
+
+    it('falls back to alphabetically', () => {
+      check({
+        searchTerm: '',
+        input: [
+          { title: 'B', activeAt: 2 },
+          { title: 'A', activeAt: 2 },
+          { title: 'C', activeAt: 3 },
+        ],
+        expected: [
+          { title: 'C', activeAt: 3 },
+          { title: 'A', activeAt: 2 },
+          { title: 'B', activeAt: 2 },
+        ],
+      });
+    });
   });
 
-  it('can search for contacts by username', () => {
-    const titles = filterAndSortConversationsByTitle(
-      conversations,
-      'thisis',
-      'US'
-    ).map(contact => contact.title);
-    assert.sameMembers(titles, ['Carlos Santana']);
-  });
-});
+  describe('with search term', () => {
+    it('sorts by recency first', () => {
+      check({
+        searchTerm: 'yes',
+        input: [
+          { title: 'no' },
+          { title: 'yes B', activeAt: 2 },
+          { title: 'yes A', activeAt: 1 },
+          { title: 'yes C', activeAt: 3 },
+        ],
+        expected: [
+          { title: 'yes C', activeAt: 3 },
+          { title: 'yes B', activeAt: 2 },
+          { title: 'yes A', activeAt: 1 },
+        ],
+      });
+    });
 
-describe('filterAndSortConversationsByRecent', () => {
-  const conversations = [
-    getDefaultConversation({
-      title: '+16505551234',
-      activeAt: 1,
-    }),
-    getDefaultConversation({
-      title: 'Abraham Lincoln',
-      activeAt: 4,
-    }),
-    getDefaultConversation({
-      title: 'Boxing Club',
-      activeAt: 3,
-    }),
-    getDefaultConversation({
-      title: 'Not recent',
-    }),
-    getDefaultConversation({
-      title: 'George Washington',
-      e164: '+16505559876',
-      activeAt: 2,
-    }),
-  ];
-
-  it('sorts by recency when no search term is provided', () => {
-    const titles = filterAndSortConversationsByRecent(
-      conversations,
-      '',
-      'US'
-    ).map(contact => contact.title);
-    assert.sameMembers(titles, [
-      '+16505551234',
-      'George Washington',
-      'Boxing Club',
-      'Abraham Lincoln',
-      'Not recent',
-    ]);
+    it('falls back to alphabetically', () => {
+      check({
+        searchTerm: 'yes',
+        input: [
+          { title: 'no' },
+          { title: 'yes B', activeAt: 2 },
+          { title: 'yes A', activeAt: 2 },
+          { title: 'yes C', activeAt: 3 },
+        ],
+        expected: [
+          { title: 'yes C', activeAt: 3 },
+          { title: 'yes A', activeAt: 2 },
+          { title: 'yes B', activeAt: 2 },
+        ],
+      });
+    });
   });
 });

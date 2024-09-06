@@ -10,6 +10,7 @@ import { RowType } from '../ConversationList';
 import type { ContactListItemConversationType } from '../conversationList/ContactListItem';
 import { DisappearingTimerSelect } from '../DisappearingTimerSelect';
 import type { LocalizerType } from '../../types/Util';
+import type { DurationInSeconds } from '../../util/durations';
 import { Alert } from '../Alert';
 import { AvatarEditor } from '../AvatarEditor';
 import { AvatarPreview } from '../AvatarPreview';
@@ -28,7 +29,7 @@ import { AvatarColors } from '../../types/Colors';
 export type LeftPaneSetGroupMetadataPropsType = {
   groupAvatar: undefined | Uint8Array;
   groupName: string;
-  groupExpireTimer: number;
+  groupExpireTimer: DurationInSeconds;
   hasError: boolean;
   isCreating: boolean;
   isEditingAvatar: boolean;
@@ -41,7 +42,7 @@ export class LeftPaneSetGroupMetadataHelper extends LeftPaneHelper<LeftPaneSetGr
 
   private readonly groupName: string;
 
-  private readonly groupExpireTimer: number;
+  private readonly groupExpireTimer: DurationInSeconds;
 
   private readonly hasError: boolean;
 
@@ -82,7 +83,7 @@ export class LeftPaneSetGroupMetadataHelper extends LeftPaneHelper<LeftPaneSetGr
     i18n: LocalizerType;
     showChooseGroupMembers: () => void;
   }>): ReactChild {
-    const backButtonLabel = i18n('setGroupMetadata__back-button');
+    const backButtonLabel = i18n('icu:setGroupMetadata__back-button');
 
     return (
       <div className="module-left-pane__header__contents">
@@ -95,7 +96,7 @@ export class LeftPaneSetGroupMetadataHelper extends LeftPaneHelper<LeftPaneSetGr
           type="button"
         />
         <div className="module-left-pane__header__contents__text">
-          {i18n('setGroupMetadata__title')}
+          {i18n('icu:setGroupMetadata__title')}
         </div>
       </div>
     );
@@ -128,7 +129,7 @@ export class LeftPaneSetGroupMetadataHelper extends LeftPaneHelper<LeftPaneSetGr
     createGroup: () => unknown;
     i18n: LocalizerType;
     setComposeGroupAvatar: (_: undefined | Uint8Array) => unknown;
-    setComposeGroupExpireTimer: (_: number) => void;
+    setComposeGroupExpireTimer: (_: DurationInSeconds) => void;
     setComposeGroupName: (_: string) => unknown;
     toggleComposeEditingAvatar: () => unknown;
   }>): ReactChild {
@@ -151,11 +152,13 @@ export class LeftPaneSetGroupMetadataHelper extends LeftPaneHelper<LeftPaneSetGr
       >
         {this.isEditingAvatar && (
           <Modal
-            hasStickyButtons
+            modalName="LeftPaneSetGroupMetadataHelper.AvatarEditor"
             hasXButton
             i18n={i18n}
             onClose={toggleComposeEditingAvatar}
-            title={i18n('LeftPaneSetGroupMetadataHelper__avatar-modal-title')}
+            title={i18n(
+              'icu:LeftPaneSetGroupMetadataHelper__avatar-modal-title'
+            )}
           >
             <AvatarEditor
               avatarColor={avatarColor}
@@ -199,7 +202,7 @@ export class LeftPaneSetGroupMetadataHelper extends LeftPaneHelper<LeftPaneSetGr
 
         <section className="module-left-pane__header__form__expire-timer">
           <div className="module-left-pane__header__form__expire-timer__label">
-            {i18n('disappearingMessages')}
+            {i18n('icu:disappearingMessages')}
           </div>
           <DisappearingTimerSelect
             i18n={i18n}
@@ -210,7 +213,7 @@ export class LeftPaneSetGroupMetadataHelper extends LeftPaneHelper<LeftPaneSetGr
 
         {this.hasError && (
           <Alert
-            body={i18n('setGroupMetadata__error-message')}
+            body={i18n('icu:setGroupMetadata__error-message')}
             i18n={i18n}
             onClose={clearGroupCreationError}
           />
@@ -234,9 +237,11 @@ export class LeftPaneSetGroupMetadataHelper extends LeftPaneHelper<LeftPaneSetGr
         }}
       >
         {this.isCreating ? (
-          <Spinner size="20px" svgSize="small" direction="on-avatar" />
+          <span aria-label={i18n('icu:loading')} role="status">
+            <Spinner size="20px" svgSize="small" direction="on-avatar" />
+          </span>
         ) : (
-          i18n('setGroupMetadata__create-group')
+          i18n('icu:setGroupMetadata__create-group')
         )}
       </Button>
     );
@@ -257,7 +262,7 @@ export class LeftPaneSetGroupMetadataHelper extends LeftPaneHelper<LeftPaneSetGr
     if (rowIndex === 0) {
       return {
         type: RowType.Header,
-        i18nKey: 'setGroupMetadata__members-header',
+        getHeaderText: i18n => i18n('icu:setGroupMetadata__members-header'),
       };
     }
 

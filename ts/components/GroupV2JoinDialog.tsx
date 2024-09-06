@@ -30,29 +30,22 @@ function focusRef(el: HTMLElement | null) {
   }
 }
 
-export const GroupV2JoinDialog = React.memo((props: PropsType) => {
+export const GroupV2JoinDialog = React.memo(function GroupV2JoinDialogInner({
+  approvalRequired,
+  avatar,
+  groupDescription,
+  i18n,
+  join,
+  memberCount,
+  onClose,
+  title,
+}: PropsType) {
   const [isWorking, setIsWorking] = React.useState(false);
   const [isJoining, setIsJoining] = React.useState(false);
-  const {
-    approvalRequired,
-    avatar,
-    groupDescription,
-    i18n,
-    join,
-    memberCount,
-    onClose,
-    title,
-  } = props;
 
   const joinString = approvalRequired
-    ? i18n('GroupV2--join--request-to-join-button')
-    : i18n('GroupV2--join--join-button');
-  const memberString =
-    memberCount === 1
-      ? i18n('GroupV2--join--member-count--single')
-      : i18n('GroupV2--join--member-count--multiple', {
-          count: memberCount.toString(),
-        });
+    ? i18n('icu:GroupV2--join--request-to-join-button')
+    : i18n('icu:GroupV2--join--join-button');
 
   const wrappedJoin = React.useCallback(() => {
     setIsWorking(true);
@@ -68,7 +61,7 @@ export const GroupV2JoinDialog = React.memo((props: PropsType) => {
   return (
     <div className="module-group-v2-join-dialog">
       <button
-        aria-label={i18n('close')}
+        aria-label={i18n('icu:close')}
         type="button"
         disabled={isWorking}
         className="module-group-v2-join-dialog__close-button"
@@ -77,7 +70,7 @@ export const GroupV2JoinDialog = React.memo((props: PropsType) => {
       <div className="module-group-v2-join-dialog__avatar">
         <Avatar
           acceptedMessageRequest={false}
-          avatarPath={avatar ? avatar.url : undefined}
+          avatarUrl={avatar ? avatar.url : undefined}
           badge={undefined}
           blur={AvatarBlur.NoBlur}
           loading={avatar && !avatar.url}
@@ -91,7 +84,7 @@ export const GroupV2JoinDialog = React.memo((props: PropsType) => {
       </div>
       <div className="module-group-v2-join-dialog__title">{title}</div>
       <div className="module-group-v2-join-dialog__metadata">
-        {i18n('GroupV2--join--group-metadata', [memberString])}
+        {i18n('icu:GroupV2--join--group-metadata--full', { memberCount })}
       </div>
       {groupDescription && (
         <div className="module-group-v2-join-dialog__description">
@@ -100,11 +93,11 @@ export const GroupV2JoinDialog = React.memo((props: PropsType) => {
       )}
       {approvalRequired ? (
         <div className="module-group-v2-join-dialog__prompt--approval">
-          {i18n('GroupV2--join--prompt-with-approval')}
+          {i18n('icu:GroupV2--join--prompt-with-approval')}
         </div>
       ) : (
         <div className="module-group-v2-join-dialog__prompt">
-          {i18n('GroupV2--join--prompt')}
+          {i18n('icu:GroupV2--join--prompt')}
         </div>
       )}
       <div className="module-group-v2-join-dialog__buttons">
@@ -117,7 +110,7 @@ export const GroupV2JoinDialog = React.memo((props: PropsType) => {
           onClick={wrappedClose}
           variant={ButtonVariant.Secondary}
         >
-          {i18n('cancel')}
+          {i18n('icu:cancel')}
         </Button>
         <Button
           className="module-group-v2-join-dialog__button"

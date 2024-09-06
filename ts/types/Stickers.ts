@@ -1,7 +1,7 @@
-// Copyright 2019-2022 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { isNumber, pick, reject, groupBy, values } from 'lodash';
+import { isNumber, reject, groupBy, values } from 'lodash';
 import pMap from 'p-map';
 import Queue from 'p-queue';
 
@@ -11,20 +11,40 @@ import { makeLookup } from '../util/makeLookup';
 import { maybeParseUrl } from '../util/url';
 import * as Bytes from '../Bytes';
 import * as Errors from './errors';
-import { deriveStickerPackKey, decryptAttachment } from '../Crypto';
-import type { MIMEType } from './MIME';
+import { deriveStickerPackKey, decryptAttachmentV1 } from '../Crypto';
 import { IMAGE_WEBP } from './MIME';
 import { sniffImageMimeType } from '../util/sniffImageMimeType';
-import type { AttachmentType } from './Attachment';
+import type { AttachmentType, AttachmentWithHydratedData } from './Attachment';
 import type {
-  StickerType,
+  StickerType as StickerFromDBType,
   StickerPackType,
   StickerPackStatusType,
 } from '../sql/Interface';
-import Data from '../sql/Client';
+import { DataReader, DataWriter } from '../sql/Client';
 import { SignalService as Proto } from '../protobuf';
 import * as log from '../logging/log';
 import type { StickersStateType } from '../state/ducks/stickers';
+import { MINUTE } from '../util/durations';
+import { drop } from '../util/drop';
+import { isNotNil } from '../util/isNotNil';
+import { encryptLegacyAttachment } from '../util/encryptLegacyAttachment';
+import { AttachmentDisposition } from '../util/getLocalAttachmentUrl';
+
+export type StickerType = {
+  packId: string;
+  stickerId: number;
+  packKey: string;
+  emoji?: string;
+  data?: AttachmentType;
+  path?: string;
+  width?: number;
+  height?: number;
+  version?: 2;
+  localKey?: string;
+};
+export type StickerWithHydratedData = StickerType & {
+  data: AttachmentWithHydratedData;
+};
 
 export type RecentStickerType = Readonly<{
   stickerId: number;
@@ -42,7 +62,10 @@ export type DownloadMap = Record<
   }
 >;
 
-export const BLESSED_PACKS: Record<string, BlessedType> = {
+export const STICKERPACK_ID_BYTE_LEN = 16;
+export const STICKERPACK_KEY_BYTE_LEN = 32;
+
+const BLESSED_PACKS: Record<string, BlessedType> = {
   '9acc9e8aba563d26a4994e69263e3b25': {
     key: 'Wm3/OUjCjvubeq+T7MN1xp/DFueAd+0mhnoU0QoPahI=',
     status: 'downloaded',
@@ -63,6 +86,10 @@ export const BLESSED_PACKS: Record<string, BlessedType> = {
     key: 'RXMOYPCdVWYRUiN0RTemt9nqmc7qy3eh+9aAG5YH+88=',
     status: 'downloaded',
   },
+  cfc50156556893ef9838069d3890fe49: {
+    key: 'X1vqt9OCRDywCh5I65Upe2uMrf0GMeXQ2dyUnmmZ/0s=',
+    status: 'downloaded',
+  },
 };
 
 const STICKER_PACK_DEFAULTS: StickerPackType = {
@@ -77,13 +104,15 @@ const STICKER_PACK_DEFAULTS: StickerPackType = {
   stickerCount: 0,
   stickers: {},
   title: '',
+
+  storageNeedsSync: false,
 };
 
 const VALID_PACK_ID_REGEXP = /^[0-9a-f]{32}$/i;
 
 let initialState: StickersStateType | undefined;
 let packsToDownload: DownloadMap | undefined;
-const downloadQueue = new Queue({ concurrency: 1, timeout: 1000 * 60 * 2 });
+const downloadQueue = new Queue({ concurrency: 1, timeout: MINUTE * 30 });
 
 export async function load(): Promise<void> {
   const [packs, recentStickers] = await Promise.all([
@@ -152,6 +181,7 @@ export function getInstalledStickerPacks(): Array<StickerPackType> {
 }
 
 export function downloadQueuedPacks(): void {
+  log.info('downloadQueuedPacks');
   strictAssert(packsToDownload, 'Stickers not initialized');
 
   const ids = Object.keys(packsToDownload);
@@ -159,7 +189,12 @@ export function downloadQueuedPacks(): void {
     const { key, status } = packsToDownload[id];
 
     // The queuing is done inside this function, no need to await here
-    downloadStickerPack(id, key, { finalStatus: status, suppressError: true });
+    drop(
+      downloadStickerPack(id, key, {
+        finalStatus: status,
+        suppressError: true,
+      })
+    );
   }
 
   packsToDownload = {};
@@ -196,7 +231,7 @@ function capturePacksToDownload(
 
     // These packs should never end up in the database, but if they do we'll delete them
     if (existing.status === 'ephemeral') {
-      deletePack(id);
+      void deletePack(id);
       return;
     }
 
@@ -242,8 +277,8 @@ function doesPackNeedDownload(pack?: StickerPackType): boolean {
 
 async function getPacksForRedux(): Promise<Record<string, StickerPackType>> {
   const [packs, stickers] = await Promise.all([
-    Data.getAllStickerPacks(),
-    Data.getAllStickers(),
+    DataReader.getAllStickerPacks(),
+    DataReader.getAllStickers(),
   ]);
 
   const stickersByPack = groupBy(stickers, sticker => sticker.packId);
@@ -256,7 +291,7 @@ async function getPacksForRedux(): Promise<Record<string, StickerPackType>> {
 }
 
 async function getRecentStickersForRedux(): Promise<Array<RecentStickerType>> {
-  const recent = await Data.getRecentStickers();
+  const recent = await DataReader.getRecentStickers();
   return recent.map(sticker => ({
     packId: sticker.packId,
     stickerId: sticker.id,
@@ -286,7 +321,10 @@ function getReduxStickerActions() {
 function decryptSticker(packKey: string, ciphertext: Uint8Array): Uint8Array {
   const binaryKey = Bytes.fromBase64(packKey);
   const derivedKey = deriveStickerPackKey(binaryKey);
-  const plaintext = decryptAttachment(ciphertext, derivedKey);
+
+  // Note this download and decrypt in memory is okay because these files are maximum
+  //   300kb, enforced by the server.
+  const plaintext = decryptAttachmentV1(ciphertext, derivedKey);
 
   return plaintext;
 }
@@ -296,11 +334,16 @@ async function downloadSticker(
   packKey: string,
   proto: Proto.StickerPack.ISticker,
   { ephemeral }: { ephemeral?: boolean } = {}
-): Promise<Omit<StickerType, 'isCoverOnly'>> {
+): Promise<Omit<StickerFromDBType, 'isCoverOnly'>> {
   const { id, emoji } = proto;
-  strictAssert(id !== undefined && id !== null, "Sticker id can't be null");
+  strictAssert(id != null, "Sticker id can't be null");
 
-  const ciphertext = await window.textsecure.messaging.getSticker(packId, id);
+  const { messaging } = window.textsecure;
+  if (!messaging) {
+    throw new Error('messaging is not available!');
+  }
+
+  const ciphertext = await messaging.getSticker(packId, id);
   const plaintext = decryptSticker(packKey, ciphertext);
 
   const sticker = ephemeral
@@ -335,9 +378,9 @@ export async function savePackMetadata(
   };
   stickerPackAdded(pack);
 
-  await Data.createOrUpdateStickerPack(pack);
+  await DataWriter.createOrUpdateStickerPack(pack);
   if (messageId) {
-    await Data.addStickerPackReference(messageId, packId);
+    await DataWriter.addStickerPackReference(messageId, packId);
   }
 }
 
@@ -361,7 +404,7 @@ export async function removeEphemeralPack(packId: string): Promise<void> {
   });
 
   // Remove it from database in case it made it there
-  await Data.deleteStickerPack(packId);
+  await DataWriter.deleteStickerPack(packId);
 }
 
 export async function downloadEphemeralPack(
@@ -397,9 +440,12 @@ export async function downloadEphemeralPack(
     };
     stickerPackAdded(placeholder);
 
-    const ciphertext = await window.textsecure.messaging.getStickerPackManifest(
-      packId
-    );
+    const { messaging } = window.textsecure;
+    if (!messaging) {
+      throw new Error('messaging is not available!');
+    }
+
+    const ciphertext = await messaging.getStickerPackManifest(packId);
     const plaintext = decryptSticker(packKey, ciphertext);
     const proto = Proto.StickerPack.decode(plaintext);
     const firstStickerProto = proto.stickers ? proto.stickers[0] : null;
@@ -420,6 +466,12 @@ export async function downloadEphemeralPack(
       proto.stickers,
       sticker => !isNumber(sticker.id) || sticker.id === coverStickerId
     );
+    const coverSticker = proto.stickers.filter(
+      sticker => isNumber(sticker.id) && sticker.id === coverStickerId
+    );
+    if (coverSticker[0] && !coverProto.emoji) {
+      coverProto.emoji = coverSticker[0].emoji;
+    }
 
     const coverIncludedInList = nonCoverStickers.length < stickerCount;
 
@@ -431,7 +483,8 @@ export async function downloadEphemeralPack(
       coverStickerId,
       stickerCount,
       status: 'ephemeral' as const,
-      ...pick(proto, ['title', 'author']),
+      title: proto.title ?? '',
+      author: proto.author ?? '',
     };
     stickerPackAdded(pack);
 
@@ -494,7 +547,7 @@ export async function downloadEphemeralPack(
     }
     log.error(
       `Ephemeral download error for sticker pack ${redactPackId(packId)}:`,
-      error && error.stack ? error.stack : error
+      Errors.toLogFormat(error)
     );
   }
 }
@@ -502,6 +555,8 @@ export async function downloadEphemeralPack(
 export type DownloadStickerPackOptions = Readonly<{
   messageId?: string;
   fromSync?: boolean;
+  fromStorageService?: boolean;
+  fromBackup?: boolean;
   finalStatus?: StickerPackStatusType;
   suppressError?: boolean;
 }>;
@@ -518,7 +573,7 @@ export async function downloadStickerPack(
     } catch (error) {
       log.error(
         'doDownloadStickerPack threw an error:',
-        error && error.stack ? error.stack : error
+        Errors.toLogFormat(error)
       );
     }
   });
@@ -531,6 +586,8 @@ async function doDownloadStickerPack(
     finalStatus = 'downloaded',
     messageId,
     fromSync = false,
+    fromStorageService = false,
+    fromBackup = false,
     suppressError = false,
   }: DownloadStickerPackOptions
 ): Promise<void> {
@@ -552,8 +609,13 @@ async function doDownloadStickerPack(
     return;
   }
 
+  const { server } = window.textsecure;
+  if (!server) {
+    throw new Error('server is not available!');
+  }
+
   // We don't count this as an attempt if we're offline
-  const attemptIncrement = navigator.onLine ? 1 : 0;
+  const attemptIncrement = server.isOnline() ? 1 : 0;
   const downloadAttempts =
     (existing ? existing.downloadAttempts || 0 : 0) + attemptIncrement;
   if (downloadAttempts > 3) {
@@ -564,7 +626,7 @@ async function doDownloadStickerPack(
     );
 
     if (existing && existing.status !== 'error') {
-      await Data.updateStickerPackStatus(packId, 'error');
+      await DataWriter.updateStickerPackStatus(packId, 'error');
       stickerPackUpdated(
         packId,
         {
@@ -595,9 +657,12 @@ async function doDownloadStickerPack(
     };
     stickerPackAdded(placeholder);
 
-    const ciphertext = await window.textsecure.messaging.getStickerPackManifest(
-      packId
-    );
+    const { messaging } = window.textsecure;
+    if (!messaging) {
+      throw new Error('messaging is not available!');
+    }
+
+    const ciphertext = await messaging.getStickerPackManifest(packId);
     const plaintext = decryptSticker(packKey, ciphertext);
     const proto = Proto.StickerPack.decode(plaintext);
     const firstStickerProto = proto.stickers ? proto.stickers[0] : undefined;
@@ -618,6 +683,12 @@ async function doDownloadStickerPack(
       proto.stickers,
       sticker => !isNumber(sticker.id) || sticker.id === coverStickerId
     );
+    const coverSticker = proto.stickers.filter(
+      sticker => isNumber(sticker.id) && sticker.id === coverStickerId
+    );
+    if (coverSticker[0] && !coverProto.emoji) {
+      coverProto.emoji = coverSticker[0].emoji;
+    }
 
     coverIncludedInList = nonCoverStickers.length < stickerCount;
 
@@ -638,18 +709,20 @@ async function doDownloadStickerPack(
       status: 'pending',
       createdAt: Date.now(),
       stickers: {},
-      ...pick(proto, ['title', 'author']),
+      storageNeedsSync: !fromStorageService && !fromBackup,
+      title: proto.title ?? '',
+      author: proto.author ?? '',
     };
-    await Data.createOrUpdateStickerPack(pack);
+    await DataWriter.createOrUpdateStickerPack(pack);
     stickerPackAdded(pack);
 
     if (messageId) {
-      await Data.addStickerPackReference(messageId, packId);
+      await DataWriter.addStickerPackReference(messageId, packId);
     }
   } catch (error) {
     log.error(
       `Error downloading manifest for sticker pack ${redactPackId(packId)}:`,
-      error && error.stack ? error.stack : error
+      Errors.toLogFormat(error)
     );
 
     const pack = {
@@ -661,7 +734,7 @@ async function doDownloadStickerPack(
       downloadAttempts,
       status: 'error' as const,
     };
-    await Data.createOrUpdateStickerPack(pack);
+    await DataWriter.createOrUpdateStickerPack(pack);
     stickerPackAdded(pack, { suppressError });
 
     return;
@@ -684,7 +757,7 @@ async function doDownloadStickerPack(
           isCoverOnly:
             !coverIncludedInList && stickerInfo.id === coverStickerId,
         };
-        await Data.createOrUpdateSticker(sticker);
+        await DataWriter.createOrUpdateSticker(sticker);
         stickerAdded(sticker);
         return true;
       } catch (error: unknown) {
@@ -718,10 +791,14 @@ async function doDownloadStickerPack(
     }
 
     if (finalStatus === 'installed') {
-      await installStickerPack(packId, packKey, { fromSync });
+      await installStickerPack(packId, packKey, {
+        fromSync,
+        fromStorageService,
+        fromBackup,
+      });
     } else {
       // Mark the pack as complete
-      await Data.updateStickerPackStatus(packId, finalStatus);
+      await DataWriter.updateStickerPackStatus(packId, finalStatus);
       stickerPackUpdated(packId, {
         status: finalStatus,
       });
@@ -729,11 +806,11 @@ async function doDownloadStickerPack(
   } catch (error) {
     log.error(
       `Error downloading stickers for sticker pack ${redactPackId(packId)}:`,
-      error && error.stack ? error.stack : error
+      Errors.toLogFormat(error)
     );
 
     const errorStatus = 'error';
-    await Data.updateStickerPackStatus(packId, errorStatus);
+    await DataWriter.updateStickerPackStatus(packId, errorStatus);
     if (stickerPackUpdated) {
       stickerPackUpdated(
         packId,
@@ -772,7 +849,7 @@ export function getStickerPackStatus(
 export function getSticker(
   packId: string,
   stickerId: number
-): StickerType | undefined {
+): StickerFromDBType | undefined {
   const pack = getStickerPack(packId);
 
   if (!pack || !pack.stickers) {
@@ -799,27 +876,27 @@ export async function copyStickerToAttachments(
   const { path, size } =
     await window.Signal.Migrations.copyIntoAttachmentsDirectory(absolutePath);
 
-  const { data } = await window.Signal.Migrations.loadAttachmentData({
+  const newSticker: AttachmentType = {
+    ...sticker,
     path,
-  });
+    size,
 
-  let contentType: MIMEType;
+    // Fall-back
+    contentType: IMAGE_WEBP,
+  };
+
+  const data = await window.Signal.Migrations.readAttachmentData(newSticker);
+
   const sniffedMimeType = sniffImageMimeType(data);
   if (sniffedMimeType) {
-    contentType = sniffedMimeType;
+    newSticker.contentType = sniffedMimeType;
   } else {
     log.warn(
       'copyStickerToAttachments: Unable to sniff sticker MIME type; falling back to WebP'
     );
-    contentType = IMAGE_WEBP;
   }
 
-  return {
-    ...sticker,
-    contentType,
-    path,
-    size,
-  };
+  return newSticker;
 }
 
 // In the case where a sticker pack is uninstalled, we want to delete it if there are no
@@ -844,7 +921,7 @@ export async function deletePackReference(
 
   // This call uses locking to prevent race conditions with other reference removals,
   //   or an incoming message creating a new message->pack reference
-  const paths = await Data.deleteStickerPackReference(messageId, packId);
+  const paths = await DataWriter.deleteStickerPackReference(messageId, packId);
 
   // If we don't get a list of paths back, then the sticker pack was not deleted
   if (!paths) {
@@ -860,7 +937,7 @@ export async function deletePackReference(
 }
 
 // The override; doesn't honor our ref-counting scheme - just deletes it all.
-export async function deletePack(packId: string): Promise<void> {
+async function deletePack(packId: string): Promise<void> {
   const isBlessed = Boolean(BLESSED_PACKS[packId]);
   if (isBlessed) {
     return;
@@ -868,7 +945,7 @@ export async function deletePack(packId: string): Promise<void> {
 
   // This call uses locking to prevent race conditions with other reference removals,
   //   or an incoming message creating a new message->pack reference
-  const paths = await Data.deleteStickerPack(packId);
+  const paths = await DataWriter.deleteStickerPack(packId);
 
   const { removeStickerPack } = getReduxStickerActions();
   removeStickerPack(packId);
@@ -876,4 +953,73 @@ export async function deletePack(packId: string): Promise<void> {
   await pMap(paths, window.Signal.Migrations.deleteSticker, {
     concurrency: 3,
   });
+}
+
+export async function encryptLegacyStickers(): Promise<void> {
+  const CONCURRENCY = 32;
+
+  const all = await DataReader.getAllStickers();
+
+  log.info(`encryptLegacyStickers: checking ${all.length}`);
+
+  const updated = (
+    await pMap(
+      all,
+      async sticker => {
+        try {
+          return await encryptLegacySticker(sticker);
+        } catch (error) {
+          log.error('encryptLegacyStickers: processing failed', error);
+          return undefined;
+        }
+      },
+      {
+        concurrency: CONCURRENCY,
+      }
+    )
+  ).filter(isNotNil);
+
+  await DataWriter.createOrUpdateStickers(
+    updated.map(({ sticker }) => sticker)
+  );
+
+  log.info(`encryptLegacyStickers: updated ${updated.length}`);
+
+  await pMap(
+    updated,
+    async ({ cleanup }) => {
+      try {
+        await cleanup();
+      } catch (error) {
+        log.error('encryptLegacyStickers: cleanup failed', error);
+      }
+    },
+    {
+      concurrency: CONCURRENCY,
+    }
+  );
+
+  log.info(`encryptLegacyStickers: cleaned up ${updated.length}`);
+}
+
+async function encryptLegacySticker(
+  sticker: StickerFromDBType
+): Promise<
+  { sticker: StickerFromDBType; cleanup: () => Promise<void> } | undefined
+> {
+  const { deleteSticker, readStickerData, writeNewStickerData } =
+    window.Signal.Migrations;
+
+  const updated = await encryptLegacyAttachment(sticker, {
+    logId: 'sticker',
+    readAttachmentData: readStickerData,
+    writeNewAttachmentData: writeNewStickerData,
+    disposition: AttachmentDisposition.Sticker,
+  });
+
+  if (updated !== sticker && sticker.path) {
+    return { sticker: updated, cleanup: () => deleteSticker(sticker.path) };
+  }
+
+  return undefined;
 }

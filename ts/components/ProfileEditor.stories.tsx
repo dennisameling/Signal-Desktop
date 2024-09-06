@@ -1,148 +1,164 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import React, { useState } from 'react';
-
-import { storiesOf } from '@storybook/react';
-import { text, boolean, select } from '@storybook/addon-knobs';
+import type { Meta, StoryFn } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
+import React, { useState } from 'react';
+import casual from 'casual';
+import { v4 as generateUuid } from 'uuid';
 
 import type { PropsType } from './ProfileEditor';
-import { ProfileEditor } from './ProfileEditor';
-import { setupI18n } from '../util/setupI18n';
 import enMessages from '../../_locales/en/messages.json';
+import { ProfileEditor } from './ProfileEditor';
+import { EditUsernameModalBody } from './EditUsernameModalBody';
 import {
-  getFirstName,
-  getLastName,
-} from '../test-both/helpers/getDefaultConversation';
+  UsernameEditState,
+  UsernameLinkState,
+  UsernameReservationState,
+} from '../state/ducks/usernameEnums';
 import { getRandomColor } from '../test-both/helpers/getRandomColor';
-import { UsernameSaveState } from '../state/ducks/conversationsEnums';
+import { setupI18n } from '../util/setupI18n';
+import { SignalService as Proto } from '../protobuf';
 
 const i18n = setupI18n('en', enMessages);
 
-const stories = storiesOf('Components/ProfileEditor', module);
+export default {
+  component: ProfileEditor,
+  title: 'Components/ProfileEditor',
+  argTypes: {
+    usernameEditState: {
+      control: { type: 'radio' },
+      options: [
+        UsernameEditState.Editing,
+        UsernameEditState.ConfirmingDelete,
+        UsernameEditState.Deleting,
+      ],
+    },
+    usernameCorrupted: {
+      control: 'boolean',
+    },
+    usernameLinkState: {
+      control: { type: 'select' },
+      options: [UsernameLinkState.Ready, UsernameLinkState.Updating],
+    },
+    usernameLinkCorrupted: {
+      control: 'boolean',
+    },
+  },
+  args: {
+    aboutEmoji: '',
+    aboutText: casual.sentence,
+    profileAvatarUrl: undefined,
+    conversationId: generateUuid(),
+    color: getRandomColor(),
+    deleteAvatarFromDisk: action('deleteAvatarFromDisk'),
+    familyName: casual.last_name,
+    firstName: casual.first_name,
+    i18n,
 
-const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
-  aboutEmoji: overrideProps.aboutEmoji,
-  aboutText: text('about', overrideProps.aboutText || ''),
-  profileAvatarPath: overrideProps.profileAvatarPath,
-  clearUsernameSave: action('clearUsernameSave'),
-  conversationId: '123',
-  color: overrideProps.color || getRandomColor(),
-  deleteAvatarFromDisk: action('deleteAvatarFromDisk'),
-  familyName: overrideProps.familyName,
-  firstName: text('firstName', overrideProps.firstName || getFirstName()),
-  i18n,
-  isUsernameFlagEnabled: boolean(
-    'isUsernameFlagEnabled',
-    overrideProps.isUsernameFlagEnabled !== undefined
-      ? overrideProps.isUsernameFlagEnabled
-      : false
-  ),
-  onEditStateChanged: action('onEditStateChanged'),
-  onProfileChanged: action('onProfileChanged'),
-  onSetSkinTone: overrideProps.onSetSkinTone || action('onSetSkinTone'),
-  recentEmojis: [],
-  replaceAvatar: action('replaceAvatar'),
-  saveAvatarToDisk: action('saveAvatarToDisk'),
-  saveUsername: action('saveUsername'),
-  skinTone: overrideProps.skinTone || 0,
-  userAvatarData: [],
-  username: overrideProps.username,
-  usernameSaveState: select(
-    'usernameSaveState',
-    Object.values(UsernameSaveState),
-    overrideProps.usernameSaveState || UsernameSaveState.None
-  ),
-});
+    usernameLink: 'https://signal.me/#eu/testtest',
+    usernameLinkColor: Proto.AccountRecord.UsernameLink.Color.PURPLE,
+    usernameEditState: UsernameEditState.Editing,
+    usernameLinkState: UsernameLinkState.Ready,
 
-stories.add('Full Set', () => {
+    recentEmojis: [],
+    skinTone: 0,
+    userAvatarData: [],
+    username: undefined,
+
+    onEditStateChanged: action('onEditStateChanged'),
+    onProfileChanged: action('onProfileChanged'),
+    onSetSkinTone: action('onSetSkinTone'),
+    saveAttachment: action('saveAttachment'),
+    setUsernameLinkColor: action('setUsernameLinkColor'),
+    showToast: action('showToast'),
+    replaceAvatar: action('replaceAvatar'),
+    resetUsernameLink: action('resetUsernameLink'),
+    saveAvatarToDisk: action('saveAvatarToDisk'),
+    markCompletedUsernameLinkOnboarding: action(
+      'markCompletedUsernameLinkOnboarding'
+    ),
+    openUsernameReservationModal: action('openUsernameReservationModal'),
+    setUsernameEditState: action('setUsernameEditState'),
+    deleteUsername: action('deleteUsername'),
+  },
+} satisfies Meta<PropsType>;
+
+function renderEditUsernameModalBody(props: {
+  isRootModal: boolean;
+  onClose: () => void;
+}): JSX.Element {
+  return (
+    <EditUsernameModalBody
+      i18n={i18n}
+      minNickname={3}
+      maxNickname={20}
+      state={UsernameReservationState.Open}
+      error={undefined}
+      recoveredUsername={undefined}
+      usernameCorrupted={false}
+      setUsernameReservationError={action('setUsernameReservationError')}
+      clearUsernameReservation={action('clearUsernameReservation')}
+      reserveUsername={action('reserveUsername')}
+      confirmUsername={action('confirmUsername')}
+      showToast={action('showToast')}
+      {...props}
+    />
+  );
+}
+
+// eslint-disable-next-line react/function-component-definition
+const Template: StoryFn<PropsType> = args => {
   const [skinTone, setSkinTone] = useState(0);
 
   return (
     <ProfileEditor
-      {...createProps({
-        aboutEmoji: '🙏',
-        aboutText: 'Live. Laugh. Love',
-        profileAvatarPath: '/fixtures/kitten-3-64-64.jpg',
-        onSetSkinTone: setSkinTone,
-        familyName: getLastName(),
-        skinTone,
-      })}
+      {...args}
+      skinTone={skinTone}
+      onSetSkinTone={setSkinTone}
+      renderEditUsernameModalBody={renderEditUsernameModalBody}
     />
   );
-});
+};
 
-stories.add('with Full Name', () => (
-  <ProfileEditor
-    {...createProps({
-      familyName: getLastName(),
-    })}
-  />
-));
+export const FullSet = Template.bind({});
+FullSet.args = {
+  aboutEmoji: '🙏',
+  aboutText: 'Live. Laugh. Love',
+  familyName: casual.last_name,
+  firstName: casual.first_name,
+  profileAvatarUrl: '/fixtures/kitten-3-64-64.jpg',
+};
 
-stories.add('with Custom About', () => (
-  <ProfileEditor
-    {...createProps({
-      aboutEmoji: '🙏',
-      aboutText: 'Live. Laugh. Love',
-    })}
-  />
-));
+export const WithFullName = Template.bind({});
+WithFullName.args = {
+  familyName: casual.last_name,
+};
+export const WithCustomAbout = Template.bind({});
+WithCustomAbout.args = {
+  aboutEmoji: '🙏',
+  aboutText: 'Live. Laugh. Love',
+};
 
-stories.add('with Username flag enabled', () => (
-  <ProfileEditor
-    {...createProps({
-      isUsernameFlagEnabled: true,
-    })}
-  />
-));
+export const WithUsername = Template.bind({});
+WithUsername.args = {
+  username: 'signaluser.123',
+};
 
-stories.add('with Username flag enabled and username', () => (
-  <ProfileEditor
-    {...createProps({
-      isUsernameFlagEnabled: true,
-      username: 'unicorn55',
-    })}
-  />
-));
+export const DeletingUsername = Template.bind({});
+DeletingUsername.args = {
+  username: 'signaluser.123',
+  usernameEditState: UsernameEditState.Deleting,
+};
 
-stories.add('Username editing, saving', () => (
-  <ProfileEditor
-    {...createProps({
-      isUsernameFlagEnabled: true,
-      usernameSaveState: UsernameSaveState.Saving,
-      username: 'unicorn55',
-    })}
-  />
-));
+export const ConfirmingDelete = Template.bind({});
+ConfirmingDelete.args = {
+  username: 'signaluser.123',
+  usernameEditState: UsernameEditState.ConfirmingDelete,
+};
 
-stories.add('Username editing, username taken', () => (
-  <ProfileEditor
-    {...createProps({
-      isUsernameFlagEnabled: true,
-      usernameSaveState: UsernameSaveState.UsernameTakenError,
-      username: 'unicorn55',
-    })}
-  />
-));
-
-stories.add('Username editing, username malformed', () => (
-  <ProfileEditor
-    {...createProps({
-      isUsernameFlagEnabled: true,
-      usernameSaveState: UsernameSaveState.UsernameMalformedError,
-      username: 'unicorn55',
-    })}
-  />
-));
-
-stories.add('Username editing, general error', () => (
-  <ProfileEditor
-    {...createProps({
-      isUsernameFlagEnabled: true,
-      usernameSaveState: UsernameSaveState.GeneralError,
-      username: 'unicorn55',
-    })}
-  />
-));
+export const Corrupted = Template.bind({});
+Corrupted.args = {
+  username: 'signaluser.123',
+  usernameCorrupted: true,
+};

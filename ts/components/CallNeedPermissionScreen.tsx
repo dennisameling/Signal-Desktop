@@ -1,19 +1,19 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React, { useRef, useEffect } from 'react';
 import type { LocalizerType } from '../types/Util';
 import { AvatarColors } from '../types/Colors';
-import { Avatar } from './Avatar';
-import { Intl } from './Intl';
+import { Avatar, AvatarSize } from './Avatar';
+import { I18n } from './I18n';
 import { ContactName } from './conversation/ContactName';
 import type { ConversationType } from '../state/ducks/conversations';
 
-type Props = {
+export type Props = {
   conversation: Pick<
     ConversationType,
     | 'acceptedMessageRequest'
-    | 'avatarPath'
+    | 'avatarUrl'
     | 'color'
     | 'isMe'
     | 'name'
@@ -21,7 +21,7 @@ type Props = {
     | 'profileName'
     | 'sharedGroupNames'
     | 'title'
-    | 'unblurredAvatarPath'
+    | 'unblurredAvatarUrl'
   >;
   i18n: LocalizerType;
   close: () => void;
@@ -29,12 +29,12 @@ type Props = {
 
 const AUTO_CLOSE_MS = 10000;
 
-export const CallNeedPermissionScreen: React.FC<Props> = ({
+export function CallNeedPermissionScreen({
   conversation,
   i18n,
   close,
-}) => {
-  const title = conversation.title || i18n('unknownContact');
+}: Props): JSX.Element {
+  const title = conversation.title || i18n('icu:unknownContact');
 
   const autoCloseAtRef = useRef<number>(Date.now() + AUTO_CLOSE_MS);
   useEffect(() => {
@@ -46,26 +46,27 @@ export const CallNeedPermissionScreen: React.FC<Props> = ({
     <div className="module-call-need-permission-screen">
       <Avatar
         acceptedMessageRequest={conversation.acceptedMessageRequest}
-        avatarPath={conversation.avatarPath}
+        avatarUrl={conversation.avatarUrl}
         badge={undefined}
         color={conversation.color || AvatarColors[0]}
         noteToSelf={false}
         conversationType="direct"
         i18n={i18n}
         isMe={conversation.isMe}
-        name={conversation.name}
         phoneNumber={conversation.phoneNumber}
         profileName={conversation.profileName}
         title={conversation.title}
         sharedGroupNames={conversation.sharedGroupNames}
-        size={112}
+        size={AvatarSize.EIGHTY}
       />
 
       <p className="module-call-need-permission-screen__text">
-        <Intl
+        <I18n
           i18n={i18n}
-          id="callNeedPermission"
-          components={[<ContactName title={title} />]}
+          id="icu:callNeedPermission"
+          components={{
+            title: <ContactName title={title} />,
+          }}
         />
       </p>
 
@@ -76,8 +77,8 @@ export const CallNeedPermissionScreen: React.FC<Props> = ({
           close();
         }}
       >
-        {i18n('close')}
+        {i18n('icu:close')}
       </button>
     </div>
   );
-};
+}

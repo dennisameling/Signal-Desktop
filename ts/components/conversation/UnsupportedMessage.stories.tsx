@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import { storiesOf } from '@storybook/react';
-import { boolean, text } from '@storybook/addon-knobs';
-import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../../util/setupI18n';
 import enMessages from '../../../_locales/en/messages.json';
 import type { ContactType, Props } from './UnsupportedMessage';
@@ -13,63 +10,58 @@ import { UnsupportedMessage } from './UnsupportedMessage';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf('Components/Conversation/UnsupportedMessage', module);
+export default {
+  title: 'Components/Conversation/UnsupportedMessage',
+  argTypes: {
+    canProcessNow: { control: { type: 'boolean' } },
+  },
+  args: {
+    i18n,
+    canProcessNow: false,
+    contact: {} as ContactType,
+  },
+} satisfies Meta<Props>;
 
 const createContact = (props: Partial<ContactType> = {}): ContactType => ({
   id: '',
-  title: text('contact title', props.title || ''),
-  isMe: boolean('contact isMe', props.isMe || false),
+  title: props.title ?? '',
+  isMe: props.isMe ?? false,
 });
 
-const createProps = (overrideProps: Partial<Props> = {}): Props => ({
-  i18n,
-  canProcessNow: boolean('canProcessNow', overrideProps.canProcessNow || false),
-  contact: overrideProps.contact || ({} as ContactType),
-  downloadNewVersion: action('downloadNewVersion'),
-});
-
-story.add('From Someone', () => {
+export function FromSomeone(args: Props): JSX.Element {
   const contact = createContact({
     title: 'Alice',
     name: 'Alice',
   });
 
-  const props = createProps({ contact });
+  return <UnsupportedMessage {...args} contact={contact} />;
+}
 
-  return <UnsupportedMessage {...props} />;
-});
-
-story.add('After Upgrade', () => {
+export function AfterUpgrade(args: Props): JSX.Element {
   const contact = createContact({
     title: 'Alice',
     name: 'Alice',
   });
 
-  const props = createProps({ contact, canProcessNow: true });
+  return <UnsupportedMessage {...args} contact={contact} canProcessNow />;
+}
 
-  return <UnsupportedMessage {...props} />;
-});
-
-story.add('From Yourself', () => {
+export function FromYourself(args: Props): JSX.Element {
   const contact = createContact({
     title: 'Alice',
     name: 'Alice',
     isMe: true,
   });
 
-  const props = createProps({ contact });
+  return <UnsupportedMessage {...args} contact={contact} />;
+}
 
-  return <UnsupportedMessage {...props} />;
-});
-
-story.add('From Yourself After Upgrade', () => {
+export function FromYourselfAfterUpgrade(args: Props): JSX.Element {
   const contact = createContact({
     title: 'Alice',
     name: 'Alice',
     isMe: true,
   });
 
-  const props = createProps({ contact, canProcessNow: true });
-
-  return <UnsupportedMessage {...props} />;
-});
+  return <UnsupportedMessage {...args} contact={contact} canProcessNow />;
+}

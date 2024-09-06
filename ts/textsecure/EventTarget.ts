@@ -5,7 +5,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable guard-for-in */
 /* eslint-disable no-restricted-syntax */
-/* eslint-disable @typescript-eslint/ban-types */
 
 /*
  * Implements EventTarget
@@ -21,7 +20,7 @@ export default class EventTarget {
     if (!(ev instanceof Event)) {
       throw new Error('Expects an event');
     }
-    if (this.listeners === null || typeof this.listeners !== 'object') {
+    if (this.listeners == null || typeof this.listeners !== 'object') {
       this.listeners = {};
     }
     const listeners = this.listeners[ev.type];
@@ -45,7 +44,7 @@ export default class EventTarget {
     if (typeof callback !== 'function') {
       throw new Error('Second argument expects a function');
     }
-    if (this.listeners === null || typeof this.listeners !== 'object') {
+    if (this.listeners == null || typeof this.listeners !== 'object') {
       this.listeners = {};
     }
     let listeners = this.listeners[eventName];
@@ -63,7 +62,7 @@ export default class EventTarget {
     if (typeof callback !== 'function') {
       throw new Error('Second argument expects a function');
     }
-    if (this.listeners === null || typeof this.listeners !== 'object') {
+    if (this.listeners == null || typeof this.listeners !== 'object') {
       this.listeners = {};
     }
     const listeners = this.listeners[eventName];

@@ -1,17 +1,17 @@
-// Copyright 2019-2021 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { take } from 'lodash';
-import dataInterface from '../sql/Client';
+import { DataReader } from '../sql/Client';
 
-type RecentEmojiObjectType = {
+export type RecentEmojiObjectType = {
   recents: Array<string>;
 };
 
 let initialState: RecentEmojiObjectType;
 
 async function getRecentEmojisForRedux() {
-  const recent = await dataInterface.getRecentEmojis();
+  const recent = await DataReader.getRecentEmojis();
   return recent.map(e => e.shortName);
 }
 

@@ -6,8 +6,9 @@ import { assert } from 'chai';
 import * as durations from '../../util/durations';
 import type { App, Bootstrap } from './fixtures';
 import { initStorage, debug } from './fixtures';
+import { typeIntoInput } from '../helpers';
 
-describe('storage service', function needsName() {
+describe('storage service', function (this: Mocha.Suite) {
   this.timeout(durations.MINUTE);
 
   let bootstrap: Bootstrap;
@@ -17,7 +18,12 @@ describe('storage service', function needsName() {
     ({ bootstrap, app } = await initStorage());
   });
 
-  afterEach(async () => {
+  afterEach(async function (this: Mocha.Context) {
+    if (!bootstrap) {
+      return;
+    }
+
+    await bootstrap.maybeSaveLogs(this.currentTest, app);
     await app.close();
     await bootstrap.teardown();
   });
@@ -43,15 +49,13 @@ describe('storage service', function needsName() {
 
     const window = await app.getWindow();
 
-    const leftPane = window.locator('.left-pane-wrapper');
-    const conversationStack = window.locator('.conversation-stack');
+    const leftPane = window.locator('#LeftPane');
+    const conversationStack = window.locator('.Inbox__conversation-stack');
 
     debug('Opening conversation with a stranger');
+    debug(stranger.toContact().aci);
     await leftPane
-      .locator(
-        '_react=ConversationListItem' +
-          `[title = ${JSON.stringify(stranger.profileName)}]`
-      )
+      .locator(`[data-testid="${stranger.toContact().aci}"]`)
       .click();
 
     debug("Verify that we stored stranger's profile key");
@@ -113,13 +117,8 @@ describe('storage service', function needsName() {
     }
 
     debug('Enter message text');
-    const composeArea = window.locator(
-      '.composition-area-wrapper, ' +
-        '.ConversationView__template .react-wrapper'
-    );
-    const input = composeArea.locator('_react=CompositionInput');
-
-    await input.type('hello stranger!');
+    const input = await app.waitForEnabledComposer();
+    await typeIntoInput(input, 'hello stranger!');
     await input.press('Enter');
 
     {

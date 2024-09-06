@@ -1,4 +1,4 @@
-// Copyright 2018-2022 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Response } from 'got';
@@ -108,7 +108,7 @@ export const upload = async ({
   } catch (error) {
     const response = error.response as Response<string>;
     throw new Error(
-      `Got threw on upload to S3, got status ${response?.statusCode}, body '${response?.body}'  `
+      `Got threw on upload to S3: "${error.message}", got status ${response?.statusCode}, body '${response?.body}'  `
     );
   }
   logger.info('Debug log upload complete.');

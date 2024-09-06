@@ -1,9 +1,9 @@
-// Copyright 2018-2022 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type {
+  AriaAttributes,
   CSSProperties,
-  FunctionComponent,
   MouseEvent,
   ReactChild,
   ReactNode,
@@ -12,20 +12,21 @@ import React, { useEffect, useState } from 'react';
 import classNames from 'classnames';
 import { noop } from 'lodash';
 
-import { Spinner } from './Spinner';
-
-import { getInitials } from '../util/getInitials';
-import type { LocalizerType } from '../types/Util';
-import { ThemeType } from '../types/Util';
+import { filterDOMProps } from '@react-aria/utils';
 import type { AvatarColorType } from '../types/Colors';
 import type { BadgeType } from '../badges/types';
+import type { LocalizerType } from '../types/Util';
 import * as log from '../logging/log';
-import { assert } from '../util/assert';
-import { shouldBlurAvatar } from '../util/shouldBlurAvatar';
-import { getBadgeImageFileLocalPath } from '../badges/getBadgeImageFileLocalPath';
-import { isBadgeVisible } from '../badges/isBadgeVisible';
 import { BadgeImageTheme } from '../badges/BadgeImageTheme';
-import { shouldShowBadges } from '../badges/shouldShowBadges';
+import { HasStories } from '../types/Stories';
+import { Spinner } from './Spinner';
+import { ThemeType } from '../types/Util';
+import { assertDev } from '../util/assert';
+import { getBadgeImageFileLocalPath } from '../badges/getBadgeImageFileLocalPath';
+import { getInitials } from '../util/getInitials';
+import { isBadgeVisible } from '../badges/isBadgeVisible';
+import { shouldBlurAvatar } from '../util/shouldBlurAvatar';
+import { SIGNAL_AVATAR_PATH } from '../types/SignalConversation';
 
 export enum AvatarBlur {
   NoBlur,
@@ -34,43 +35,41 @@ export enum AvatarBlur {
 }
 
 export enum AvatarSize {
-  SIXTEEN = 16,
+  TWENTY = 20,
+  TWENTY_FOUR = 24,
   TWENTY_EIGHT = 28,
+  THIRTY = 30,
   THIRTY_TWO = 32,
   THIRTY_SIX = 36,
+  FORTY = 40,
   FORTY_EIGHT = 48,
   FIFTY_TWO = 52,
+  SIXTY_FOUR = 64,
   EIGHTY = 80,
   NINETY_SIX = 96,
-  ONE_HUNDRED_TWELVE = 112,
-}
-
-export enum AvatarStoryRing {
-  Unread = 'Unread',
-  Read = 'Read',
+  TWO_HUNDRED_SIXTEEN = 216,
 }
 
 type BadgePlacementType = { bottom: number; right: number };
 
 export type Props = {
-  avatarPath?: string;
+  avatarUrl?: string;
   blur?: AvatarBlur;
   color?: AvatarColorType;
   loading?: boolean;
 
   acceptedMessageRequest: boolean;
-  conversationType: 'group' | 'direct';
+  conversationType: 'group' | 'direct' | 'callLink';
   isMe: boolean;
-  name?: string;
   noteToSelf?: boolean;
   phoneNumber?: string;
   profileName?: string;
-  sharedGroupNames: Array<string>;
+  sharedGroupNames: ReadonlyArray<string>;
   size: AvatarSize;
   title: string;
-  unblurredAvatarPath?: string;
+  unblurredAvatarUrl?: string;
   searchResult?: boolean;
-  storyRing?: AvatarStoryRing;
+  storyRing?: HasStories;
 
   onClick?: (event: MouseEvent<HTMLButtonElement>) => unknown;
   onClickBadge?: (event: MouseEvent<HTMLButtonElement>) => unknown;
@@ -83,10 +82,12 @@ export type Props = {
   | { badge: undefined; theme?: ThemeType }
   | { badge: BadgeType; theme: ThemeType }
 ) &
-  Pick<React.HTMLProps<HTMLDivElement>, 'className'>;
+  Pick<React.HTMLProps<HTMLDivElement>, 'className'> &
+  AriaAttributes;
 
 const BADGE_PLACEMENT_BY_SIZE = new Map<number, BadgePlacementType>([
   [28, { bottom: -4, right: -2 }],
+  [30, { bottom: -4, right: -2 }],
   [32, { bottom: -4, right: -2 }],
   [36, { bottom: -3, right: 0 }],
   [40, { bottom: -6, right: -4 }],
@@ -104,9 +105,9 @@ const getDefaultBlur = (
 ): AvatarBlur =>
   shouldBlurAvatar(...args) ? AvatarBlur.BlurPicture : AvatarBlur.NoBlur;
 
-export const Avatar: FunctionComponent<Props> = ({
+export function Avatar({
   acceptedMessageRequest,
-  avatarPath,
+  avatarUrl,
   badge,
   className,
   color = 'A200',
@@ -122,30 +123,31 @@ export const Avatar: FunctionComponent<Props> = ({
   size,
   theme,
   title,
-  unblurredAvatarPath,
+  unblurredAvatarUrl,
   searchResult,
   storyRing,
   blur = getDefaultBlur({
     acceptedMessageRequest,
-    avatarPath,
+    avatarUrl,
     isMe,
     sharedGroupNames,
-    unblurredAvatarPath,
+    unblurredAvatarUrl,
   }),
-}) => {
+  ...ariaProps
+}: Props): JSX.Element {
   const [imageBroken, setImageBroken] = useState(false);
 
   useEffect(() => {
     setImageBroken(false);
-  }, [avatarPath]);
+  }, [avatarUrl]);
 
   useEffect(() => {
-    if (!avatarPath) {
+    if (!avatarUrl) {
       return noop;
     }
 
     const image = new Image();
-    image.src = avatarPath;
+    image.src = avatarUrl;
     image.onerror = () => {
       log.warn('Avatar: Image failed to load; failing over to placeholder');
       setImageBroken(true);
@@ -154,12 +156,15 @@ export const Avatar: FunctionComponent<Props> = ({
     return () => {
       image.onerror = noop;
     };
-  }, [avatarPath]);
+  }, [avatarUrl]);
 
   const initials = getInitials(title);
-  const hasImage = !noteToSelf && avatarPath && !imageBroken;
+  const hasImage = !noteToSelf && avatarUrl && !imageBroken;
   const shouldUseInitials =
-    !hasImage && conversationType === 'direct' && Boolean(initials);
+    !hasImage &&
+    conversationType === 'direct' &&
+    Boolean(initials) &&
+    title !== i18n('icu:unknownContact');
 
   let contentsChildren: ReactNode;
   if (loading) {
@@ -174,10 +179,11 @@ export const Avatar: FunctionComponent<Props> = ({
       </div>
     );
   } else if (hasImage) {
-    assert(avatarPath, 'avatarPath should be defined here');
+    assertDev(avatarUrl, 'avatarUrl should be defined here');
 
-    assert(
-      blur !== AvatarBlur.BlurPictureWithClickToView || size >= 100,
+    assertDev(
+      blur !== AvatarBlur.BlurPictureWithClickToView ||
+        size >= AvatarSize.EIGHTY,
       'Rendering "click to view" for a small avatar. This may not render correctly'
     );
 
@@ -189,12 +195,12 @@ export const Avatar: FunctionComponent<Props> = ({
         <div
           className="module-Avatar__image"
           style={{
-            backgroundImage: `url('${encodeURI(avatarPath)}')`,
+            backgroundImage: `url('${avatarUrl}')`,
             ...(isBlurred ? { filter: `blur(${Math.ceil(size / 2)}px)` } : {}),
           }}
         />
         {blur === AvatarBlur.BlurPictureWithClickToView && (
-          <div className="module-Avatar__click-to-view">{i18n('view')}</div>
+          <div className="module-Avatar__click-to-view">{i18n('icu:view')}</div>
         )}
       </>
     );
@@ -244,7 +250,12 @@ export const Avatar: FunctionComponent<Props> = ({
   );
   if (onClick) {
     contents = (
-      <button className={contentsClassName} type="button" onClick={onClick}>
+      <button
+        {...filterDOMProps(ariaProps)}
+        className={contentsClassName}
+        type="button"
+        onClick={onClick}
+      >
         {contentsChildren}
       </button>
     );
@@ -254,14 +265,7 @@ export const Avatar: FunctionComponent<Props> = ({
 
   let badgeNode: ReactNode;
   const badgeSize = _getBadgeSize(size);
-  if (
-    badge &&
-    theme &&
-    !noteToSelf &&
-    badgeSize &&
-    isBadgeVisible(badge) &&
-    shouldShowBadges()
-  ) {
+  if (badge && theme && !noteToSelf && badgeSize && isBadgeVisible(badge)) {
     const badgePlacement = _getBadgePlacement(size);
     const badgeTheme =
       theme === ThemeType.light ? BadgeImageTheme.Light : BadgeImageTheme.Dark;
@@ -304,14 +308,17 @@ export const Avatar: FunctionComponent<Props> = ({
 
   return (
     <div
-      aria-label={i18n('contactAvatarAlt', [title])}
+      aria-label={i18n('icu:contactAvatarAlt', {
+        name: title,
+      })}
       className={classNames(
         'module-Avatar',
-        hasImage ? 'module-Avatar--with-image' : 'module-Avatar--no-image',
-        storyRing && 'module-Avatar--with-story',
-        storyRing === AvatarStoryRing.Unread &&
-          'module-Avatar--with-story--unread',
-        className
+        Boolean(storyRing) && 'module-Avatar--with-story',
+        storyRing === HasStories.Unread && 'module-Avatar--with-story--unread',
+        className,
+        avatarUrl === SIGNAL_AVATAR_PATH
+          ? 'module-Avatar--signal-official'
+          : undefined
       )}
       style={{
         minWidth: size,
@@ -324,7 +331,7 @@ export const Avatar: FunctionComponent<Props> = ({
       {badgeNode}
     </div>
   );
-};
+}
 
 // This is only exported for testing.
 export function _getBadgeSize(avatarSize: number): undefined | number {

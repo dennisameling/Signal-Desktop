@@ -1,4 +1,4 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
@@ -6,7 +6,7 @@ import React from 'react';
 import { Button, ButtonSize, ButtonVariant } from '../Button';
 import { SystemMessage } from './SystemMessage';
 import { ContactName } from './ContactName';
-import { Intl } from '../Intl';
+import { I18n } from '../I18n';
 import type { LocalizerType } from '../../types/Util';
 
 export type ContactType = {
@@ -24,52 +24,53 @@ type PropsHousekeeping = {
 };
 
 export type PropsActions = {
-  showIdentity: (id: string) => void;
+  toggleSafetyNumberModal: (id: string) => void;
 };
 
 export type Props = PropsData & PropsHousekeeping & PropsActions;
 
-export const SafetyNumberNotification = ({
+export function SafetyNumberNotification({
   contact,
   isGroup,
   i18n,
-  showIdentity,
-}: Props): JSX.Element => {
-  const changeKey = isGroup
-    ? 'safetyNumberChangedGroup'
-    : 'safetyNumberChanged';
-
+  toggleSafetyNumberModal,
+}: Props): JSX.Element {
+  const name = (
+    <span
+      key="external-1"
+      className="module-safety-number-notification__contact"
+    >
+      <ContactName
+        title={contact.title}
+        module="module-safety-number-notification__contact"
+      />
+    </span>
+  );
   return (
     <SystemMessage
       icon="safety-number"
       contents={
-        <Intl
-          id={changeKey}
-          components={[
-            <span
-              key="external-1"
-              className="module-safety-number-notification__contact"
-            >
-              <ContactName
-                title={contact.title}
-                module="module-safety-number-notification__contact"
-              />
-            </span>,
-          ]}
-          i18n={i18n}
-        />
+        isGroup ? (
+          <I18n
+            id="icu:safetyNumberChangedGroup"
+            components={{ name }}
+            i18n={i18n}
+          />
+        ) : (
+          <I18n id="icu:safetyNumberChanged" i18n={i18n} />
+        )
       }
       button={
         <Button
           onClick={() => {
-            showIdentity(contact.id);
+            toggleSafetyNumberModal(contact.id);
           }}
           size={ButtonSize.Small}
           variant={ButtonVariant.SystemMessage}
         >
-          {i18n('verifyNewNumber')}
+          {i18n('icu:SafetyNumberNotification__viewSafetyNumber')}
         </Button>
       }
     />
   );
-};
+}

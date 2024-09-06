@@ -9,6 +9,18 @@ $audio-attachment-button-margin-small: 4px;
   display: flex;
   flex-direction: column;
   margin-top: 2px;
+  /**
+   * Players for audio or video content should always be left-to-right.
+   * This overrides the default direction of the surrounding elements.
+   */
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list */
+  direction: ltr;
+
+  .PlaybackButton {
+    @media (min-width: 0px) and (max-width: 799px) {
+      margin-inline-end: $audio-attachment-button-margin-small;
+    }
+  }
 }
 
 .module-message__audio-attachment__button-and-waveform {
@@ -28,6 +40,7 @@ $audio-attachment-button-margin-small: 4px;
     @include light-theme {
       border-color: $color-black-alpha-20;
     }
+
     @include dark-theme {
       border-color: $color-white-alpha-20;
     }
@@ -42,65 +55,41 @@ $audio-attachment-button-margin-small: 4px;
   margin-top: 6px;
 }
 
-.module-message__audio-attachment__button,
-.module-message__audio-attachment__spinner {
-  @include button-reset;
+.module-message__audio-attachment__controls {
+  display: flex;
+  flex: 1;
+  margin-inline-end: 4px;
+}
 
-  flex-shrink: 0;
-  width: $audio-attachment-button-size;
-  height: $audio-attachment-button-size;
-  margin-right: $audio-attachment-button-margin-big;
+.module-message__audio-attachment__dot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  transition: width 100ms ease-out;
+  width: 14px;
 
-  outline: none;
-  border-radius: 18px;
-
-  @media (min-width: 0px) and (max-width: 799px) {
-    margin-right: $audio-attachment-button-margin-small;
-  }
-
-  &::before {
-    display: block;
-    height: 100%;
+  &:before {
     content: '';
-  }
-
-  @mixin audio-icon($name, $icon, $color) {
-    &--#{$name}::before {
-      @include color-svg('../images/icons/v2/#{$icon}.svg', $color, false);
-    }
-  }
-
-  @mixin all-audio-icons($color) {
-    @include audio-icon(play, play-solid-20, $color);
-    @include audio-icon(pause, pause-solid-20, $color);
-    @include audio-icon(download, arrow-down-20, $color);
-    @include audio-icon(pending, audio-spinner-arc-22, $color);
-  }
-
-  &--pending {
-    cursor: auto;
-  }
-
-  &--pending::before {
-    animation: rotate 1000ms linear infinite;
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-radius: 100%;
   }
 
   .module-message__audio-attachment--incoming & {
-    @include light-theme {
-      background: $color-white;
-
-      @include all-audio-icons($color-gray-60);
-    }
-    @include dark-theme {
-      background: $color-gray-60;
-
-      @include all-audio-icons($color-gray-15);
+    &:before {
+      @include light-theme {
+        background: $color-gray-60;
+      }
+      @include dark-theme {
+        background: $color-gray-25;
+      }
     }
   }
-
   .module-message__audio-attachment--outgoing & {
-    background: $color-white-alpha-20;
-    @include all-audio-icons($color-white);
+    &--unplayed:before {
+      background: $color-white-alpha-80;
+    }
   }
 }
 
@@ -114,8 +103,8 @@ $audio-attachment-button-margin-small: 4px;
   outline: 0;
 }
 
-.module-message__audio-attachment__button,
-.module-message__audio-attachment__spinner,
+.PlaybackButton,
+.PlaybackRateButton,
 .module-message__audio-attachment__waveform {
   &:focus {
     @include keyboard-mode {
@@ -132,86 +121,40 @@ $audio-attachment-button-margin-small: 4px;
   }
 }
 
-.module-message__audio-attachment__waveform__bar {
-  display: inline-block;
-
-  width: 2px;
-  border-radius: 2px;
-  transition: height 250ms, background 250ms;
-
-  &:not(:first-of-type) {
-    margin-left: 2px;
-  }
-
-  .module-message__audio-attachment--incoming & {
-    @include light-theme {
-      background: $color-black-alpha-40;
-      &--active {
-        background: $color-black-alpha-80;
-      }
-    }
-    @include dark-theme {
-      background: $color-white-alpha-40;
-      &--active {
-        background: $color-white-alpha-70;
-      }
-    }
-  }
-
-  .module-message__audio-attachment--outgoing & {
-    background: $color-white-alpha-40;
-    &--active {
-      background: $color-white-alpha-80;
-    }
-  }
-}
-
 .module-message__audio-attachment__metadata {
   display: flex;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  margin-left: $audio-attachment-button-size +
-    $audio-attachment-button-margin-big;
 
   @media (min-width: 0px) and (max-width: 799px) {
-    margin-left: $audio-attachment-button-size +
+    margin-inline-start: $audio-attachment-button-size +
       $audio-attachment-button-margin-small;
   }
 }
 
 .module-message__audio-attachment__countdown {
   @include font-caption;
-  align-items: center;
-  display: flex;
-  flex-shrink: 1;
+  width: $audio-attachment-button-size;
   user-select: none;
-
-  &:after {
-    content: '';
-    display: block;
-    width: 6px;
-    height: 6px;
-    margin-left: 6px;
-    border-radius: 100%;
-    transition: background 100ms ease-out;
-  }
-
-  &--played:after {
-    background: transparent;
-  }
+  text-align: center;
+  white-space: nowrap;
+  margin-inline-end: 12px;
 
   .module-message__audio-attachment--incoming & {
     @include light-theme {
       $color: $color-black-alpha-60;
       color: $color;
+
       &--unplayed:after {
         background: $color;
       }
     }
+
     @include dark-theme {
       $color: $color-white-alpha-80;
       color: $color;
+
       &--unplayed:after {
         background: $color;
       }

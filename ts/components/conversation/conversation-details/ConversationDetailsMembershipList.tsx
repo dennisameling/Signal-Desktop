@@ -5,7 +5,7 @@ import React from 'react';
 
 import type { LocalizerType, ThemeType } from '../../../types/Util';
 
-import { Avatar } from '../../Avatar';
+import { Avatar, AvatarSize } from '../../Avatar';
 import { Emojify } from '../Emojify';
 
 import { ConversationDetailsIcon, IconType } from './ConversationDetailsIcon';
@@ -25,7 +25,7 @@ export type Props = {
   getPreferredBadge: PreferredBadgeSelectorType;
   i18n: LocalizerType;
   maxShownMemberCount?: number;
-  memberships: Array<GroupV2Membership>;
+  memberships: ReadonlyArray<GroupV2Membership>;
   showContactModal: (contactId: string, conversationId?: string) => void;
   startAddingNewMembers?: () => void;
   theme: ThemeType;
@@ -70,7 +70,7 @@ function sortMemberships(
   return sortedMemberships;
 }
 
-export const ConversationDetailsMembershipList: React.ComponentType<Props> = ({
+export function ConversationDetailsMembershipList({
   canAddNewMembers,
   conversationId,
   getPreferredBadge,
@@ -80,7 +80,7 @@ export const ConversationDetailsMembershipList: React.ComponentType<Props> = ({
   showContactModal,
   startAddingNewMembers,
   theme,
-}) => {
+}: Props): JSX.Element {
   const [showAllMembers, setShowAllMembers] = React.useState<boolean>(false);
   const sortedMemberships = sortMemberships(memberships);
 
@@ -93,16 +93,16 @@ export const ConversationDetailsMembershipList: React.ComponentType<Props> = ({
 
   return (
     <PanelSection
-      title={i18n('ConversationDetailsMembershipList--title', [
-        sortedMemberships.length.toString(),
-      ])}
+      title={i18n('icu:ConversationDetailsMembershipList--title', {
+        number: sortedMemberships.length,
+      })}
     >
       {canAddNewMembers && (
         <PanelRow
           icon={
             <div className="ConversationDetails-membership-list__add-members-icon" />
           }
-          label={i18n('ConversationDetailsMembershipList--add-members')}
+          label={i18n('icu:ConversationDetailsMembershipList--add-members')}
           onClick={() => startAddingNewMembers?.()}
         />
       )}
@@ -115,13 +115,15 @@ export const ConversationDetailsMembershipList: React.ComponentType<Props> = ({
               conversationType="direct"
               badge={getPreferredBadge(member.badges)}
               i18n={i18n}
-              size={32}
+              size={AvatarSize.THIRTY_TWO}
               theme={theme}
               {...member}
             />
           }
-          label={<Emojify text={member.isMe ? i18n('you') : member.title} />}
-          right={isAdmin ? i18n('GroupV2--admin') : ''}
+          label={
+            <Emojify text={member.isMe ? i18n('icu:you') : member.title} />
+          }
+          right={isAdmin ? i18n('icu:GroupV2--admin') : ''}
         />
       ))}
       {showAllMembers === false && shouldHideRestMembers && (
@@ -129,14 +131,16 @@ export const ConversationDetailsMembershipList: React.ComponentType<Props> = ({
           className="ConversationDetails-membership-list--show-all"
           icon={
             <ConversationDetailsIcon
-              ariaLabel={i18n('ConversationDetailsMembershipList--show-all')}
+              ariaLabel={i18n(
+                'icu:ConversationDetailsMembershipList--show-all'
+              )}
               icon={IconType.down}
             />
           }
           onClick={() => setShowAllMembers(true)}
-          label={i18n('ConversationDetailsMembershipList--show-all')}
+          label={i18n('icu:ConversationDetailsMembershipList--show-all')}
         />
       )}
     </PanelSection>
   );
-};
+}

@@ -1,7 +1,6 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { FunctionComponent } from 'react';
 import React from 'react';
 
 import type { ConversationType } from '../state/ducks/conversations';
@@ -16,55 +15,52 @@ export type PropsType = {
   ConversationType,
   | 'about'
   | 'acceptedMessageRequest'
-  | 'avatarPath'
+  | 'avatarUrl'
   | 'color'
   | 'firstName'
   | 'id'
   | 'isMe'
-  | 'name'
   | 'phoneNumber'
   | 'profileName'
   | 'sharedGroupNames'
   | 'title'
-  | 'unblurredAvatarPath'
+  | 'unblurredAvatarUrl'
 >;
 
-export const ContactPill: FunctionComponent<PropsType> = ({
+export function ContactPill({
   acceptedMessageRequest,
-  avatarPath,
+  avatarUrl,
   color,
   firstName,
   i18n,
   isMe,
   id,
-  name,
   phoneNumber,
   profileName,
   sharedGroupNames,
   title,
-  unblurredAvatarPath,
+  unblurredAvatarUrl,
   onClickRemove,
-}) => {
-  const removeLabel = i18n('ContactPill--remove');
+}: PropsType): JSX.Element {
+  const removeLabel = i18n('icu:ContactPill--remove');
 
   return (
     <div className="module-ContactPill">
       <Avatar
         acceptedMessageRequest={acceptedMessageRequest}
-        avatarPath={avatarPath}
+        avatarUrl={avatarUrl}
         badge={undefined}
         color={color}
         noteToSelf={false}
         conversationType="direct"
         i18n={i18n}
         isMe={isMe}
-        name={name}
         phoneNumber={phoneNumber}
         profileName={profileName}
         title={title}
         sharedGroupNames={sharedGroupNames}
-        size={AvatarSize.TWENTY_EIGHT}
-        unblurredAvatarPath={unblurredAvatarPath}
+        size={AvatarSize.TWENTY}
+        unblurredAvatarUrl={unblurredAvatarUrl}
       />
       <ContactName
         firstName={firstName}
@@ -83,4 +79,4 @@ export const ContactPill: FunctionComponent<PropsType> = ({
       />
     </div>
   );
-};
+}

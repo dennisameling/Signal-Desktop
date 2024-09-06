@@ -1,16 +1,22 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ReactElement, ReactNode } from 'react';
 import React, { useState } from 'react';
 import { get } from 'lodash';
+import type { ReadonlyDeep } from 'type-fest';
 
 import * as log from '../../logging/log';
-import type { ReplacementValuesType } from '../../types/I18N';
-import type { FullJSXType } from '../Intl';
-import { Intl } from '../Intl';
-import type { LocalizerType } from '../../types/Util';
-import type { UUIDStringType } from '../../types/UUID';
+import { I18n } from '../I18n';
+import type {
+  LocalizerType,
+  ICUJSXMessageParamsByKeyType,
+} from '../../types/Util';
+import type {
+  AciString,
+  PniString,
+  ServiceIdString,
+} from '../../types/ServiceId';
 import { GroupDescriptionText } from '../GroupDescriptionText';
 import { Button, ButtonSize, ButtonVariant } from '../Button';
 import { SystemMessage } from './SystemMessage';
@@ -22,37 +28,42 @@ import { renderChange } from '../../groupChange';
 import { Modal } from '../Modal';
 import { ConfirmationDialog } from '../ConfirmationDialog';
 
-export type PropsDataType = {
+export type PropsDataType = ReadonlyDeep<{
   areWeAdmin: boolean;
-  groupMemberships?: Array<{
-    uuid: UUIDStringType;
+  change: GroupV2ChangeType;
+  conversationId: string;
+  groupBannedMemberships?: ReadonlyArray<ServiceIdString>;
+  groupMemberships?: ReadonlyArray<{
+    aci: AciString;
     isAdmin: boolean;
   }>;
-  groupBannedMemberships?: Array<UUIDStringType>;
   groupName?: string;
-  ourUuid?: UUIDStringType;
-  change: GroupV2ChangeType;
-};
+  ourAci: AciString | undefined;
+  ourPni: PniString | undefined;
+}>;
 
 export type PropsActionsType = {
-  blockGroupLinkRequests: (uuid: UUIDStringType) => unknown;
+  blockGroupLinkRequests: (
+    conversationId: string,
+    serviceId: ServiceIdString
+  ) => unknown;
 };
 
 export type PropsHousekeepingType = {
   i18n: LocalizerType;
-  renderContact: SmartContactRendererType<FullJSXType>;
+  renderContact: SmartContactRendererType<JSX.Element>;
 };
 
 export type PropsType = PropsDataType &
   PropsActionsType &
   PropsHousekeepingType;
 
-function renderStringToIntl(
-  id: string,
+function renderStringToIntl<Key extends keyof ICUJSXMessageParamsByKeyType>(
+  id: Key,
   i18n: LocalizerType,
-  components?: Array<FullJSXType> | ReplacementValuesType<FullJSXType>
-): FullJSXType {
-  return <Intl id={id} i18n={i18n} components={components} />;
+  components: ICUJSXMessageParamsByKeyType[Key]
+): JSX.Element {
+  return <I18n id={id} i18n={i18n} components={components} />;
 }
 
 enum ModalState {
@@ -69,6 +80,7 @@ type GroupIconType =
   | 'group-avatar'
   | 'group-decline'
   | 'group-edit'
+  | 'group-summary'
   | 'group-leave'
   | 'group-remove';
 
@@ -101,11 +113,11 @@ const changeToIconMap = new Map<string, GroupIconType>([
 function getIcon(
   detail: GroupV2ChangeDetailType,
   isLastText = true,
-  fromId?: UUIDStringType
+  fromId?: ServiceIdString
 ): GroupIconType {
   const changeType = detail.type;
   let possibleIcon = changeToIconMap.get(changeType);
-  const isSameId = fromId === get(detail, 'uuid', null);
+  const isSameId = fromId === get(detail, 'aci', null);
   if (isSameId) {
     if (changeType === 'member-remove') {
       possibleIcon = 'group-leave';
@@ -119,12 +131,16 @@ function getIcon(
   if (changeType === 'admin-approval-bounce' && isLastText) {
     possibleIcon = undefined;
   }
+  if (changeType === 'summary') {
+    possibleIcon = 'group-summary';
+  }
   return possibleIcon || 'group';
 }
 
 function GroupV2Detail({
   areWeAdmin,
   blockGroupLinkRequests,
+  conversationId,
   detail,
   isLastText,
   fromId,
@@ -132,25 +148,29 @@ function GroupV2Detail({
   groupBannedMemberships,
   groupName,
   i18n,
-  ourUuid,
+  ourAci,
   renderContact,
   text,
 }: {
   areWeAdmin: boolean;
-  blockGroupLinkRequests: (uuid: UUIDStringType) => unknown;
+  blockGroupLinkRequests: (
+    conversationId: string,
+    serviceId: ServiceIdString
+  ) => unknown;
+  conversationId: string;
   detail: GroupV2ChangeDetailType;
   isLastText: boolean;
-  groupMemberships?: Array<{
-    uuid: UUIDStringType;
+  groupMemberships?: ReadonlyArray<{
+    aci: AciString;
     isAdmin: boolean;
   }>;
-  groupBannedMemberships?: Array<UUIDStringType>;
+  groupBannedMemberships?: ReadonlyArray<ServiceIdString>;
   groupName?: string;
   i18n: LocalizerType;
-  fromId?: UUIDStringType;
-  ourUuid?: UUIDStringType;
-  renderContact: SmartContactRendererType<FullJSXType>;
-  text: FullJSXType;
+  fromId?: ServiceIdString;
+  ourAci: AciString | undefined;
+  renderContact: SmartContactRendererType<JSX.Element>;
+  text: ReactNode;
 }): JSX.Element {
   const icon = getIcon(detail, isLastText, fromId);
   let buttonNode: ReactNode;
@@ -173,6 +193,7 @@ function GroupV2Detail({
 
       modalNode = (
         <Modal
+          modalName="GroupV2Change.ViewingGroupDescription"
           hasXButton
           i18n={i18n}
           title={groupName}
@@ -186,10 +207,10 @@ function GroupV2Detail({
       if (
         !isLastText ||
         detail.type !== 'admin-approval-bounce' ||
-        !detail.uuid
+        !detail.aci
       ) {
         log.warn(
-          'GroupV2Detail: ConfirmingblockGroupLinkRequests but missing uuid or wrong change type'
+          'GroupV2Detail: ConfirmingblockGroupLinkRequests but missing aci or wrong change type'
         );
         modalNode = undefined;
         break;
@@ -197,22 +218,23 @@ function GroupV2Detail({
 
       modalNode = (
         <ConfirmationDialog
-          title={i18n('PendingRequests--block--title')}
+          dialogName="GroupV2Change.confirmBlockLinkRequests"
+          title={i18n('icu:PendingRequests--block--title')}
           actions={[
             {
-              action: () => blockGroupLinkRequests(detail.uuid),
-              text: i18n('PendingRequests--block--confirm'),
+              action: () => blockGroupLinkRequests(conversationId, detail.aci),
+              text: i18n('icu:PendingRequests--block--confirm'),
               style: 'affirmative',
             },
           ]}
           i18n={i18n}
           onClose={() => setModalState(ModalState.None)}
         >
-          <Intl
-            id="PendingRequests--block--contents"
+          <I18n
+            id="icu:PendingRequests--block--contents"
             i18n={i18n}
             components={{
-              name: renderContact(detail.uuid),
+              name: renderContact(detail.aci),
             }}
           />
         </ConfirmationDialog>
@@ -233,18 +255,18 @@ function GroupV2Detail({
         size={ButtonSize.Small}
         variant={ButtonVariant.SystemMessage}
       >
-        {i18n('view')}
+        {i18n('icu:view')}
       </Button>
     );
   } else if (
     isLastText &&
     detail.type === 'admin-approval-bounce' &&
     areWeAdmin &&
-    detail.uuid &&
-    detail.uuid !== ourUuid &&
-    (!fromId || fromId === detail.uuid) &&
-    !groupMemberships?.some(item => item.uuid === detail.uuid) &&
-    !groupBannedMemberships?.some(uuid => uuid === detail.uuid)
+    detail.aci &&
+    detail.aci !== ourAci &&
+    (!fromId || fromId === detail.aci) &&
+    !groupMemberships?.some(item => item.aci === detail.aci) &&
+    !groupBannedMemberships?.some(serviceId => serviceId === detail.aci)
   ) {
     buttonNode = (
       <Button
@@ -254,7 +276,7 @@ function GroupV2Detail({
         size={ButtonSize.Small}
         variant={ButtonVariant.SystemMessage}
       >
-        {i18n('PendingRequests--block--button')}
+        {i18n('icu:PendingRequests--block--button')}
       </Button>
     );
   }
@@ -272,26 +294,30 @@ export function GroupV2Change(props: PropsType): ReactElement {
     areWeAdmin,
     blockGroupLinkRequests,
     change,
+    conversationId,
     groupBannedMemberships,
     groupMemberships,
     groupName,
     i18n,
-    ourUuid,
+    ourAci,
+    ourPni,
     renderContact,
   } = props;
 
   return (
     <>
-      {renderChange<FullJSXType>(change, {
+      {renderChange<JSX.Element>(change, {
         i18n,
-        ourUuid,
+        ourAci,
+        ourPni,
         renderContact,
-        renderString: renderStringToIntl,
+        renderIntl: renderStringToIntl,
       }).map(({ detail, isLastText, text }, index) => {
         return (
           <GroupV2Detail
             areWeAdmin={areWeAdmin}
             blockGroupLinkRequests={blockGroupLinkRequests}
+            conversationId={conversationId}
             detail={detail}
             isLastText={isLastText}
             fromId={change.from}
@@ -302,7 +328,7 @@ export function GroupV2Change(props: PropsType): ReactElement {
             // Difficult to find a unique key for this type
             // eslint-disable-next-line react/no-array-index-key
             key={index}
-            ourUuid={ourUuid}
+            ourAci={ourAci}
             renderContact={renderContact}
             text={text}
           />

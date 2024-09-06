@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import { storiesOf } from '@storybook/react';
-import { boolean, number, text } from '@storybook/addon-knobs';
 import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
 import type { PropsType } from './GroupV2JoinDialog';
 import { GroupV2JoinDialog } from './GroupV2JoinDialog';
 import { setupI18n } from '../util/setupI18n';
@@ -14,26 +12,27 @@ import enMessages from '../../_locales/en/messages.json';
 const i18n = setupI18n('en', enMessages);
 
 const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
-  memberCount: number('memberCount', overrideProps.memberCount || 12),
+  memberCount: overrideProps.memberCount ?? 12,
   avatar: overrideProps.avatar,
-  title: text('title', overrideProps.title || 'Random Group!'),
-  approvalRequired: boolean(
-    'approvalRequired',
-    overrideProps.approvalRequired || false
-  ),
+  title: overrideProps.title ?? 'Random Group!',
+  approvalRequired: overrideProps.approvalRequired ?? false,
   groupDescription: overrideProps.groupDescription,
   join: action('join'),
   onClose: action('onClose'),
   i18n,
 });
 
-const stories = storiesOf('Components/GroupV2JoinDialog', module);
+export default {
+  title: 'Components/GroupV2JoinDialog',
+  argTypes: {},
+  args: {},
+} satisfies Meta<PropsType>;
 
-stories.add('Basic', () => {
+export function Basic(): JSX.Element {
   return <GroupV2JoinDialog {...createProps()} />;
-});
+}
 
-stories.add('Approval required', () => {
+export function ApprovalRequired(): JSX.Element {
   return (
     <GroupV2JoinDialog
       {...createProps({
@@ -42,9 +41,9 @@ stories.add('Approval required', () => {
       })}
     />
   );
-});
+}
 
-stories.add('With avatar', () => {
+export function WithAvatar(): JSX.Element {
   return (
     <GroupV2JoinDialog
       {...createProps({
@@ -55,9 +54,9 @@ stories.add('With avatar', () => {
       })}
     />
   );
-});
+}
 
-stories.add('With one member', () => {
+export function WithOneMember(): JSX.Element {
   return (
     <GroupV2JoinDialog
       {...createProps({
@@ -66,9 +65,9 @@ stories.add('With one member', () => {
       })}
     />
   );
-});
+}
 
-stories.add('Avatar loading state', () => {
+export function AvatarLoadingState(): JSX.Element {
   return (
     <GroupV2JoinDialog
       {...createProps({
@@ -79,9 +78,9 @@ stories.add('Avatar loading state', () => {
       })}
     />
   );
-});
+}
 
-stories.add('Full', () => {
+export function Full(): JSX.Element {
   return (
     <GroupV2JoinDialog
       {...createProps({
@@ -94,4 +93,4 @@ stories.add('Full', () => {
       })}
     />
   );
-});
+}

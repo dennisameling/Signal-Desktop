@@ -3,9 +3,9 @@
 
 import React from 'react';
 
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
 
+import type { Meta } from '@storybook/react';
 import enMessages from '../../_locales/en/messages.json';
 import { AvatarColors } from '../types/Colors';
 import type { PropsType } from './BetterAvatarBubble';
@@ -24,34 +24,42 @@ const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   style: overrideProps.style,
 });
 
-const story = storiesOf('Components/BetterAvatarBubble', module);
+export default {
+  title: 'Components/BetterAvatarBubble',
+} satisfies Meta<PropsType>;
 
-story.add('Children', () => (
-  <BetterAvatarBubble
-    {...createProps({
-      children: <div>HI</div>,
-      color: AvatarColors[8],
-    })}
-  />
-));
+export function Children(): JSX.Element {
+  return (
+    <BetterAvatarBubble
+      {...createProps({
+        children: <div>HI</div>,
+        color: AvatarColors[8],
+      })}
+    />
+  );
+}
 
-story.add('Selected', () => (
-  <BetterAvatarBubble
-    {...createProps({
-      color: AvatarColors[1],
-      isSelected: true,
-    })}
-  />
-));
+export function Selected(): JSX.Element {
+  return (
+    <BetterAvatarBubble
+      {...createProps({
+        color: AvatarColors[1],
+        isSelected: true,
+      })}
+    />
+  );
+}
 
-story.add('Style', () => (
-  <BetterAvatarBubble
-    {...createProps({
-      style: {
-        height: 120,
-        width: 120,
-      },
-      color: AvatarColors[2],
-    })}
-  />
-));
+export function Style(): JSX.Element {
+  return (
+    <BetterAvatarBubble
+      {...createProps({
+        style: {
+          height: 120,
+          width: 120,
+        },
+        color: AvatarColors[2],
+      })}
+    />
+  );
+}

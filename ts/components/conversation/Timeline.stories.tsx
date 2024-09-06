@@ -1,98 +1,98 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import * as moment from 'moment';
 import { times } from 'lodash';
 import { v4 as uuid } from 'uuid';
-import { storiesOf } from '@storybook/react';
-import { text, boolean, number } from '@storybook/addon-knobs';
 import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../../util/setupI18n';
+import { DurationInSeconds } from '../../util/durations';
 import enMessages from '../../../_locales/en/messages.json';
 import type { PropsType } from './Timeline';
 import { Timeline } from './Timeline';
 import type { TimelineItemType } from './TimelineItem';
 import { TimelineItem } from './TimelineItem';
-import { ContactSpoofingReviewDialog } from './ContactSpoofingReviewDialog';
 import { StorybookThemeContext } from '../../../.storybook/StorybookThemeContext';
 import { ConversationHero } from './ConversationHero';
-import type { PropsType as SmartContactSpoofingReviewDialogPropsType } from '../../state/smart/ContactSpoofingReviewDialog';
 import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
-import { getRandomColor } from '../../test-both/helpers/getRandomColor';
 import { TypingBubble } from './TypingBubble';
 import { ContactSpoofingType } from '../../util/contactSpoofing';
 import { ReadStatus } from '../../messages/MessageReadStatus';
 import type { WidthBreakpoint } from '../_util';
 import { ThemeType } from '../../types/Util';
 import { TextDirection } from './Message';
+import { PaymentEventKind } from '../../types/Payment';
+import type { PropsData as TimelineMessageProps } from './TimelineMessage';
+import { CollidingAvatars } from '../CollidingAvatars';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf('Components/Conversation/Timeline', module);
+const alice = getDefaultConversation();
+const bob = getDefaultConversation();
+
+export default {
+  title: 'Components/Conversation/Timeline',
+  argTypes: {},
+  args: {},
+} satisfies Meta<PropsType>;
 
 // eslint-disable-next-line
 const noop = () => {};
 
-Object.assign(window, {
-  registerForActive: noop,
-  unregisterForActive: noop,
-});
+function mockMessageTimelineItem(
+  id: string,
+  data: Partial<TimelineMessageProps>
+): TimelineItemType {
+  return {
+    type: 'message',
+    data: {
+      id,
+      author: getDefaultConversation({}),
+      canCopy: true,
+      canDeleteForEveryone: false,
+      canDownload: true,
+      canEditMessage: true,
+      canReact: true,
+      canReply: true,
+      canRetry: true,
+      conversationId: 'conversation-id',
+      conversationTitle: 'Conversation Title',
+      conversationType: 'group',
+      conversationColor: 'crimson',
+      direction: 'incoming',
+      status: 'sent',
+      text: 'Hello there from the new world!',
+      isBlocked: false,
+      isMessageRequestAccepted: true,
+      isSelected: false,
+      isSelectMode: false,
+      isSMS: false,
+      isSpoilerExpanded: {},
+      previews: [],
+      readStatus: ReadStatus.Read,
+      canRetryDeleteForEveryone: true,
+      textDirection: TextDirection.Default,
+      timestamp: Date.now(),
+      ...data,
+    },
+    timestamp: Date.now(),
+  };
+}
 
 const items: Record<string, TimelineItemType> = {
-  'id-1': {
-    type: 'message',
-    data: {
-      author: getDefaultConversation({
-        phoneNumber: '(202) 555-2001',
-      }),
-      canDeleteForEveryone: false,
-      canDownload: true,
-      canReact: true,
-      canReply: true,
-      canRetry: true,
-      canRetryDeleteForEveryone: true,
-      conversationColor: 'forest',
-      conversationId: 'conversation-id',
-      conversationType: 'group',
-      direction: 'incoming',
-      id: 'id-1',
-      isBlocked: false,
-      isMessageRequestAccepted: true,
-      previews: [],
-      readStatus: ReadStatus.Read,
-      text: '🔥',
-      textDirection: TextDirection.Default,
-      timestamp: Date.now(),
-    },
-    timestamp: Date.now(),
-  },
-  'id-2': {
-    type: 'message',
-    data: {
-      author: getDefaultConversation({}),
-      canDeleteForEveryone: false,
-      canDownload: true,
-      canReact: true,
-      canReply: true,
-      canRetry: true,
-      canRetryDeleteForEveryone: true,
-      conversationColor: 'forest',
-      conversationId: 'conversation-id',
-      conversationType: 'group',
-      direction: 'incoming',
-      id: 'id-2',
-      isBlocked: false,
-      isMessageRequestAccepted: true,
-      previews: [],
-      readStatus: ReadStatus.Read,
-      text: 'Hello there from the new world! http://somewhere.com',
-      textDirection: TextDirection.Default,
-      timestamp: Date.now(),
-    },
-    timestamp: Date.now(),
-  },
+  'id-1': mockMessageTimelineItem('id-1', {
+    author: getDefaultConversation({
+      phoneNumber: '(202) 555-2001',
+    }),
+    conversationColor: 'forest',
+    text: '🔥',
+  }),
+  'id-2': mockMessageTimelineItem('id-2', {
+    conversationColor: 'forest',
+    direction: 'incoming',
+    text: 'Hello there from the new world! http://somewhere.com',
+  }),
   'id-2.5': {
     type: 'unsupportedMessage',
     data: {
@@ -107,36 +107,12 @@ const items: Record<string, TimelineItemType> = {
     },
     timestamp: Date.now(),
   },
-  'id-3': {
-    type: 'message',
-    data: {
-      author: getDefaultConversation({}),
-      canDeleteForEveryone: false,
-      canDownload: true,
-      canReact: true,
-      canReply: true,
-      canRetry: true,
-      canRetryDeleteForEveryone: true,
-      conversationColor: 'crimson',
-      conversationId: 'conversation-id',
-      conversationType: 'group',
-      direction: 'incoming',
-      id: 'id-3',
-      isBlocked: false,
-      isMessageRequestAccepted: true,
-      previews: [],
-      readStatus: ReadStatus.Read,
-      text: 'Hello there from the new world!',
-      textDirection: TextDirection.Default,
-      timestamp: Date.now(),
-    },
-    timestamp: Date.now(),
-  },
+  'id-3': mockMessageTimelineItem('id-3', {}),
   'id-4': {
     type: 'timerNotification',
     data: {
       disabled: false,
-      expireTimer: moment.duration(2, 'hours').asSeconds(),
+      expireTimer: DurationInSeconds.fromHours(2),
       title: "It's Me",
       type: 'fromMe',
     },
@@ -146,7 +122,7 @@ const items: Record<string, TimelineItemType> = {
     type: 'timerNotification',
     data: {
       disabled: false,
-      expireTimer: moment.duration(2, 'hours').asSeconds(),
+      expireTimer: DurationInSeconds.fromHours(2),
       title: '(202) 555-0000',
       type: 'fromOther',
     },
@@ -207,141 +183,85 @@ const items: Record<string, TimelineItemType> = {
     data: null,
     timestamp: Date.now(),
   },
-  'id-10': {
-    type: 'message',
-    data: {
-      author: getDefaultConversation({}),
-      canDeleteForEveryone: false,
-      canDownload: true,
-      canReact: true,
-      canReply: true,
-      canRetry: true,
-      canRetryDeleteForEveryone: true,
-      conversationColor: 'plum',
-      conversationId: 'conversation-id',
-      conversationType: 'group',
-      direction: 'outgoing',
-      id: 'id-6',
-      isBlocked: false,
-      isMessageRequestAccepted: true,
-      previews: [],
-      readStatus: ReadStatus.Read,
-      status: 'sent',
-      text: '🔥',
-      textDirection: TextDirection.Default,
-      timestamp: Date.now(),
-    },
-    timestamp: Date.now(),
-  },
-  'id-11': {
-    type: 'message',
-    data: {
-      author: getDefaultConversation({}),
-      canDeleteForEveryone: false,
-      canDownload: true,
-      canReact: true,
-      canReply: true,
-      canRetry: true,
-      canRetryDeleteForEveryone: true,
-      conversationColor: 'crimson',
-      conversationId: 'conversation-id',
-      conversationType: 'group',
-      direction: 'outgoing',
-      id: 'id-7',
-      isBlocked: false,
-      isMessageRequestAccepted: true,
-      previews: [],
-      readStatus: ReadStatus.Read,
-      status: 'read',
-      text: 'Hello there from the new world! http://somewhere.com',
-      textDirection: TextDirection.Default,
-      timestamp: Date.now(),
-    },
-    timestamp: Date.now(),
-  },
-  'id-12': {
-    type: 'message',
-    data: {
-      author: getDefaultConversation({}),
-      canDeleteForEveryone: false,
-      canDownload: true,
-      canReact: true,
-      canReply: true,
-      canRetry: true,
-      canRetryDeleteForEveryone: true,
-      conversationColor: 'crimson',
-      conversationId: 'conversation-id',
-      conversationType: 'group',
-      direction: 'outgoing',
-      id: 'id-8',
-      isBlocked: false,
-      isMessageRequestAccepted: true,
-      previews: [],
-      readStatus: ReadStatus.Read,
-      status: 'sent',
-      text: 'Hello there from the new world! 🔥',
-      textDirection: TextDirection.Default,
-      timestamp: Date.now(),
-    },
-    timestamp: Date.now(),
-  },
-  'id-13': {
-    type: 'message',
-    data: {
-      author: getDefaultConversation({}),
-      canDeleteForEveryone: false,
-      canDownload: true,
-      canReact: true,
-      canReply: true,
-      canRetry: true,
-      canRetryDeleteForEveryone: true,
-      conversationColor: 'crimson',
-      conversationId: 'conversation-id',
-      conversationType: 'group',
-      direction: 'outgoing',
-      id: 'id-9',
-      isBlocked: false,
-      isMessageRequestAccepted: true,
-      previews: [],
-      readStatus: ReadStatus.Read,
-      status: 'sent',
-      text: 'Hello there from the new world! And this is multiple lines of text. Lines and lines and lines.',
-      textDirection: TextDirection.Default,
-      timestamp: Date.now(),
-    },
-    timestamp: Date.now(),
-  },
-  'id-14': {
-    type: 'message',
-    data: {
-      author: getDefaultConversation({}),
-      canDeleteForEveryone: false,
-      canDownload: true,
-      canReact: true,
-      canReply: true,
-      canRetry: true,
-      canRetryDeleteForEveryone: true,
-      conversationColor: 'crimson',
-      conversationId: 'conversation-id',
-      conversationType: 'group',
-      direction: 'outgoing',
-      id: 'id-10',
-      isBlocked: false,
-      isMessageRequestAccepted: true,
-      previews: [],
-      readStatus: ReadStatus.Read,
-      status: 'read',
-      text: 'Hello there from the new world! And this is multiple lines of text. Lines and lines and lines.',
-      textDirection: TextDirection.Default,
-      timestamp: Date.now(),
-    },
-    timestamp: Date.now(),
-  },
+  'id-10': mockMessageTimelineItem('id-10', {
+    conversationColor: 'plum',
+    direction: 'outgoing',
+    text: '🔥',
+  }),
+  'id-11': mockMessageTimelineItem('id-11', {
+    direction: 'outgoing',
+    status: 'read',
+    text: 'Hello there from the new world! http://somewhere.com',
+  }),
+  'id-12': mockMessageTimelineItem('id-12', {
+    direction: 'outgoing',
+    text: 'Hello there from the new world! 🔥',
+  }),
+  'id-13': mockMessageTimelineItem('id-13', {
+    direction: 'outgoing',
+    text: 'Hello there from the new world! And this is multiple lines of text. Lines and lines and lines.',
+  }),
+  'id-14': mockMessageTimelineItem('id-14', {
+    direction: 'outgoing',
+    status: 'read',
+    text: 'Hello there from the new world! And this is multiple lines of text. Lines and lines and lines.',
+  }),
   'id-15': {
-    type: 'linkNotification',
-    data: null,
+    type: 'paymentEvent',
+    data: {
+      event: {
+        kind: PaymentEventKind.ActivationRequest,
+      },
+      sender: getDefaultConversation(),
+      conversation: getDefaultConversation(),
+    },
     timestamp: Date.now(),
   },
+  'id-16': {
+    type: 'paymentEvent',
+    data: {
+      event: {
+        kind: PaymentEventKind.Activation,
+      },
+      sender: getDefaultConversation(),
+      conversation: getDefaultConversation(),
+    },
+    timestamp: Date.now(),
+  },
+  'id-17': {
+    type: 'paymentEvent',
+    data: {
+      event: {
+        kind: PaymentEventKind.ActivationRequest,
+      },
+      sender: getDefaultConversation({
+        isMe: true,
+      }),
+      conversation: getDefaultConversation(),
+    },
+    timestamp: Date.now(),
+  },
+  'id-18': {
+    type: 'paymentEvent',
+    data: {
+      event: {
+        kind: PaymentEventKind.Activation,
+      },
+      sender: getDefaultConversation({
+        isMe: true,
+      }),
+      conversation: getDefaultConversation(),
+    },
+    timestamp: Date.now(),
+  },
+  'id-19': mockMessageTimelineItem('id-19', {
+    direction: 'outgoing',
+    status: 'read',
+    payment: {
+      kind: PaymentEventKind.Notification,
+      note: 'Thanks',
+    },
+  }),
 };
 
 const actions = () => ({
@@ -350,40 +270,40 @@ const actions = () => ({
   ),
   blockGroupLinkRequests: action('blockGroupLinkRequests'),
   checkForAccount: action('checkForAccount'),
-  clearInvitedUuidsForNewlyCreatedGroup: action(
-    'clearInvitedUuidsForNewlyCreatedGroup'
+  clearInvitedServiceIdsForNewlyCreatedGroup: action(
+    'clearInvitedServiceIdsForNewlyCreatedGroup'
   ),
   setIsNearBottom: action('setIsNearBottom'),
-  learnMoreAboutDeliveryIssue: action('learnMoreAboutDeliveryIssue'),
-  loadAndScroll: action('loadAndScroll'),
   loadOlderMessages: action('loadOlderMessages'),
   loadNewerMessages: action('loadNewerMessages'),
   loadNewestMessages: action('loadNewestMessages'),
   markMessageRead: action('markMessageRead'),
-  selectMessage: action('selectMessage'),
-  clearSelectedMessage: action('clearSelectedMessage'),
+  toggleSelectMessage: action('toggleSelectMessage'),
+  targetMessage: action('targetMessage'),
+  scrollToOldestUnreadMention: action('scrollToOldestUnreadMention'),
+  clearTargetedMessage: action('clearTargetedMessage'),
   updateSharedGroups: action('updateSharedGroups'),
 
   reactToMessage: action('reactToMessage'),
-  replyToMessage: action('replyToMessage'),
+  setMessageToEdit: action('setMessageToEdit'),
+  setQuoteByMessageId: action('setQuoteByMessageId'),
+  copyMessageText: action('copyMessageText'),
   retryDeleteForEveryone: action('retryDeleteForEveryone'),
-  retrySend: action('retrySend'),
-  deleteMessage: action('deleteMessage'),
-  deleteMessageForEveryone: action('deleteMessageForEveryone'),
-  showMessageDetail: action('showMessageDetail'),
-  openConversation: action('openConversation'),
+  retryMessageSend: action('retryMessageSend'),
+  saveAttachment: action('saveAttachment'),
+  pushPanelForConversation: action('pushPanelForConversation'),
   showContactDetail: action('showContactDetail'),
   showContactModal: action('showContactModal'),
+  showConversation: action('showConversation'),
   kickOffAttachmentDownload: action('kickOffAttachmentDownload'),
   markAttachmentAsCorrupted: action('markAttachmentAsCorrupted'),
-  markViewed: action('markViewed'),
   messageExpanded: action('messageExpanded'),
-  showVisualAttachment: action('showVisualAttachment'),
-  downloadAttachment: action('downloadAttachment'),
-  displayTapToViewMessage: action('displayTapToViewMessage'),
+  showSpoiler: action('showSpoiler'),
+  showLightbox: action('showLightbox'),
+  showLightboxForViewOnceMedia: action('showLightboxForViewOnceMedia'),
   doubleCheckMissingQuoteReference: action('doubleCheckMissingQuoteReference'),
 
-  openLink: action('openLink'),
+  openGiftBadge: action('openGiftBadge'),
   scrollToQuotedMessage: action('scrollToQuotedMessage'),
   showExpiredIncomingTapToViewToast: action(
     'showExpiredIncomingTapToViewToast'
@@ -391,33 +311,35 @@ const actions = () => ({
   showExpiredOutgoingTapToViewToast: action(
     'showExpiredOutgoingTapToViewToast'
   ),
-  showForwardMessageModal: action('showForwardMessageModal'),
+  toggleDeleteMessagesModal: action('toggleDeleteMessagesModal'),
+  toggleForwardMessagesModal: action('toggleForwardMessagesModal'),
 
-  showIdentity: action('showIdentity'),
-
-  downloadNewVersion: action('downloadNewVersion'),
-
-  startCallingLobby: action('startCallingLobby'),
+  toggleSafetyNumberModal: action('toggleSafetyNumberModal'),
+  onOpenEditNicknameAndNoteModal: action('onOpenEditNicknameAndNoteModal'),
+  onOutgoingAudioCallInConversation: action(
+    'onOutgoingAudioCallInConversation'
+  ),
+  onOutgoingVideoCallInConversation: action(
+    'onOutgoingVideoCallInConversation'
+  ),
+  startConversation: action('startConversation'),
   returnToActiveCall: action('returnToActiveCall'),
 
-  contactSupport: action('contactSupport'),
-
   closeContactSpoofingReview: action('closeContactSpoofingReview'),
-  reviewGroupMemberNameCollision: action('reviewGroupMemberNameCollision'),
-  reviewMessageRequestNameCollision: action(
-    'reviewMessageRequestNameCollision'
-  ),
-
-  onBlock: action('onBlock'),
-  onBlockAndReportSpam: action('onBlockAndReportSpam'),
-  onDelete: action('onDelete'),
-  onUnblock: action('onUnblock'),
-  removeMember: action('removeMember'),
+  reviewConversationNameCollision: action('reviewConversationNameCollision'),
 
   unblurAvatar: action('unblurAvatar'),
 
   peekGroupCallForTheFirstTime: action('peekGroupCallForTheFirstTime'),
   peekGroupCallIfItHasMembers: action('peekGroupCallIfItHasMembers'),
+
+  viewStory: action('viewStory'),
+
+  onReplyToMessage: action('onReplyToMessage'),
+
+  onOpenMessageRequestActionsConfirmation: action(
+    'onOpenMessageRequestActionsConfirmation'
+  ),
 });
 
 const renderItem = ({
@@ -432,22 +354,25 @@ const renderItem = ({
   <TimelineItem
     getPreferredBadge={() => undefined}
     id=""
-    isSelected={false}
-    renderEmojiPicker={() => <div />}
-    renderReactionPicker={() => <div />}
-    item={items[messageId]}
+    isTargeted={false}
+    isBlocked={false}
+    isGroup={false}
     i18n={i18n}
     interactionMode="keyboard"
     isNextItemCallingNotification={false}
     theme={ThemeType.light}
+    platform="darwin"
     containerElementRef={containerElementRef}
     containerWidthBreakpoint={containerWidthBreakpoint}
     conversationId=""
-    renderContact={() => '*ContactName*'}
+    item={items[messageId]}
+    renderAudioAttachment={() => <div>*AudioAttachment*</div>}
+    renderContact={() => <div>*ContactName*</div>}
+    renderEmojiPicker={() => <div />}
+    renderReactionPicker={() => <div />}
     renderUniversalTimerNotification={() => (
       <div>*UniversalTimerNotification*</div>
     )}
-    renderAudioAttachment={() => <div>*AudioAttachment*</div>}
     shouldCollapseAbove={false}
     shouldCollapseBelow={false}
     shouldHideMetadata={false}
@@ -456,70 +381,63 @@ const renderItem = ({
   />
 );
 
-const renderContactSpoofingReviewDialog = (
-  props: SmartContactSpoofingReviewDialogPropsType
-) => {
-  if (props.type === ContactSpoofingType.MultipleGroupMembersWithSameTitle) {
-    return (
-      <ContactSpoofingReviewDialog
-        {...props}
-        group={{
-          ...getDefaultConversation(),
-          areWeAdmin: true,
-        }}
-      />
-    );
-  }
-
-  return <ContactSpoofingReviewDialog {...props} />;
+const renderContactSpoofingReviewDialog = () => {
+  // hasContactSpoofingReview is always false in stories
+  return <div />;
 };
 
-const getAbout = () => text('about', '👍 Free to chat');
-const getTitle = () => text('name', 'Cayce Bollard');
-const getName = () => text('name', 'Cayce Bollard');
-const getProfileName = () => text('profileName', 'Cayce Bollard (profile)');
-const getAvatarPath = () =>
-  text('avatarPath', '/fixtures/kitten-4-112-112.jpg');
-const getPhoneNumber = () => text('phoneNumber', '+1 (808) 555-1234');
+const getAbout = () => '👍 Free to chat';
+const getTitle = () => 'Cayce Bollard';
+const getProfileName = () => 'Cayce Bollard (profile)';
+const getAvatarPath = () => '/fixtures/kitten-4-112-112.jpg';
+const getPhoneNumber = () => '+1 (808) 555-1234';
 
 const renderHeroRow = () => {
-  const Wrapper = () => {
+  function Wrapper() {
     const theme = React.useContext(StorybookThemeContext);
     return (
       <ConversationHero
         about={getAbout()}
         acceptedMessageRequest
+        avatarUrl={getAvatarPath()}
         badge={undefined}
+        conversationType="direct"
+        id={getDefaultConversation().id}
         i18n={i18n}
         isMe={false}
-        title={getTitle()}
-        avatarPath={getAvatarPath()}
-        name={getName()}
-        profileName={getProfileName()}
         phoneNumber={getPhoneNumber()}
-        conversationType="direct"
+        profileName={getProfileName()}
         sharedGroupNames={['NYC Rock Climbers', 'Dinner Party']}
         theme={theme}
+        title={getTitle()}
         unblurAvatar={action('unblurAvatar')}
         updateSharedGroups={noop}
+        viewUserStories={action('viewUserStories')}
+        toggleAboutContactModal={action('toggleAboutContactModal')}
       />
     );
-  };
+  }
   return <Wrapper />;
 };
 const renderTypingBubble = () => (
   <TypingBubble
-    acceptedMessageRequest
-    badge={undefined}
-    color={getRandomColor()}
+    typingContactIdTimestamps={{ [getDefaultConversation().id]: Date.now() }}
+    lastItemAuthorId="123"
+    lastItemTimestamp={undefined}
+    conversationId="123"
     conversationType="direct"
-    phoneNumber="+18005552222"
+    getConversation={() => getDefaultConversation()}
+    getPreferredBadge={() => undefined}
+    showContactModal={action('showContactModal')}
     i18n={i18n}
-    isMe={false}
-    title="title"
     theme={ThemeType.light}
-    sharedGroupNames={[]}
   />
+);
+const renderCollidingAvatars = () => (
+  <CollidingAvatars i18n={i18n} conversations={[alice, bob]} />
+);
+const renderMiniPlayer = () => (
+  <div>If active, this is where smart mini player would be</div>
 );
 
 const useProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
@@ -529,106 +447,110 @@ const useProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   theme: React.useContext(StorybookThemeContext),
 
   getTimestampForMessage: Date.now,
-  haveNewest: boolean('haveNewest', overrideProps.haveNewest !== false),
-  haveOldest: boolean('haveOldest', overrideProps.haveOldest !== false),
+  haveNewest: overrideProps.haveNewest ?? false,
+  haveOldest: overrideProps.haveOldest ?? false,
+  isBlocked: false,
   isConversationSelected: true,
-  isIncomingMessageRequest: boolean(
-    'isIncomingMessageRequest',
-    overrideProps.isIncomingMessageRequest === true
-  ),
-  items: overrideProps.items || Object.keys(items),
-  scrollToIndex: overrideProps.scrollToIndex,
+  isIncomingMessageRequest: overrideProps.isIncomingMessageRequest ?? false,
+  items: overrideProps.items ?? Object.keys(items),
+  messageChangeCounter: 0,
+  messageLoadingState: null,
+  isNearBottom: null,
+  scrollToIndex: overrideProps.scrollToIndex ?? null,
   scrollToIndexCounter: 0,
-  totalUnread: number('totalUnread', overrideProps.totalUnread || 0),
-  oldestUnreadIndex:
-    number('oldestUnreadIndex', overrideProps.oldestUnreadIndex || 0) ||
-    undefined,
+  shouldShowMiniPlayer: Boolean(overrideProps.shouldShowMiniPlayer),
+  totalUnseen: overrideProps.totalUnseen ?? 0,
+  oldestUnseenIndex: overrideProps.oldestUnseenIndex ?? 0,
   invitedContactsForNewlyCreatedGroup:
     overrideProps.invitedContactsForNewlyCreatedGroup || [],
   warning: overrideProps.warning,
+  hasContactSpoofingReview: false,
+  conversationType: 'direct',
 
   id: uuid(),
   renderItem,
   renderHeroRow,
+  renderMiniPlayer,
   renderTypingBubble,
+  renderCollidingAvatars,
   renderContactSpoofingReviewDialog,
   isSomeoneTyping: overrideProps.isSomeoneTyping || false,
 
   ...actions(),
 });
 
-story.add('Oldest and Newest', () => {
+export function OldestAndNewest(): JSX.Element {
   const props = useProps();
 
   return <Timeline {...props} />;
-});
+}
 
-story.add('With active message request', () => {
+export function WithActiveMessageRequest(): JSX.Element {
   const props = useProps({
     isIncomingMessageRequest: true,
   });
 
   return <Timeline {...props} />;
-});
+}
 
-story.add('Without Newest Message', () => {
+export function WithoutNewestMessage(): JSX.Element {
   const props = useProps({
     haveNewest: false,
   });
 
   return <Timeline {...props} />;
-});
+}
 
-story.add('Without newest message, active message request', () => {
+export function WithoutNewestMessageActiveMessageRequest(): JSX.Element {
   const props = useProps({
     haveOldest: false,
     isIncomingMessageRequest: true,
   });
 
   return <Timeline {...props} />;
-});
+}
 
-story.add('Without Oldest Message', () => {
+export function WithoutOldestMessage(): JSX.Element {
   const props = useProps({
     haveOldest: false,
     scrollToIndex: -1,
   });
 
   return <Timeline {...props} />;
-});
+}
 
-story.add('Empty (just hero)', () => {
+export function EmptyJustHero(): JSX.Element {
   const props = useProps({
     items: [],
   });
 
   return <Timeline {...props} />;
-});
+}
 
-story.add('Last Seen', () => {
+export function LastSeen(): JSX.Element {
   const props = useProps({
-    oldestUnreadIndex: 13,
-    totalUnread: 2,
+    oldestUnseenIndex: 13,
+    totalUnseen: 2,
   });
 
   return <Timeline {...props} />;
-});
+}
 
-story.add('Target Index to Top', () => {
+export function TargetIndexToTop(): JSX.Element {
   const props = useProps({
     scrollToIndex: 0,
   });
 
   return <Timeline {...props} />;
-});
+}
 
-story.add('Typing Indicator', () => {
+export function TypingIndicator(): JSX.Element {
   const props = useProps({ isSomeoneTyping: true });
 
   return <Timeline {...props} />;
-});
+}
 
-story.add('With invited contacts for a newly-created group', () => {
+export function WithInvitedContactsForANewlyCreatedGroup(): JSX.Element {
   const props = useProps({
     invitedContactsForNewlyCreatedGroup: [
       getDefaultConversation({
@@ -643,21 +565,38 @@ story.add('With invited contacts for a newly-created group', () => {
   });
 
   return <Timeline {...props} />;
-});
+}
 
-story.add('With "same name in direct conversation" warning', () => {
+export function WithSameNameInDirectConversationWarning(): JSX.Element {
   const props = useProps({
     warning: {
       type: ContactSpoofingType.DirectConversationWithSameTitle,
-      safeConversation: getDefaultConversation(),
+
+      // Just to pacify type-script
+      safeConversationId: '123',
     },
     items: [],
   });
 
   return <Timeline {...props} />;
-});
+}
 
-story.add('With "same name in group conversation" warning', () => {
+export function WithSameNameInGroupConversationWarning(): JSX.Element {
+  const props = useProps({
+    warning: {
+      type: ContactSpoofingType.MultipleGroupMembersWithSameTitle,
+      acknowledgedGroupNameCollisions: {},
+      groupNameCollisions: {
+        Alice: times(2, () => uuid()),
+      },
+    },
+    items: [],
+  });
+
+  return <Timeline {...props} />;
+}
+
+export function WithSameNamesInGroupConversationWarning(): JSX.Element {
   const props = useProps({
     warning: {
       type: ContactSpoofingType.MultipleGroupMembersWithSameTitle,
@@ -671,4 +610,13 @@ story.add('With "same name in group conversation" warning', () => {
   });
 
   return <Timeline {...props} />;
-});
+}
+
+export function WithJustMiniPlayer(): JSX.Element {
+  const props = useProps({
+    shouldShowMiniPlayer: true,
+    items: [],
+  });
+
+  return <Timeline {...props} />;
+}

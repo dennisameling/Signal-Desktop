@@ -1,7 +1,7 @@
-<!-- Copyright 2014-2021 Signal Messenger, LLC -->
+<!-- Copyright 2014 Signal Messenger, LLC -->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -16,17 +16,68 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'none';
             child-src 'self';
-            connect-src 'self' https: wss:;
+            connect-src 'self' https: wss: attachment:;
             font-src 'self';
             form-action 'self';
             frame-src 'none';
-            img-src 'self' blob: data:;
-            media-src 'self' blob:;
+            img-src 'self' blob: data: emoji: attachment:;
+            media-src 'self' blob: attachment:;
             object-src 'none';
-            script-src 'self' 'sha256-eLeGwSfPmXJ+EUiLfIeXABvLiUqDbiKgNLpHITaabgQ=';
+            script-src 'self' 'sha256-Qu05oqDmBO5fZacm7tr/oerJcqsW0G/XqP4PRCziovc=' 'sha256-eLeGwSfPmXJ+EUiLfIeXABvLiUqDbiKgNLpHITaabgQ=';
             style-src 'self' 'unsafe-inline';"
     />
     <title>Signal</title>
+    <link
+      rel="preload"
+      href="fonts/inter-v3.19/Inter-BoldItalic.woff2"
+      as="font"
+      crossorigin
+      type="font/woff2"
+    />
+    <link
+      rel="preload"
+      href="fonts/inter-v3.19/Inter-Bold.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="fonts/inter-v3.19/Inter-SemiBoldItalic.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="fonts/inter-v3.19/Inter-Italic.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="fonts/inter-v3.19/Inter-SemiBold.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="fonts/inter-v3.19/Inter-Regular.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="fonts/inter-v3.19/Inter-Medium.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="preload" href="images/signal-logo.svg" as="image" crossorigin />
+
     <link
       href="node_modules/sanitize.css/sanitize.css"
       rel="stylesheet"
@@ -38,108 +89,27 @@
       type="text/css"
     />
     <link href="stylesheets/manifest.css" rel="stylesheet" type="text/css" />
-
-    <!--
-    When making changes to these templates, be sure to update test/index.html as well
-  -->
-
-    <script type="text/x-tmpl-mustache" id="app-loading-screen">
-      <div class='module-title-bar-drag-area'></div>
-
-      <div class='content'>
-        <div class="module-splash-screen__logo module-img--150"></div>
-        <div class='container'>
-          <span class='dot'></span>
-          <span class='dot'></span>
-          <span class='dot'></span>
-        </div>
-        <div class='message'>{{ message }}</div>
-      </div>
-    </script>
-
-    <script type="text/x-tmpl-mustache" id="two-column">
-      <div class='module-title-bar-drag-area'></div>
-
-      <div class='left-pane-placeholder'></div>
-
-      <div class='conversation-stack'>
-        <div class='no-conversation-open'>
-          <div class="module-splash-screen__logo module-img--128 module-logo-blue"></div>
-          <h3>{{ welcomeToSignal }}</h3>
-          <p class="whats-new-placeholder"></p>
-          <p>{{ selectAContact }}</p>
-        </div>
-        <div id="toast"></div>
-      </div>
-
-      <div class='lightbox-container'></div>
-    </script>
-
-    <script type="text/x-tmpl-mustache" id="conversation">
-      <div class="ConversationView__template"></div>
-    </script>
-
-    <script type="text/x-tmpl-mustache" id="recorder">
-      <button class='close' tabIndex='2'><span class='icon'></span></button>
-      <span class='time'>0:00</span>
-      <button class='finish' tabIndex='1'><span class='icon'></span></button>
-    </script>
-
-    <script type="text/x-tmpl-mustache" id="group-member-list">
-      <div class='container' tabindex='0'>
-        {{ #summary }} <div class='summary'>{{ summary }}</div>{{ /summary }}
-      </div>
-    </script>
-
-    <script type="text/javascript" src="js/components.js"></script>
-    <script type="text/javascript" src="ts/set_os_class.js"></script>
-    <script
-      type="text/javascript"
-      src="ts/manage_full_screen_class.js"
-    ></script>
-    <script type="text/javascript" src="ts/backboneJquery.js"></script>
-    <script type="text/javascript" src="js/reliable_trigger.js"></script>
-    <script type="text/javascript" src="js/database.js"></script>
-
-    <script
-      type="text/javascript"
-      src="libtextsecure/protocol_wrapper.js"
-    ></script>
-
-    <script type="text/javascript" src="js/libphonenumber-util.js"></script>
-    <script type="text/javascript" src="js/expiring_messages.js"></script>
-    <script
-      type="text/javascript"
-      src="js/expiring_tap_to_view_messages.js"
-    ></script>
-
-    <script
-      type="text/javascript"
-      src="js/views/react_wrapper_view.js"
-    ></script>
-    <script
-      type="text/javascript"
-      src="ts/shims/showConfirmationDialog.js"
-    ></script>
-
-    <script type="text/javascript" src="js/wall_clock_listener.js"></script>
   </head>
   <body class="overflow-hidden">
     <div id="app-container">
-      <div class="app-loading-screen">
+      <div class="app-loading-screen app-loading-screen--before-app-load">
         <div class="module-title-bar-drag-area"></div>
 
-        <div class="content">
-          <div class="module-splash-screen__logo module-img--150"></div>
-          <div class="container">
-            <span class="dot"></span>
-            <span class="dot"></span>
-            <span class="dot"></span>
-          </div>
-          <div class="message"></div>
+        <div class="module-splash-screen__logo module-img--150"></div>
+        <div class="dot-container">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
         </div>
+        <div class="message-placeholder"></div>
       </div>
     </div>
+
+    <script type="text/javascript">
+      document
+        .querySelector('.app-loading-screen')
+        .addEventListener('dblclick', () => window.showDebugLog());
+    </script>
 
     <!--
     Note: this inline script cannot be changed without also changing the hash in

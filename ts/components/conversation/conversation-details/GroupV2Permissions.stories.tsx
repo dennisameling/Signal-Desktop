@@ -1,11 +1,9 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../../../util/setupI18n';
 import enMessages from '../../../../_locales/en/messages.json';
 import type { PropsType } from './GroupV2Permissions';
@@ -15,10 +13,9 @@ import { getDefaultConversation } from '../../../test-both/helpers/getDefaultCon
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf(
-  'Components/Conversation/ConversationDetails/GroupV2Permissions',
-  module
-);
+export default {
+  title: 'Components/Conversation/ConversationDetails/GroupV2Permissions',
+} satisfies Meta<PropsType>;
 
 const conversation: ConversationType = getDefaultConversation({
   id: '',
@@ -42,39 +39,45 @@ const createProps = (): PropsType => ({
   setAnnouncementsOnly: action('setAnnouncementsOnly'),
 });
 
-story.add('Basic', () => {
+export function Basic(): JSX.Element {
   const props = createProps();
 
   return <GroupV2Permissions {...props} />;
-});
+}
 
-story.add('Not admin', () => (
-  <GroupV2Permissions
-    {...createProps()}
-    conversation={getDefaultConversation({
-      announcementsOnly: true,
-      areWeAdmin: false,
-    })}
-  />
-));
+export function NotAdmin(): JSX.Element {
+  return (
+    <GroupV2Permissions
+      {...createProps()}
+      conversation={getDefaultConversation({
+        announcementsOnly: true,
+        areWeAdmin: false,
+      })}
+    />
+  );
+}
 
-story.add('Admin but not announcement ready', () => (
-  <GroupV2Permissions
-    {...createProps()}
-    conversation={getDefaultConversation({
-      announcementsOnlyReady: false,
-      areWeAdmin: true,
-    })}
-  />
-));
+export function AdminButNotAnnouncementReady(): JSX.Element {
+  return (
+    <GroupV2Permissions
+      {...createProps()}
+      conversation={getDefaultConversation({
+        announcementsOnlyReady: false,
+        areWeAdmin: true,
+      })}
+    />
+  );
+}
 
-story.add('Admin, not announcement ready, but it was on', () => (
-  <GroupV2Permissions
-    {...createProps()}
-    conversation={getDefaultConversation({
-      announcementsOnly: true,
-      announcementsOnlyReady: false,
-      areWeAdmin: true,
-    })}
-  />
-));
+export function AdminNotAnnouncementReadyButItWasOn(): JSX.Element {
+  return (
+    <GroupV2Permissions
+      {...createProps()}
+      conversation={getDefaultConversation({
+        announcementsOnly: true,
+        announcementsOnlyReady: false,
+        areWeAdmin: true,
+      })}
+    />
+  );
+}

@@ -1,23 +1,25 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ReactNode } from 'react';
-import React, { useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 import { Button, ButtonIconType, ButtonVariant } from '../../Button';
-import { Tooltip } from '../../Tooltip';
-import type { ConversationType } from '../../../state/ducks/conversations';
+import type {
+  ConversationType,
+  PushPanelForConversationActionType,
+  ShowConversationType,
+} from '../../../state/ducks/conversations';
 import type { PreferredBadgeSelectorType } from '../../../state/selectors/badges';
 import type { SmartChooseGroupMembersModalPropsType } from '../../../state/smart/ChooseGroupMembersModal';
 import type { SmartConfirmAdditionsModalPropsType } from '../../../state/smart/ConfirmAdditionsModal';
-import { assert } from '../../../util/assert';
+import { assertDev } from '../../../util/assert';
 import { getMutedUntilText } from '../../../util/getMutedUntilText';
 
 import type { LocalizerType, ThemeType } from '../../../types/Util';
-import type { MediaItemType } from '../../../types/MediaItem';
 import type { BadgeType } from '../../../badges/types';
-import { CapabilityError } from '../../../types/errors';
 import { missingCaseError } from '../../../util/missingCaseError';
+import { DurationInSeconds } from '../../../util/durations';
 
 import { DisappearingTimerSelect } from '../../DisappearingTimerSelect';
 
@@ -27,6 +29,7 @@ import { AddGroupMembersModal } from './AddGroupMembersModal';
 import { ConversationDetailsActions } from './ConversationDetailsActions';
 import { ConversationDetailsHeader } from './ConversationDetailsHeader';
 import { ConversationDetailsIcon, IconType } from './ConversationDetailsIcon';
+import type { Props as ConversationDetailsMediaListPropsType } from './ConversationDetailsMediaList';
 import { ConversationDetailsMediaList } from './ConversationDetailsMediaList';
 import type { GroupV2Membership } from './ConversationDetailsMembershipList';
 import { ConversationDetailsMembershipList } from './ConversationDetailsMembershipList';
@@ -45,22 +48,35 @@ import type {
   ReplaceAvatarActionType,
   SaveAvatarToDiskActionType,
 } from '../../../types/Avatar';
-import { isMuted } from '../../../util/isMuted';
+import { isConversationMuted } from '../../../util/isConversationMuted';
+import { ConversationDetailsGroups } from './ConversationDetailsGroups';
+import { PanelType } from '../../../types/Panels';
+import { type CallHistoryGroup } from '../../../types/CallDisposition';
+import { NavTab } from '../../../state/ducks/nav';
+import { ContextMenu } from '../../ContextMenu';
+import { canHaveNicknameAndNote } from '../../../util/nicknames';
+import { CallHistoryGroupPanelSection } from './CallHistoryGroupPanelSection';
+import {
+  InAnotherCallTooltip,
+  getTooltipContent,
+} from '../InAnotherCallTooltip';
 
 enum ModalState {
-  NothingOpen,
+  AddingGroupMembers,
+  ConfirmDeleteNicknameAndNote,
   EditingGroupDescription,
   EditingGroupTitle,
-  AddingGroupMembers,
   MuteNotifications,
+  NothingOpen,
   UnmuteNotifications,
 }
 
 export type StateProps = {
-  addMembers: (conversationIds: ReadonlyArray<string>) => Promise<void>;
   areWeASubscriber: boolean;
   badges?: ReadonlyArray<BadgeType>;
+  callHistoryGroup?: CallHistoryGroup | null;
   canEditGroupInfo: boolean;
+  canAddNewMembers: boolean;
   conversation?: ConversationType;
   hasGroupLink: boolean;
   getPreferredBadge: PreferredBadgeSelectorType;
@@ -68,36 +84,15 @@ export type StateProps = {
   i18n: LocalizerType;
   isAdmin: boolean;
   isGroup: boolean;
-  loadRecentMediaItems: (limit: number) => void;
-  memberships: Array<GroupV2Membership>;
+  groupsInCommon: ReadonlyArray<ConversationType>;
+  maxGroupSize: number;
+  maxRecommendedGroupSize: number;
+  memberships: ReadonlyArray<GroupV2Membership>;
   pendingApprovalMemberships: ReadonlyArray<GroupV2RequestingMembership>;
   pendingMemberships: ReadonlyArray<GroupV2PendingMembership>;
-  setDisappearingMessages: (seconds: number) => void;
-  showAllMedia: () => void;
-  showChatColorEditor: () => void;
-  showGroupLinkManagement: () => void;
-  showGroupV2Permissions: () => void;
-  showPendingInvites: () => void;
-  showLightboxForMedia: (
-    selectedMediaItem: MediaItemType,
-    media: Array<MediaItemType>
-  ) => void;
-  showConversationNotificationsSettings: () => void;
-  updateGroupAttributes: (
-    _: Readonly<{
-      avatar?: undefined | Uint8Array;
-      description?: string;
-      title?: string;
-    }>
-  ) => Promise<void>;
-  onBlock: () => void;
-  onLeave: () => void;
-  onUnblock: () => void;
+  selectedNavTab: NavTab;
   theme: ThemeType;
-  userAvatarData: Array<AvatarDataType>;
-  setMuteExpiration: (muteExpiresAt: undefined | number) => unknown;
-  onOutgoingAudioCallInConversation: () => unknown;
-  onOutgoingVideoCallInConversation: () => unknown;
+  userAvatarData: ReadonlyArray<AvatarDataType>;
   renderChooseGroupMembersModal: (
     props: SmartChooseGroupMembersModalPropsType
   ) => JSX.Element;
@@ -107,75 +102,56 @@ export type StateProps = {
 };
 
 type ActionProps = {
+  acceptConversation: (id: string) => void;
+  addMembersToGroup: (
+    conversationId: string,
+    conversationIds: ReadonlyArray<string>,
+    opts: {
+      onSuccess?: () => unknown;
+      onFailure?: () => unknown;
+    }
+  ) => unknown;
+  blockConversation: (id: string) => void;
+
   deleteAvatarFromDisk: DeleteAvatarFromDiskActionType;
+  getProfilesForConversation: (id: string) => unknown;
+  leaveGroup: (conversationId: string) => void;
+  loadRecentMediaItems: (id: string, limit: number) => void;
+  onDeleteNicknameAndNote: () => void;
+  onOpenEditNicknameAndNoteModal: () => void;
+  onOutgoingAudioCallInConversation: (conversationId: string) => unknown;
+  onOutgoingVideoCallInConversation: (conversationId: string) => unknown;
+  pushPanelForConversation: PushPanelForConversationActionType;
   replaceAvatar: ReplaceAvatarActionType;
   saveAvatarToDisk: SaveAvatarToDiskActionType;
-  showContactModal: (contactId: string, conversationId?: string) => void;
-  toggleSafetyNumberModal: (conversationId: string) => unknown;
   searchInConversation: (id: string) => unknown;
-};
+  setDisappearingMessages: (id: string, seconds: DurationInSeconds) => void;
+  setMuteExpiration: (id: string, muteExpiresAt: undefined | number) => unknown;
+  showContactModal: (contactId: string, conversationId?: string) => void;
+  showConversation: ShowConversationType;
+  toggleAboutContactModal: (contactId: string) => void;
+  toggleAddUserToAnotherGroupModal: (contactId?: string) => void;
+  toggleSafetyNumberModal: (conversationId: string) => unknown;
+  updateGroupAttributes: (
+    conversationId: string,
+    _: Readonly<{
+      avatar?: undefined | Uint8Array;
+      description?: string;
+      title?: string;
+    }>,
+    opts: {
+      onSuccess?: () => unknown;
+      onFailure?: () => unknown;
+    }
+  ) => unknown;
+} & Pick<ConversationDetailsMediaListPropsType, 'showLightboxWithMedia'>;
 
 export type Props = StateProps & ActionProps;
 
-export const ConversationDetails: React.ComponentType<Props> = ({
-  addMembers,
-  areWeASubscriber,
-  badges,
-  canEditGroupInfo,
-  conversation,
-  deleteAvatarFromDisk,
-  hasGroupLink,
-  getPreferredBadge,
-  hasActiveCall,
-  i18n,
-  isAdmin,
-  isGroup,
-  loadRecentMediaItems,
-  memberships,
-  onBlock,
-  onLeave,
-  onOutgoingAudioCallInConversation,
-  onOutgoingVideoCallInConversation,
-  onUnblock,
-  pendingApprovalMemberships,
-  pendingMemberships,
-  renderChooseGroupMembersModal,
-  renderConfirmAdditionsModal,
-  replaceAvatar,
-  saveAvatarToDisk,
-  searchInConversation,
-  setDisappearingMessages,
-  setMuteExpiration,
-  showAllMedia,
-  showChatColorEditor,
-  showContactModal,
-  showConversationNotificationsSettings,
-  showGroupLinkManagement,
-  showGroupV2Permissions,
-  showLightboxForMedia,
-  showPendingInvites,
-  theme,
-  toggleSafetyNumberModal,
-  updateGroupAttributes,
-  userAvatarData,
-}) => {
-  const [modalState, setModalState] = useState<ModalState>(
-    ModalState.NothingOpen
-  );
-  const [editGroupAttributesRequestState, setEditGroupAttributesRequestState] =
-    useState<RequestState>(RequestState.Inactive);
-  const [addGroupMembersRequestState, setAddGroupMembersRequestState] =
-    useState<RequestState>(RequestState.Inactive);
-  const [membersMissingCapability, setMembersMissingCapability] =
-    useState(false);
-
-  if (conversation === undefined) {
-    throw new Error('ConversationDetails rendered without a conversation');
-  }
-
-  const invitesCount =
-    pendingMemberships.length + pendingApprovalMemberships.length;
-
+export function getCannotLeaveBecauseYouAreLastAdmin(
+  memberships: ReadonlyArray<GroupV2Membership>,
+  isAdmin: boolean
+): boolean {
   const otherMemberships = memberships.filter(({ member }) => !member.isMe);
   const isJustMe = otherMemberships.length === 0;
   const isAnyoneElseAnAdmin = otherMemberships.some(
@@ -183,6 +159,84 @@ export const ConversationDetails: React.ComponentType<Props> = ({
   );
   const cannotLeaveBecauseYouAreLastAdmin =
     isAdmin && !isJustMe && !isAnyoneElseAnAdmin;
+  return cannotLeaveBecauseYouAreLastAdmin;
+}
+
+export function ConversationDetails({
+  acceptConversation,
+  addMembersToGroup,
+  areWeASubscriber,
+  badges,
+  blockConversation,
+  callHistoryGroup,
+  canEditGroupInfo,
+  canAddNewMembers,
+  conversation,
+  deleteAvatarFromDisk,
+  hasGroupLink,
+  getPreferredBadge,
+  getProfilesForConversation,
+  groupsInCommon,
+  hasActiveCall,
+  i18n,
+  isAdmin,
+  isGroup,
+  leaveGroup,
+  loadRecentMediaItems,
+  memberships,
+  maxGroupSize,
+  maxRecommendedGroupSize,
+  onDeleteNicknameAndNote,
+  onOpenEditNicknameAndNoteModal,
+  onOutgoingAudioCallInConversation,
+  onOutgoingVideoCallInConversation,
+  pendingApprovalMemberships,
+  pendingMemberships,
+  pushPanelForConversation,
+  renderChooseGroupMembersModal,
+  renderConfirmAdditionsModal,
+  replaceAvatar,
+  saveAvatarToDisk,
+  searchInConversation,
+  selectedNavTab,
+  setDisappearingMessages,
+  setMuteExpiration,
+  showContactModal,
+  showConversation,
+  showLightboxWithMedia,
+  theme,
+  toggleAboutContactModal,
+  toggleSafetyNumberModal,
+  toggleAddUserToAnotherGroupModal,
+  updateGroupAttributes,
+  userAvatarData,
+}: Props): JSX.Element {
+  const [modalState, setModalState] = useState<ModalState>(
+    ModalState.NothingOpen
+  );
+  const [editGroupAttributesRequestState, setEditGroupAttributesRequestState] =
+    useState<RequestState>(RequestState.Inactive);
+  const [addGroupMembersRequestState, setAddGroupMembersRequestState] =
+    useState<RequestState>(RequestState.Inactive);
+
+  if (conversation === undefined) {
+    throw new Error('ConversationDetails rendered without a conversation');
+  }
+
+  useEffect(() => {
+    getProfilesForConversation(conversation.id);
+  }, [conversation.id, getProfilesForConversation]);
+
+  const invitesCount =
+    pendingMemberships.length + pendingApprovalMemberships.length;
+
+  const cannotLeaveBecauseYouAreLastAdmin =
+    getCannotLeaveBecauseYouAreLastAdmin(memberships, isAdmin);
+
+  const onCloseModal = useCallback(() => {
+    setModalState(ModalState.NothingOpen);
+    setEditGroupAttributesRequestState(RequestState.Inactive);
+  }, []);
 
   let modalNode: ReactNode;
   switch (modalState) {
@@ -194,7 +248,7 @@ export const ConversationDetails: React.ComponentType<Props> = ({
       modalNode = (
         <EditConversationAttributesModal
           avatarColor={conversation.color}
-          avatarPath={conversation.avatarPath}
+          avatarUrl={conversation.avatarUrl}
           conversationId={conversation.id}
           groupDescription={conversation.groupDescription}
           i18n={i18n}
@@ -210,20 +264,19 @@ export const ConversationDetails: React.ComponentType<Props> = ({
           ) => {
             setEditGroupAttributesRequestState(RequestState.Active);
 
-            try {
-              await updateGroupAttributes(options);
-              setModalState(ModalState.NothingOpen);
-              setEditGroupAttributesRequestState(RequestState.Inactive);
-            } catch (err) {
-              setEditGroupAttributesRequestState(
-                RequestState.InactiveWithError
-              );
-            }
+            updateGroupAttributes(conversation.id, options, {
+              onSuccess: () => {
+                setModalState(ModalState.NothingOpen);
+                setEditGroupAttributesRequestState(RequestState.Inactive);
+              },
+              onFailure: () => {
+                setEditGroupAttributesRequestState(
+                  RequestState.InactiveWithError
+                );
+              },
+            });
           }}
-          onClose={() => {
-            setModalState(ModalState.NothingOpen);
-            setEditGroupAttributesRequestState(RequestState.Inactive);
-          }}
+          onClose={onCloseModal}
           requestState={editGroupAttributesRequestState}
           title={conversation.title}
           deleteAvatarFromDisk={deleteAvatarFromDisk}
@@ -240,7 +293,7 @@ export const ConversationDetails: React.ComponentType<Props> = ({
           renderConfirmAdditionsModal={renderConfirmAdditionsModal}
           clearRequestError={() => {
             setAddGroupMembersRequestState(oldRequestState => {
-              assert(
+              assertDev(
                 oldRequestState !== RequestState.Active,
                 'Should not be clearing an active request state'
               );
@@ -255,35 +308,54 @@ export const ConversationDetails: React.ComponentType<Props> = ({
           makeRequest={async conversationIds => {
             setAddGroupMembersRequestState(RequestState.Active);
 
-            try {
-              await addMembers(conversationIds);
-              setModalState(ModalState.NothingOpen);
-              setAddGroupMembersRequestState(RequestState.Inactive);
-            } catch (err) {
-              if (err instanceof CapabilityError) {
-                setMembersMissingCapability(true);
+            addMembersToGroup(conversation.id, conversationIds, {
+              onSuccess: () => {
+                setModalState(ModalState.NothingOpen);
+                setAddGroupMembersRequestState(RequestState.Inactive);
+              },
+              onFailure: () => {
                 setAddGroupMembersRequestState(RequestState.InactiveWithError);
-              } else {
-                setAddGroupMembersRequestState(RequestState.InactiveWithError);
-              }
-            }
+              },
+            });
           }}
-          onClose={() => {
-            setModalState(ModalState.NothingOpen);
-            setEditGroupAttributesRequestState(RequestState.Inactive);
-          }}
+          maxGroupSize={maxGroupSize}
+          maxRecommendedGroupSize={maxRecommendedGroupSize}
+          onClose={onCloseModal}
           requestState={addGroupMembersRequestState}
         />
+      );
+      break;
+    case ModalState.ConfirmDeleteNicknameAndNote:
+      modalNode = (
+        <ConfirmationDialog
+          dialogName="ConversationDetails.ConfirmDeleteNicknameAndNote"
+          actions={[
+            {
+              action: onDeleteNicknameAndNote,
+              style: 'negative',
+              text: i18n('icu:delete'),
+            },
+          ]}
+          hasXButton
+          i18n={i18n}
+          title={i18n(
+            'icu:ConversationDetails__ConfirmDeleteNicknameAndNote__Title'
+          )}
+          onClose={onCloseModal}
+        >
+          {i18n(
+            'icu:ConversationDetails__ConfirmDeleteNicknameAndNote__Description'
+          )}
+        </ConfirmationDialog>
       );
       break;
     case ModalState.MuteNotifications:
       modalNode = (
         <ConversationNotificationsModal
           i18n={i18n}
+          id={conversation.id}
           muteExpiresAt={conversation.muteExpiresAt}
-          onClose={() => {
-            setModalState(ModalState.NothingOpen);
-          }}
+          onClose={onCloseModal}
           setMuteExpiration={setMuteExpiration}
         />
       );
@@ -291,42 +363,32 @@ export const ConversationDetails: React.ComponentType<Props> = ({
     case ModalState.UnmuteNotifications:
       modalNode = (
         <ConfirmationDialog
+          dialogName="ConversationDetails.unmuteNotifications"
           actions={[
             {
-              action: () => setMuteExpiration(0),
+              action: () => setMuteExpiration(conversation.id, 0),
               style: 'affirmative',
-              text: i18n('unmute'),
+              text: i18n('icu:unmute'),
             },
           ]}
           hasXButton
           i18n={i18n}
-          title={i18n('ConversationDetails__unmute--title')}
-          onClose={() => {
-            setModalState(ModalState.NothingOpen);
-          }}
+          title={i18n('icu:ConversationDetails__unmute--title')}
+          onClose={onCloseModal}
         >
           {getMutedUntilText(Number(conversation.muteExpiresAt), i18n)}
         </ConfirmationDialog>
       );
       break;
+
     default:
       throw missingCaseError(modalState);
   }
 
-  const isConversationMuted = isMuted(conversation.muteExpiresAt);
+  const isMuted = isConversationMuted(conversation);
 
   return (
     <div className="conversation-details-panel">
-      {membersMissingCapability && (
-        <ConfirmationDialog
-          cancelText={i18n('Confirmation--confirm')}
-          i18n={i18n}
-          onClose={() => setMembersMissingCapability(false)}
-        >
-          {i18n('GroupV2--add--missing-capability')}
-        </ConfirmationDialog>
-      )}
-
       <ConversationDetailsHeader
         areWeASubscriber={areWeASubscriber}
         badges={badges}
@@ -335,7 +397,7 @@ export const ConversationDetails: React.ComponentType<Props> = ({
         i18n={i18n}
         isMe={conversation.isMe}
         isGroup={isGroup}
-        memberships={memberships}
+        membersCount={conversation.membersCount ?? null}
         startEditing={(isGroupTitle: boolean) => {
           setModalState(
             isGroupTitle
@@ -344,33 +406,48 @@ export const ConversationDetails: React.ComponentType<Props> = ({
           );
         }}
         theme={theme}
+        toggleAboutContactModal={toggleAboutContactModal}
       />
 
       <div className="ConversationDetails__header-buttons">
+        {selectedNavTab === NavTab.Calls && (
+          <Button
+            icon={ButtonIconType.message}
+            onClick={() => {
+              showConversation({
+                conversationId: conversation?.id,
+                switchToAssociatedView: true,
+              });
+            }}
+            variant={ButtonVariant.Details}
+          >
+            {i18n('icu:ConversationDetails__HeaderButton--Message')}
+          </Button>
+        )}
         {!conversation.isMe && (
           <>
             <ConversationDetailsCallButton
-              disabled={hasActiveCall}
+              hasActiveCall={hasActiveCall}
               i18n={i18n}
-              onClick={onOutgoingVideoCallInConversation}
+              onClick={() => onOutgoingVideoCallInConversation(conversation.id)}
               type="video"
             />
             {!isGroup && (
               <ConversationDetailsCallButton
-                disabled={hasActiveCall}
+                hasActiveCall={hasActiveCall}
                 i18n={i18n}
-                onClick={onOutgoingAudioCallInConversation}
+                onClick={() =>
+                  onOutgoingAudioCallInConversation(conversation.id)
+                }
                 type="audio"
               />
             )}
           </>
         )}
         <Button
-          icon={
-            isConversationMuted ? ButtonIconType.muted : ButtonIconType.unmuted
-          }
+          icon={isMuted ? ButtonIconType.muted : ButtonIconType.unmuted}
           onClick={() => {
-            if (isConversationMuted) {
+            if (isMuted) {
               setModalState(ModalState.UnmuteNotifications);
             } else {
               setModalState(ModalState.MuteNotifications);
@@ -378,18 +455,27 @@ export const ConversationDetails: React.ComponentType<Props> = ({
           }}
           variant={ButtonVariant.Details}
         >
-          {isConversationMuted ? i18n('unmute') : i18n('mute')}
+          {isMuted ? i18n('icu:unmute') : i18n('icu:mute')}
         </Button>
-        <Button
-          icon={ButtonIconType.search}
-          onClick={() => {
-            searchInConversation(conversation.id);
-          }}
-          variant={ButtonVariant.Details}
-        >
-          {i18n('search')}
-        </Button>
+        {selectedNavTab !== NavTab.Calls && (
+          <Button
+            icon={ButtonIconType.search}
+            onClick={() => {
+              searchInConversation(conversation.id);
+            }}
+            variant={ButtonVariant.Details}
+          >
+            {i18n('icu:search')}
+          </Button>
+        )}
       </div>
+
+      {callHistoryGroup && (
+        <CallHistoryGroupPanelSection
+          callHistoryGroup={callHistoryGroup}
+          i18n={i18n}
+        />
+      )}
 
       <PanelSection>
         {!isGroup || canEditGroupInfo ? (
@@ -397,54 +483,121 @@ export const ConversationDetails: React.ComponentType<Props> = ({
             icon={
               <ConversationDetailsIcon
                 ariaLabel={i18n(
-                  'ConversationDetails--disappearing-messages-label'
+                  'icu:ConversationDetails--disappearing-messages-label'
                 )}
                 icon={IconType.timer}
               />
             }
-            info={i18n(
+            info={
               isGroup
-                ? 'ConversationDetails--disappearing-messages-info--group'
-                : 'ConversationDetails--disappearing-messages-info--direct'
-            )}
-            label={i18n('ConversationDetails--disappearing-messages-label')}
+                ? i18n(
+                    'icu:ConversationDetails--disappearing-messages-info--group'
+                  )
+                : i18n(
+                    'icu:ConversationDetails--disappearing-messages-info--direct'
+                  )
+            }
+            label={i18n('icu:ConversationDetails--disappearing-messages-label')}
             right={
               <DisappearingTimerSelect
                 i18n={i18n}
-                value={conversation.expireTimer || 0}
-                onChange={setDisappearingMessages}
+                value={conversation.expireTimer || DurationInSeconds.ZERO}
+                onChange={value =>
+                  setDisappearingMessages(conversation.id, value)
+                }
               />
             }
           />
         ) : null}
-        <PanelRow
-          icon={
-            <ConversationDetailsIcon
-              ariaLabel={i18n('showChatColorEditor')}
-              icon={IconType.color}
-            />
-          }
-          label={i18n('showChatColorEditor')}
-          onClick={showChatColorEditor}
-          right={
-            <div
-              className={`ConversationDetails__chat-color ConversationDetails__chat-color--${conversation.conversationColor}`}
-              style={{
-                ...getCustomColorStyle(conversation.customColor),
-              }}
-            />
-          }
-        />
+        {canHaveNicknameAndNote(conversation) && (
+          <PanelRow
+            icon={
+              <ConversationDetailsIcon
+                ariaLabel={i18n('icu:ConversationDetails--nickname-label')}
+                icon={IconType.edit}
+              />
+            }
+            label={i18n('icu:ConversationDetails--nickname-label')}
+            onClick={onOpenEditNicknameAndNoteModal}
+            actions={
+              (conversation.nicknameGivenName ||
+                conversation.nicknameFamilyName ||
+                conversation.note) && (
+                <ContextMenu
+                  i18n={i18n}
+                  portalToRoot
+                  popperOptions={{
+                    placement: 'bottom',
+                    strategy: 'absolute',
+                  }}
+                  menuOptions={[
+                    {
+                      icon: 'ConversationDetails--nickname-actions--delete',
+                      label: i18n(
+                        'icu:ConversationDetails--nickname-actions--delete'
+                      ),
+                      onClick: () => {
+                        setModalState(ModalState.ConfirmDeleteNicknameAndNote);
+                      },
+                    },
+                  ]}
+                >
+                  {({ onClick }) => {
+                    return (
+                      <button
+                        type="button"
+                        className="ConversationDetails--nickname-actions"
+                        onClick={onClick}
+                      >
+                        <span className="ConversationDetails--nickname-actions-label">
+                          {i18n('icu:ConversationDetails--nickname-actions')}
+                        </span>
+                      </button>
+                    );
+                  }}
+                </ContextMenu>
+              )
+            }
+          />
+        )}
+        {selectedNavTab === NavTab.Chats && (
+          <PanelRow
+            icon={
+              <ConversationDetailsIcon
+                ariaLabel={i18n('icu:showChatColorEditor')}
+                icon={IconType.color}
+              />
+            }
+            label={i18n('icu:showChatColorEditor')}
+            onClick={() => {
+              pushPanelForConversation({
+                type: PanelType.ChatColorEditor,
+              });
+            }}
+            right={
+              <div
+                className={`ConversationDetails__chat-color ConversationDetails__chat-color--${conversation.conversationColor}`}
+                style={{
+                  ...getCustomColorStyle(conversation.customColor),
+                }}
+              />
+            }
+          />
+        )}
         {isGroup && (
           <PanelRow
             icon={
               <ConversationDetailsIcon
-                ariaLabel={i18n('ConversationDetails--notifications')}
+                ariaLabel={i18n('icu:ConversationDetails--notifications')}
                 icon={IconType.notifications}
               />
             }
-            label={i18n('ConversationDetails--notifications')}
-            onClick={showConversationNotificationsSettings}
+            label={i18n('icu:ConversationDetails--notifications')}
+            onClick={() =>
+              pushPanelForConversation({
+                type: PanelType.NotificationSettings,
+              })
+            }
             right={
               conversation.muteExpiresAt
                 ? getMutedUntilText(conversation.muteExpiresAt, i18n)
@@ -453,28 +606,26 @@ export const ConversationDetails: React.ComponentType<Props> = ({
           />
         )}
         {!isGroup && !conversation.isMe && (
-          <>
-            <PanelRow
-              onClick={() => toggleSafetyNumberModal(conversation.id)}
-              icon={
-                <ConversationDetailsIcon
-                  ariaLabel={i18n('verifyNewNumber')}
-                  icon={IconType.verify}
-                />
-              }
-              label={
-                <div className="ConversationDetails__safety-number">
-                  {i18n('verifyNewNumber')}
-                </div>
-              }
-            />
-          </>
+          <PanelRow
+            onClick={() => toggleSafetyNumberModal(conversation.id)}
+            icon={
+              <ConversationDetailsIcon
+                ariaLabel={i18n('icu:ConversationDetails__viewSafetyNumber')}
+                icon={IconType.verify}
+              />
+            }
+            label={
+              <div className="ConversationDetails__safety-number">
+                {i18n('icu:ConversationDetails__viewSafetyNumber')}
+              </div>
+            }
+          />
         )}
       </PanelSection>
 
       {isGroup && (
         <ConversationDetailsMembershipList
-          canAddNewMembers={canEditGroupInfo}
+          canAddNewMembers={canAddNewMembers}
           conversationId={conversation.id}
           getPreferredBadge={getPreferredBadge}
           i18n={i18n}
@@ -493,36 +644,50 @@ export const ConversationDetails: React.ComponentType<Props> = ({
             <PanelRow
               icon={
                 <ConversationDetailsIcon
-                  ariaLabel={i18n('ConversationDetails--group-link')}
+                  ariaLabel={i18n('icu:ConversationDetails--group-link')}
                   icon={IconType.link}
                 />
               }
-              label={i18n('ConversationDetails--group-link')}
-              onClick={showGroupLinkManagement}
-              right={hasGroupLink ? i18n('on') : i18n('off')}
+              label={i18n('icu:ConversationDetails--group-link')}
+              onClick={() =>
+                pushPanelForConversation({
+                  type: PanelType.GroupLinkManagement,
+                })
+              }
+              right={hasGroupLink ? i18n('icu:on') : i18n('icu:off')}
             />
           ) : null}
           <PanelRow
             icon={
               <ConversationDetailsIcon
-                ariaLabel={i18n('ConversationDetails--requests-and-invites')}
+                ariaLabel={i18n(
+                  'icu:ConversationDetails--requests-and-invites'
+                )}
                 icon={IconType.invites}
               />
             }
-            label={i18n('ConversationDetails--requests-and-invites')}
-            onClick={showPendingInvites}
+            label={i18n('icu:ConversationDetails--requests-and-invites')}
+            onClick={() =>
+              pushPanelForConversation({
+                type: PanelType.GroupInvites,
+              })
+            }
             right={invitesCount}
           />
           {isAdmin ? (
             <PanelRow
               icon={
                 <ConversationDetailsIcon
-                  ariaLabel={i18n('permissions')}
+                  ariaLabel={i18n('icu:permissions')}
                   icon={IconType.lock}
                 />
               }
-              label={i18n('permissions')}
-              onClick={showGroupV2Permissions}
+              label={i18n('icu:permissions')}
+              onClick={() =>
+                pushPanelForConversation({
+                  type: PanelType.GroupPermissions,
+                })
+              }
             />
           ) : null}
         </PanelSection>
@@ -532,57 +697,70 @@ export const ConversationDetails: React.ComponentType<Props> = ({
         conversation={conversation}
         i18n={i18n}
         loadRecentMediaItems={loadRecentMediaItems}
-        showAllMedia={showAllMedia}
-        showLightboxForMedia={showLightboxForMedia}
+        showAllMedia={() =>
+          pushPanelForConversation({
+            type: PanelType.AllMedia,
+          })
+        }
+        showLightboxWithMedia={showLightboxWithMedia}
       />
+
+      {!isGroup && !conversation.isMe && (
+        <ConversationDetailsGroups
+          contactId={conversation.id}
+          i18n={i18n}
+          groupsInCommon={groupsInCommon}
+          toggleAddUserToAnotherGroupModal={toggleAddUserToAnotherGroupModal}
+          showConversation={showConversation}
+        />
+      )}
 
       {!conversation.isMe && (
         <ConversationDetailsActions
+          acceptConversation={acceptConversation}
+          blockConversation={blockConversation}
           cannotLeaveBecauseYouAreLastAdmin={cannotLeaveBecauseYouAreLastAdmin}
+          conversationId={conversation.id}
           conversationTitle={conversation.title}
           i18n={i18n}
           isBlocked={Boolean(conversation.isBlocked)}
           isGroup={isGroup}
           left={Boolean(conversation.left)}
-          onBlock={onBlock}
-          onLeave={onLeave}
-          onUnblock={onUnblock}
+          onLeave={() => leaveGroup(conversation.id)}
         />
       )}
 
       {modalNode}
     </div>
   );
-};
+}
 
 function ConversationDetailsCallButton({
-  disabled,
+  hasActiveCall,
   i18n,
   onClick,
   type,
 }: Readonly<{
-  disabled: boolean;
+  hasActiveCall: boolean;
   i18n: LocalizerType;
   onClick: () => unknown;
   type: 'audio' | 'video';
 }>) {
+  const tooltipContent = hasActiveCall ? getTooltipContent(i18n) : undefined;
   const button = (
     <Button
-      disabled={disabled}
       icon={ButtonIconType[type]}
       onClick={onClick}
       variant={ButtonVariant.Details}
+      discouraged={hasActiveCall}
+      aria-label={tooltipContent}
     >
-      {i18n(type)}
+      {type === 'audio' ? i18n('icu:audio') : i18n('icu:video')}
     </Button>
   );
 
-  if (disabled) {
-    return (
-      <Tooltip content={i18n('calling__in-another-call-tooltip')}>
-        {button}
-      </Tooltip>
-    );
+  if (hasActiveCall) {
+    return <InAnotherCallTooltip i18n={i18n}>{button}</InAnotherCallTooltip>;
   }
 
   return button;

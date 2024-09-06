@@ -1,377 +1,164 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import * as React from 'react';
-import { storiesOf } from '@storybook/react';
-import { number as numberKnob, text } from '@storybook/addon-knobs';
+import type { Meta, StoryFn } from '@storybook/react';
+import React, { useContext } from 'react';
+import casual from 'casual';
 import { action } from '@storybook/addon-actions';
-
-import { ConversationHero } from './ConversationHero';
-import { setupI18n } from '../../util/setupI18n';
 import enMessages from '../../../_locales/en/messages.json';
+import type { Props } from './ConversationHero';
+import { ConversationHero } from './ConversationHero';
+import { HasStories } from '../../types/Stories';
 import { StorybookThemeContext } from '../../../.storybook/StorybookThemeContext';
+import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
+import { setupI18n } from '../../util/setupI18n';
+import { ThemeType } from '../../types/Util';
 
 const i18n = setupI18n('en', enMessages);
 
-const getAbout = () => text('about', '👍 Free to chat');
-const getTitle = () => text('name', 'Cayce Bollard');
-const getName = () => text('name', 'Cayce Bollard');
-const getProfileName = () => text('profileName', 'Cayce Bollard (profile)');
-const getAvatarPath = () =>
-  text('avatarPath', '/fixtures/kitten-4-112-112.jpg');
-const getPhoneNumber = () => text('phoneNumber', '+1 (646) 327-2700');
+export default {
+  title: 'Components/Conversation/ConversationHero',
+  component: ConversationHero,
+  args: {
+    conversationType: 'direct',
+    i18n,
+    theme: ThemeType.light,
+    unblurAvatar: action('unblurAvatar'),
+    updateSharedGroups: action('updateSharedGroups'),
+    viewUserStories: action('viewUserStories'),
+    toggleAboutContactModal: action('toggleAboutContactModal'),
+  },
+} satisfies Meta<Props>;
 
-const updateSharedGroups = action('updateSharedGroups');
-
-const Wrapper = (
-  props: Omit<React.ComponentProps<typeof ConversationHero>, 'theme'>
-) => {
-  const theme = React.useContext(StorybookThemeContext);
-  return <ConversationHero {...props} theme={theme} />;
+// eslint-disable-next-line react/function-component-definition
+const Template: StoryFn<Props> = args => {
+  const theme = useContext(StorybookThemeContext);
+  return (
+    <div style={{ width: '480px' }}>
+      <ConversationHero {...getDefaultConversation()} {...args} theme={theme} />
+    </div>
+  );
 };
 
-storiesOf('Components/Conversation/ConversationHero', module)
-  .add('Direct (Five Other Groups)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          about={getAbout()}
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={getTitle()}
-          avatarPath={getAvatarPath()}
-          name={getName()}
-          profileName={getProfileName()}
-          phoneNumber={getPhoneNumber()}
-          conversationType="direct"
-          updateSharedGroups={updateSharedGroups}
-          sharedGroupNames={[
-            'NYC Rock Climbers',
-            'Dinner Party',
-            'Friends 🌿',
-            'Fourth',
-            'Fifth',
-          ]}
-          unblurAvatar={action('unblurAvatar')}
-        />
-      </div>
-    );
-  })
-  .add('Direct (Four Other Groups)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          about={getAbout()}
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={getTitle()}
-          avatarPath={getAvatarPath()}
-          name={getName()}
-          profileName={getProfileName()}
-          phoneNumber={getPhoneNumber()}
-          conversationType="direct"
-          updateSharedGroups={updateSharedGroups}
-          sharedGroupNames={[
-            'NYC Rock Climbers',
-            'Dinner Party',
-            'Friends 🌿',
-            'Fourth',
-          ]}
-          unblurAvatar={action('unblurAvatar')}
-        />
-      </div>
-    );
-  })
-  .add('Direct (Three Other Groups)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          about={getAbout()}
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={getTitle()}
-          avatarPath={getAvatarPath()}
-          name={getName()}
-          profileName={getProfileName()}
-          phoneNumber={getPhoneNumber()}
-          conversationType="direct"
-          updateSharedGroups={updateSharedGroups}
-          sharedGroupNames={['NYC Rock Climbers', 'Dinner Party', 'Friends 🌿']}
-          unblurAvatar={action('unblurAvatar')}
-        />
-      </div>
-    );
-  })
-  .add('Direct (Two Other Groups)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          about={getAbout()}
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={getTitle()}
-          avatarPath={getAvatarPath()}
-          name={getName()}
-          profileName={getProfileName()}
-          phoneNumber={getPhoneNumber()}
-          conversationType="direct"
-          updateSharedGroups={updateSharedGroups}
-          sharedGroupNames={['NYC Rock Climbers', 'Dinner Party']}
-          unblurAvatar={action('unblurAvatar')}
-        />
-      </div>
-    );
-  })
-  .add('Direct (One Other Group)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          about={getAbout()}
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={getTitle()}
-          avatarPath={getAvatarPath()}
-          name={getName()}
-          profileName={getProfileName()}
-          phoneNumber={getPhoneNumber()}
-          conversationType="direct"
-          updateSharedGroups={updateSharedGroups}
-          sharedGroupNames={['NYC Rock Climbers']}
-          unblurAvatar={action('unblurAvatar')}
-        />
-      </div>
-    );
-  })
-  .add('Direct (No Groups, Name)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          about={getAbout()}
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={getTitle()}
-          avatarPath={getAvatarPath()}
-          name={getName()}
-          profileName={text('profileName', '')}
-          phoneNumber={getPhoneNumber()}
-          conversationType="direct"
-          updateSharedGroups={updateSharedGroups}
-          sharedGroupNames={[]}
-          unblurAvatar={action('unblurAvatar')}
-        />
-      </div>
-    );
-  })
-  .add('Direct (No Groups, Just Profile)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          about={getAbout()}
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={text('title', 'Cayce Bollard (profile)')}
-          avatarPath={getAvatarPath()}
-          name={text('name', '')}
-          profileName={getProfileName()}
-          phoneNumber={getPhoneNumber()}
-          conversationType="direct"
-          updateSharedGroups={updateSharedGroups}
-          sharedGroupNames={[]}
-          unblurAvatar={action('unblurAvatar')}
-        />
-      </div>
-    );
-  })
-  .add('Direct (No Groups, Just Phone Number)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          about={getAbout()}
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={text('title', '+1 (646) 327-2700')}
-          avatarPath={getAvatarPath()}
-          name={text('name', '')}
-          profileName={text('profileName', '')}
-          phoneNumber={getPhoneNumber()}
-          conversationType="direct"
-          updateSharedGroups={updateSharedGroups}
-          sharedGroupNames={[]}
-          unblurAvatar={action('unblurAvatar')}
-        />
-      </div>
-    );
-  })
-  .add('Direct (No Groups, No Data)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          i18n={i18n}
-          isMe={false}
-          title={text('title', 'Unknown contact')}
-          acceptedMessageRequest
-          badge={undefined}
-          avatarPath={getAvatarPath()}
-          name={text('name', '')}
-          profileName={text('profileName', '')}
-          phoneNumber={text('phoneNumber', '')}
-          conversationType="direct"
-          sharedGroupNames={[]}
-          unblurAvatar={action('unblurAvatar')}
-          updateSharedGroups={updateSharedGroups}
-        />
-      </div>
-    );
-  })
-  .add('Direct (No Groups, No Data, Not Accepted)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          i18n={i18n}
-          isMe={false}
-          title={text('title', 'Unknown contact')}
-          acceptedMessageRequest={false}
-          badge={undefined}
-          avatarPath={getAvatarPath()}
-          name={text('name', '')}
-          profileName={text('profileName', '')}
-          phoneNumber={text('phoneNumber', '')}
-          conversationType="direct"
-          sharedGroupNames={[]}
-          unblurAvatar={action('unblurAvatar')}
-          updateSharedGroups={updateSharedGroups}
-        />
-      </div>
-    );
-  })
-  .add('Group (many members)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={text('title', 'NYC Rock Climbers')}
-          name={text('groupName', 'NYC Rock Climbers')}
-          conversationType="group"
-          membersCount={numberKnob('membersCount', 22)}
-          sharedGroupNames={[]}
-          unblurAvatar={action('unblurAvatar')}
-          updateSharedGroups={updateSharedGroups}
-        />
-      </div>
-    );
-  })
-  .add('Group (one member)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={text('title', 'NYC Rock Climbers')}
-          name={text('groupName', 'NYC Rock Climbers')}
-          conversationType="group"
-          membersCount={1}
-          sharedGroupNames={[]}
-          unblurAvatar={action('unblurAvatar')}
-          updateSharedGroups={updateSharedGroups}
-        />
-      </div>
-    );
-  })
-  .add('Group (zero members)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={text('title', 'NYC Rock Climbers')}
-          name={text('groupName', 'NYC Rock Climbers')}
-          conversationType="group"
-          groupDescription="This is a group for all the rock climbers of NYC"
-          membersCount={0}
-          sharedGroupNames={[]}
-          unblurAvatar={action('unblurAvatar')}
-          updateSharedGroups={updateSharedGroups}
-        />
-      </div>
-    );
-  })
-  .add('Group (long group description)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={text('title', 'NYC Rock Climbers')}
-          name={text('groupName', 'NYC Rock Climbers')}
-          conversationType="group"
-          groupDescription="This is a group for all the rock climbers of NYC. We really like to climb rocks and these NYC people climb any rock. No rock is too small or too big to be climbed. We will ascend upon all rocks, and not just in NYC, in the whole world. We are just getting started, NYC is just the beginning, watch out rocks in the galaxy. Kuiper belt I'm looking at you. We will put on a space suit and climb all your rocks. No rock is near nor far for the rock climbers of NYC."
-          membersCount={0}
-          sharedGroupNames={[]}
-          unblurAvatar={action('unblurAvatar')}
-          updateSharedGroups={updateSharedGroups}
-        />
-      </div>
-    );
-  })
-  .add('Group (No name)', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe={false}
-          title={text('title', 'Unknown group')}
-          name={text('groupName', '')}
-          conversationType="group"
-          membersCount={0}
-          sharedGroupNames={[]}
-          unblurAvatar={action('unblurAvatar')}
-          updateSharedGroups={updateSharedGroups}
-        />
-      </div>
-    );
-  })
-  .add('Note to Self', () => {
-    return (
-      <div style={{ width: '480px' }}>
-        <Wrapper
-          acceptedMessageRequest
-          badge={undefined}
-          i18n={i18n}
-          isMe
-          title={getTitle()}
-          conversationType="direct"
-          phoneNumber={getPhoneNumber()}
-          sharedGroupNames={[]}
-          unblurAvatar={action('unblurAvatar')}
-          updateSharedGroups={updateSharedGroups}
-        />
-      </div>
-    );
-  });
+export const DirectFiveOtherGroups = Template.bind({});
+DirectFiveOtherGroups.args = {
+  sharedGroupNames: Array.from(Array(5), () => casual.title),
+};
+
+export const DirectFourOtherGroups = Template.bind({});
+DirectFourOtherGroups.args = {
+  sharedGroupNames: Array.from(Array(4), () => casual.title),
+};
+
+export const DirectThreeOtherGroups = Template.bind({});
+DirectThreeOtherGroups.args = {
+  sharedGroupNames: Array.from(Array(3), () => casual.title),
+};
+
+export const DirectTwoOtherGroups = Template.bind({});
+DirectTwoOtherGroups.args = {
+  sharedGroupNames: Array.from(Array(2), () => casual.title),
+};
+
+export const DirectOneOtherGroup = Template.bind({});
+DirectOneOtherGroup.args = {
+  sharedGroupNames: [casual.title],
+};
+
+export const DirectNoGroupsName = Template.bind({});
+DirectNoGroupsName.args = {
+  about: '👍 Free to chat',
+};
+
+export const DirectNoGroupsJustProfile = Template.bind({});
+DirectNoGroupsJustProfile.args = {
+  phoneNumber: casual.phone,
+};
+
+export const DirectNoGroupsJustPhoneNumber = Template.bind({});
+DirectNoGroupsJustPhoneNumber.args = {
+  phoneNumber: casual.phone,
+  profileName: '',
+  title: casual.phone,
+};
+
+export const DirectNoGroupsNoData = Template.bind({});
+DirectNoGroupsNoData.args = {
+  avatarUrl: undefined,
+  phoneNumber: '',
+  profileName: '',
+  title: casual.phone,
+};
+
+export const DirectNoGroupsNoDataNotAccepted = Template.bind({});
+DirectNoGroupsNoDataNotAccepted.args = {
+  acceptedMessageRequest: false,
+  avatarUrl: undefined,
+  phoneNumber: '',
+  profileName: '',
+  title: '',
+};
+
+export const DirectNoGroupsNotAcceptedWithAvatar = Template.bind({});
+DirectNoGroupsNotAcceptedWithAvatar.args = {
+  ...getDefaultConversation(),
+  acceptedMessageRequest: false,
+  profileName: '',
+};
+
+export const GroupManyMembers = Template.bind({});
+GroupManyMembers.args = {
+  conversationType: 'group',
+  groupDescription: casual.sentence,
+  membersCount: casual.integer(20, 100),
+  title: casual.title,
+};
+
+export const GroupOneMember = Template.bind({});
+GroupOneMember.args = {
+  avatarUrl: undefined,
+  conversationType: 'group',
+  groupDescription: casual.sentence,
+  membersCount: 1,
+  title: casual.title,
+};
+
+export const GroupZeroMembers = Template.bind({});
+GroupZeroMembers.args = {
+  avatarUrl: undefined,
+  conversationType: 'group',
+  groupDescription: casual.sentence,
+  membersCount: 0,
+  title: casual.title,
+};
+
+export const GroupLongGroupDescription = Template.bind({});
+GroupLongGroupDescription.args = {
+  conversationType: 'group',
+  groupDescription:
+    "This is a group for all the rock climbers of NYC. We really like to climb rocks and these NYC people climb any rock. No rock is too small or too big to be climbed. We will ascend upon all rocks, and not just in NYC, in the whole world. We are just getting started, NYC is just the beginning, watch out rocks in the galaxy. Kuiper belt I'm looking at you. We will put on a space suit and climb all your rocks. No rock is near nor far for the rock climbers of NYC.",
+  membersCount: casual.integer(1, 10),
+  title: casual.title,
+};
+
+export const GroupNoName = Template.bind({});
+GroupNoName.args = {
+  conversationType: 'group',
+  membersCount: 0,
+  title: '',
+};
+
+export const NoteToSelf = Template.bind({});
+NoteToSelf.args = {
+  isMe: true,
+};
+
+export const UnreadStories = Template.bind({});
+UnreadStories.args = {
+  hasStories: HasStories.Unread,
+};
+
+export const ReadStories = Template.bind({});
+ReadStories.args = {
+  hasStories: HasStories.Read,
+};

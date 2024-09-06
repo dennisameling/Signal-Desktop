@@ -40,24 +40,6 @@ describe('<Timeline> utilities', () => {
       assert.isFalse(areMessagesInSameGroup(undefined, false, defaultNewer));
     });
 
-    it('returns false if either item is not a message', () => {
-      const linkNotification = {
-        type: 'linkNotification' as const,
-        data: null,
-        timestamp: Date.now(),
-      };
-
-      assert.isFalse(
-        areMessagesInSameGroup(defaultNewer, false, linkNotification)
-      );
-      assert.isFalse(
-        areMessagesInSameGroup(linkNotification, false, defaultNewer)
-      );
-      assert.isFalse(
-        areMessagesInSameGroup(linkNotification, false, linkNotification)
-      );
-    });
-
     it("returns false if authors don't match", () => {
       const older = {
         ...defaultOlder,
@@ -155,18 +137,6 @@ describe('<Timeline> utilities', () => {
       );
     });
 
-    it('returns false if newer item is not a message', () => {
-      const linkNotification = {
-        type: 'linkNotification' as const,
-        data: null,
-        timestamp: Date.now(),
-      };
-
-      assert.isFalse(
-        shouldCurrentMessageHideMetadata(true, defaultCurrent, linkNotification)
-      );
-    });
-
     it('returns false if newer is deletedForEveryone', () => {
       const newer = {
         ...defaultNewer,
@@ -186,11 +156,11 @@ describe('<Timeline> utilities', () => {
         'sending',
       ];
       for (const status of statuses) {
-        const sameStatusNewer = {
+        const sameStatusNewer: MaybeMessageTimelineItemType = {
           ...defaultNewer,
           data: { ...defaultNewer.data, status },
         };
-        const current = {
+        const current: MaybeMessageTimelineItemType = {
           ...defaultCurrent,
           data: { ...defaultCurrent.data, status },
         };
@@ -246,6 +216,9 @@ describe('<Timeline> utilities', () => {
       isSomeoneTyping: false,
       items: fakeItems(10),
       scrollToIndexCounter: 0,
+      messageLoadingState: null,
+      oldestUnseenIndex: null,
+      scrollToIndex: null,
     } as const;
 
     describe('during initial load', () => {
@@ -352,7 +325,7 @@ describe('<Timeline> utilities', () => {
         const props = {
           ...defaultProps,
           items: fakeItems(10),
-          oldestUnreadIndex: 3,
+          oldestUnseenIndex: 3,
         };
 
         assert.strictEqual(

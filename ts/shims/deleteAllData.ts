@@ -2,34 +2,47 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as log from '../logging/log';
+import { DataWriter } from '../sql/Client';
 import { deleteAllLogs } from '../util/deleteAllLogs';
+import * as Errors from '../types/errors';
 
 export async function deleteAllData(): Promise<void> {
+  try {
+    // This might fail if websocket closes before we receive the response, while
+    // still unlinking the device on the server.
+    await window.textsecure.server?.unlink();
+  } catch (error) {
+    log.error(
+      'Something went wrong unlinking device:',
+      Errors.toLogFormat(error)
+    );
+  }
+
   try {
     await deleteAllLogs();
 
     log.info('deleteAllData: deleted all logs');
 
-    await window.Signal.Data.removeAll();
+    await DataWriter.removeAll();
 
     log.info('deleteAllData: emptied database');
 
-    await window.Signal.Data.close();
+    await DataWriter.close();
 
     log.info('deleteAllData: closed database');
 
-    await window.Signal.Data.removeDB();
+    await DataWriter.removeDB();
 
     log.info('deleteAllData: removed database');
 
-    await window.Signal.Data.removeOtherData();
+    await DataWriter.removeOtherData();
 
     log.info('deleteAllData: removed all other data');
   } catch (error) {
     log.error(
       'Something went wrong deleting all data:',
-      error && error.stack ? error.stack : error
+      Errors.toLogFormat(error)
     );
   }
-  window.restart();
+  window.SignalContext.restartApp();
 }

@@ -1,6 +1,20 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { render, unmountComponentAtNode } from 'react-dom';
+
+import type { ConversationAttributesType } from '../model-types.d';
+import type { ConversationModel } from '../models/conversations';
+import type { PreJoinConversationType } from '../state/ducks/conversations';
+
+import { DataWriter } from '../sql/Client';
+import * as Bytes from '../Bytes';
+import * as Errors from '../types/errors';
+import * as log from '../logging/log';
+import { HTTPError } from '../textsecure/Errors';
+import { SignalService as Proto } from '../protobuf';
+import type { ContactAvatarType } from '../types/Avatar';
+import { ToastType } from '../types/Toast';
 import {
   applyNewAvatar,
   decryptGroupDescription,
@@ -11,42 +25,36 @@ import {
   LINK_VERSION_ERROR,
   parseGroupLink,
 } from '../groups';
-import * as Errors from '../types/errors';
-import * as Bytes from '../Bytes';
-import { longRunningTaskWrapper } from '../util/longRunningTaskWrapper';
-import { isGroupV1 } from '../util/whatTypeOfConversation';
+import { createGroupV2JoinModal } from '../state/roots/createGroupV2JoinModal';
 import { explodePromise } from '../util/explodePromise';
-
-import type { ConversationAttributesType } from '../model-types.d';
-import type { ConversationModel } from '../models/conversations';
-import type { PreJoinConversationType } from '../state/ducks/conversations';
-import { SignalService as Proto } from '../protobuf';
-import * as log from '../logging/log';
-import { showToast } from '../util/showToast';
-import { ToastAlreadyGroupMember } from '../components/ToastAlreadyGroupMember';
-import { ToastAlreadyRequestedToJoin } from '../components/ToastAlreadyRequestedToJoin';
-import { HTTPError } from '../textsecure/Errors';
 import { isAccessControlEnabled } from './util';
+import { isGroupV1 } from '../util/whatTypeOfConversation';
+import { longRunningTaskWrapper } from '../util/longRunningTaskWrapper';
+import { sleep } from '../util/sleep';
+import { dropNull } from '../util/dropNull';
+import { getLocalAttachmentUrl } from '../util/getLocalAttachmentUrl';
+import { type Loadable, LoadingState } from '../util/loadable';
+import { missingCaseError } from '../util/missingCaseError';
 
-export async function joinViaLink(hash: string): Promise<void> {
+export async function joinViaLink(value: string): Promise<void> {
   let inviteLinkPassword: string;
   let masterKey: string;
   try {
-    ({ inviteLinkPassword, masterKey } = parseGroupLink(hash));
+    ({ inviteLinkPassword, masterKey } = parseGroupLink(value));
   } catch (error: unknown) {
     const errorString = Errors.toLogFormat(error);
     log.error(`joinViaLink: Failed to parse group link ${errorString}`);
 
     if (error instanceof Error && error.name === LINK_VERSION_ERROR) {
-      showErrorDialog(
-        window.i18n('GroupV2--join--unknown-link-version'),
-        window.i18n('GroupV2--join--unknown-link-version--title')
-      );
+      window.reduxActions.globalModals.showErrorModal({
+        description: window.i18n('icu:GroupV2--join--unknown-link-version'),
+        title: window.i18n('icu:GroupV2--join--unknown-link-version--title'),
+      });
     } else {
-      showErrorDialog(
-        window.i18n('GroupV2--join--invalid-link'),
-        window.i18n('GroupV2--join--invalid-link--title')
-      );
+      window.reduxActions.globalModals.showErrorModal({
+        description: window.i18n('icu:GroupV2--join--invalid-link'),
+        title: window.i18n('icu:GroupV2--join--invalid-link--title'),
+      });
     }
     return;
   }
@@ -60,20 +68,18 @@ export async function joinViaLink(hash: string): Promise<void> {
   const existingConversation =
     window.ConversationController.get(id) ||
     window.ConversationController.getByDerivedGroupV2Id(id);
-  const ourConversationId =
-    window.ConversationController.getOurConversationIdOrThrow();
+  const ourAci = window.textsecure.storage.user.getCheckedAci();
 
-  if (
-    existingConversation &&
-    existingConversation.hasMember(ourConversationId)
-  ) {
+  if (existingConversation && existingConversation.hasMember(ourAci)) {
     log.warn(
       `joinViaLink/${logId}: Already a member of group, opening conversation`
     );
-    window.reduxActions.conversations.openConversationInternal({
+    window.reduxActions.conversations.showConversation({
       conversationId: existingConversation.id,
     });
-    showToast(ToastAlreadyGroupMember);
+    window.reduxActions.toast.showToast({
+      toastType: ToastType.AlreadyGroupMember,
+    });
     return;
   }
 
@@ -98,83 +104,100 @@ export async function joinViaLink(hash: string): Promise<void> {
       error instanceof HTTPError &&
       error.responseHeaders['x-signal-forbidden-reason']
     ) {
-      showErrorDialog(
-        window.i18n('GroupV2--join--link-forbidden'),
-        window.i18n('GroupV2--join--link-forbidden--title')
-      );
+      window.reduxActions.globalModals.showErrorModal({
+        description: window.i18n('icu:GroupV2--join--link-forbidden'),
+        title: window.i18n('icu:GroupV2--join--link-forbidden--title'),
+      });
     } else if (error instanceof HTTPError && error.code === 403) {
-      showErrorDialog(
-        window.i18n('GroupV2--join--link-revoked'),
-        window.i18n('GroupV2--join--link-revoked--title')
-      );
+      window.reduxActions.globalModals.showErrorModal({
+        description: window.i18n('icu:GroupV2--join--link-revoked'),
+        title: window.i18n('icu:GroupV2--join--link-revoked--title'),
+      });
     } else {
-      showErrorDialog(
-        window.i18n('GroupV2--join--general-join-failure'),
-        window.i18n('GroupV2--join--general-join-failure--title')
-      );
+      window.reduxActions.globalModals.showErrorModal({
+        description: window.i18n('icu:GroupV2--join--general-join-failure'),
+        title: window.i18n('icu:GroupV2--join--general-join-failure--title'),
+      });
     }
     return;
   }
 
-  if (!isAccessControlEnabled(result.addFromInviteLink)) {
+  if (!isAccessControlEnabled(dropNull(result.addFromInviteLink))) {
     log.error(
       `joinViaLink/${logId}: addFromInviteLink value of ${result.addFromInviteLink} is invalid`
     );
-    showErrorDialog(
-      window.i18n('GroupV2--join--link-revoked'),
-      window.i18n('GroupV2--join--link-revoked--title')
-    );
+    window.reduxActions.globalModals.showErrorModal({
+      description: window.i18n('icu:GroupV2--join--link-revoked'),
+      title: window.i18n('icu:GroupV2--join--link-revoked--title'),
+    });
     return;
   }
 
-  let localAvatar:
-    | {
-        loading?: boolean;
-        path?: string;
+  let localAvatar: Loadable<ContactAvatarType | undefined> = result.avatar
+    ? {
+        loadingState: LoadingState.Loading,
       }
-    | undefined = result.avatar ? { loading: true } : undefined;
+    : {
+        loadingState: LoadingState.Loaded,
+        value: undefined,
+      };
   const memberCount = result.memberCount || 1;
   const approvalRequired =
     result.addFromInviteLink ===
     Proto.AccessControl.AccessRequired.ADMINISTRATOR;
   const title =
-    decryptGroupTitle(result.title, secretParams) ||
-    window.i18n('unknownGroup');
+    decryptGroupTitle(dropNull(result.title), secretParams) ||
+    window.i18n('icu:unknownGroup');
   const groupDescription = decryptGroupDescription(
-    result.descriptionBytes,
+    dropNull(result.descriptionBytes),
     secretParams
   );
 
   if (
     approvalRequired &&
     existingConversation &&
-    existingConversation.isMemberAwaitingApproval(ourConversationId)
+    existingConversation.isMemberAwaitingApproval(ourAci)
   ) {
     log.warn(
       `joinViaLink/${logId}: Already awaiting approval, opening conversation`
     );
-    window.reduxActions.conversations.openConversationInternal({
+    const timestamp = existingConversation.get('timestamp') || Date.now();
+    // eslint-disable-next-line camelcase
+    const active_at = existingConversation.get('active_at') || Date.now();
+    // eslint-disable-next-line camelcase
+    existingConversation.set({ active_at, timestamp });
+    await DataWriter.updateConversation(existingConversation.attributes);
+
+    // We're waiting for the left pane to re-sort before we navigate to that conversation
+    await sleep(200);
+
+    window.reduxActions.conversations.showConversation({
       conversationId: existingConversation.id,
     });
 
-    showToast(ToastAlreadyRequestedToJoin);
+    window.reduxActions.toast.showToast({
+      toastType: ToastType.AlreadyRequestedToJoin,
+    });
     return;
   }
 
   const getPreJoinConversation = (): PreJoinConversationType => {
     let avatar;
-    if (!localAvatar) {
-      avatar = undefined;
-    } else if (localAvatar && localAvatar.loading) {
+    if (localAvatar.loadingState === LoadingState.Loading) {
       avatar = {
         loading: true,
       };
-    } else if (localAvatar && localAvatar.path) {
-      avatar = {
-        url: window.Signal.Migrations.getAbsoluteAttachmentPath(
-          localAvatar.path
-        ),
-      };
+    } else if (localAvatar.loadingState === LoadingState.Loaded) {
+      avatar =
+        localAvatar.value == null
+          ? undefined
+          : {
+              url: getLocalAttachmentUrl(localAvatar.value),
+            };
+    } else if (localAvatar.loadingState === LoadingState.LoadFailed) {
+      avatar = undefined;
+    } else {
+      throw missingCaseError(localAvatar);
     }
 
     return {
@@ -191,15 +214,20 @@ export async function joinViaLink(hash: string): Promise<void> {
 
   const closeDialog = async () => {
     try {
-      if (groupV2InfoDialog) {
-        groupV2InfoDialog.remove();
-        groupV2InfoDialog = undefined;
+      if (groupV2InfoNode) {
+        unmountComponentAtNode(groupV2InfoNode);
+        groupV2InfoNode = undefined;
       }
 
       window.reduxActions.conversations.setPreJoinConversation(undefined);
 
-      if (localAvatar && localAvatar.path) {
-        await window.Signal.Migrations.deleteAttachmentData(localAvatar.path);
+      if (
+        localAvatar?.loadingState === LoadingState.Loaded &&
+        localAvatar.value?.path
+      ) {
+        await window.Signal.Migrations.deleteAttachmentData(
+          localAvatar.value.path
+        );
       }
       resolve();
     } catch (error) {
@@ -209,9 +237,9 @@ export async function joinViaLink(hash: string): Promise<void> {
 
   const join = async () => {
     try {
-      if (groupV2InfoDialog) {
-        groupV2InfoDialog.remove();
-        groupV2InfoDialog = undefined;
+      if (groupV2InfoNode) {
+        unmountComponentAtNode(groupV2InfoNode);
+        groupV2InfoNode = undefined;
       }
 
       window.reduxActions.conversations.setPreJoinConversation(undefined);
@@ -233,20 +261,29 @@ export async function joinViaLink(hash: string): Promise<void> {
           //   via some other process. If so, just open that conversation.
           if (
             targetConversation &&
-            (targetConversation.hasMember(ourConversationId) ||
+            (targetConversation.hasMember(ourAci) ||
               (approvalRequired &&
-                targetConversation.isMemberAwaitingApproval(ourConversationId)))
+                targetConversation.isMemberAwaitingApproval(ourAci)))
           ) {
             log.warn(
               `joinViaLink/${logId}: User is part of group on second check, opening conversation`
             );
-            window.reduxActions.conversations.openConversationInternal({
+            window.reduxActions.conversations.showConversation({
               conversationId: targetConversation.id,
             });
             return;
           }
 
           try {
+            const avatar =
+              localAvatar?.loadingState === LoadingState.Loaded &&
+              localAvatar.value?.path &&
+              result.avatar
+                ? {
+                    url: result.avatar,
+                    ...localAvatar.value,
+                  }
+                : undefined;
             if (!targetConversation) {
               // Note: we save this temp conversation in the database, so we'll need to
               //   clean it up if something goes wrong
@@ -257,6 +294,9 @@ export async function joinViaLink(hash: string): Promise<void> {
                   // This will cause this conversation to be deleted at next startup
                   isTemporary: true,
 
+                  active_at: Date.now(),
+                  timestamp: Date.now(),
+
                   groupVersion: 2,
                   masterKey,
                   secretParams,
@@ -265,13 +305,9 @@ export async function joinViaLink(hash: string): Promise<void> {
                   left: true,
                   revision: result.version,
 
-                  avatar:
-                    localAvatar && localAvatar.path && result.avatar
-                      ? {
-                          url: result.avatar,
-                          path: localAvatar.path,
-                        }
-                      : undefined,
+                  avatar,
+
+                  description: groupDescription,
                   groupInviteLinkPassword: inviteLinkPassword,
                   name: title,
                   temporaryMemberCount: memberCount,
@@ -281,19 +317,24 @@ export async function joinViaLink(hash: string): Promise<void> {
             } else {
               // Ensure the group maintains the title and avatar you saw when attempting
               //   to join it.
+              const timestamp =
+                targetConversation.get('timestamp') || Date.now();
+              // eslint-disable-next-line camelcase
+              const active_at =
+                targetConversation.get('active_at') || Date.now();
               targetConversation.set({
-                avatar:
-                  localAvatar && localAvatar.path && result.avatar
-                    ? {
-                        url: result.avatar,
-                        path: localAvatar.path,
-                      }
-                    : undefined,
+                // eslint-disable-next-line camelcase
+                active_at,
+                avatar,
+                description: groupDescription,
                 groupInviteLinkPassword: inviteLinkPassword,
+                left: true,
                 name: title,
+                revision: dropNull(result.version),
                 temporaryMemberCount: memberCount,
+                timestamp,
               });
-              window.Signal.Data.updateConversation(
+              await DataWriter.updateConversation(
                 targetConversation.attributes
               );
             }
@@ -316,12 +357,10 @@ export async function joinViaLink(hash: string): Promise<void> {
                 // We want to keep this conversation around, since the join succeeded
                 isTemporary: undefined,
               });
-              window.Signal.Data.updateConversation(
-                tempConversation.attributes
-              );
+              await DataWriter.updateConversation(tempConversation.attributes);
             }
 
-            window.reduxActions.conversations.openConversationInternal({
+            window.reduxActions.conversations.showConversation({
               conversationId: targetConversation.id,
             });
           } catch (error) {
@@ -330,7 +369,7 @@ export async function joinViaLink(hash: string): Promise<void> {
               window.ConversationController.dangerouslyRemoveById(
                 tempConversation.id
               );
-              await window.Signal.Data.removeConversation(tempConversation.id);
+              await DataWriter.removeConversation(tempConversation.id);
             }
 
             throw error;
@@ -350,69 +389,61 @@ export async function joinViaLink(hash: string): Promise<void> {
 
   log.info(`joinViaLink/${logId}: Showing modal`);
 
-  let groupV2InfoDialog: Backbone.View | undefined =
-    new window.Whisper.ReactWrapperView({
-      className: 'group-v2-join-dialog-wrapper',
-      JSX: window.Signal.State.Roots.createGroupV2JoinModal(window.reduxStore, {
-        join,
-        onClose: closeDialog,
-      }),
-    });
+  let groupV2InfoNode: HTMLDivElement | undefined =
+    document.createElement('div');
+
+  render(
+    createGroupV2JoinModal(window.reduxStore, { join, onClose: closeDialog }),
+    groupV2InfoNode
+  );
 
   // We declare a new function here so we can await but not block
   const fetchAvatar = async () => {
-    if (result.avatar) {
-      localAvatar = {
-        loading: true,
-      };
+    if (!result.avatar) {
+      return;
+    }
+    localAvatar = {
+      loadingState: LoadingState.Loading,
+    };
 
-      const attributes: Pick<
-        ConversationAttributesType,
-        'avatar' | 'secretParams'
-      > = {
-        avatar: null,
-        secretParams,
-      };
-      await applyNewAvatar(result.avatar, attributes, logId);
+    let attributes: Pick<
+      ConversationAttributesType,
+      'avatar' | 'secretParams'
+    > = {
+      avatar: null,
+      secretParams,
+    };
+    try {
+      const patch = await applyNewAvatar(result.avatar, attributes, logId);
+      attributes = { ...attributes, ...patch };
 
       if (attributes.avatar && attributes.avatar.path) {
         localAvatar = {
-          path: attributes.avatar.path,
+          loadingState: LoadingState.Loaded,
+          value: { ...attributes.avatar },
         };
 
         // Dialog has been dismissed; we'll delete the unneeeded avatar
-        if (!groupV2InfoDialog) {
+        if (!groupV2InfoNode) {
           await window.Signal.Migrations.deleteAttachmentData(
             attributes.avatar.path
           );
           return;
         }
       } else {
-        localAvatar = undefined;
+        localAvatar = { loadingState: LoadingState.Loaded, value: undefined };
       }
-
-      // Update join dialog with newly-downloaded avatar
-      window.reduxActions.conversations.setPreJoinConversation(
-        getPreJoinConversation()
-      );
+    } catch (error) {
+      localAvatar = { loadingState: LoadingState.LoadFailed, error };
     }
+
+    // Update join dialog with newly-downloaded avatar
+    window.reduxActions.conversations.setPreJoinConversation(
+      getPreJoinConversation()
+    );
   };
 
-  fetchAvatar();
+  void fetchAvatar();
 
   await promise;
-}
-
-function showErrorDialog(description: string, title: string) {
-  const errorView = new window.Whisper.ReactWrapperView({
-    className: 'error-modal-wrapper',
-    Component: window.Signal.Components.ErrorModal,
-    props: {
-      title,
-      description,
-      onClose: () => {
-        errorView.remove();
-      },
-    },
-  });
 }

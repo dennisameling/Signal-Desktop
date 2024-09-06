@@ -24,7 +24,7 @@ import { missingCaseError } from '../util/missingCaseError';
 
 export type PropsType = {
   avatarColor?: AvatarColorType;
-  avatarPath?: string;
+  avatarUrl?: string;
   avatarValue?: Uint8Array;
   conversationId?: string;
   conversationTitle?: string;
@@ -44,9 +44,9 @@ enum EditMode {
   Text = 'Text',
 }
 
-export const AvatarEditor = ({
+export function AvatarEditor({
   avatarColor,
-  avatarPath,
+  avatarUrl,
   avatarValue,
   conversationId,
   conversationTitle,
@@ -58,7 +58,7 @@ export const AvatarEditor = ({
   userAvatarData,
   replaceAvatar,
   saveAvatarToDisk,
-}: PropsType): JSX.Element => {
+}: PropsType): JSX.Element {
   const [provisionalSelectedAvatar, setProvisionalSelectedAvatar] = useState<
     AvatarDataType | undefined
   >();
@@ -109,7 +109,7 @@ export const AvatarEditor = ({
       }
     }
 
-    cacheAvatars();
+    void cacheAvatars();
 
     return () => {
       shouldCancel = true;
@@ -152,7 +152,7 @@ export const AvatarEditor = ({
   }, []);
 
   const hasChanges =
-    initialAvatar !== avatarPreview || Boolean(pendingClear && avatarPath);
+    initialAvatar !== avatarPreview || Boolean(pendingClear && avatarUrl);
 
   let content: JSX.Element | undefined;
 
@@ -162,7 +162,7 @@ export const AvatarEditor = ({
         <div className="AvatarEditor__preview">
           <AvatarPreview
             avatarColor={avatarColor}
-            avatarPath={pendingClear ? undefined : avatarPath}
+            avatarUrl={pendingClear ? undefined : avatarUrl}
             avatarValue={avatarPreview}
             conversationTitle={conversationTitle}
             i18n={i18n}
@@ -196,13 +196,13 @@ export const AvatarEditor = ({
               }}
               type="button"
             >
-              {i18n('text')}
+              {i18n('icu:text')}
             </button>
           </div>
         </div>
         <hr className="AvatarEditor__divider" />
         <div className="AvatarEditor__avatar-selector-title">
-          {i18n('AvatarEditor--choose')}
+          {i18n('icu:AvatarEditor--choose')}
         </div>
         <div className="AvatarEditor__avatars">
           {localAvatarData.map(avatarData => (
@@ -298,4 +298,4 @@ export const AvatarEditor = ({
   }
 
   return <div className="AvatarEditor">{content}</div>;
-};
+}

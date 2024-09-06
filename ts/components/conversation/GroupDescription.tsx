@@ -16,11 +16,11 @@ export type PropsType = {
   text: string;
 };
 
-export const GroupDescription = ({
+export function GroupDescription({
   i18n,
   title,
   text,
-}: PropsType): JSX.Element => {
+}: PropsType): JSX.Element {
   const textRef = useRef<HTMLDivElement | null>(null);
   const [hasReadMore, setHasReadMore] = useState(false);
   const [showFullDescription, setShowFullDescription] = useState(false);
@@ -40,6 +40,7 @@ export const GroupDescription = ({
     <>
       {showFullDescription && (
         <Modal
+          modalName="GroupDescription"
           hasXButton
           i18n={i18n}
           onClose={() => setShowFullDescription(false)}
@@ -61,9 +62,9 @@ export const GroupDescription = ({
           }}
           type="button"
         >
-          {i18n('GroupDescription__read-more')}
+          {i18n('icu:GroupDescription__read-more')}
         </button>
       )}
     </>
   );
-};
+}

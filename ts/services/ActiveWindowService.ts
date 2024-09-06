@@ -1,7 +1,7 @@
 // Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { throttle } from 'lodash';
+import { throttle } from '../util/throttle';
 
 // Idle timer - you're active for ACTIVE_TIMEOUT after one of these events
 const ACTIVE_TIMEOUT = 15 * 1000;
@@ -16,7 +16,7 @@ const ACTIVE_EVENTS = [
   'wheel',
 ];
 
-export class ActiveWindowService {
+class ActiveWindowService {
   // This starting value might be wrong but we should get an update from the main process
   //  soon. We'd rather report that the window is inactive so we can show notifications.
   private isInitialized = false;
@@ -24,6 +24,8 @@ export class ActiveWindowService {
   private isFocused = false;
 
   private activeCallbacks: Array<() => void> = [];
+
+  private changeCallbacks: Array<(isActive: boolean) => void> = [];
 
   private lastActiveEventAt = -Infinity;
 
@@ -73,6 +75,16 @@ export class ActiveWindowService {
     );
   }
 
+  registerForChange(callback: (isActive: boolean) => void): void {
+    this.changeCallbacks.push(callback);
+  }
+
+  unregisterForChange(callback: (isActive: boolean) => void): void {
+    this.changeCallbacks = this.changeCallbacks.filter(
+      item => item !== callback
+    );
+  }
+
   private onActiveEvent(): void {
     this.updateState(() => {
       this.lastActiveEventAt = Date.now();
@@ -93,5 +105,45 @@ export class ActiveWindowService {
     if (!wasActiveBefore && isActiveNow) {
       this.callActiveCallbacks();
     }
+
+    if (wasActiveBefore !== isActiveNow) {
+      for (const callback of this.changeCallbacks) {
+        callback(isActiveNow);
+      }
+    }
   }
+}
+
+export type ActiveWindowServiceType = {
+  isActive(): boolean;
+  registerForActive(callback: () => void): void;
+  unregisterForActive(callback: () => void): void;
+  registerForChange(callback: (isActive: boolean) => void): void;
+  unregisterForChange(callback: (isActive: boolean) => void): void;
+};
+
+export function getActiveWindowService(
+  document: EventTarget,
+  ipc: NodeJS.EventEmitter
+): ActiveWindowServiceType {
+  const activeWindowService = new ActiveWindowService();
+  activeWindowService.initialize(document, ipc);
+
+  return {
+    isActive(): boolean {
+      return activeWindowService.isActive();
+    },
+    registerForActive(callback: () => void): void {
+      return activeWindowService.registerForActive(callback);
+    },
+    unregisterForActive(callback: () => void): void {
+      return activeWindowService.unregisterForActive(callback);
+    },
+    registerForChange(callback: (isActive: boolean) => void): void {
+      return activeWindowService.registerForChange(callback);
+    },
+    unregisterForChange(callback: (isActive: boolean) => void): void {
+      return activeWindowService.unregisterForChange(callback);
+    },
+  };
 }

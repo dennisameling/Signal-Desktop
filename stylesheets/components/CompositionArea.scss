@@ -4,79 +4,132 @@
 .CompositionArea {
   position: relative;
   min-height: 42px;
-  padding-top: 6px;
+  padding-block: 10px;
+  padding-inline: 0;
 
   &__placeholder {
     flex-grow: 1;
-    margin: {
-      bottom: 6px;
-    }
+    margin-bottom: 6px;
   }
 
   &__row {
     display: flex;
     flex-direction: row;
+    align-items: end;
+
     &--center {
       justify-content: center;
     }
     &--padded {
-      padding: 0 12px;
+      padding-block: 0;
+      padding-inline: 12px;
     }
     &--control-row {
-      margin-top: 8px;
+      margin-top: 12px;
     }
     &--column {
       flex-direction: column;
+      align-items: stretch;
     }
   }
 
   &__button-cell {
-    margin-top: 2px;
+    margin-block: 0;
+    margin-inline: 4px;
     display: flex;
     justify-content: center;
     align-items: center;
-    width: 40px;
     height: 100%;
     flex-shrink: 0;
-    &--mic-active {
-      width: 150px;
+
+    &:first-child {
+      margin-inline-start: 12px;
     }
-    &--large-right {
-      margin-left: auto;
-      margin-right: 4px;
-    }
-    &--large-right-mic-active {
-      margin-left: auto;
-      margin-right: 12px;
+
+    &:last-child {
+      margin-inline-end: 12px;
     }
   }
+
+  &__button-edit {
+    margin-bottom: 4px;
+  }
+
+  &__edit-button {
+    @include button-reset;
+    @include rounded-corners;
+    align-items: center;
+    background-color: $color-gray-45;
+    display: flex;
+    height: 28px;
+    justify-content: center;
+    width: 28px;
+
+    &::before {
+      content: '';
+      height: 20px;
+      width: 20px;
+    }
+
+    &--discard {
+      &::before {
+        @include color-svg('../images/icons/v3/x/x.svg', $color-white);
+      }
+    }
+    &--accept {
+      background-color: $color-ultramarine;
+      margin-inline-start: 16px;
+      &::before {
+        @include color-svg('../images/icons/v3/check/check.svg', $color-white);
+      }
+      &:disabled {
+        opacity: 0.5;
+      }
+    }
+  }
+
   &__send-button {
-    width: 32px;
-    height: 32px;
     display: flex;
     justify-content: center;
     align-items: center;
     background: none;
     border: none;
+    width: 32px;
+    height: 32px;
     &::after {
       display: block;
       content: '';
-      width: 24px;
-      height: 24px;
+      width: 20px;
+      height: 20px;
       flex-shrink: 0;
-      @include color-svg('../images/icons/v2/send-24.svg', $color-ultramarine);
+      @include color-svg(
+        '../images/icons/v3/send/send-fill.svg',
+        $color-ultramarine
+      );
     }
   }
   &__input {
     flex-grow: 1;
+    position: relative;
+    margin-block: 0;
+    margin-inline: 6px;
+
+    &--large {
+      margin: 0;
+    }
   }
   $comp-area: &;
   &__toggle-large {
-    width: 48px;
-    height: 24px;
+    $width: 48px;
+    $height: 24px;
+
+    width: $width;
+    height: $height;
     position: absolute;
-    left: calc(50% - 24px);
-    top: -18px;
+    inset-inline-start: calc(50% - $width / 2);
+
+    // 6px coming from padding-top of .module-composition-input__input__scroller
+    top: calc(0px - $height / 2 - 6px);
     border-radius: 12px 12px 0 0;
     pointer-events: none;
 
@@ -103,7 +156,7 @@
 
       @include light-theme() {
         @include color-svg(
-          '../images/icons/v2/expand-up-20.svg',
+          '../images/icons/v3/chevron/chevron-shallow-up.svg',
           $color-gray-45,
           false
         );
@@ -111,7 +164,7 @@
 
       @include dark-theme() {
         @include color-svg(
-          '../images/icons/v2/expand-up-20.svg',
+          '../images/icons/v3/chevron/chevron-shallow-up.svg',
           $color-gray-45,
           false
         );
@@ -120,7 +173,7 @@
       &--large-active {
         @include light-theme() {
           @include color-svg(
-            '../images/icons/v2/collapse-down-20.svg',
+            '../images/icons/v3/chevron/chevron-shallow-down.svg',
             $color-gray-45,
             false
           );
@@ -128,7 +181,7 @@
 
         @include dark-theme() {
           @include color-svg(
-            '../images/icons/v2/collapse-down-20.svg',
+            '../images/icons/v3/chevron/chevron-shallow-down.svg',
             $color-gray-45,
             false
           );
@@ -146,7 +199,8 @@
     align-items: center;
 
     // Note the margin in &__placeholder above
-    padding: 14px 16px 18px 16px;
+    padding-block: 14px 18px;
+    padding-inline: 16px;
 
     &:not(.module-composition-area--pending) {
       @include light-theme {
@@ -159,7 +213,8 @@
 
     &__title {
       @include font-body-2-bold;
-      margin: 0 0 2px 0;
+      margin-block: 0 2px;
+      margin-inline: 0;
 
       @include light-theme {
         color: $color-gray-60;
@@ -187,14 +242,18 @@
   &__attach-file {
     width: 32px;
     height: 32px;
+    border-radius: 4px;
     padding: 0;
-    opacity: 0.5;
     border: none;
     background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
-    &:focus,
-    &:hover {
-      opacity: 1;
+    @include keyboard-mode {
+      &:focus {
+        outline: 2px solid $color-ultramarine;
+      }
     }
 
     outline: none;
@@ -202,14 +261,20 @@
     &:before {
       content: '';
       display: inline-block;
-      width: 24px;
-      height: 24px;
+      width: 20px;
+      height: 20px;
 
       @include light-theme {
-        @include color-svg('../images/icons/v2/plus-24.svg', $color-gray-75);
+        @include color-svg(
+          '../images/icons/v3/attach/attach.svg',
+          $color-gray-75
+        );
       }
       @include dark-theme {
-        @include color-svg('../images/icons/v2/plus-24.svg', $color-gray-15);
+        @include color-svg(
+          '../images/icons/v3/attach/attach.svg',
+          $color-gray-15
+        );
       }
     }
   }

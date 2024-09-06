@@ -1,14 +1,15 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { FunctionComponent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import React from 'react';
 
 import { ContactName } from './ContactName';
 import { SystemMessage } from './SystemMessage';
-import { Intl } from '../Intl';
+import { I18n } from '../I18n';
 import type { LocalizerType } from '../../types/Util';
 import * as expirationTimer from '../../util/expirationTimer';
+import type { DurationInSeconds } from '../../util/durations';
 import * as log from '../../logging/log';
 
 export type TimerNotificationType =
@@ -19,7 +20,7 @@ export type TimerNotificationType =
 
 // We can't always use destructuring assignment because of the complexity of this props
 //   type.
-/* eslint-disable react/destructuring-assignment */
+
 export type PropsData = {
   type: TimerNotificationType;
   title: string;
@@ -27,7 +28,7 @@ export type PropsData = {
   | { disabled: true }
   | {
       disabled: false;
-      expireTimer: number;
+      expireTimer: DurationInSeconds;
     }
 );
 
@@ -37,47 +38,49 @@ type PropsHousekeeping = {
 
 export type Props = PropsData & PropsHousekeeping;
 
-export const TimerNotification: FunctionComponent<Props> = props => {
+export function TimerNotification(props: Props): JSX.Element {
   const { disabled, i18n, title, type } = props;
 
-  let changeKey: string;
   let timespan: string;
-  if (props.disabled) {
-    changeKey = 'disabledDisappearingMessages';
+  if (disabled) {
     timespan = ''; // Set to the empty string to satisfy types
   } else {
-    changeKey = 'theyChangedTheTimer';
     timespan = expirationTimer.format(i18n, props.expireTimer);
   }
+
+  const name = <ContactName key="external-1" title={title} />;
 
   let message: ReactNode;
   switch (type) {
     case 'fromOther':
-      message = (
-        <Intl
+      message = disabled ? (
+        <I18n
           i18n={i18n}
-          id={changeKey}
-          components={{
-            name: <ContactName key="external-1" title={title} />,
-            time: timespan,
-          }}
+          id="icu:disabledDisappearingMessages"
+          components={{ name }}
+        />
+      ) : (
+        <I18n
+          i18n={i18n}
+          id="icu:theyChangedTheTimer"
+          components={{ name, time: timespan }}
         />
       );
       break;
     case 'fromMe':
       message = disabled
-        ? i18n('youDisabledDisappearingMessages')
-        : i18n('youChangedTheTimer', [timespan]);
+        ? i18n('icu:youDisabledDisappearingMessages')
+        : i18n('icu:youChangedTheTimer', { time: timespan });
       break;
     case 'fromSync':
       message = disabled
-        ? i18n('disappearingMessagesDisabled')
-        : i18n('timerSetOnSync', [timespan]);
+        ? i18n('icu:disappearingMessagesDisabled')
+        : i18n('icu:timerSetOnSync', { time: timespan });
       break;
     case 'fromMember':
       message = disabled
-        ? i18n('disappearingMessagesDisabledByMember')
-        : i18n('timerSetByMember', [timespan]);
+        ? i18n('icu:disappearingMessagesDisabledByMember')
+        : i18n('icu:timerSetByMember', { time: timespan });
       break;
     default:
       log.warn('TimerNotification: unsupported type provided:', type);
@@ -87,4 +90,4 @@ export const TimerNotification: FunctionComponent<Props> = props => {
   const icon = disabled ? 'timer-disabled' : 'timer';
 
   return <SystemMessage icon={icon} contents={message} />;
-};
+}

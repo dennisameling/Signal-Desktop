@@ -3,9 +3,61 @@
 
 .StoryViewsNRepliesModal {
   min-width: 320px;
+  max-height: 80vh;
 
   &--group {
-    min-height: 360px;
+    min-height: min(400px, 80vh);
+
+    .StoryViewsNRepliesModal__content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+  }
+
+  &__body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__body_inner {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  &__content {
+    &:not(:has(.Tabs)) {
+      padding-block-start: 16px;
+    }
+
+    // When picking from full emoji set, compensate for for hidden quick picker
+    &:has(.module-emoji-picker)::before {
+      content: '';
+      display: block;
+      height: 52px;
+    }
+
+    padding-block-end: 16px;
+    padding-inline: 16px;
+  }
+
+  &__replies {
+    flex: 1;
+    margin-block: 0;
+    margin-inline: -16px;
+
+    &--none {
+      align-items: center;
+      color: $color-gray-45;
+      display: flex;
+      flex: 1;
+      justify-content: center;
+      padding-block: 80px;
+      padding-inline: 0;
+      user-select: none;
+    }
   }
 
   &__overlay-container {
@@ -20,22 +72,27 @@
 
   &__composer {
     flex: 1;
-    margin-right: 16px;
+    margin-top: 6px;
   }
 
   &__emoji-button {
     height: 24px;
-    margin-right: 8px;
+    margin-inline-start: 10px;
     width: 24px;
 
     &::after {
       @include dark-theme {
-        @include color-svg(
-          '../images/icons/v2/emoji-smiley-outline-24.svg',
-          $color-white
-        );
+        @include color-svg('../images/icons/v3/emoji/emoji.svg', $color-white);
       }
     }
+  }
+
+  &__not-a-member {
+    margin-block: 24px 8px;
+    margin-inline: 4px;
+    font-size: 12px;
+    text-align: center;
+    color: $color-gray-25;
   }
 
   &__input {
@@ -51,9 +108,12 @@
         color: $color-gray-25;
       }
 
+      display: flex;
+      align-items: center;
+      min-height: 36px;
+
       &--with-children {
-        align-items: center;
-        display: flex;
+        flex: 1;
       }
 
       .quill {
@@ -62,25 +122,16 @@
     }
   }
 
-  &__react {
-    @include button-reset;
-    @include color-svg(
-      '../images/icons/v2/add-reaction-outline-24.svg',
-      $color-white
-    );
-    height: 22px;
-    width: 22px;
-  }
-
   &__view {
     align-items: center;
     display: flex;
     justify-content: space-between;
-    margin: 8px 0;
+    margin-block: 8px;
+    margin-inline: 0;
 
     &--name {
       @include font-body-2;
-      margin-left: 12px;
+      margin-inline-start: 12px;
     }
 
     &--timestamp {
@@ -101,7 +152,7 @@
     &--timestamp {
       @include font-subtitle;
       color: $color-gray-25;
-      margin-left: 6px;
+      margin-inline-start: 6px;
     }
   }
 
@@ -109,28 +160,36 @@
     align-items: center;
     display: flex;
     justify-content: space-between;
-    padding: 12px 0;
+    padding-block: 12px;
+    padding-inline: 16px;
 
     &--container {
       display: flex;
     }
 
     &--body {
-      margin-left: 20px;
+      margin-inline-start: 20px;
     }
   }
 
   &__message-bubble {
     background: $color-gray-75;
     border-radius: 18px;
-    margin-left: 8px;
-    padding: 7px 12px;
+    margin-inline-start: 8px;
+    padding-block: 7px;
+    padding-inline: 12px;
+
+    &--doe {
+      background: none;
+      border: 1px solid $color-gray-75;
+    }
   }
 
   &__quote {
     &__container {
-      margin-top: 8px;
-      margin-bottom: 8px;
+      margin-block: 8px;
+      margin-inline: 0;
+      margin-inline-end: 38px;
     }
 
     &--outgoing-ultramarine {
@@ -157,18 +216,71 @@
       width: 40px;
     }
   }
+
+  &__debugger__button {
+    color: $color-gray-25;
+    display: block;
+    font-weight: 600;
+    height: auto;
+    opacity: 1;
+    width: auto;
+
+    &--active {
+      @include dark-theme {
+        background: inherit;
+      }
+    }
+
+    &::after {
+      display: none;
+    }
+
+    &__text {
+      font-weight: normal;
+    }
+  }
+
+  &__copy-icon {
+    @include color-svg('../images/icons/v3/copy/copy.svg', $color-white);
+  }
+
+  &__read-receipts-off {
+    color: $color-gray-25;
+    margin-block: 160px;
+    margin-inline: 16px;
+  }
+
+  .module-ReactionPickerPicker {
+    background: inherit;
+    border: none;
+    box-shadow: none;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .module-emoji-picker {
+    position: absolute;
+    bottom: 55px;
+    max-height: calc(100vh - 100px);
+  }
 }
 
 .Tabs.StoryViewsNRepliesModal__tabs {
+  position: sticky;
+  top: 0;
+  z-index: $z-index-base;
+  padding-block: 16px;
+  background: $color-gray-80;
   border-bottom: none;
   justify-content: center;
-  margin-bottom: 16px;
 }
 
 .Tabs__tab.StoryViewsNRepliesModal__tabs__tab {
   @include font-body-1-bold;
-  padding: 4px 12px;
-  margin: 0 12px;
+  padding-block: 4px;
+  padding-inline: 12px;
+  margin-block: 0;
+  margin-inline: 12px;
 }
 
 .Tabs__tab--selected.StoryViewsNRepliesModal__tabs__tab--selected {

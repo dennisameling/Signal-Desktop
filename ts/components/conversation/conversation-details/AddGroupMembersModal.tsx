@@ -1,7 +1,6 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { FunctionComponent } from 'react';
 import React, { useReducer } from 'react';
 import { without } from 'lodash';
 
@@ -12,10 +11,6 @@ import {
 } from '../../AddGroupMemberErrorDialog';
 import type { SmartChooseGroupMembersModalPropsType } from '../../../state/smart/ChooseGroupMembersModal';
 import type { SmartConfirmAdditionsModalPropsType } from '../../../state/smart/ConfirmAdditionsModal';
-import {
-  getGroupSizeRecommendedLimit,
-  getGroupSizeHardLimit,
-} from '../../../groups/limits';
 import {
   toggleSelectedContactForGroupAddition,
   OneTimeModalState,
@@ -31,6 +26,8 @@ type PropsType = {
   makeRequest: (conversationIds: ReadonlyArray<string>) => Promise<void>;
   onClose: () => void;
   requestState: RequestState;
+  maxGroupSize: number;
+  maxRecommendedGroupSize: number;
 
   renderChooseGroupMembersModal: (
     props: SmartChooseGroupMembersModalPropsType
@@ -46,10 +43,12 @@ enum Stage {
 }
 
 type StateType = {
+  maxGroupSize: number;
+  maxRecommendedGroupSize: number;
   maximumGroupSizeModalState: OneTimeModalState;
   recommendedGroupSizeModalState: OneTimeModalState;
   searchTerm: string;
-  selectedConversationIds: Array<string>;
+  selectedConversationIds: ReadonlyArray<string>;
   stage: Stage;
 };
 
@@ -116,8 +115,8 @@ function reducer(
       return {
         ...state,
         ...toggleSelectedContactForGroupAddition(action.conversationId, {
-          maxGroupSize: getMaximumNumberOfContacts(),
-          maxRecommendedGroupSize: getRecommendedMaximumNumberOfContacts(),
+          maxGroupSize: state.maxGroupSize,
+          maxRecommendedGroupSize: state.maxRecommendedGroupSize,
           maximumGroupSizeModalState: state.maximumGroupSizeModalState,
           numberOfContactsAlreadyInGroup: action.numberOfContactsAlreadyInGroup,
           recommendedGroupSizeModalState: state.recommendedGroupSizeModalState,
@@ -134,20 +133,19 @@ function reducer(
   }
 }
 
-export const AddGroupMembersModal: FunctionComponent<PropsType> = ({
+export function AddGroupMembersModal({
   clearRequestError,
   conversationIdsAlreadyInGroup,
   groupTitle,
   i18n,
   onClose,
   makeRequest,
+  maxGroupSize,
+  maxRecommendedGroupSize,
   requestState,
   renderChooseGroupMembersModal,
   renderConfirmAdditionsModal,
-}) => {
-  const maxGroupSize = getMaximumNumberOfContacts();
-  const maxRecommendedGroupSize = getRecommendedMaximumNumberOfContacts();
-
+}: PropsType): JSX.Element {
   const numberOfContactsAlreadyInGroup = conversationIdsAlreadyInGroup.size;
   const isGroupAlreadyFull = numberOfContactsAlreadyInGroup >= maxGroupSize;
   const isGroupAlreadyOverRecommendedMaximum =
@@ -163,6 +161,8 @@ export const AddGroupMembersModal: FunctionComponent<PropsType> = ({
     },
     dispatch,
   ] = useReducer(reducer, {
+    maxGroupSize,
+    maxRecommendedGroupSize,
     maximumGroupSizeModalState: isGroupAlreadyFull
       ? OneTimeModalState.Showing
       : OneTimeModalState.NeverShown,
@@ -249,7 +249,7 @@ export const AddGroupMembersModal: FunctionComponent<PropsType> = ({
       return renderConfirmAdditionsModal({
         groupTitle,
         makeRequest: () => {
-          makeRequest(selectedConversationIds);
+          void makeRequest(selectedConversationIds);
         },
         onClose: onCloseConfirmationDialog,
         requestState,
@@ -259,12 +259,4 @@ export const AddGroupMembersModal: FunctionComponent<PropsType> = ({
     default:
       throw missingCaseError(stage);
   }
-};
-
-function getRecommendedMaximumNumberOfContacts(): number {
-  return getGroupSizeRecommendedLimit(151);
-}
-
-function getMaximumNumberOfContacts(): number {
-  return getGroupSizeHardLimit(1001);
 }

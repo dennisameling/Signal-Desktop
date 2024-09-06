@@ -1,10 +1,10 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { z } from 'zod';
-import { isNumber } from 'lodash';
+import { isBoolean, isNumber } from 'lodash';
 import type { CallbackResultType } from '../textsecure/Types.d';
-import dataInterface from '../sql/Client';
+import { DataWriter } from '../sql/Client';
 import * as log from '../logging/log';
 import {
   OutgoingMessageError,
@@ -13,42 +13,66 @@ import {
   UnregisteredUserError,
 } from '../textsecure/Errors';
 import { SEALED_SENDER } from '../types/SealedSender';
+import type { ServiceIdString } from '../types/ServiceId';
+import { drop } from './drop';
 
-const { insertSentProto, updateConversation } = dataInterface;
+const { insertSentProto, updateConversation } = DataWriter;
 
 export const sendTypesEnum = z.enum([
-  'blockSyncRequest',
-  'pniIdentitySyncRequest',
-  'callingMessage', // excluded from send log
-  'configurationSyncRequest',
-  'contactSyncRequest',
-  'deleteForEveryone',
-  'deliveryReceipt',
-  'expirationTimerUpdate',
-  'fetchLatestManifestSync',
-  'fetchLocalProfileSync',
-  'groupChange',
-  'groupSyncRequest',
-  'keySyncRequest',
-  'legacyGroupChange',
+  // Core user interactions, default urgent
   'message',
-  'messageRequestSync',
+  'story', // non-urgent
+  'callingMessage', // excluded from send log; only call-initiation messages are urgent
+  'deleteForEveryone',
+  'expirationTimerUpdate', // non-urgent
+  'groupChange', // non-urgent
+  'reaction',
+  'typing', // excluded from send log; non-urgent
+
+  // Responding to incoming messages, all non-urgent
+  'deliveryReceipt',
+  'readReceipt',
+  'viewedReceipt',
+
+  // Encryption housekeeping, default non-urgent
   'nullMessage',
   'profileKeyUpdate',
-  'reaction',
-  'readReceipt',
-  'readSync',
-  'resendFromLog', // excluded from send log
-  'resetSession',
+  'resendFromLog', // excluded from send log, only urgent if original message was urgent
   'retryRequest', // excluded from send log
-  'senderKeyDistributionMessage',
+  'senderKeyDistributionMessage', // only urgent if associated message is
+
+  // Sync messages sent during link, default non-urgent
+  'blockSyncRequest',
+  'configurationSyncRequest',
+  'contactSyncRequest', // urgent because it blocks the link process
+  'keySyncRequest', // urgent because it blocks the link process
+  'pniIdentitySyncRequest', // urgent because we need our PNI to be fully functional
+
+  // The actual sync messages, which we never send, just receive - non-urgent
+  'blockSync',
+  'configurationSync',
+  'contactSync',
+  'keySync',
+  'pniIdentitySync',
+
+  // Syncs, default non-urgent
+  'deleteForMeSync',
+  'fetchLatestManifestSync',
+  'fetchLocalProfileSync',
+  'messageRequestSync',
+  'readSync', // urgent
   'sentSync',
   'stickerPackSync',
-  'typing', // excluded from send log
   'verificationSync',
   'viewOnceSync',
   'viewSync',
-  'viewedReceipt',
+  'callEventSync',
+  'callLinkUpdateSync',
+  'callLogEventSync',
+
+  // No longer used, all non-urgent
+  'legacyGroupChange',
+  'resetSession',
 ]);
 
 export type SendTypesType = z.infer<typeof sendTypesEnum>;
@@ -91,14 +115,14 @@ function processError(error: unknown): void {
           `handleMessageSend: Got 401/403 for ${conversation.idForLogging()}, removing profile key`
         );
 
-        conversation.setProfileKey(undefined);
+        void conversation.setProfileKey(undefined);
       }
       if (conversation.get('sealedSender') === SEALED_SENDER.UNKNOWN) {
         log.warn(
           `handleMessageSend: Got 401/403 for ${conversation.idForLogging()}, setting sealedSender = DISABLED`
         );
         conversation.set('sealedSender', SEALED_SENDER.DISABLED);
-        updateConversation(conversation.attributes);
+        drop(updateConversation(conversation.attributes));
       }
     }
     if (error.code === 404) {
@@ -110,7 +134,7 @@ function processError(error: unknown): void {
   }
   if (error instanceof UnregisteredUserError) {
     const conversation = window.ConversationController.getOrCreate(
-      error.identifier,
+      error.serviceId,
       'private'
     );
     log.warn(
@@ -133,7 +157,7 @@ export async function handleMessageSend(
     await maybeSaveToSendLog(result, options);
 
     await handleMessageSendResult(
-      result.failoverIdentifiers,
+      result.failoverServiceIds,
       result.unidentifiedDeliveries
     );
 
@@ -143,7 +167,7 @@ export async function handleMessageSend(
 
     if (err instanceof SendMessageProtoError) {
       await handleMessageSendResult(
-        err.failoverIdentifiers,
+        err.failoverServiceIds,
         err.unidentifiedDeliveries
       );
 
@@ -155,12 +179,12 @@ export async function handleMessageSend(
 }
 
 async function handleMessageSendResult(
-  failoverIdentifiers: Array<string> | undefined,
-  unidentifiedDeliveries: Array<string> | undefined
+  failoverServiceIds: Array<ServiceIdString> | undefined,
+  unidentifiedDeliveries: Array<ServiceIdString> | undefined
 ): Promise<void> {
   await Promise.all(
-    (failoverIdentifiers || []).map(async identifier => {
-      const conversation = window.ConversationController.get(identifier);
+    (failoverServiceIds || []).map(async serviceId => {
+      const conversation = window.ConversationController.get(serviceId);
 
       if (
         conversation &&
@@ -172,14 +196,14 @@ async function handleMessageSendResult(
         conversation.set({
           sealedSender: SEALED_SENDER.DISABLED,
         });
-        window.Signal.Data.updateConversation(conversation.attributes);
+        await DataWriter.updateConversation(conversation.attributes);
       }
     })
   );
 
   await Promise.all(
-    (unidentifiedDeliveries || []).map(async identifier => {
-      const conversation = window.ConversationController.get(identifier);
+    (unidentifiedDeliveries || []).map(async serviceId => {
+      const conversation = window.ConversationController.get(serviceId);
 
       if (
         conversation &&
@@ -200,7 +224,7 @@ async function handleMessageSendResult(
             sealedSender: SEALED_SENDER.UNRESTRICTED,
           });
         }
-        window.Signal.Data.updateConversation(conversation.attributes);
+        await DataWriter.updateConversation(conversation.attributes);
       }
     })
   );
@@ -216,7 +240,14 @@ async function maybeSaveToSendLog(
     sendType: SendTypesType;
   }
 ): Promise<void> {
-  const { contentHint, contentProto, recipients, timestamp } = result;
+  const {
+    contentHint,
+    contentProto,
+    recipients,
+    timestamp,
+    urgent,
+    hasPniSignatureMessage,
+  } = result;
 
   if (!shouldSaveProto(sendType)) {
     return;
@@ -247,6 +278,8 @@ async function maybeSaveToSendLog(
       timestamp,
       proto: Buffer.from(contentProto),
       contentHint,
+      urgent: isBoolean(urgent) ? urgent : true,
+      hasPniSignatureMessage: Boolean(hasPniSignatureMessage),
     },
     {
       messageIds,

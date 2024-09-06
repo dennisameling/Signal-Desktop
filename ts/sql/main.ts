@@ -9,11 +9,26 @@ import { app } from 'electron';
 import { strictAssert } from '../util/assert';
 import { explodePromise } from '../util/explodePromise';
 import type { LoggerType } from '../types/Logging';
-import { isCorruptionError } from './errors';
+import * as Errors from '../types/errors';
+import { SqliteErrorKind } from './errors';
+import type {
+  ServerReadableDirectInterface,
+  ServerWritableDirectInterface,
+} from './Interface';
 
 const MIN_TRACE_DURATION = 40;
 
+const WORKER_COUNT = 4;
+
+const PAGING_QUERIES = new Set<keyof ServerReadableDirectInterface>([
+  'pageMessages',
+  'finishPageMessages',
+  'getKnownMessageAttachments',
+  'finishGetKnownMessageAttachments',
+]);
+
 export type InitializeOptions = Readonly<{
+  appVersion: string;
   configDir: string;
   key: string;
   logger: LoggerType;
@@ -23,18 +38,20 @@ export type WorkerRequest = Readonly<
   | {
       type: 'init';
       options: Omit<InitializeOptions, 'logger'>;
+      isPrimary: boolean;
     }
   | {
-      type: 'close';
+      type: 'close' | 'removeDB';
     }
   | {
-      type: 'removeDB';
+      type: 'sqlCall:read';
+      method: keyof ServerReadableDirectInterface;
+      args: ReadonlyArray<unknown>;
     }
   | {
-      type: 'sqlCall';
-      method: string;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      args: ReadonlyArray<any>;
+      type: 'sqlCall:write';
+      method: keyof ServerWritableDirectInterface;
+      args: ReadonlyArray<unknown>;
     }
 >;
 
@@ -53,7 +70,14 @@ export type WrappedWorkerResponse =
   | Readonly<{
       type: 'response';
       seq: number;
-      error: string | undefined;
+      error:
+        | Readonly<{
+            name: string;
+            message: string;
+            stack: string | undefined;
+          }>
+        | undefined;
+      errorKind: SqliteErrorKind | undefined;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       response: any;
     }>
@@ -64,18 +88,34 @@ type PromisePair<T> = {
   reject: (error: Error) => void;
 };
 
+type KnownErrorResolverType = Readonly<{
+  kind: SqliteErrorKind;
+  resolve: (err: Error) => void;
+}>;
+
+type CreateWorkerResultType = Readonly<{
+  worker: Worker;
+  onExit: Promise<void>;
+}>;
+
+type PoolEntry = {
+  readonly worker: Worker;
+  load: number;
+};
+
 export class MainSQL {
-  private readonly worker: Worker;
+  private readonly pool = new Array<PoolEntry>();
+
+  private pauseWaiters: Array<() => void> | undefined;
 
   private isReady = false;
 
   private onReady: Promise<void> | undefined;
 
-  private readonly onExit: Promise<void>;
+  private readonly onExit: Promise<unknown>;
 
-  // This promise is resolved when any of the queries that we run against the
-  // database reject with a corruption error (see `isCorruptionError`)
-  private readonly onCorruption: Promise<Error>;
+  // Promise resolve callbacks for corruption and readonly errors.
+  private errorResolvers = new Array<KnownErrorResolverType>();
 
   private seq = 0;
 
@@ -84,48 +124,21 @@ export class MainSQL {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private onResponse = new Map<number, PromisePair<any>>();
 
+  private shouldTimeQueries = false;
+
   constructor() {
-    const scriptDir = join(app.getAppPath(), 'ts', 'sql', 'mainWorker.js');
-    this.worker = new Worker(scriptDir);
+    const exitPromises = new Array<Promise<void>>();
+    for (let i = 0; i < WORKER_COUNT; i += 1) {
+      const { worker, onExit } = this.createWorker();
+      this.pool.push({ worker, load: 0 });
 
-    const { promise: onCorruption, resolve: resolveCorruption } =
-      explodePromise<Error>();
-    this.onCorruption = onCorruption;
-
-    this.worker.on('message', (wrappedResponse: WrappedWorkerResponse) => {
-      if (wrappedResponse.type === 'log') {
-        const { level, args } = wrappedResponse;
-        strictAssert(this.logger !== undefined, 'Logger not initialized');
-        this.logger[level](`MainSQL: ${format(...args)}`);
-        return;
-      }
-
-      const { seq, error, response } = wrappedResponse;
-
-      const pair = this.onResponse.get(seq);
-      this.onResponse.delete(seq);
-      if (!pair) {
-        throw new Error(`Unexpected worker response with seq: ${seq}`);
-      }
-
-      if (error) {
-        const errorObj = new Error(error);
-        if (isCorruptionError(errorObj)) {
-          resolveCorruption(errorObj);
-        }
-
-        pair.reject(errorObj);
-      } else {
-        pair.resolve(response);
-      }
-    });
-
-    this.onExit = new Promise<void>(resolve => {
-      this.worker.once('exit', resolve);
-    });
+      exitPromises.push(onExit);
+    }
+    this.onExit = Promise.all(exitPromises);
   }
 
   public async initialize({
+    appVersion,
     configDir,
     key,
     logger,
@@ -134,12 +147,30 @@ export class MainSQL {
       throw new Error('Already initialized');
     }
 
+    this.shouldTimeQueries = Boolean(process.env.TIME_QUERIES);
+
     this.logger = logger;
 
-    this.onReady = this.send({
-      type: 'init',
-      options: { configDir, key },
-    });
+    this.onReady = (async () => {
+      const primary = this.pool[0];
+      const rest = this.pool.slice(1);
+
+      await this.send(primary, {
+        type: 'init',
+        options: { appVersion, configDir, key },
+        isPrimary: true,
+      });
+
+      await Promise.all(
+        rest.map(worker =>
+          this.send(worker, {
+            type: 'init',
+            options: { appVersion, configDir, key },
+            isPrimary: false,
+          })
+        )
+      );
+    })();
 
     await this.onReady;
 
@@ -147,61 +178,243 @@ export class MainSQL {
     this.isReady = true;
   }
 
+  public pauseWriteAccess(): void {
+    strictAssert(this.pauseWaiters == null, 'Already paused');
+
+    this.pauseWaiters = [];
+  }
+
+  public resumeWriteAccess(): void {
+    const { pauseWaiters } = this;
+    strictAssert(pauseWaiters != null, 'Not paused');
+    this.pauseWaiters = undefined;
+
+    for (const waiter of pauseWaiters) {
+      waiter();
+    }
+  }
+
   public whenCorrupted(): Promise<Error> {
-    return this.onCorruption;
+    const { promise, resolve } = explodePromise<Error>();
+    this.errorResolvers.push({ kind: SqliteErrorKind.Corrupted, resolve });
+    return promise;
+  }
+
+  public whenReadonly(): Promise<Error> {
+    const { promise, resolve } = explodePromise<Error>();
+    this.errorResolvers.push({ kind: SqliteErrorKind.Readonly, resolve });
+    return promise;
   }
 
   public async close(): Promise<void> {
+    if (this.onReady) {
+      try {
+        await this.onReady;
+      } catch (err) {
+        this.logger?.error(`MainSQL close, failed: ${Errors.toLogFormat(err)}`);
+        // Init failed
+        return;
+      }
+    }
+
     if (!this.isReady) {
       throw new Error('Not initialized');
     }
 
-    await this.send({ type: 'close' });
+    await this.terminate({ type: 'close' });
     await this.onExit;
   }
 
   public async removeDB(): Promise<void> {
-    await this.send({ type: 'removeDB' });
+    await this.terminate({ type: 'removeDB' });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public async sqlCall(method: string, args: ReadonlyArray<any>): Promise<any> {
-    if (this.onReady) {
-      await this.onReady;
-    }
+  public async sqlRead<Method extends keyof ServerReadableDirectInterface>(
+    method: Method,
+    ...args: Parameters<ServerReadableDirectInterface[Method]>
+  ): Promise<ReturnType<ServerReadableDirectInterface[Method]>> {
+    type SqlCallResult = Readonly<{
+      result: ReturnType<ServerReadableDirectInterface[Method]>;
+      duration: number;
+    }>;
 
-    if (!this.isReady) {
-      throw new Error('Not initialized');
-    }
+    // pageMessages runs over several queries and needs to have access to
+    // the same temporary table.
+    const isPaging = PAGING_QUERIES.has(method);
 
-    const { result, duration } = await this.send({
-      type: 'sqlCall',
+    const entry = isPaging ? this.pool.at(-1) : this.getWorker();
+    strictAssert(entry != null, 'Must have a pool entry');
+
+    const { result, duration } = await this.send<SqlCallResult>(entry, {
+      type: 'sqlCall:read',
       method,
       args,
     });
 
-    if (duration > MIN_TRACE_DURATION) {
-      strictAssert(this.logger !== undefined, 'Logger not initialized');
-      this.logger.info(`MainSQL: slow query ${method} duration=${duration}ms`);
-    }
+    this.traceDuration(method, duration);
 
     return result;
   }
 
-  private async send<Response>(request: WorkerRequest): Promise<Response> {
-    const { seq } = this;
-    this.seq += 1;
+  public async sqlWrite<Method extends keyof ServerWritableDirectInterface>(
+    method: Method,
+    ...args: Parameters<ServerWritableDirectInterface[Method]>
+  ): Promise<ReturnType<ServerWritableDirectInterface[Method]>> {
+    type Result = ReturnType<ServerWritableDirectInterface[Method]>;
+    type SqlCallResult = Readonly<{
+      result: Result;
+      duration: number;
+    }>;
 
-    const result = new Promise<Response>((resolve, reject) => {
-      this.onResponse.set(seq, { resolve, reject });
+    while (this.pauseWaiters != null) {
+      const { promise, resolve } = explodePromise<void>();
+      this.pauseWaiters.push(resolve);
+      // eslint-disable-next-line no-await-in-loop
+      await promise;
+    }
+
+    const primary = this.pool[0];
+
+    const { result, duration } = await this.send<SqlCallResult>(primary, {
+      type: 'sqlCall:write',
+      method,
+      args,
     });
+
+    this.traceDuration(method, duration);
+
+    return result;
+  }
+
+  private async send<Response>(
+    entry: PoolEntry,
+    request: WorkerRequest
+  ): Promise<Response> {
+    if (request.type === 'sqlCall:read' || request.type === 'sqlCall:write') {
+      if (this.onReady) {
+        await this.onReady;
+      }
+
+      if (!this.isReady) {
+        throw new Error('Not initialized');
+      }
+    }
+
+    const { seq } = this;
+    // eslint-disable-next-line no-bitwise
+    this.seq = (this.seq + 1) >>> 0;
+
+    const { promise: result, resolve, reject } = explodePromise<Response>();
+    this.onResponse.set(seq, { resolve, reject });
 
     const wrappedRequest: WrappedWorkerRequest = {
       seq,
       request,
     };
-    this.worker.postMessage(wrappedRequest);
+    entry.worker.postMessage(wrappedRequest);
 
-    return result;
+    try {
+      // eslint-disable-next-line no-param-reassign
+      entry.load += 1;
+      return await result;
+    } finally {
+      // eslint-disable-next-line no-param-reassign
+      entry.load -= 1;
+    }
+  }
+
+  private async terminate(request: WorkerRequest): Promise<void> {
+    const primary = this.pool[0];
+    const rest = this.pool.slice(1);
+
+    // Terminate non-primary workers first
+    await Promise.all(rest.map(worker => this.send(worker, request)));
+
+    // Primary last
+    await this.send(primary, request);
+  }
+
+  private onError(errorKind: SqliteErrorKind, error: Error): void {
+    if (errorKind === SqliteErrorKind.Unknown) {
+      return;
+    }
+
+    const resolvers = new Array<(error: Error) => void>();
+    this.errorResolvers = this.errorResolvers.filter(entry => {
+      if (entry.kind === errorKind) {
+        resolvers.push(entry.resolve);
+        return false;
+      }
+      return true;
+    });
+
+    for (const resolve of resolvers) {
+      resolve(error);
+    }
+  }
+
+  private traceDuration(method: string, duration: number): void {
+    if (this.shouldTimeQueries && !app.isPackaged) {
+      const twoDecimals = Math.round(100 * duration) / 100;
+      this.logger?.info(`MainSQL query: ${method}, duration=${twoDecimals}ms`);
+    }
+    if (duration > MIN_TRACE_DURATION) {
+      strictAssert(this.logger !== undefined, 'Logger not initialized');
+      this.logger.info(
+        `MainSQL: slow query ${method} duration=${Math.round(duration)}ms`
+      );
+    }
+  }
+
+  private createWorker(): CreateWorkerResultType {
+    const scriptPath = join(app.getAppPath(), 'ts', 'sql', 'mainWorker.js');
+
+    const worker = new Worker(scriptPath);
+
+    worker.on('message', (wrappedResponse: WrappedWorkerResponse) => {
+      if (wrappedResponse.type === 'log') {
+        const { level, args } = wrappedResponse;
+        strictAssert(this.logger !== undefined, 'Logger not initialized');
+        this.logger[level](`MainSQL: ${format(...args)}`);
+        return;
+      }
+
+      const { seq, error, errorKind, response } = wrappedResponse;
+
+      const pair = this.onResponse.get(seq);
+      this.onResponse.delete(seq);
+      if (!pair) {
+        throw new Error(`Unexpected worker response with seq: ${seq}`);
+      }
+
+      if (error) {
+        const errorObj = new Error(error.message);
+        errorObj.stack = error.stack;
+        errorObj.name = error.name;
+        this.onError(errorKind ?? SqliteErrorKind.Unknown, errorObj);
+
+        pair.reject(errorObj);
+      } else {
+        pair.resolve(response);
+      }
+    });
+
+    const { promise: onExit, resolve: resolveOnExit } = explodePromise<void>();
+    worker.once('exit', resolveOnExit);
+
+    return { worker, onExit };
+  }
+
+  // Find first pool entry with minimal load
+  private getWorker(): PoolEntry {
+    let min = this.pool[0];
+    for (const entry of this.pool) {
+      if (min && min.load < entry.load) {
+        continue;
+      }
+
+      min = entry;
+    }
+    return min;
   }
 }

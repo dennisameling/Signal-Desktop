@@ -1,9 +1,10 @@
-// Copyright 2018-2020 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
 import * as sinon from 'sinon';
 
+import * as logger from '../../logging/log';
 import { IMAGE_GIF, IMAGE_PNG } from '../../types/MIME';
 import type { MessageAttributesType } from '../../model-types.d';
 import type { Avatar, Email, Phone } from '../../types/EmbeddedContact';
@@ -14,12 +15,10 @@ import {
   parseAndWriteAvatar,
 } from '../../types/EmbeddedContact';
 import { fakeAttachment } from '../../test-both/helpers/fakeAttachment';
+import { generateAci } from '../../types/ServiceId';
 
 describe('Contact', () => {
   const NUMBER = '+12025550099';
-  const logger = {
-    error: () => undefined,
-  };
 
   const writeNewAttachmentData = sinon
     .stub()
@@ -113,8 +112,7 @@ describe('Contact', () => {
   describe('embeddedContactSelector', () => {
     const regionCode = '1';
     const firstNumber = '+1202555000';
-    const isNumberOnSignal = false;
-    const getAbsoluteAttachmentPath = (path: string) => `absolute:${path}`;
+    const serviceId = undefined;
 
     it('eliminates avatar if it has had an attachment download error', () => {
       const contact = {
@@ -141,14 +139,13 @@ describe('Contact', () => {
         organization: 'Somewhere, Inc.',
         avatar: undefined,
         firstNumber,
-        isNumberOnSignal,
+        serviceId,
         number: undefined,
       };
       const actual = embeddedContactSelector(contact, {
         regionCode,
         firstNumber,
-        isNumberOnSignal,
-        getAbsoluteAttachmentPath,
+        serviceId,
       });
       assert.deepEqual(actual, expected);
     });
@@ -166,6 +163,7 @@ describe('Contact', () => {
           avatar: fakeAttachment({
             pending: true,
             contentType: IMAGE_GIF,
+            path: undefined,
           }),
         },
       };
@@ -185,19 +183,20 @@ describe('Contact', () => {
           }),
         },
         firstNumber,
-        isNumberOnSignal,
+        serviceId,
         number: undefined,
       };
       const actual = embeddedContactSelector(contact, {
         regionCode,
         firstNumber,
-        isNumberOnSignal,
-        getAbsoluteAttachmentPath,
+        serviceId,
       });
       assert.deepEqual(actual, expected);
     });
 
-    it('calculates absolute path', () => {
+    it('calculates local url', () => {
+      const fullAci = generateAci();
+
       const contact = {
         name: {
           displayName: 'displayName',
@@ -223,19 +222,18 @@ describe('Contact', () => {
         avatar: {
           isProfile: true,
           avatar: fakeAttachment({
-            path: 'absolute:somewhere',
+            path: 'attachment://v1/somewhere?size=10304&contentType=image%2Fgif',
             contentType: IMAGE_GIF,
           }),
         },
         firstNumber,
-        isNumberOnSignal: true,
+        serviceId: fullAci,
         number: undefined,
       };
       const actual = embeddedContactSelector(contact, {
         regionCode,
         firstNumber,
-        isNumberOnSignal: true,
-        getAbsoluteAttachmentPath,
+        serviceId: fullAci,
       });
       assert.deepEqual(actual, expected);
     });
@@ -267,7 +265,7 @@ describe('Contact', () => {
       const result = await upgradeVersion(message.contact[0], {
         message,
         logger,
-        regionCode: '1',
+        getRegionCode: () => '1',
         writeNewAttachmentData,
       });
       assert.deepEqual(result, message.contact[0]);
@@ -308,7 +306,7 @@ describe('Contact', () => {
       };
       const result = await upgradeVersion(message.contact[0], {
         message,
-        regionCode: 'US',
+        getRegionCode: () => 'US',
         logger,
         writeNewAttachmentData,
       });
@@ -352,7 +350,7 @@ describe('Contact', () => {
         ],
       };
       const result = await upgradeVersion(message.contact[0], {
-        regionCode: '1',
+        getRegionCode: () => '1',
         writeNewAttachmentData,
         message,
         logger,
@@ -437,7 +435,7 @@ describe('Contact', () => {
       };
 
       const result = await upgradeVersion(message.contact[0], {
-        regionCode: '1',
+        getRegionCode: () => '1',
         writeNewAttachmentData,
         message,
         logger,
@@ -484,7 +482,7 @@ describe('Contact', () => {
         ],
       };
       const result = await upgradeVersion(message.contact[0], {
-        regionCode: '1',
+        getRegionCode: () => '1',
         writeNewAttachmentData,
         message,
         logger,
@@ -531,7 +529,7 @@ describe('Contact', () => {
         ],
       };
       const result = await upgradeVersion(message.contact[0], {
-        regionCode: '1',
+        getRegionCode: () => '1',
         writeNewAttachmentData,
         message,
         logger,
@@ -574,7 +572,7 @@ describe('Contact', () => {
         },
       };
       const result = await upgradeVersion(message.contact[0], {
-        regionCode: '1',
+        getRegionCode: () => '1',
         writeNewAttachmentData,
         message,
         logger,
@@ -603,7 +601,7 @@ describe('Contact', () => {
         ],
       };
       const result = await upgradeVersion(message.contact[0], {
-        regionCode: '1',
+        getRegionCode: () => '1',
         writeNewAttachmentData,
         message,
         logger,

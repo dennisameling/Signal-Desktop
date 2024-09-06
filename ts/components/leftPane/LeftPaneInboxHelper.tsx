@@ -1,17 +1,20 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { last } from 'lodash';
 import type { ReactChild } from 'react';
 import React from 'react';
 
-import { Intl } from '../Intl';
 import type { ToFindType } from './LeftPaneHelper';
-import type { ConversationType } from '../../state/ducks/conversations';
+import type {
+  ConversationType,
+  ShowConversationType,
+} from '../../state/ducks/conversations';
 import { LeftPaneHelper } from './LeftPaneHelper';
 import { getConversationInDirection } from './getConversationInDirection';
 import type { Row } from '../ConversationList';
 import { RowType } from '../ConversationList';
+import { NavSidebarEmpty } from '../NavSidebar';
 import type { PropsData as ConversationListItemPropsType } from '../conversationList/ConversationListItem';
 import type { LocalizerType } from '../../types/Util';
 import { handleKeydownForSearch } from './handleKeydownForSearch';
@@ -21,7 +24,8 @@ export type LeftPaneInboxPropsType = {
   conversations: ReadonlyArray<ConversationListItemPropsType>;
   archivedConversations: ReadonlyArray<ConversationListItemPropsType>;
   pinnedConversations: ReadonlyArray<ConversationListItemPropsType>;
-  isAboutToSearchInAConversation: boolean;
+  isAboutToSearch: boolean;
+  isSearchingGlobally: boolean;
   startSearchCounter: number;
   searchDisabled: boolean;
   searchTerm: string;
@@ -35,7 +39,9 @@ export class LeftPaneInboxHelper extends LeftPaneHelper<LeftPaneInboxPropsType> 
 
   private readonly pinnedConversations: ReadonlyArray<ConversationListItemPropsType>;
 
-  private readonly isAboutToSearchInAConversation: boolean;
+  private readonly isAboutToSearch: boolean;
+
+  private readonly isSearchingGlobally: boolean;
 
   private readonly startSearchCounter: number;
 
@@ -49,7 +55,8 @@ export class LeftPaneInboxHelper extends LeftPaneHelper<LeftPaneInboxPropsType> 
     conversations,
     archivedConversations,
     pinnedConversations,
-    isAboutToSearchInAConversation,
+    isAboutToSearch,
+    isSearchingGlobally,
     startSearchCounter,
     searchDisabled,
     searchTerm,
@@ -60,7 +67,8 @@ export class LeftPaneInboxHelper extends LeftPaneHelper<LeftPaneInboxPropsType> 
     this.conversations = conversations;
     this.archivedConversations = archivedConversations;
     this.pinnedConversations = pinnedConversations;
-    this.isAboutToSearchInAConversation = isAboutToSearchInAConversation;
+    this.isAboutToSearch = isAboutToSearch;
+    this.isSearchingGlobally = isSearchingGlobally;
     this.startSearchCounter = startSearchCounter;
     this.searchDisabled = searchDisabled;
     this.searchTerm = searchTerm;
@@ -81,51 +89,49 @@ export class LeftPaneInboxHelper extends LeftPaneHelper<LeftPaneInboxPropsType> 
   override getSearchInput({
     clearConversationSearch,
     clearSearch,
+    endConversationSearch,
+    endSearch,
     i18n,
+    showConversation,
     updateSearchTerm,
   }: Readonly<{
     clearConversationSearch: () => unknown;
     clearSearch: () => unknown;
+    endConversationSearch: () => unknown;
+    endSearch: () => unknown;
     i18n: LocalizerType;
+    showConversation: ShowConversationType;
     updateSearchTerm: (searchTerm: string) => unknown;
   }>): ReactChild {
     return (
       <LeftPaneSearchInput
         clearConversationSearch={clearConversationSearch}
         clearSearch={clearSearch}
+        endConversationSearch={endConversationSearch}
+        endSearch={endSearch}
         disabled={this.searchDisabled}
         i18n={i18n}
+        isSearchingGlobally={this.isSearchingGlobally}
         searchConversation={this.searchConversation}
         searchTerm={this.searchTerm}
+        showConversation={showConversation}
         startSearchCounter={this.startSearchCounter}
         updateSearchTerm={updateSearchTerm}
       />
     );
   }
 
-  override getPreRowsNode({
+  override getBackgroundNode({
     i18n,
   }: Readonly<{
     i18n: LocalizerType;
   }>): ReactChild | null {
     if (this.getRowCount() === 0) {
       return (
-        <div className="module-left-pane__empty">
-          <div>
-            <Intl
-              i18n={i18n}
-              id="emptyInboxMessage"
-              components={[
-                <span>
-                  <strong>{i18n('composeIcon')}</strong>
-                  <span className="module-left-pane__empty--composer_icon">
-                    <i className="module-left-pane__empty--composer_icon--icon" />
-                  </span>
-                </span>,
-              ]}
-            />
-          </div>
-        </div>
+        <NavSidebarEmpty
+          title={i18n('icu:emptyInbox__title')}
+          subtitle={i18n('icu:emptyInbox__subtitle')}
+        />
       );
     }
 
@@ -142,12 +148,12 @@ export class LeftPaneInboxHelper extends LeftPaneHelper<LeftPaneInboxPropsType> 
         case 0:
           return {
             type: RowType.Header,
-            i18nKey: 'LeftPane--pinned',
+            getHeaderText: i18n => i18n('icu:LeftPane--pinned'),
           };
         case pinnedConversations.length + 1:
           return {
             type: RowType.Header,
-            i18nKey: 'LeftPane--chats',
+            getHeaderText: i18n => i18n('icu:LeftPane--chats'),
           };
         case pinnedConversations.length + conversations.length + 2:
           if (archivedConversationsCount) {
@@ -237,11 +243,7 @@ export class LeftPaneInboxHelper extends LeftPaneHelper<LeftPaneInboxPropsType> 
       !this.conversations.length &&
       !this.pinnedConversations.length &&
       !this.archivedConversations.length;
-    return (
-      hasNoConversations ||
-      this.isAboutToSearchInAConversation ||
-      Boolean(this.startSearchCounter)
-    );
+    return hasNoConversations || this.isAboutToSearch;
   }
 
   shouldRecomputeRowHeights(old: Readonly<LeftPaneInboxPropsType>): boolean {
@@ -263,7 +265,7 @@ export class LeftPaneInboxHelper extends LeftPaneHelper<LeftPaneInboxPropsType> 
   getConversationAndMessageInDirection(
     toFind: Readonly<ToFindType>,
     selectedConversationId: undefined | string,
-    _selectedMessageId: unknown
+    _targetedMessageId: unknown
   ): undefined | { conversationId: string } {
     return getConversationInDirection(
       [...this.pinnedConversations, ...this.conversations],

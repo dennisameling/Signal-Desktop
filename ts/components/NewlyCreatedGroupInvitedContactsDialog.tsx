@@ -1,18 +1,18 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { FunctionComponent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import React from 'react';
 
 import type { LocalizerType, ThemeType } from '../types/Util';
 import type { ConversationType } from '../state/ducks/conversations';
 import type { PreferredBadgeSelectorType } from '../state/selectors/badges';
-import { Intl } from './Intl';
+import { I18n } from './I18n';
 import { ContactName } from './conversation/ContactName';
 import { GroupDialog } from './GroupDialog';
 import { openLinkInWebBrowser } from '../util/openLinkInWebBrowser';
 
-type PropsType = {
+export type PropsType = {
   contacts: Array<ConversationType>;
   getPreferredBadge: PreferredBadgeSelectorType;
   i18n: LocalizerType;
@@ -20,42 +20,45 @@ type PropsType = {
   theme: ThemeType;
 };
 
-export const NewlyCreatedGroupInvitedContactsDialog: FunctionComponent<
-  PropsType
-> = ({ contacts, getPreferredBadge, i18n, onClose, theme }) => {
-  let title: string;
+export function NewlyCreatedGroupInvitedContactsDialog({
+  contacts,
+  getPreferredBadge,
+  i18n,
+  onClose,
+  theme,
+}: PropsType): JSX.Element {
   let body: ReactNode;
   if (contacts.length === 1) {
     const contact = contacts[0];
 
-    title = i18n('NewlyCreatedGroupInvitedContactsDialog--title--one');
     body = (
       <>
         <GroupDialog.Paragraph>
-          <Intl
+          <I18n
             i18n={i18n}
-            id="NewlyCreatedGroupInvitedContactsDialog--body--user-paragraph--one"
-            components={[<ContactName title={contact.title} />]}
+            id="icu:NewlyCreatedGroupInvitedContactsDialog--body--user-paragraph--one"
+            components={{ name: <ContactName title={contact.title} /> }}
           />
         </GroupDialog.Paragraph>
         <GroupDialog.Paragraph>
-          {i18n('NewlyCreatedGroupInvitedContactsDialog--body--info-paragraph')}
+          {i18n(
+            'icu:NewlyCreatedGroupInvitedContactsDialog--body--info-paragraph'
+          )}
         </GroupDialog.Paragraph>
       </>
     );
   } else {
-    title = i18n('NewlyCreatedGroupInvitedContactsDialog--title--many', [
-      contacts.length.toString(),
-    ]);
     body = (
       <>
         <GroupDialog.Paragraph>
           {i18n(
-            'NewlyCreatedGroupInvitedContactsDialog--body--user-paragraph--many'
+            'icu:NewlyCreatedGroupInvitedContactsDialog--body--user-paragraph--many'
           )}
         </GroupDialog.Paragraph>
         <GroupDialog.Paragraph>
-          {i18n('NewlyCreatedGroupInvitedContactsDialog--body--info-paragraph')}
+          {i18n(
+            'icu:NewlyCreatedGroupInvitedContactsDialog--body--info-paragraph'
+          )}
         </GroupDialog.Paragraph>
         <GroupDialog.Contacts
           contacts={contacts}
@@ -71,9 +74,9 @@ export const NewlyCreatedGroupInvitedContactsDialog: FunctionComponent<
     <GroupDialog
       i18n={i18n}
       onClickPrimaryButton={onClose}
-      primaryButtonText={i18n('Confirmation--confirm')}
+      primaryButtonText={i18n('icu:Confirmation--confirm')}
       secondaryButtonText={i18n(
-        'NewlyCreatedGroupInvitedContactsDialog--body--learn-more'
+        'icu:NewlyCreatedGroupInvitedContactsDialog--body--learn-more'
       )}
       onClickSecondaryButton={() => {
         openLinkInWebBrowser(
@@ -81,9 +84,11 @@ export const NewlyCreatedGroupInvitedContactsDialog: FunctionComponent<
         );
       }}
       onClose={onClose}
-      title={title}
+      title={i18n('icu:NewlyCreatedGroupInvitedContactsDialog--title', {
+        count: contacts.length,
+      })}
     >
       {body}
     </GroupDialog>
   );
-};
+}

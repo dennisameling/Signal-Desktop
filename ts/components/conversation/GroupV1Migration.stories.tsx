@@ -1,12 +1,8 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-/* eslint-disable-next-line max-classes-per-file */
 import * as React from 'react';
-import { storiesOf } from '@storybook/react';
-import { isBoolean } from 'lodash';
-import { boolean } from '@storybook/addon-knobs';
-
+import type { Meta } from '@storybook/react';
 import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
 import { setupI18n } from '../../util/setupI18n';
 import enMessages from '../../../_locales/en/messages.json';
@@ -28,64 +24,102 @@ const contact2 = getDefaultConversation({
   id: 'guid-2',
 });
 
-const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
-  areWeInvited: boolean(
-    'areWeInvited',
-    isBoolean(overrideProps.areWeInvited) ? overrideProps.areWeInvited : false
-  ),
-  droppedMembers: overrideProps.droppedMembers || [contact1],
-  getPreferredBadge: () => undefined,
-  i18n,
-  invitedMembers: overrideProps.invitedMembers || [contact2],
-  theme: ThemeType.light,
-});
+export default {
+  title: 'Components/Conversation/GroupV1Migration',
+  argTypes: {
+    areWeInvited: { control: { type: 'boolean' } },
+  },
+  args: {
+    areWeInvited: false,
+    conversationId: '123',
+    droppedMembers: [contact1],
+    droppedMemberCount: 1,
+    getPreferredBadge: () => undefined,
+    i18n,
+    invitedMembers: [contact2],
+    invitedMemberCount: 1,
+    theme: ThemeType.light,
+  },
+} satisfies Meta<PropsType>;
 
-const stories = storiesOf('Components/Conversation/GroupV1Migration', module);
+export function YouWereInvited(args: PropsType): JSX.Element {
+  return <GroupV1Migration {...args} areWeInvited />;
+}
 
-stories.add('You were invited', () => (
-  <GroupV1Migration
-    {...createProps({
-      areWeInvited: true,
-    })}
-  />
-));
+export function SingleDroppedAndSingleInvitedMember(
+  args: PropsType
+): JSX.Element {
+  return <GroupV1Migration {...args} />;
+}
 
-stories.add('Single dropped and single invited member', () => (
-  <GroupV1Migration {...createProps()} />
-));
+export function MultipleDroppedAndInvitedMembers(args: PropsType): JSX.Element {
+  return (
+    <GroupV1Migration
+      {...args}
+      invitedMembers={[contact1, contact2]}
+      invitedMemberCount={3}
+      droppedMembers={[contact1, contact2]}
+      droppedMemberCount={3}
+    />
+  );
+}
 
-stories.add('Multiple dropped and invited members', () => (
-  <GroupV1Migration
-    {...createProps({
-      invitedMembers: [contact1, contact2],
-      droppedMembers: [contact1, contact2],
-    })}
-  />
-));
+export function JustInvitedMembers(args: PropsType): JSX.Element {
+  return (
+    <GroupV1Migration
+      {...args}
+      invitedMembers={[contact1, contact1, contact2, contact2]}
+      invitedMemberCount={4}
+      droppedMembers={[]}
+      droppedMemberCount={0}
+    />
+  );
+}
 
-stories.add('Just invited members', () => (
-  <GroupV1Migration
-    {...createProps({
-      invitedMembers: [contact1, contact1, contact2, contact2],
-      droppedMembers: [],
-    })}
-  />
-));
+export function JustDroppedMembers(args: PropsType): JSX.Element {
+  return (
+    <GroupV1Migration
+      {...args}
+      invitedMembers={[]}
+      invitedMemberCount={0}
+      droppedMembers={[contact1, contact1, contact2, contact2]}
+      droppedMemberCount={4}
+    />
+  );
+}
 
-stories.add('Just dropped members', () => (
-  <GroupV1Migration
-    {...createProps({
-      invitedMembers: [],
-      droppedMembers: [contact1, contact1, contact2, contact2],
-    })}
-  />
-));
+export function NoDroppedOrInvitedMembers(args: PropsType): JSX.Element {
+  return (
+    <GroupV1Migration
+      {...args}
+      invitedMembers={[]}
+      invitedMemberCount={0}
+      droppedMembers={[]}
+      droppedMemberCount={0}
+    />
+  );
+}
 
-stories.add('No dropped or invited members', () => (
-  <GroupV1Migration
-    {...createProps({
-      invitedMembers: [],
-      droppedMembers: [],
-    })}
-  />
-));
+export function NoArraysCountIsZero(args: PropsType): JSX.Element {
+  return (
+    <GroupV1Migration
+      {...args}
+      invitedMembers={undefined}
+      invitedMemberCount={0}
+      droppedMembers={undefined}
+      droppedMemberCount={0}
+    />
+  );
+}
+
+export function NoArraysWithCount(args: PropsType): JSX.Element {
+  return (
+    <GroupV1Migration
+      {...args}
+      invitedMembers={undefined}
+      invitedMemberCount={4}
+      droppedMembers={undefined}
+      droppedMemberCount={2}
+    />
+  );
+}

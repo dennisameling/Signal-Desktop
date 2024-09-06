@@ -1,4 +1,4 @@
-<!-- Copyright 2014-2021 Signal Messenger, LLC -->
+<!-- Copyright 2014 Signal Messenger, LLC -->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Signal Unofficial (arm64)
 
@@ -48,6 +48,6 @@ The form and manner of this distribution makes it eligible for export under the 
 
 ## License
 
-Copyright 2013-2021 Signal, a 501c3 nonprofit
+Copyright 2013-2024 Signal Messenger, LLC
 
-Licensed under the AGPLv3: https://opensource.org/licenses/agpl-3.0
+Licensed under the GNU AGPLv3: https://www.gnu.org/licenses/agpl-3.0.html

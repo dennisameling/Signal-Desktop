@@ -1,54 +1,99 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { isString } from 'lodash';
-import { join, normalize } from 'path';
-import fse from 'fs-extra';
+import { blobToArrayBuffer } from 'blob-util';
 
-import { isPathInside } from './isPathInside';
+import * as log from '../logging/log';
+import { scaleImageToLevel } from './scaleImageToLevel';
+import { dropNull } from './dropNull';
+import { getLocalAttachmentUrl } from './getLocalAttachmentUrl';
+import type {
+  AttachmentType,
+  UploadedAttachmentType,
+} from '../types/Attachment';
+import { canBeTranscoded } from '../types/Attachment';
+import * as Errors from '../types/errors';
+import * as Bytes from '../Bytes';
 
-const PATH = 'attachments.noindex';
-const AVATAR_PATH = 'avatars.noindex';
-const BADGES_PATH = 'badges.noindex';
-const STICKER_PATH = 'stickers.noindex';
-const TEMP_PATH = 'temp';
-const UPDATE_CACHE_PATH = 'update-cache';
-const DRAFT_PATH = 'drafts.noindex';
-
-const createPathGetter =
-  (subpath: string) =>
-  (userDataPath: string): string => {
-    if (!isString(userDataPath)) {
-      throw new TypeError("'userDataPath' must be a string");
-    }
-    return join(userDataPath, subpath);
-  };
-
-export const getAvatarsPath = createPathGetter(AVATAR_PATH);
-export const getBadgesPath = createPathGetter(BADGES_PATH);
-export const getDraftPath = createPathGetter(DRAFT_PATH);
-export const getPath = createPathGetter(PATH);
-export const getStickersPath = createPathGetter(STICKER_PATH);
-export const getTempPath = createPathGetter(TEMP_PATH);
-export const getUpdateCachePath = createPathGetter(UPDATE_CACHE_PATH);
-
-export const createDeleter = (
-  root: string
-): ((relativePath: string) => Promise<void>) => {
-  if (!isString(root)) {
-    throw new TypeError("'root' must be a path");
+// All outgoing images go through handleImageAttachment before being sent and thus have
+// already been scaled to high-quality level, stripped of exif data, and saved. This
+// should be called just before message send to downscale the attachment further if
+// needed.
+export const downscaleOutgoingAttachment = async (
+  attachment: AttachmentType
+): Promise<AttachmentType> => {
+  if (!canBeTranscoded(attachment)) {
+    return attachment;
   }
 
-  return async (relativePath: string): Promise<void> => {
-    if (!isString(relativePath)) {
-      throw new TypeError("'relativePath' must be a string");
-    }
+  let scaleTarget: string | Blob;
+  const { data, path, size } = attachment;
 
-    const absolutePath = join(root, relativePath);
-    const normalized = normalize(absolutePath);
-    if (!isPathInside(normalized, root)) {
-      throw new Error('Invalid relative path');
+  if (data) {
+    scaleTarget = new Blob([data], {
+      type: attachment.contentType,
+    });
+  } else {
+    if (!path) {
+      return attachment;
     }
-    await fse.remove(absolutePath);
-  };
+    scaleTarget = getLocalAttachmentUrl(attachment);
+  }
+
+  try {
+    const { blob: xcodedDataBlob } = await scaleImageToLevel({
+      fileOrBlobOrURL: scaleTarget,
+      contentType: attachment.contentType,
+      size,
+      highQuality: false,
+    });
+    const xcodedDataArrayBuffer = await blobToArrayBuffer(xcodedDataBlob);
+
+    // IMPORTANT: We overwrite the existing `data` `Uint8Array` losing the original
+    // image data. Ideally, we’d preserve the original image data for users who want to
+    // retain it but due to reports of data loss, we don’t want to overburden IndexedDB
+    // by potentially doubling stored image data.
+    // See: https://github.com/signalapp/Signal-Desktop/issues/1589
+    // We also clear out the attachment path because we're changing
+    // the attachment data so it no longer matches the old path.
+    // Path and data should always be in agreement.
+    const xcodedAttachment = {
+      ...attachment,
+      data: new Uint8Array(xcodedDataArrayBuffer),
+      size: xcodedDataArrayBuffer.byteLength,
+      path: undefined,
+    };
+
+    return xcodedAttachment;
+  } catch (error: unknown) {
+    const errorString = Errors.toLogFormat(error);
+    log.error(
+      'downscaleOutgoingAttachment: Failed to scale attachment',
+      errorString
+    );
+
+    return attachment;
+  }
 };
+
+export type CdnFieldsType = Pick<
+  AttachmentType,
+  'cdnId' | 'cdnKey' | 'cdnNumber' | 'key' | 'digest' | 'iv' | 'plaintextHash'
+>;
+
+export function copyCdnFields(
+  uploaded?: UploadedAttachmentType
+): CdnFieldsType {
+  if (!uploaded) {
+    return {};
+  }
+  return {
+    cdnId: dropNull(uploaded.cdnId)?.toString(),
+    cdnKey: uploaded.cdnKey,
+    cdnNumber: dropNull(uploaded.cdnNumber),
+    key: Bytes.toBase64(uploaded.key),
+    iv: Bytes.toBase64(uploaded.iv),
+    digest: Bytes.toBase64(uploaded.digest),
+    plaintextHash: uploaded.plaintextHash,
+  };
+}

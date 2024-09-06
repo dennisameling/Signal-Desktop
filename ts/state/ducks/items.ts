@@ -1,17 +1,18 @@
-// Copyright 2019-2021 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { omit } from 'lodash';
 import { v4 as getGuid } from 'uuid';
 import type { ThunkAction } from 'redux-thunk';
+import type { ReadonlyDeep } from 'type-fest';
 import type { StateType as RootStateType } from '../reducer';
 import * as storageShim from '../../shims/storage';
+import type { BoundActionCreatorsMapObject } from '../../hooks/useBoundActions';
 import { useBoundActions } from '../../hooks/useBoundActions';
+import { drop } from '../../util/drop';
 import type {
   ConversationColorType,
   CustomColorType,
-  CustomColorsItemType,
-  DefaultConversationColorType,
 } from '../../types/Colors';
 import { ConversationColors } from '../../types/Colors';
 import { reloadSelectedConversation } from '../../shims/reloadSelectedConversation';
@@ -21,60 +22,50 @@ import type { ConfigMapType as RemoteConfigType } from '../../RemoteConfig';
 
 // State
 
-export type ItemsStateType = {
-  readonly universalExpireTimer?: number;
-
-  readonly [key: string]: unknown;
-
-  readonly remoteConfig?: RemoteConfigType;
-
-  // This property should always be set and this is ensured in background.ts
-  readonly defaultConversationColor?: DefaultConversationColorType;
-
-  readonly customColors?: CustomColorsItemType;
-
-  readonly preferredLeftPaneWidth?: number;
-
-  readonly preferredReactionEmoji?: Array<string>;
-
-  readonly areWeASubscriber?: boolean;
-};
+export type ItemsStateType = ReadonlyDeep<
+  {
+    [key: string]: unknown;
+    remoteConfig?: RemoteConfigType;
+    serverTimeSkew?: number;
+  } & Partial<StorageAccessType>
+>;
 
 // Actions
 
-type ItemPutAction = {
+type ItemPutAction = ReadonlyDeep<{
   type: 'items/PUT';
   payload: null;
-};
+}>;
 
-type ItemPutExternalAction = {
+type ItemPutExternalAction = ReadonlyDeep<{
   type: 'items/PUT_EXTERNAL';
   payload: {
     key: string;
     value: unknown;
   };
-};
+}>;
 
-type ItemRemoveAction = {
+type ItemRemoveAction = ReadonlyDeep<{
   type: 'items/REMOVE';
   payload: null;
-};
+}>;
 
-type ItemRemoveExternalAction = {
+type ItemRemoveExternalAction = ReadonlyDeep<{
   type: 'items/REMOVE_EXTERNAL';
   payload: string;
-};
+}>;
 
-type ItemsResetAction = {
+type ItemsResetAction = ReadonlyDeep<{
   type: 'items/RESET';
-};
+}>;
 
-export type ItemsActionType =
+export type ItemsActionType = ReadonlyDeep<
   | ItemPutAction
   | ItemPutExternalAction
   | ItemRemoveAction
   | ItemRemoveExternalAction
-  | ItemsResetAction;
+  | ItemsResetAction
+>;
 
 // Action Creators
 
@@ -85,6 +76,7 @@ export const actions = {
   resetDefaultChatColor,
   savePreferredLeftPaneWidth,
   setGlobalDefaultConversationColor,
+  toggleNavTabsCollapse,
   onSetSkinTone,
   putItem,
   putItemExternal,
@@ -93,21 +85,26 @@ export const actions = {
   resetItems,
 };
 
-export const useActions = (): typeof actions => useBoundActions(actions);
+export const useItemsActions = (): BoundActionCreatorsMapObject<
+  typeof actions
+> => useBoundActions(actions);
 
 function putItem<K extends keyof StorageAccessType>(
   key: K,
   value: StorageAccessType[K]
-): ItemPutAction {
-  storageShim.put(key, value);
-
-  return {
-    type: 'items/PUT',
-    payload: null,
+): ThunkAction<void, RootStateType, unknown, ItemPutAction> {
+  return async dispatch => {
+    dispatch({
+      type: 'items/PUT',
+      payload: null,
+    });
+    await storageShim.put(key, value);
   };
 }
 
-function onSetSkinTone(tone: number): ItemPutAction {
+function onSetSkinTone(
+  tone: number
+): ThunkAction<void, RootStateType, unknown, ItemPutAction> {
   return putItem('skinTone', tone);
 }
 
@@ -122,7 +119,7 @@ function putItemExternal(key: string, value: unknown): ItemPutExternalAction {
 }
 
 function removeItem(key: keyof StorageAccessType): ItemRemoveAction {
-  storageShim.remove(key);
+  drop(storageShim.remove(key));
 
   return {
     type: 'items/REMOVE',
@@ -143,7 +140,7 @@ function resetItems(): ItemsResetAction {
 
 function getDefaultCustomColorData() {
   return {
-    colors: {},
+    colors: {} as Record<string, CustomColorType>,
     version: 1,
   };
 }
@@ -272,6 +269,14 @@ function savePreferredLeftPaneWidth(
   };
 }
 
+function toggleNavTabsCollapse(
+  navTabsCollapsed: boolean
+): ThunkAction<void, RootStateType, unknown, ItemPutAction> {
+  return dispatch => {
+    dispatch(putItem('navTabsCollapsed', navTabsCollapsed));
+  };
+}
+
 // Reducer
 
 export function getEmptyState(): ItemsStateType {
@@ -288,6 +293,10 @@ export function reducer(
 ): ItemsStateType {
   if (action.type === 'items/PUT_EXTERNAL') {
     const { payload } = action;
+
+    if (state[payload.key] === payload.value) {
+      return state;
+    }
 
     return {
       ...state,

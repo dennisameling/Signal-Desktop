@@ -1,23 +1,26 @@
-// Copyright 2017-2021 Signal Messenger, LLC
+// Copyright 2017 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
-import { v4 as getGuid } from 'uuid';
 
+import { DataWriter } from '../../sql/Client';
 import { getRandomBytes } from '../../Crypto';
 import { Address } from '../../types/Address';
-import { UUID } from '../../types/UUID';
+import { generateAci } from '../../types/ServiceId';
+import { explodePromise } from '../../util/explodePromise';
 import { SignalProtocolStore } from '../../SignalProtocolStore';
 import type { ConversationModel } from '../../models/conversations';
 import * as KeyChangeListener from '../../textsecure/KeyChangeListener';
+import * as Bytes from '../../Bytes';
+import { singleProtoJobQueue } from '../../jobs/singleProtoJobQueue';
 
 describe('KeyChangeListener', () => {
   let oldNumberId: string | undefined;
   let oldUuidId: string | undefined;
 
-  const ourUuid = getGuid();
-  const uuidWithKeyChange = getGuid();
-  const address = Address.create(uuidWithKeyChange, 1);
+  const ourServiceId = generateAci();
+  const ourServiceIdWithKeyChange = generateAci();
+  const address = Address.create(ourServiceIdWithKeyChange, 1);
   const oldKey = getRandomBytes(33);
   const newKey = getRandomBytes(33);
   let store: SignalProtocolStore;
@@ -31,11 +34,11 @@ describe('KeyChangeListener', () => {
     oldNumberId = storage.get('number_id');
     oldUuidId = storage.get('uuid_id');
     await storage.put('number_id', '+14155555556.2');
-    await storage.put('uuid_id', `${ourUuid}.2`);
+    await storage.put('uuid_id', `${ourServiceId}.2`);
   });
 
   after(async () => {
-    await window.Signal.Data.removeAll();
+    await DataWriter.removeAll();
 
     const { storage } = window.textsecure;
     await storage.fetch();
@@ -54,11 +57,10 @@ describe('KeyChangeListener', () => {
     window.ConversationController.reset();
     await window.ConversationController.load();
 
-    convo = window.ConversationController.dangerouslyCreateAndAdd({
-      id: uuidWithKeyChange,
-      type: 'private',
-    });
-    await window.Signal.Data.saveConversation(convo.attributes);
+    convo = await window.ConversationController.getOrCreateAndWait(
+      ourServiceIdWithKeyChange,
+      'private'
+    );
 
     store = new SignalProtocolStore();
     await store.hydrateCaches();
@@ -67,23 +69,25 @@ describe('KeyChangeListener', () => {
   });
 
   afterEach(async () => {
-    await window.Signal.Data.removeAllMessagesInConversation(convo.id, {
-      logId: uuidWithKeyChange,
+    await DataWriter.removeMessagesInConversation(convo.id, {
+      logId: ourServiceIdWithKeyChange,
+      singleProtoJobQueue,
     });
-    await window.Signal.Data.removeConversation(convo.id);
+    await DataWriter.removeConversation(convo.id);
 
-    await store.removeIdentityKey(new UUID(uuidWithKeyChange));
+    await store.removeIdentityKey(ourServiceIdWithKeyChange);
   });
 
   describe('When we have a conversation with this contact', () => {
-    it('generates a key change notice in the private conversation with this contact', done => {
+    it('generates a key change notice in the private conversation with this contact', async () => {
       const original = convo.addKeyChange;
-      convo.addKeyChange = async keyChangedId => {
-        assert.equal(uuidWithKeyChange, keyChangedId.toString());
+      const { resolve, promise } = explodePromise<void>();
+      convo.addKeyChange = async () => {
         convo.addKeyChange = original;
-        done();
+        resolve();
       };
-      store.saveIdentity(address, newKey);
+      await store.saveIdentity(address, newKey);
+      return promise;
     });
   });
 
@@ -91,30 +95,37 @@ describe('KeyChangeListener', () => {
     let groupConvo: ConversationModel;
 
     beforeEach(async () => {
-      groupConvo = window.ConversationController.dangerouslyCreateAndAdd({
-        id: 'groupId',
-        type: 'group',
-        members: [convo.id],
-      });
-      await window.Signal.Data.saveConversation(groupConvo.attributes);
+      groupConvo = await window.ConversationController.getOrCreateAndWait(
+        Bytes.toBinary(
+          new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5])
+        ),
+        'group',
+        {
+          members: [ourServiceIdWithKeyChange],
+        }
+      );
     });
 
     afterEach(async () => {
-      await window.Signal.Data.removeAllMessagesInConversation(groupConvo.id, {
-        logId: uuidWithKeyChange,
+      await DataWriter.removeMessagesInConversation(groupConvo.id, {
+        logId: ourServiceIdWithKeyChange,
+        singleProtoJobQueue,
       });
-      await window.Signal.Data.removeConversation(groupConvo.id);
+      await DataWriter.removeConversation(groupConvo.id);
     });
 
-    it('generates a key change notice in the group conversation with this contact', done => {
+    it('generates a key change notice in the group conversation with this contact', async () => {
       const original = groupConvo.addKeyChange;
-      groupConvo.addKeyChange = async keyChangedId => {
-        assert.equal(uuidWithKeyChange, keyChangedId.toString());
+
+      const { resolve, promise } = explodePromise<void>();
+      groupConvo.addKeyChange = async (_, keyChangedId) => {
+        assert.equal(ourServiceIdWithKeyChange, keyChangedId);
         groupConvo.addKeyChange = original;
-        done();
+        resolve();
       };
 
-      store.saveIdentity(address, newKey);
+      await store.saveIdentity(address, newKey);
+      return promise;
     });
   });
 });

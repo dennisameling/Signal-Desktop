@@ -3,14 +3,32 @@
 
 import * as React from 'react';
 import { action } from '@storybook/addon-actions';
-import { boolean, text } from '@storybook/addon-knobs';
-import { storiesOf } from '@storybook/react';
-
+import type { Meta } from '@storybook/react';
 import type { PropsType } from './SafetyNumberViewer';
 import { SafetyNumberViewer } from './SafetyNumberViewer';
 import { setupI18n } from '../util/setupI18n';
 import enMessages from '../../_locales/en/messages.json';
 import { getDefaultConversation } from '../test-both/helpers/getDefaultConversation';
+
+function generateQRData() {
+  const data = new Uint8Array(128);
+  for (let i = 0; i < data.length; i += 1) {
+    data[i] = Math.floor(Math.random() * 256);
+  }
+  return data;
+}
+
+function generateNumberBlocks() {
+  const result = new Array<string>();
+  for (let i = 0; i < 12; i += 1) {
+    let digits = '';
+    for (let j = 0; j < 5; j += 1) {
+      digits += Math.floor(Math.random() * 10);
+    }
+    result.push(digits);
+  }
+  return result;
+}
 
 const i18n = setupI18n('en', enMessages);
 
@@ -22,7 +40,7 @@ const contactWithAllData = getDefaultConversation({
 });
 
 const contactWithJustProfile = getDefaultConversation({
-  avatarPath: undefined,
+  avatarUrl: undefined,
   title: '-*Smartest Dude*-',
   profileName: '-*Smartest Dude*-',
   name: undefined,
@@ -30,7 +48,7 @@ const contactWithJustProfile = getDefaultConversation({
 });
 
 const contactWithJustNumber = getDefaultConversation({
-  avatarPath: undefined,
+  avatarUrl: undefined,
   profileName: undefined,
   name: undefined,
   title: '(305) 123-4567',
@@ -39,7 +57,7 @@ const contactWithJustNumber = getDefaultConversation({
 
 const contactWithNothing = getDefaultConversation({
   id: 'some-guid',
-  avatarPath: undefined,
+  avatarUrl: undefined,
   profileName: undefined,
   title: 'Unknown contact',
   name: undefined,
@@ -50,24 +68,30 @@ const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   contact: overrideProps.contact || contactWithAllData,
   generateSafetyNumber: action('generate-safety-number'),
   i18n,
-  safetyNumber: text('safetyNumber', overrideProps.safetyNumber || 'XXX'),
+  safetyNumber:
+    'safetyNumber' in overrideProps
+      ? (overrideProps.safetyNumber ?? null)
+      : {
+          numberBlocks: generateNumberBlocks(),
+          qrData: generateQRData(),
+        },
   toggleVerified: action('toggle-verified'),
-  verificationDisabled: boolean(
-    'verificationDisabled',
+  verificationDisabled:
     overrideProps.verificationDisabled !== undefined
       ? overrideProps.verificationDisabled
-      : false
-  ),
+      : false,
   onClose: action('onClose'),
 });
 
-const story = storiesOf('Components/SafetyNumberViewer', module);
+export default {
+  title: 'Components/SafetyNumberViewer',
+} satisfies Meta<PropsType>;
 
-story.add('Safety Number', () => {
+export function SafetyNumber(): JSX.Element {
   return <SafetyNumberViewer {...createProps({})} />;
-});
+}
 
-story.add('Safety Number (not verified)', () => {
+export function SafetyNumberNotVerified(): JSX.Element {
   return (
     <SafetyNumberViewer
       {...createProps({
@@ -78,9 +102,9 @@ story.add('Safety Number (not verified)', () => {
       })}
     />
   );
-});
+}
 
-story.add('Verification Disabled', () => {
+export function VerificationDisabled(): JSX.Element {
   return (
     <SafetyNumberViewer
       {...createProps({
@@ -88,9 +112,9 @@ story.add('Verification Disabled', () => {
       })}
     />
   );
-});
+}
 
-story.add('Safety Number (dialog close)', () => {
+export function SafetyNumberDialogClose(): JSX.Element {
   return (
     <SafetyNumberViewer
       {...createProps({
@@ -98,9 +122,9 @@ story.add('Safety Number (dialog close)', () => {
       })}
     />
   );
-});
+}
 
-story.add('Just Profile and Number', () => {
+export function JustProfileAndNumber(): JSX.Element {
   return (
     <SafetyNumberViewer
       {...createProps({
@@ -108,9 +132,9 @@ story.add('Just Profile and Number', () => {
       })}
     />
   );
-});
+}
 
-story.add('Just Number', () => {
+export function JustNumber(): JSX.Element {
   return (
     <SafetyNumberViewer
       {...createProps({
@@ -118,14 +142,15 @@ story.add('Just Number', () => {
       })}
     />
   );
-});
+}
 
-story.add('No Phone Number (cannot verify)', () => {
+export function NoACICannotVerify(): JSX.Element {
   return (
     <SafetyNumberViewer
       {...createProps({
         contact: contactWithNothing,
+        safetyNumber: undefined,
       })}
     />
   );
-});
+}

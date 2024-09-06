@@ -15,6 +15,7 @@ export type SupportLocaleType =
   | 'sq'
   | 'zh-tw';
 
+// See https://source.chromium.org/chromium/chromium/src/+/main:ui/base/l10n/l10n_util.cc
 export type ElectronLocaleType =
   | 'af'
   | 'ar'
@@ -25,22 +26,38 @@ export type ElectronLocaleType =
   | 'cy'
   | 'da'
   | 'de'
+  | 'de-AT'
+  | 'de-CH'
+  | 'de-DE'
+  | 'de-LI'
   | 'el'
   | 'en'
+  | 'en-AU'
+  | 'en-CA'
+  | 'en-GB'
+  | 'en-GB-oxendict'
+  | 'en-IN'
+  | 'en-NZ'
+  | 'en-US'
   | 'eo'
   | 'es'
-  | 'es_419'
+  | 'es-419'
   | 'et'
   | 'eu'
   | 'fa'
   | 'fi'
   | 'fr'
+  | 'fr-CA'
+  | 'fr-CH'
+  | 'fr-FR'
   | 'he'
   | 'hi'
   | 'hr'
   | 'hu'
   | 'id'
   | 'it'
+  | 'it-CH'
+  | 'it-IT'
   | 'ja'
   | 'km'
   | 'kn'
@@ -54,8 +71,8 @@ export type ElectronLocaleType =
   | 'nn'
   | 'no'
   | 'pl'
-  | 'pt_BR'
-  | 'pt_PT'
+  | 'pt-BR'
+  | 'pt-PT'
   | 'ro'
   | 'ru'
   | 'sk'
@@ -71,12 +88,11 @@ export type ElectronLocaleType =
   | 'uk'
   | 'ur'
   | 'vi'
-  | 'zh_CN'
-  | 'zh_TW';
+  | 'zh-CN'
+  | 'zh-HK'
+  | 'zh-TW';
 
-export function mapToSupportLocale(
-  ourLocale: ElectronLocaleType
-): SupportLocaleType {
+export function mapToSupportLocale(ourLocale: string): SupportLocaleType {
   if (ourLocale === 'ar') {
     return ourLocale;
   }
@@ -98,7 +114,7 @@ export function mapToSupportLocale(
   if (ourLocale === 'pl') {
     return ourLocale;
   }
-  if (ourLocale === 'pt_BR') {
+  if (ourLocale === 'pt-BR') {
     return 'pt-br';
   }
   if (ourLocale === 'ru') {
@@ -107,7 +123,7 @@ export function mapToSupportLocale(
   if (ourLocale === 'sq') {
     return ourLocale;
   }
-  if (ourLocale === 'zh_TW') {
+  if (ourLocale === 'zh-TW') {
     return 'zh-tw';
   }
 

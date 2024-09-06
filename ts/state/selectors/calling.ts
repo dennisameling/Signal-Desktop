@@ -1,4 +1,4 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { createSelector } from 'reselect';
@@ -7,17 +7,51 @@ import type { StateType } from '../reducer';
 import type {
   CallingStateType,
   CallsByConversationType,
+  AdhocCallsType,
+  CallLinksByRoomIdType,
   DirectCallStateType,
   GroupCallStateType,
 } from '../ducks/calling';
-import { getIncomingCall as getIncomingCallHelper } from '../ducks/calling';
-import { getUserUuid } from './user';
+import { getIncomingCall as getIncomingCallHelper } from '../ducks/callingHelpers';
+import { CallMode } from '../../types/CallDisposition';
+import type { CallLinkType } from '../../types/CallLink';
+import { getUserACI } from './user';
 import { getOwn } from '../../util/getOwn';
-import type { UUIDStringType } from '../../types/UUID';
+import type { AciString } from '../../types/ServiceId';
 
 export type CallStateType = DirectCallStateType | GroupCallStateType;
 
 const getCalling = (state: StateType): CallingStateType => state.calling;
+
+export const getAvailableMicrophones = createSelector(
+  getCalling,
+  ({ availableMicrophones }) => availableMicrophones
+);
+
+export const getSelectedMicrophone = createSelector(
+  getCalling,
+  ({ selectedMicrophone }) => selectedMicrophone
+);
+
+export const getAvailableSpeakers = createSelector(
+  getCalling,
+  ({ availableSpeakers }) => availableSpeakers
+);
+
+export const getSelectedSpeaker = createSelector(
+  getCalling,
+  ({ selectedSpeaker }) => selectedSpeaker
+);
+
+export const getAvailableCameras = createSelector(
+  getCalling,
+  ({ availableCameras }) => availableCameras
+);
+
+export const getSelectedCamera = createSelector(
+  getCalling,
+  ({ selectedCamera }) => selectedCamera
+);
 
 export const getActiveCallState = createSelector(
   getCalling,
@@ -30,6 +64,30 @@ export const getCallsByConversation = createSelector(
     state.callsByConversation
 );
 
+export const getAdhocCalls = createSelector(
+  getCalling,
+  (state: CallingStateType): AdhocCallsType => state.adhocCalls
+);
+
+export const getCallLinksByRoomId = createSelector(
+  getCalling,
+  (state: CallingStateType): CallLinksByRoomIdType => state.callLinks
+);
+
+export type CallLinkSelectorType = (roomId: string) => CallLinkType | undefined;
+
+export const getCallLinkSelector = createSelector(
+  getCallLinksByRoomId,
+  (callLinksByRoomId: CallLinksByRoomIdType): CallLinkSelectorType =>
+    (roomId: string): CallLinkType | undefined =>
+      getOwn(callLinksByRoomId, roomId)
+);
+
+export const getAllCallLinks = createSelector(
+  getCallLinksByRoomId,
+  (lookup): Array<CallLinkType> => Object.values(lookup)
+);
+
 export type CallSelectorType = (
   conversationId: string
 ) => CallStateType | undefined;
@@ -40,15 +98,33 @@ export const getCallSelector = createSelector(
       getOwn(callsByConversation, conversationId)
 );
 
+export type AdhocCallSelectorType = (
+  conversationId: string
+) => GroupCallStateType | undefined;
+export const getAdhocCallSelector = createSelector(
+  getAdhocCalls,
+  (adhocCalls: AdhocCallsType): AdhocCallSelectorType =>
+    (roomId: string) =>
+      getOwn(adhocCalls, roomId)
+);
+
 export const getActiveCall = createSelector(
   getActiveCallState,
   getCallSelector,
-  (activeCallState, callSelector): undefined | CallStateType => {
-    if (activeCallState && activeCallState.conversationId) {
-      return callSelector(activeCallState.conversationId);
+  getAdhocCallSelector,
+  (
+    activeCallState,
+    callSelector,
+    adhocCallSelector
+  ): undefined | CallStateType => {
+    const { callMode, conversationId } = activeCallState || {};
+    if (!conversationId) {
+      return undefined;
     }
 
-    return undefined;
+    return callMode === CallMode.Adhoc
+      ? adhocCallSelector(conversationId)
+      : callSelector(conversationId);
   }
 );
 
@@ -57,17 +133,29 @@ export const isInCall = createSelector(
   (call: CallStateType | undefined): boolean => Boolean(call)
 );
 
+export const isInFullScreenCall = createSelector(
+  getCalling,
+  (state: CallingStateType): boolean =>
+    Boolean(state.activeCallState && !state.activeCallState.pip)
+);
+
 export const getIncomingCall = createSelector(
   getCallsByConversation,
-  getUserUuid,
+  getUserACI,
   (
     callsByConversation: CallsByConversationType,
-    ourUuid: UUIDStringType | undefined
+    ourAci: AciString | undefined
   ): undefined | DirectCallStateType | GroupCallStateType => {
-    if (!ourUuid) {
+    if (!ourAci) {
       return undefined;
     }
 
-    return getIncomingCallHelper(callsByConversation, ourUuid);
+    return getIncomingCallHelper(callsByConversation, ourAci);
   }
+);
+
+export const areAnyCallsActiveOrRinging = createSelector(
+  getActiveCall,
+  getIncomingCall,
+  (activeCall, incomingCall): boolean => Boolean(activeCall || incomingCall)
 );

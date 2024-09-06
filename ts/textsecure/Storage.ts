@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type {
@@ -8,8 +8,8 @@ import type {
 import { User } from './storage/User';
 import { Blocked } from './storage/Blocked';
 
-import { assert } from '../util/assert';
-import Data from '../sql/Client';
+import { assertDev } from '../util/assert';
+import { DataReader, DataWriter } from '../sql/Client';
 import type { SignalProtocolStore } from '../SignalProtocolStore';
 import * as log from '../logging/log';
 
@@ -34,7 +34,7 @@ export class Storage implements StorageInterface {
   }
 
   get protocol(): SignalProtocolStore {
-    assert(
+    assertDev(
       this.privProtocol !== undefined,
       'SignalProtocolStore not initialized'
     );
@@ -56,10 +56,10 @@ export class Storage implements StorageInterface {
     defaultValue: V
   ): V;
 
-  public get<K extends keyof Access, V extends Access[K]>(
+  public get<K extends keyof Access>(
     key: K,
-    defaultValue?: V
-  ): V | undefined {
+    defaultValue?: Access[K]
+  ): Access[K] | undefined {
     if (!this.ready) {
       log.warn('Called storage.get before storage is ready. key:', key);
     }
@@ -69,7 +69,7 @@ export class Storage implements StorageInterface {
       return defaultValue;
     }
 
-    return item as V;
+    return item;
   }
 
   public async put<K extends keyof Access>(
@@ -81,7 +81,7 @@ export class Storage implements StorageInterface {
     }
 
     this.items[key] = value;
-    await window.Signal.Data.createOrUpdateItem({ id: key, value });
+    await DataWriter.createOrUpdateItem({ id: key, value });
 
     window.reduxActions?.items.putItemExternal(key, value);
   }
@@ -92,7 +92,7 @@ export class Storage implements StorageInterface {
     }
 
     delete this.items[key];
-    await Data.removeItemById(key);
+    await DataWriter.removeItemById(key);
 
     window.reduxActions?.items.removeItemExternal(key);
   }
@@ -110,7 +110,7 @@ export class Storage implements StorageInterface {
   public async fetch(): Promise<void> {
     this.reset();
 
-    Object.assign(this.items, await Data.getAllItems());
+    Object.assign(this.items, await DataReader.getAllItems());
 
     this.ready = true;
     this.callListeners();
@@ -122,6 +122,12 @@ export class Storage implements StorageInterface {
   }
 
   public getItemsState(): Partial<Access> {
+    if (!this.ready) {
+      log.warn('Called getItemsState before storage is ready');
+    }
+
+    log.info('Storage/getItemsState: now preparing copy of items...');
+
     const state = Object.create(null);
 
     // TypeScript isn't smart enough to figure out the types automatically.

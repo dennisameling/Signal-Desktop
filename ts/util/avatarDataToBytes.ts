@@ -6,6 +6,10 @@ import { AvatarColorMap } from '../types/Colors';
 import type { AvatarDataType } from '../types/Avatar';
 import { canvasToBytes } from './canvasToBytes';
 import { getFittedFontSize } from './avatarTextSizeCalculator';
+import {
+  getLocalAttachmentUrl,
+  AttachmentDisposition,
+} from './getLocalAttachmentUrl';
 
 const CANVAS_SIZE = 1024;
 
@@ -40,7 +44,7 @@ async function drawImage(
 async function getFont(text: string): Promise<string> {
   const font = new window.FontFace(
     'Inter',
-    'url("fonts/inter-v3.10/Inter-Regular.woff2")'
+    'url("fonts/inter-v3.19/Inter-Regular.woff2")'
   );
   await font.load();
 
@@ -93,23 +97,30 @@ export async function avatarDataToBytes(
 
   if (imagePath) {
     await drawImage(
-      window.Signal?.Migrations
-        ? window.Signal.Migrations.getAbsoluteAvatarPath(imagePath)
-        : imagePath,
+      getLocalAttachmentUrl(
+        {
+          ...avatarData,
+
+          // Slight incompatibility
+          path: imagePath,
+        },
+        {
+          disposition: AttachmentDisposition.AvatarData,
+        }
+      ),
       context,
       canvas
     );
   } else if (color && text) {
     const { bg, fg } = getAvatarColor(color);
-    const textToWrite = text.toLocaleUpperCase();
 
     setCanvasBackground(bg, context, canvas);
     context.fillStyle = fg;
-    const font = await getFont(textToWrite);
+    const font = await getFont(text);
     context.font = font;
     context.textBaseline = 'middle';
     context.textAlign = 'center';
-    context.fillText(textToWrite, CANVAS_SIZE / 2, CANVAS_SIZE / 2 + 30);
+    context.fillText(text, CANVAS_SIZE / 2, CANVAS_SIZE / 2 + 30);
   } else if (color && icon) {
     const iconPath = `images/avatars/avatar_${icon}.svg`;
     await drawImage(iconPath, context, canvas);

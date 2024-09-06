@@ -3,20 +3,26 @@
 
 import type { ConversationAttributesType } from '../model-types.d';
 
-import dataInterface from '../sql/Client';
+import { DataReader } from '../sql/Client';
+import { isMe } from './whatTypeOfConversation';
 
 const MAX_NUM_STORIES_TO_PREFETCH = 5;
 
 export async function shouldDownloadStory(
   conversation: ConversationAttributesType
 ): Promise<boolean> {
+  if (isMe(conversation)) {
+    return true;
+  }
+
+  // We download the first time the user has posted a story
   if (!conversation.hasPostedStory) {
     return true;
   }
 
   const [storyReads, storyCounts] = await Promise.all([
-    dataInterface.countStoryReadsByConversation(conversation.id),
-    dataInterface.getStoryCount(conversation.id),
+    DataReader.countStoryReadsByConversation(conversation.id),
+    DataReader.getStoryCount(conversation.id),
   ]);
 
   return storyReads > 0 && storyCounts <= MAX_NUM_STORIES_TO_PREFETCH;

@@ -1,8 +1,9 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
 import classNames from 'classnames';
+import type { ReadonlyDeep } from 'type-fest';
 
 import type { EmbeddedContactType } from '../../types/EmbeddedContact';
 
@@ -14,7 +15,7 @@ import {
 } from './contactUtil';
 
 export type Props = {
-  contact: EmbeddedContactType;
+  contact: ReadonlyDeep<EmbeddedContactType>;
   i18n: LocalizerType;
   isIncoming: boolean;
   withContentAbove: boolean;
@@ -23,7 +24,7 @@ export type Props = {
   onClick?: () => void;
 };
 
-export const EmbeddedContact: React.FC<Props> = (props: Props) => {
+export function EmbeddedContact(props: Props): JSX.Element {
   const {
     contact,
     i18n,
@@ -74,4 +75,4 @@ export const EmbeddedContact: React.FC<Props> = (props: Props) => {
       </div>
     </button>
   );
-};
+}

@@ -2,41 +2,47 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { blobToArrayBuffer } from 'blob-util';
+import { v4 as generateUuid } from 'uuid';
 
-import * as log from '../logging/log';
 import { makeVideoScreenshot } from '../types/VisualAttachment';
 import { IMAGE_PNG, stringToMIMEType } from '../types/MIME';
 import type { InMemoryAttachmentDraftType } from '../types/Attachment';
 import { fileToBytes } from './fileToBytes';
 
 export async function handleVideoAttachment(
-  file: Readonly<File>
+  file: File,
+  options?: { generateScreenshot: boolean }
 ): Promise<InMemoryAttachmentDraftType> {
   const objectUrl = URL.createObjectURL(file);
   if (!objectUrl) {
     throw new Error('Failed to create object url for video!');
   }
   try {
-    const screenshotContentType = IMAGE_PNG;
-    const screenshotBlob = await makeVideoScreenshot({
-      objectUrl,
-      contentType: screenshotContentType,
-      logger: log,
-    });
-    const screenshotData = await blobToArrayBuffer(screenshotBlob);
     const data = await fileToBytes(file);
-
-    return {
+    const attachment: InMemoryAttachmentDraftType = {
       contentType: stringToMIMEType(file.type),
+      clientUuid: generateUuid(),
       data,
       fileName: file.name,
       path: file.name,
       pending: false,
-      screenshotContentType,
-      screenshotData: new Uint8Array(screenshotData),
-      screenshotSize: screenshotData.byteLength,
       size: data.byteLength,
     };
+
+    if (options?.generateScreenshot) {
+      const screenshotContentType = IMAGE_PNG;
+
+      const screenshotBlob = await makeVideoScreenshot({
+        objectUrl,
+        contentType: screenshotContentType,
+      });
+      attachment.screenshotData = new Uint8Array(
+        await blobToArrayBuffer(screenshotBlob)
+      );
+      attachment.screenshotContentType = screenshotContentType;
+    }
+
+    return attachment;
   } finally {
     URL.revokeObjectURL(objectUrl);
   }

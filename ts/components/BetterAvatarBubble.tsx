@@ -18,7 +18,7 @@ export type PropsType = {
   style?: CSSProperties;
 };
 
-export const BetterAvatarBubble = ({
+export function BetterAvatarBubble({
   children,
   color,
   i18n,
@@ -26,7 +26,7 @@ export const BetterAvatarBubble = ({
   onDelete,
   onSelect,
   style,
-}: PropsType): JSX.Element => {
+}: PropsType): JSX.Element {
   return (
     <div
       className={classNames(
@@ -48,7 +48,7 @@ export const BetterAvatarBubble = ({
     >
       {onDelete && (
         <button
-          aria-label={i18n('delete')}
+          aria-label={i18n('icu:delete')}
           className="BetterAvatarBubble__delete"
           onClick={onDelete}
           tabIndex={-1}
@@ -58,4 +58,4 @@ export const BetterAvatarBubble = ({
       {children}
     </div>
   );
-};
+}

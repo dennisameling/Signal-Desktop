@@ -5,4 +5,97 @@
   display: flex;
   flex-direction: row;
   height: 100%;
+
+  &__conversation-stack {
+    flex-grow: 1;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+  }
+
+  &__no-conversation-open {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    text-align: center;
+  }
+
+  .__conversation {
+    @include light-theme {
+      background-color: $color-white;
+    }
+
+    @include dark-theme {
+      background-color: $color-gray-95;
+    }
+  }
+}
+
+.Inbox__no-conversation-open .module-splash-screen__logo {
+  margin: 0;
+}
+
+.Inbox__logo {
+  flex-shrink: 0;
+
+  display: block;
+  width: 150px;
+  height: 150px;
+  margin-block: 24px;
+  position: relative;
+
+  .Inbox__logo__part {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+  }
+
+  .Inbox__logo__part--base {
+    @include color-svg('../images/logo-parts/base.svg', $color-white);
+    z-index: 1;
+  }
+
+  .Inbox__logo__part--segment {
+    opacity: 0;
+    z-index: 2;
+  }
+
+  .Inbox__logo__part--animated {
+    transition:
+      opacity 250ms,
+      transform 250ms;
+  }
+
+  @for $i from 1 through 16 {
+    .Inbox__logo__part--segment:nth-child(#{$i + 1}) {
+      @include color-svg('../images/logo-parts/p#{$i}.svg', $color-white);
+      transform: rotate(#{(16 - $i) * 22.5}deg);
+    }
+  }
+
+  .Inbox__logo__part--segment:nth-child(n).Inbox__logo__part--visible {
+    transform: rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.Inbox__welcome {
+  margin-block: 20px 6px;
+
+  @include font-title-medium;
+  line-height: 24px;
+}
+
+.Inbox__whatsnew {
+  margin: 0;
+}
+
+// To center the content relative left pane
+.Inbox__padding {
+  flex-grow: 1;
+  max-height: 28px;
 }

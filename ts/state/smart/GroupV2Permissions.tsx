@@ -1,34 +1,35 @@
 // Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { connect } from 'react-redux';
-
-import type { StateType } from '../reducer';
-import type { PropsType } from '../../components/conversation/conversation-details/GroupV2Permissions';
+import { useSelector } from 'react-redux';
+import React, { memo } from 'react';
 import { GroupV2Permissions } from '../../components/conversation/conversation-details/GroupV2Permissions';
 import { getConversationSelector } from '../selectors/conversations';
 import { getIntl } from '../selectors/user';
+import { useConversationsActions } from '../ducks/conversations';
 
 export type SmartGroupV2PermissionsProps = {
   conversationId: string;
-  setAccessControlAttributesSetting: (value: number) => void;
-  setAccessControlMembersSetting: (value: number) => void;
-  setAnnouncementsOnly: (value: boolean) => void;
 };
 
-const mapStateToProps = (
-  state: StateType,
-  props: SmartGroupV2PermissionsProps
-): PropsType => {
-  const conversation = getConversationSelector(state)(props.conversationId);
-
-  return {
-    ...props,
-    conversation,
-    i18n: getIntl(state),
-  };
-};
-
-const smart = connect(mapStateToProps);
-
-export const SmartGroupV2Permissions = smart(GroupV2Permissions);
+export const SmartGroupV2Permissions = memo(function SmartGroupV2Permissions({
+  conversationId,
+}: SmartGroupV2PermissionsProps) {
+  const i18n = useSelector(getIntl);
+  const conversationSelector = useSelector(getConversationSelector);
+  const conversation = conversationSelector(conversationId);
+  const {
+    setAccessControlAttributesSetting,
+    setAccessControlMembersSetting,
+    setAnnouncementsOnly,
+  } = useConversationsActions();
+  return (
+    <GroupV2Permissions
+      i18n={i18n}
+      conversation={conversation}
+      setAccessControlAttributesSetting={setAccessControlAttributesSetting}
+      setAccessControlMembersSetting={setAccessControlMembersSetting}
+      setAnnouncementsOnly={setAnnouncementsOnly}
+    />
+  );
+});

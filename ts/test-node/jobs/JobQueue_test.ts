@@ -13,10 +13,13 @@ import PQueue from 'p-queue';
 import { JobError } from '../../jobs/JobError';
 import { TestJobQueueStore } from './TestJobQueueStore';
 import { missingCaseError } from '../../util/missingCaseError';
+import { drop } from '../../util/drop';
 import type { LoggerType } from '../../types/Logging';
 
+import type { JOB_STATUS } from '../../jobs/JobQueue';
 import { JobQueue } from '../../jobs/JobQueue';
 import type { ParsedJob, StoredJob, JobQueueStore } from '../../jobs/types';
+import { sleep } from '../../util/sleep';
 
 describe('JobQueue', () => {
   describe('end-to-end tests', () => {
@@ -36,8 +39,13 @@ describe('JobQueue', () => {
           return testJobSchema.parse(data);
         }
 
-        async run({ data }: ParsedJob<TestJobData>): Promise<void> {
+        async run({
+          data,
+        }: ParsedJob<TestJobData>): Promise<
+          typeof JOB_STATUS.NEEDS_RETRY | undefined
+        > {
           results.add(data.a + data.b);
+          return undefined;
         }
       }
 
@@ -50,7 +58,7 @@ describe('JobQueue', () => {
       assert.deepEqual(results, new Set());
       assert.isEmpty(store.storedJobs);
 
-      addQueue.streamJobs();
+      drop(addQueue.streamJobs());
 
       store.pauseStream('test add queue');
       const job1 = await addQueue.add({ a: 1, b: 2 });
@@ -68,12 +76,12 @@ describe('JobQueue', () => {
       assert.isEmpty(store.storedJobs);
     });
 
-    it('by default, kicks off multiple jobs in parallel', async () => {
+    it('by default, kicks off one job at a time', async () => {
+      let maxActive = 0;
       let activeJobCount = 0;
-      const eventBus = new EventEmitter();
       const updateActiveJobCount = (incrementBy: number): void => {
         activeJobCount += incrementBy;
-        eventBus.emit('updated');
+        maxActive = Math.max(activeJobCount, maxActive);
       };
 
       class Queue extends JobQueue<number> {
@@ -81,20 +89,15 @@ describe('JobQueue', () => {
           return z.number().parse(data);
         }
 
-        async run(): Promise<void> {
+        async run(): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
           try {
             updateActiveJobCount(1);
-            await new Promise<void>(resolve => {
-              eventBus.on('updated', () => {
-                if (activeJobCount === 4) {
-                  eventBus.emit('got to 4');
-                  resolve();
-                }
-              });
-            });
+            await sleep(1);
           } finally {
             updateActiveJobCount(-1);
           }
+
+          return undefined;
         }
       }
 
@@ -105,14 +108,24 @@ describe('JobQueue', () => {
         queueType: 'test queue',
         maxAttempts: 100,
       });
-      queue.streamJobs();
+      drop(queue.streamJobs());
 
-      queue.add(1);
-      queue.add(2);
-      queue.add(3);
-      queue.add(4);
+      const createPromise1 = queue.add(1);
+      const createPromise2 = queue.add(2);
+      const createPromise3 = queue.add(3);
+      const createPromise4 = queue.add(4);
 
-      await once(eventBus, 'got to 4');
+      const { completion: promise1 } = await createPromise1;
+      const { completion: promise2 } = await createPromise2;
+      const { completion: promise3 } = await createPromise3;
+      const { completion: promise4 } = await createPromise4;
+
+      await promise1;
+      await promise2;
+      await promise3;
+      await promise4;
+
+      assert.strictEqual(1, maxActive);
     });
 
     it('can override the in-memory queue', async () => {
@@ -137,8 +150,8 @@ describe('JobQueue', () => {
           return testQueue;
         }
 
-        run(): Promise<void> {
-          return Promise.resolve();
+        run(): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
+          return Promise.resolve(undefined);
         }
       }
 
@@ -149,7 +162,7 @@ describe('JobQueue', () => {
         queueType: 'test queue',
         maxAttempts: 100,
       });
-      queue.streamJobs();
+      drop(queue.streamJobs());
 
       const jobs = await Promise.all([
         queue.add(1),
@@ -170,8 +183,8 @@ describe('JobQueue', () => {
           return z.string().parse(data);
         }
 
-        async run(): Promise<void> {
-          return Promise.resolve();
+        async run(): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
+          return Promise.resolve(undefined);
         }
       }
 
@@ -189,8 +202,8 @@ describe('JobQueue', () => {
       store.pauseStream('test 1');
       store.pauseStream('test 2');
 
-      queue1.streamJobs();
-      queue2.streamJobs();
+      drop(queue1.streamJobs());
+      drop(queue2.streamJobs());
 
       await queue1.add('one');
       await queue2.add('A');
@@ -238,8 +251,8 @@ describe('JobQueue', () => {
           return z.string().parse(data);
         }
 
-        async run(): Promise<void> {
-          return Promise.resolve();
+        async run(): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
+          return Promise.resolve(undefined);
         }
       }
 
@@ -249,7 +262,7 @@ describe('JobQueue', () => {
         maxAttempts: 1,
       });
 
-      queue.streamJobs();
+      drop(queue.streamJobs());
 
       const insert = sinon.stub().resolves();
 
@@ -286,7 +299,11 @@ describe('JobQueue', () => {
           return data;
         }
 
-        async run({ data }: ParsedJob<TestJobData>): Promise<void> {
+        async run({
+          data,
+        }: ParsedJob<TestJobData>): Promise<
+          typeof JOB_STATUS.NEEDS_RETRY | undefined
+        > {
           switch (data) {
             case 'foo':
               fooAttempts += 1;
@@ -300,10 +317,10 @@ describe('JobQueue', () => {
             case 'bar':
               barAttempts += 1;
               throw new Error('bar job always fails in this test');
-              break;
             default:
               throw missingCaseError(data);
           }
+          return undefined;
         }
       }
 
@@ -313,7 +330,7 @@ describe('JobQueue', () => {
         maxAttempts: 5,
       });
 
-      retryQueue.streamJobs();
+      drop(retryQueue.streamJobs());
 
       await (
         await retryQueue.add('foo')
@@ -356,7 +373,7 @@ describe('JobQueue', () => {
         async run(
           _: unknown,
           { attempt }: Readonly<{ attempt: number }>
-        ): Promise<void> {
+        ): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
           attempts.push(attempt);
           throw new Error('this job always fails');
         }
@@ -368,7 +385,7 @@ describe('JobQueue', () => {
         maxAttempts: 6,
       });
 
-      queue.streamJobs();
+      drop(queue.streamJobs());
 
       try {
         await (
@@ -401,10 +418,12 @@ describe('JobQueue', () => {
         async run(
           _: unknown,
           { log }: Readonly<{ log: LoggerType }>
-        ): Promise<void> {
+        ): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
           log.info(uniqueString);
           log.warn(uniqueString);
           log.error(uniqueString);
+
+          return undefined;
         }
       }
 
@@ -415,7 +434,7 @@ describe('JobQueue', () => {
         logger: fakeLogger,
       });
 
-      queue.streamJobs();
+      drop(queue.streamJobs());
 
       const job = await queue.add(1);
       await job.completion;
@@ -446,8 +465,8 @@ describe('JobQueue', () => {
           throw new Error('uh oh');
         }
 
-        async run(): Promise<void> {
-          return Promise.resolve();
+        async run(): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
+          return Promise.resolve(undefined);
         }
       }
 
@@ -457,7 +476,7 @@ describe('JobQueue', () => {
         maxAttempts: 999,
       });
 
-      queue.streamJobs();
+      drop(queue.streamJobs());
 
       const job = await queue.add('this will fail to parse');
 
@@ -490,7 +509,9 @@ describe('JobQueue', () => {
           throw new Error('invalid data!');
         }
 
-        run(job: { data: string }): Promise<void> {
+        run(job: {
+          data: string;
+        }): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
           return run(job);
         }
       }
@@ -501,7 +522,7 @@ describe('JobQueue', () => {
         maxAttempts: 999,
       });
 
-      queue.streamJobs();
+      drop(queue.streamJobs());
 
       (await queue.add('invalid')).completion.catch(noop);
       (await queue.add('invalid')).completion.catch(noop);
@@ -513,7 +534,7 @@ describe('JobQueue', () => {
       sinon.assert.calledWithMatch(run, { data: 'valid' });
     });
 
-    it('keeps jobs in the storage if parseData throws', async () => {
+    it('deletes jobs from storage if parseData throws', async () => {
       const store = new TestJobQueueStore();
 
       class TestQueue extends JobQueue<string> {
@@ -524,8 +545,8 @@ describe('JobQueue', () => {
           throw new Error('invalid data!');
         }
 
-        async run(): Promise<void> {
-          return Promise.resolve();
+        async run(): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
+          return Promise.resolve(undefined);
         }
       }
 
@@ -535,13 +556,14 @@ describe('JobQueue', () => {
         maxAttempts: 999,
       });
 
-      queue.streamJobs();
+      drop(queue.streamJobs());
 
       await (await queue.add('invalid 1')).completion.catch(noop);
       await (await queue.add('invalid 2')).completion.catch(noop);
+      await queue.add('valid');
 
       const datas = store.storedJobs.map(job => job.data);
-      assert.sameMembers(datas, ['invalid 1', 'invalid 2']);
+      assert.sameMembers(datas, ['valid']);
     });
 
     it('adding the job resolves AFTER inserting the job into the database', async () => {
@@ -557,8 +579,8 @@ describe('JobQueue', () => {
           return undefined;
         }
 
-        async run(): Promise<void> {
-          return Promise.resolve();
+        async run(): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
+          return Promise.resolve(undefined);
         }
       }
 
@@ -568,7 +590,7 @@ describe('JobQueue', () => {
         maxAttempts: 999,
       });
 
-      queue.streamJobs();
+      drop(queue.streamJobs());
 
       const addPromise = queue.add(undefined);
       assert.isFalse(inserted);
@@ -591,8 +613,9 @@ describe('JobQueue', () => {
           return data;
         }
 
-        async run(): Promise<void> {
+        async run(): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
           events.push('running');
+          return undefined;
         }
       }
 
@@ -602,7 +625,7 @@ describe('JobQueue', () => {
         maxAttempts: 999,
       });
 
-      queue.streamJobs();
+      drop(queue.streamJobs());
 
       await (
         await queue.add(123)
@@ -624,8 +647,8 @@ describe('JobQueue', () => {
           return undefined;
         }
 
-        async run(): Promise<void> {
-          return Promise.resolve();
+        async run(): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
+          return Promise.resolve(undefined);
         }
       }
 
@@ -635,7 +658,7 @@ describe('JobQueue', () => {
         maxAttempts: 999,
       });
 
-      queue.streamJobs();
+      drop(queue.streamJobs());
 
       store.pauseStream('test queue');
       const job = await queue.add(undefined);
@@ -665,7 +688,7 @@ describe('JobQueue', () => {
           return undefined;
         }
 
-        async run(): Promise<void> {
+        async run(): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
           events.push('running');
           throw new Error('uh oh');
         }
@@ -677,7 +700,7 @@ describe('JobQueue', () => {
         maxAttempts: 5,
       });
 
-      queue.streamJobs();
+      drop(queue.streamJobs());
 
       store.pauseStream('test queue');
       const job = await queue.add(undefined);
@@ -746,8 +769,13 @@ describe('JobQueue', () => {
           return z.number().parse(data);
         }
 
-        async run({ data }: Readonly<{ data: number }>): Promise<void> {
+        async run({
+          data,
+        }: Readonly<{ data: number }>): Promise<
+          typeof JOB_STATUS.NEEDS_RETRY | undefined
+        > {
           eventEmitter.emit('run', data);
+          return undefined;
         }
       }
 
@@ -759,7 +787,7 @@ describe('JobQueue', () => {
 
       sinon.assert.notCalled(fakeStore.stream as sinon.SinonStub);
 
-      noopQueue.streamJobs();
+      drop(noopQueue.streamJobs());
 
       sinon.assert.calledOnce(fakeStore.stream as sinon.SinonStub);
 
@@ -789,8 +817,8 @@ describe('JobQueue', () => {
           return data;
         }
 
-        async run(): Promise<void> {
-          return Promise.resolve();
+        async run(): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
+          return Promise.resolve(undefined);
         }
       }
 
@@ -800,7 +828,7 @@ describe('JobQueue', () => {
         maxAttempts: 99,
       });
 
-      noopQueue.streamJobs();
+      drop(noopQueue.streamJobs());
 
       await assert.isRejected(noopQueue.streamJobs());
       await assert.isRejected(noopQueue.streamJobs());
@@ -810,7 +838,7 @@ describe('JobQueue', () => {
   });
 
   describe('add', () => {
-    it('rejects if the job queue has not started streaming', async () => {
+    it('adds even if the job queue has not started streaming', async () => {
       const fakeStore = {
         insert: sinon.stub().resolves(),
         delete: sinon.stub().resolves(),
@@ -822,8 +850,8 @@ describe('JobQueue', () => {
           return undefined;
         }
 
-        async run(): Promise<void> {
-          return Promise.resolve();
+        async run(): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
+          return Promise.resolve(undefined);
         }
       }
 
@@ -833,7 +861,7 @@ describe('JobQueue', () => {
         maxAttempts: 99,
       });
 
-      await assert.isRejected(noopQueue.add(undefined));
+      await noopQueue.add(undefined);
 
       sinon.assert.notCalled(fakeStore.stream as sinon.SinonStub);
     });

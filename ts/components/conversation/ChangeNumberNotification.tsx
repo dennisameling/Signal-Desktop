@@ -1,15 +1,15 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
 
 import type { ConversationType } from '../../state/ducks/conversations';
 import type { LocalizerType } from '../../types/Util';
-import { Intl } from '../Intl';
+import { I18n } from '../I18n';
 
 import { SystemMessage } from './SystemMessage';
 import { MessageTimestamp } from './MessageTimestamp';
-import { Emojify } from './Emojify';
+import { UserText } from '../UserText';
 
 export type PropsData = {
   sender: ConversationType;
@@ -22,17 +22,19 @@ export type PropsHousekeeping = {
 
 export type Props = PropsData & PropsHousekeeping;
 
-export const ChangeNumberNotification: React.FC<Props> = props => {
+export function ChangeNumberNotification(props: Props): JSX.Element {
   const { i18n, sender, timestamp } = props;
 
   return (
     <SystemMessage
       contents={
         <>
-          <Intl
-            id="ChangeNumber--notification"
+          <I18n
+            id="icu:ChangeNumber--notification"
             components={{
-              sender: <Emojify text={sender.title || sender.firstName} />,
+              sender: (
+                <UserText text={sender.title || sender.firstName || ''} />
+              ),
             }}
             i18n={i18n}
           />
@@ -43,4 +45,4 @@ export const ChangeNumberNotification: React.FC<Props> = props => {
       icon="phone"
     />
   );
-};
+}

@@ -11,24 +11,25 @@ export type PropsType = {
   onDiscard: () => unknown;
 };
 
-export const ConfirmDiscardDialog = ({
+export function ConfirmDiscardDialog({
   i18n,
   onClose,
   onDiscard,
-}: PropsType): JSX.Element | null => {
+}: PropsType): JSX.Element {
   return (
     <ConfirmationDialog
+      dialogName="ConfirmDiscardDialog"
       actions={[
         {
           action: onDiscard,
-          text: i18n('discard'),
+          text: i18n('icu:discard'),
           style: 'negative',
         },
       ]}
       i18n={i18n}
       onClose={onClose}
     >
-      {i18n('ConfirmDiscardDialog--discard')}
+      {i18n('icu:ConfirmDiscardDialog--discard')}
     </ConfirmationDialog>
   );
-};
+}

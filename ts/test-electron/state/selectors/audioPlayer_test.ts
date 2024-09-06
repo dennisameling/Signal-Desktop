@@ -2,11 +2,34 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
-import { actions } from '../../../state/ducks/audioPlayer';
 import { noopAction } from '../../../state/ducks/noop';
+import type { VoiceNoteAndConsecutiveForPlayback } from '../../../state/selectors/audioPlayer';
 import { isPaused } from '../../../state/selectors/audioPlayer';
+import { actions } from '../../../state/ducks/audioPlayer';
 import type { StateType } from '../../../state/reducer';
 import { reducer as rootReducer } from '../../../state/reducer';
+
+function voiceNoteDataForMessage(
+  messageId: string
+): VoiceNoteAndConsecutiveForPlayback {
+  return {
+    conversationId: 'convo',
+    voiceNote: {
+      id: messageId,
+      type: 'outgoing',
+      timestamp: 0,
+      url: undefined,
+      source: undefined,
+      sourceServiceId: undefined,
+      messageIdForLogging: messageId,
+      isPlayed: false,
+    },
+    consecutiveVoiceNotes: [],
+    previousMessageId: undefined,
+    nextMessageTimestamp: undefined,
+    playbackRate: 1,
+  };
+}
 
 describe('state/selectors/audioPlayer', () => {
   const getEmptyRootState = (): StateType => {
@@ -14,17 +37,23 @@ describe('state/selectors/audioPlayer', () => {
   };
 
   describe('isPaused', () => {
-    it('returns true if state.audioPlayer.activeAudioID is undefined', () => {
+    it('returns true if state.audioPlayer.active is undefined', () => {
       const state = getEmptyRootState();
       assert.isTrue(isPaused(state));
     });
 
-    it('returns false if state.audioPlayer.activeAudioID is not undefined', () => {
+    it('returns false if state.audioPlayer.active is not undefined', () => {
       const state = getEmptyRootState();
 
       const updated = rootReducer(
         state,
-        actions.setActiveAudioID('id', 'context')
+        actions.loadVoiceNoteAudio({
+          voiceNoteData: voiceNoteDataForMessage('id'),
+          position: 0,
+          context: 'context',
+          ourConversationId: 'convo',
+          playbackRate: 1,
+        })
       );
 
       assert.isFalse(isPaused(updated));

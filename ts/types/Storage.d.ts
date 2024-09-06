@@ -1,31 +1,26 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { AudioDevice } from 'ringrtc';
+import type { AudioDevice } from '@signalapp/ringrtc';
 import type {
   CustomColorsItemType,
   DefaultConversationColorType,
 } from './Colors';
-import type { AudioDeviceModule } from '../calling/audioDeviceModule';
 import type { PhoneNumberDiscoverability } from '../util/phoneNumberDiscoverability';
 import type { PhoneNumberSharingMode } from '../util/phoneNumberSharingMode';
 import type { RetryItemType } from '../util/retryPlaceholders';
 import type { ConfigMapType as RemoteConfigType } from '../RemoteConfig';
-import type { SystemTraySetting } from './SystemTraySetting';
-import type {
-  ExtendedStorageID,
-  RemoteRecord,
-  UnknownRecord,
-} from './StorageService';
+import type { ExtendedStorageID, UnknownRecord } from './StorageService.d';
 
 import type { GroupCredentialType } from '../textsecure/WebAPI';
 import type {
-  KeyPairType,
   SessionResetsType,
   StorageServiceCredentials,
 } from '../textsecure/Types.d';
-import { UUIDStringType } from './UUID';
-import { RegisteredChallengeType } from '../challenge';
+import type { BackupCredentialType } from './backups';
+import type { ServiceIdString } from './ServiceId';
+
+import type { RegisteredChallengeType } from '../challenge';
 
 export type SerializedCertificateType = {
   expires: number;
@@ -34,59 +29,82 @@ export type SerializedCertificateType = {
 
 export type ZoomFactorType = 0.75 | 1 | 1.25 | 1.5 | 2 | number;
 
-export type ThemeSettingType = 'system' | 'light' | 'dark';
+export type SentMediaQualitySettingType = 'standard' | 'high';
 
 export type NotificationSettingType = 'message' | 'name' | 'count' | 'off';
 
 export type IdentityKeyMap = Record<
-  string,
+  ServiceIdString,
   {
-    privKey: string;
-    pubKey: string;
+    privKey: Uint8Array;
+    pubKey: Uint8Array;
   }
 >;
 
 // This should be in sync with `STORAGE_UI_KEYS` in `ts/types/StorageUIKeys.ts`.
+
 export type StorageAccessType = {
   'always-relay-calls': boolean;
   'audio-notification': boolean;
   'auto-download-update': boolean;
+  autoConvertEmoji: boolean;
   'badge-count-muted-conversations': boolean;
-  'blocked-groups': Array<string>;
-  'blocked-uuids': Array<string>;
+  'blocked-groups': ReadonlyArray<string>;
+  'blocked-uuids': ReadonlyArray<ServiceIdString>;
   'call-ringtone-notification': boolean;
   'call-system-notification': boolean;
   'hide-menu-bar': boolean;
-  'system-tray-setting': SystemTraySetting;
   'incoming-call-notification': boolean;
   'notification-draw-attention': boolean;
   'notification-setting': NotificationSettingType;
   'read-receipt-setting': boolean;
-  'spell-check': boolean;
-  'theme-setting': ThemeSettingType;
+  'sent-media-quality': SentMediaQualitySettingType;
+  audioMessage: boolean;
   attachmentMigration_isComplete: boolean;
   attachmentMigration_lastProcessedIndex: number;
-  blocked: Array<string>;
+  blocked: ReadonlyArray<string>;
   defaultConversationColor: DefaultConversationColorType;
+
+  // Not used UI, stored as is when imported from backup.
+  defaultWallpaperPhotoPointer: Uint8Array;
+  defaultWallpaperPreset: number;
+  defaultDimWallpaperInDarkMode: boolean;
+
   customColors: CustomColorsItemType;
   device_name: string;
-  hasRegisterSupportForUnauthenticatedDelivery: boolean;
+  existingOnboardingStoryMessageIds: ReadonlyArray<string> | undefined;
+  hasSetMyStoriesPrivacy: boolean;
+  hasCompletedUsernameOnboarding: boolean;
+  hasCompletedUsernameLinkOnboarding: boolean;
+  hasCompletedSafetyNumberOnboarding: boolean;
+  hasSeenGroupStoryEducationSheet: boolean;
+  hasViewedOnboardingStory: boolean;
+  hasStoriesDisabled: boolean;
+  storyViewReceiptsEnabled: boolean | undefined;
   identityKeyMap: IdentityKeyMap;
-  lastHeartbeat: number;
-  lastStartup: number;
   lastAttemptedToRefreshProfilesAt: number;
+  lastResortKeyUpdateTime: number;
+  lastResortKeyUpdateTimePNI: number;
+  localDeleteWarningShown: boolean;
+  masterKey: string;
+  masterKeyLastRequestTime: number;
   maxPreKeyId: number;
+  maxPreKeyIdPNI: number;
+  maxKyberPreKeyId: number;
+  maxKyberPreKeyIdPNI: number;
   number_id: string;
   password: string;
   profileKey: Uint8Array;
   regionCode: string;
-  registrationIdMap: Record<string, number>;
+  registrationIdMap: Record<ServiceIdString, number>;
   remoteBuildExpiration: number;
   sessionResets: SessionResetsType;
   showStickerPickerHint: boolean;
   showStickersIntroduction: boolean;
   signedKeyId: number;
-  signedKeyRotationRejected: number;
+  signedKeyIdPNI: number;
+  signedKeyUpdateTime: number;
+  signedKeyUpdateTimePNI: number;
   storageKey: string;
   synced_at: number;
   userAgent: string;
@@ -95,35 +113,39 @@ export type StorageAccessType = {
   version: string;
   linkPreviews: boolean;
   universalExpireTimer: number;
-  retryPlaceholders: Array<RetryItemType>;
+  retryPlaceholders: ReadonlyArray<RetryItemType>;
   chromiumRegistrationDoneEver: '';
   chromiumRegistrationDone: '';
   phoneNumberSharingMode: PhoneNumberSharingMode;
   phoneNumberDiscoverability: PhoneNumberDiscoverability;
-  pinnedConversationIds: Array<string>;
+  pinnedConversationIds: ReadonlyArray<string>;
   preferContactAvatars: boolean;
   primarySendsSms: boolean;
-  // Unlike `number_id` (which also includes device id) this field is only
-  // updated whenever we receive a new storage manifest
-  accountE164: string;
+  textFormatting: boolean;
   typingIndicators: boolean;
   sealedSenderIndicators: boolean;
   storageFetchComplete: boolean;
   avatarUrl: string | undefined;
   manifestVersion: number;
   storageCredentials: StorageServiceCredentials;
-  'storage-service-error-records': Array<UnknownRecord>;
-  'storage-service-unknown-records': Array<UnknownRecord>;
-  'storage-service-pending-deletes': Array<ExtendedStorageID>;
+  'storage-service-error-records': ReadonlyArray<UnknownRecord>;
+  'storage-service-unknown-records': ReadonlyArray<UnknownRecord>;
+  'storage-service-pending-deletes': ReadonlyArray<ExtendedStorageID>;
   'preferred-video-input-device': string;
   'preferred-audio-input-device': AudioDevice;
   'preferred-audio-output-device': AudioDevice;
-  previousAudioDeviceModule: AudioDeviceModule;
   remoteConfig: RemoteConfigType;
+  serverTimeSkew: number;
   unidentifiedDeliveryIndicators: boolean;
-  groupCredentials: Array<GroupCredentialType>;
+  groupCredentials: ReadonlyArray<GroupCredentialType>;
+  callLinkAuthCredentials: ReadonlyArray<GroupCredentialType>;
+  backupCredentials: ReadonlyArray<BackupCredentialType>;
+  backupCredentialsLastRequestTime: number;
+  backupAttachmentsSuccessfullyDownloadedSize: number;
+  backupAttachmentsTotalSizeToDownload: number;
+  setBackupSignatureKey: boolean;
   lastReceivedAtCounter: number;
-  preferredReactionEmoji: Array<string>;
+  preferredReactionEmoji: ReadonlyArray<string>;
   skinTone: number;
   unreadCount: number;
   'challenge:conversations': ReadonlyArray<RegisteredChallengeType>;
@@ -135,19 +157,52 @@ export type StorageAccessType = {
   paymentAddress: string;
   zoomFactor: ZoomFactorType;
   preferredLeftPaneWidth: number;
-  nextSignedKeyRotationTime: number;
+  nextScheduledUpdateKeyTime: number;
+  navTabsCollapsed: boolean;
   areWeASubscriber: boolean;
   subscriberId: Uint8Array;
   subscriberCurrencyCode: string;
+  donorSubscriptionManuallyCancelled: boolean;
+  backupsSubscriberId: Uint8Array;
+  backupsSubscriberCurrencyCode: string;
+  backupsSubscriptionManuallyCancelled: boolean;
   displayBadgesOnProfile: boolean;
+  keepMutedChatsArchived: boolean;
+  usernameLastIntegrityCheck: number;
+  usernameCorrupted: boolean;
+  usernameLinkCorrupted: boolean;
+  usernameLinkColor: number;
+  usernameLink: {
+    entropy: Uint8Array;
+    serverId: Uint8Array;
+  };
+  needOrphanedAttachmentCheck: boolean;
+  observedCapabilities: {
+    deleteSync?: true;
+    versionedExpirationTimer?: true;
+
+    // Note: Upon capability deprecation - change the value type to `never` and
+    // remove it in `ts/background.ts`
+  };
+
+  // If present - we are downloading backup
+  backupDownloadPath: string;
 
   // Deprecated
+  'challenge:retry-message-ids': never;
+  nextSignedKeyRotationTime: number;
+  previousAudioDeviceModule: never;
   senderCertificateWithUuid: never;
   signaling_key: never;
-  'challenge:retry-message-ids': never;
+  signedKeyRotationRejected: number;
+  lastHeartbeat: never;
+  lastStartup: never;
+  sendEditWarningShown: never;
+  formattingWarningShown: never;
+  hasRegisterSupportForUnauthenticatedDelivery: never;
 };
 
-export interface StorageInterface {
+export type StorageInterface = {
   onready(callback: () => void): void;
 
   get<K extends keyof StorageAccessType, V extends StorageAccessType[K]>(
@@ -165,4 +220,4 @@ export interface StorageInterface {
   ): Promise<void>;
 
   remove<K extends keyof StorageAccessType>(key: K): Promise<void>;
-}
+};

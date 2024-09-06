@@ -7,8 +7,14 @@ import type {
   GroupV2RequestingMembership,
 } from '../components/conversation/conversation-details/PendingInvites';
 import type { ConversationType } from '../state/ducks/conversations';
-import type { UUIDStringType } from '../types/UUID';
+import type { ServiceIdString } from '../types/ServiceId';
 import { isConversationUnregistered } from './isConversationUnregistered';
+
+export type GroupMemberships = {
+  memberships: ReadonlyArray<GroupV2Membership>;
+  pendingApprovalMemberships: ReadonlyArray<GroupV2RequestingMembership>;
+  pendingMemberships: ReadonlyArray<GroupV2PendingMembership>;
+};
 
 export const getGroupMemberships = (
   {
@@ -21,15 +27,13 @@ export const getGroupMemberships = (
       'memberships' | 'pendingApprovalMemberships' | 'pendingMemberships'
     >
   >,
-  getConversationByUuid: (uuid: UUIDStringType) => undefined | ConversationType
-): {
-  memberships: Array<GroupV2Membership>;
-  pendingApprovalMemberships: Array<GroupV2RequestingMembership>;
-  pendingMemberships: Array<GroupV2PendingMembership>;
-} => ({
+  getConversationByServiceId: (
+    serviceId: ServiceIdString
+  ) => undefined | ConversationType
+): GroupMemberships => ({
   memberships: memberships.reduce(
-    (result: Array<GroupV2Membership>, membership) => {
-      const member = getConversationByUuid(membership.uuid);
+    (result: ReadonlyArray<GroupV2Membership>, membership) => {
+      const member = getConversationByServiceId(membership.aci);
       if (!member) {
         return result;
       }
@@ -38,8 +42,8 @@ export const getGroupMemberships = (
     []
   ),
   pendingApprovalMemberships: pendingApprovalMemberships.reduce(
-    (result: Array<GroupV2RequestingMembership>, membership) => {
-      const member = getConversationByUuid(membership.uuid);
+    (result: ReadonlyArray<GroupV2RequestingMembership>, membership) => {
+      const member = getConversationByServiceId(membership.aci);
       if (!member || isConversationUnregistered(member)) {
         return result;
       }
@@ -48,8 +52,8 @@ export const getGroupMemberships = (
     []
   ),
   pendingMemberships: pendingMemberships.reduce(
-    (result: Array<GroupV2PendingMembership>, membership) => {
-      const member = getConversationByUuid(membership.uuid);
+    (result: ReadonlyArray<GroupV2PendingMembership>, membership) => {
+      const member = getConversationByServiceId(membership.serviceId);
       if (!member || isConversationUnregistered(member)) {
         return result;
       }

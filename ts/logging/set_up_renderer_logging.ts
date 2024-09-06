@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Signal Messenger, LLC
+// Copyright 2017 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 /* eslint-env node */
@@ -8,7 +8,6 @@
 import { ipcRenderer as ipc } from 'electron';
 import * as path from 'path';
 import pino from 'pino';
-import { createStream } from 'rotating-file-stream';
 
 import {
   initLogger,
@@ -23,6 +22,8 @@ import {
 } from './shared';
 import * as log from './log';
 import { Environment, getEnvironment } from '../environment';
+import * as Errors from '../types/errors';
+import { createRotatingPinoDest } from '../util/rotatingPinoDest';
 
 // Backwards-compatible logging, simple strings and no level (defaulted to INFO)
 function now() {
@@ -53,10 +54,6 @@ export function initialize(): void {
 
   const basePath = ipc.sendSync('get-user-data-path');
   const logFile = path.join(basePath, 'logs', 'app.log');
-  const stream = createStream(logFile, {
-    interval: '1d',
-    rotate: 3,
-  });
 
   const onClose = () => {
     globalLogger = undefined;
@@ -66,11 +63,19 @@ export function initialize(): void {
     }
   };
 
+  const stream = createRotatingPinoDest({
+    logFile,
+  });
+
   stream.on('close', onClose);
   stream.on('error', onClose);
 
   globalLogger = pino(
     {
+      formatters: {
+        // No point in saving pid or hostname
+        bindings: () => ({}),
+      },
       timestamp: pino.stdTimeFunctions.isoTime,
     },
     stream
@@ -80,7 +85,7 @@ export function initialize(): void {
 // A modern logging interface for the browser
 
 function logAtLevel(level: LogLevel, ...args: ReadonlyArray<unknown>): void {
-  if (getEnvironment() !== Environment.Production) {
+  if (getEnvironment() !== Environment.PackagedApp) {
     const prefix = getLogLevelString(level)
       .toUpperCase()
       .padEnd(levelMaxLength, ' ');
@@ -92,7 +97,6 @@ function logAtLevel(level: LogLevel, ...args: ReadonlyArray<unknown>): void {
 
   if (!globalLogger) {
     throw new Error('Logger has not been initialized yet');
-    return;
   }
 
   globalLogger[levelString](msg);
@@ -110,15 +114,45 @@ window.SignalContext.log = {
   trace: log.trace,
 };
 
-window.onerror = (_message, _script, _line, _col, error) => {
-  const errorInfo = error && error.stack ? error.stack : JSON.stringify(error);
-  log.error(`Top-level unhandled error: ${errorInfo}`);
+function toLocation(
+  event: string | Event,
+  sourceArg?: string,
+  lineArg?: number,
+  columnArg?: number
+) {
+  let source = sourceArg;
+  let line = lineArg;
+  let column = columnArg;
+
+  if (event instanceof ErrorEvent) {
+    source ??= event.filename;
+    line ??= event.lineno;
+    column ??= event.colno;
+  }
+
+  if (source == null) {
+    return '(@ unknown)';
+  }
+  if (line != null && column != null) {
+    return `(@ ${source}:${line}:${column})`;
+  }
+  if (line != null) {
+    return `(@ ${source}:${line})`;
+  }
+  return `(@ ${source})`;
+}
+
+window.onerror = (event, source, line, column, error) => {
+  const errorInfo = Errors.toLogFormat(error);
+  log.error(
+    `Top-level unhandled error: ${errorInfo}`,
+    toLocation(event, source, line, column)
+  );
 };
 
 window.addEventListener('unhandledrejection', rejectionEvent => {
   const error = rejectionEvent.reason;
-  const errorString =
-    error && error.stack ? error.stack : JSON.stringify(error);
+  const errorString = Errors.toLogFormat(error);
   log.error(`Top-level unhandled promise rejection: ${errorString}`);
 });
 

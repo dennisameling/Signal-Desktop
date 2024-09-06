@@ -3,9 +3,10 @@
 
 import React from 'react';
 
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
 
+import type { Meta } from '@storybook/react';
+import type { PropsType } from './NewlyCreatedGroupInvitedContactsDialog';
 import { NewlyCreatedGroupInvitedContactsDialog } from './NewlyCreatedGroupInvitedContactsDialog';
 import { setupI18n } from '../util/setupI18n';
 import enMessages from '../../_locales/en/messages.json';
@@ -20,27 +21,30 @@ const conversations: Array<ConversationType> = [
   getDefaultConversation({ title: 'Marc Barraca' }),
 ];
 
-const story = storiesOf(
-  'Components/NewlyCreatedGroupInvitedContactsDialog',
-  module
-);
+export default {
+  title: 'Components/NewlyCreatedGroupInvitedContactsDialog',
+} satisfies Meta<PropsType>;
 
-story.add('One contact', () => (
-  <NewlyCreatedGroupInvitedContactsDialog
-    contacts={[conversations[0]]}
-    getPreferredBadge={() => undefined}
-    i18n={i18n}
-    onClose={action('onClose')}
-    theme={ThemeType.light}
-  />
-));
+export function OneContact(): JSX.Element {
+  return (
+    <NewlyCreatedGroupInvitedContactsDialog
+      contacts={[conversations[0]]}
+      getPreferredBadge={() => undefined}
+      i18n={i18n}
+      onClose={action('onClose')}
+      theme={ThemeType.light}
+    />
+  );
+}
 
-story.add('Two contacts', () => (
-  <NewlyCreatedGroupInvitedContactsDialog
-    contacts={conversations}
-    getPreferredBadge={() => undefined}
-    i18n={i18n}
-    onClose={action('onClose')}
-    theme={ThemeType.light}
-  />
-));
+export function TwoContacts(): JSX.Element {
+  return (
+    <NewlyCreatedGroupInvitedContactsDialog
+      contacts={conversations}
+      getPreferredBadge={() => undefined}
+      i18n={i18n}
+      onClose={action('onClose')}
+      theme={ThemeType.light}
+    />
+  );
+}

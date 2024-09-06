@@ -18,27 +18,31 @@ ts/protobuf/*.d.ts
 ts/protobuf/*.js
 stylesheets/manifest.css
 ts/util/lint/exceptions.json
-sticker-creator/dist/**
+storybook-static
+build/locale-display-names.json
+build/country-display-names.json
+build/compact-locales/**/*.json
+release/**
 
 # Third-party files
 node_modules/**
+danger/node_modules/**
+sticker-creator/node_modules/**
 components/**
 js/curve/**
 js/Mp3LameEncoder.min.js
 js/WebAudioRecorderMp3.js
+js/calling-tools/**
 
 # Assets
 /images/
 /fixtures/
 
+# Version control
+**/.git
+
 # Github workflows
 .github/**
-
-# Managed by Transifex:
-# Note: the negate pattern only works because it's targeting the same depth as the
-#   glob on the previous line.
-_locales/**/*.json
-!_locales/en/messages.json
 
 # Managed by package manager (`bower` and `yarn`/`npm`):
 /bower.json
@@ -48,3 +52,7 @@ _locales/**/*.json
 stylesheets/_intlTelInput.scss
 
 preload.bundle.*
+bundles/**
+
+# Sticker Creator has its own prettier config
+sticker-creator/**

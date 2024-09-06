@@ -1,7 +1,9 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
+import { z } from 'zod';
 
-export type MIMEType = string & { _mimeTypeBrand: never };
+export const MIMETypeSchema = z.string().brand('mimeType');
+export type MIMEType = z.infer<typeof MIMETypeSchema>;
 
 export const stringToMIMEType = (value: string): MIMEType => {
   return value as MIMEType;
@@ -25,6 +27,7 @@ export const IMAGE_BMP = stringToMIMEType('image/bmp');
 export const VIDEO_MP4 = stringToMIMEType('video/mp4');
 export const VIDEO_QUICKTIME = stringToMIMEType('video/quicktime');
 export const LONG_MESSAGE = stringToMIMEType('text/x-signal-plain');
+export const TEXT_ATTACHMENT = stringToMIMEType('text/x-signal-story');
 
 export const isHeic = (value: string, fileName: string): boolean =>
   value === 'image/heic' ||

@@ -1,0 +1,17 @@
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+body {
+  // Overridden by ts/background.ts
+  --zoom-factor: 1;
+
+  // These should match the logic in `ts/types/Settings.ts`'s `getTitleBarVisibility`.
+  //
+  // It'd be great if we could use the `:fullscreen` selector here, but that does not seem
+  //   to work with Electron, at least on macOS.
+  --title-bar-drag-area-height: 0px; // Needs to have a unit to work with `calc()`.
+  &.os-macos:not(.full-screen),
+  .app-loading-screen--before-app-load {
+    --title-bar-drag-area-height: calc(28px / var(--zoom-factor));
+  }
+}

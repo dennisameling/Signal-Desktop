@@ -1,11 +1,15 @@
-// Copyright 2019-2022 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import React, { useEffect, useCallback, useMemo, useState } from 'react';
-import type { MeasuredComponentProps } from 'react-measure';
-import Measure from 'react-measure';
+import React, {
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import classNames from 'classnames';
-import { clamp, isNumber, noop } from 'lodash';
+import { isNumber } from 'lodash';
 
 import type { LeftPaneHelper, ToFindType } from './leftPane/LeftPaneHelper';
 import { FindDirection } from './leftPane/LeftPaneHelper';
@@ -17,48 +21,63 @@ import type { LeftPaneArchivePropsType } from './leftPane/LeftPaneArchiveHelper'
 import { LeftPaneArchiveHelper } from './leftPane/LeftPaneArchiveHelper';
 import type { LeftPaneComposePropsType } from './leftPane/LeftPaneComposeHelper';
 import { LeftPaneComposeHelper } from './leftPane/LeftPaneComposeHelper';
+import type { LeftPaneFindByUsernamePropsType } from './leftPane/LeftPaneFindByUsernameHelper';
+import { LeftPaneFindByUsernameHelper } from './leftPane/LeftPaneFindByUsernameHelper';
+import type { LeftPaneFindByPhoneNumberPropsType } from './leftPane/LeftPaneFindByPhoneNumberHelper';
+import { LeftPaneFindByPhoneNumberHelper } from './leftPane/LeftPaneFindByPhoneNumberHelper';
 import type { LeftPaneChooseGroupMembersPropsType } from './leftPane/LeftPaneChooseGroupMembersHelper';
 import { LeftPaneChooseGroupMembersHelper } from './leftPane/LeftPaneChooseGroupMembersHelper';
 import type { LeftPaneSetGroupMetadataPropsType } from './leftPane/LeftPaneSetGroupMetadataHelper';
 import { LeftPaneSetGroupMetadataHelper } from './leftPane/LeftPaneSetGroupMetadataHelper';
 
-import * as OS from '../OS';
+import { LeftPaneMode } from '../types/leftPane';
 import type { LocalizerType, ThemeType } from '../types/Util';
 import { ScrollBehavior } from '../types/Util';
 import type { PreferredBadgeSelectorType } from '../state/selectors/badges';
 import { usePrevious } from '../hooks/usePrevious';
 import { missingCaseError } from '../util/missingCaseError';
-import type { WidthBreakpoint } from './_util';
-import { getConversationListWidthBreakpoint } from './_util';
+import type { DurationInSeconds } from '../util/durations';
+import { WidthBreakpoint, getNavSidebarWidthBreakpoint } from './_util';
 import * as KeyboardLayout from '../services/keyboardLayout';
-import {
-  MIN_WIDTH,
-  SNAP_WIDTH,
-  MIN_FULL_WIDTH,
-  MAX_WIDTH,
-  getWidthFromPreferredWidth,
-} from '../util/leftPaneWidth';
-import type { LookupConversationWithoutUuidActionsType } from '../util/lookupConversationWithoutUuid';
+import type { LookupConversationWithoutServiceIdActionsType } from '../util/lookupConversationWithoutServiceId';
+import type { ShowConversationType } from '../state/ducks/conversations';
+import type { PropsType as UnsupportedOSDialogPropsType } from '../state/smart/UnsupportedOSDialog';
 
 import { ConversationList } from './ConversationList';
 import { ContactCheckboxDisabledReason } from './conversationList/ContactCheckbox';
+import type { PropsType as DialogExpiredBuildPropsType } from './DialogExpiredBuild';
+import { LeftPaneBanner } from './LeftPaneBanner';
 
 import type {
   DeleteAvatarFromDiskActionType,
   ReplaceAvatarActionType,
   SaveAvatarToDiskActionType,
 } from '../types/Avatar';
-
-export enum LeftPaneMode {
-  Inbox,
-  Search,
-  Archive,
-  Compose,
-  ChooseGroupMembers,
-  SetGroupMetadata,
-}
+import { useSizeObserver } from '../hooks/useSizeObserver';
+import {
+  NavSidebar,
+  NavSidebarActionButton,
+  NavSidebarSearchHeader,
+} from './NavSidebar';
+import { ContextMenu } from './ContextMenu';
+import { EditState as ProfileEditorEditState } from './ProfileEditor';
+import type { UnreadStats } from '../util/countUnreadStats';
+import { BackupMediaDownloadProgressBanner } from './BackupMediaDownloadProgress';
 
 export type PropsType = {
+  backupMediaDownloadProgress: { totalBytes: number; downloadedBytes: number };
+  otherTabsUnreadStats: UnreadStats;
+  hasExpiredDialog: boolean;
+  hasFailedStorySends: boolean;
+  hasNetworkDialog: boolean;
+  hasPendingUpdate: boolean;
+  hasRelinkDialog: boolean;
+  hasUpdateDialog: boolean;
+  isUpdateDownloaded: boolean;
+  unsupportedOSDialogType: 'error' | 'warning' | undefined;
+  usernameCorrupted: boolean;
+  usernameLinkCorrupted: boolean;
+
   // These help prevent invalid states. For example, we don't need the list of pinned
   //   conversations if we're trying to start a new conversation. Ideally these would be
   //   at the top level, but this is not supported by react-redux + TypeScript.
@@ -76,6 +95,12 @@ export type PropsType = {
         mode: LeftPaneMode.Compose;
       } & LeftPaneComposePropsType)
     | ({
+        mode: LeftPaneMode.FindByUsername;
+      } & LeftPaneFindByUsernamePropsType)
+    | ({
+        mode: LeftPaneMode.FindByPhoneNumber;
+      } & LeftPaneFindByPhoneNumberPropsType)
+    | ({
         mode: LeftPaneMode.ChooseGroupMembers;
       } & LeftPaneChooseGroupMembersPropsType)
     | ({
@@ -83,54 +108,63 @@ export type PropsType = {
       } & LeftPaneSetGroupMetadataPropsType);
   getPreferredBadge: PreferredBadgeSelectorType;
   i18n: LocalizerType;
+  isMacOS: boolean;
   preferredWidthFromStorage: number;
   selectedConversationId: undefined | string;
-  selectedMessageId: undefined | string;
-  regionCode: string | undefined;
+  targetedMessageId: undefined | string;
   challengeStatus: 'idle' | 'required' | 'pending';
   setChallengeStatus: (status: 'idle') => void;
   crashReportCount: number;
   theme: ThemeType;
 
   // Action Creators
+  blockConversation: (conversationId: string) => void;
   clearConversationSearch: () => void;
   clearGroupCreationError: () => void;
   clearSearch: () => void;
   closeMaximumGroupSizeModal: () => void;
   closeRecommendedGroupSizeModal: () => void;
-  createGroup: () => void;
-  openConversationInternal: (_: {
-    conversationId: string;
-    messageId?: string;
-    switchToAssociatedView?: boolean;
-  }) => void;
-  savePreferredLeftPaneWidth: (_: number) => void;
-  searchInConversation: (conversationId: string) => unknown;
-  setComposeSearchTerm: (composeSearchTerm: string) => void;
-  setComposeGroupAvatar: (_: undefined | Uint8Array) => void;
-  setComposeGroupName: (_: string) => void;
-  setComposeGroupExpireTimer: (_: number) => void;
-  showArchivedConversations: () => void;
-  showInbox: () => void;
-  startComposing: () => void;
-  startSearch: () => unknown;
-  showChooseGroupMembers: () => void;
-  startSettingGroupMetadata: () => void;
-  toggleConversationInChooseMembers: (conversationId: string) => void;
   composeDeleteAvatarFromDisk: DeleteAvatarFromDiskActionType;
   composeReplaceAvatar: ReplaceAvatarActionType;
   composeSaveAvatarToDisk: SaveAvatarToDiskActionType;
+  createGroup: () => void;
+  endConversationSearch: () => void;
+  endSearch: () => void;
+  navTabsCollapsed: boolean;
+  openUsernameReservationModal: () => void;
+  onOutgoingAudioCallInConversation: (conversationId: string) => void;
+  onOutgoingVideoCallInConversation: (conversationId: string) => void;
+  removeConversation: (conversationId: string) => void;
+  savePreferredLeftPaneWidth: (_: number) => void;
+  searchInConversation: (conversationId: string) => unknown;
+  setComposeGroupAvatar: (_: undefined | Uint8Array) => void;
+  setComposeGroupExpireTimer: (_: DurationInSeconds) => void;
+  setComposeGroupName: (_: string) => void;
+  setComposeSearchTerm: (composeSearchTerm: string) => void;
+  setComposeSelectedRegion: (newRegion: string) => void;
+  showArchivedConversations: () => void;
+  showChooseGroupMembers: () => void;
+  showFindByUsername: () => void;
+  showFindByPhoneNumber: () => void;
+  showConversation: ShowConversationType;
+  preloadConversation: (conversationId: string) => void;
+  showInbox: () => void;
+  startComposing: () => void;
+  startSearch: () => unknown;
+  startSettingGroupMetadata: () => void;
   toggleComposeEditingAvatar: () => unknown;
+  toggleConversationInChooseMembers: (conversationId: string) => void;
+  toggleNavTabsCollapse: (navTabsCollapsed: boolean) => void;
+  toggleProfileEditor: (initialEditState?: ProfileEditorEditState) => void;
   updateSearchTerm: (_: string) => void;
 
   // Render Props
-  renderExpiredBuildDialog: (
-    _: Readonly<{ containerWidthBreakpoint: WidthBreakpoint }>
-  ) => JSX.Element;
-  renderMainHeader: () => JSX.Element;
   renderMessageSearchResult: (id: string) => JSX.Element;
   renderNetworkStatus: (
     _: Readonly<{ containerWidthBreakpoint: WidthBreakpoint }>
+  ) => JSX.Element;
+  renderUnsupportedOSDialog: (
+    _: Readonly<UnsupportedOSDialogPropsType>
   ) => JSX.Element;
   renderRelinkDialog: (
     _: Readonly<{ containerWidthBreakpoint: WidthBreakpoint }>
@@ -140,13 +174,17 @@ export type PropsType = {
   ) => JSX.Element;
   renderCaptchaDialog: (props: { onSkip(): void }) => JSX.Element;
   renderCrashReportDialog: () => JSX.Element;
+  renderExpiredBuildDialog: (_: DialogExpiredBuildPropsType) => JSX.Element;
+  renderToastManager: (_: {
+    containerWidthBreakpoint: WidthBreakpoint;
+  }) => JSX.Element;
+} & LookupConversationWithoutServiceIdActionsType;
 
-  showConversation: (conversationId: string) => void;
-} & LookupConversationWithoutUuidActionsType;
-
-export const LeftPane: React.FC<PropsType> = ({
+export function LeftPane({
+  backupMediaDownloadProgress,
+  otherTabsUnreadStats,
+  blockConversation,
   challengeStatus,
-  crashReportCount,
   clearConversationSearch,
   clearGroupCreationError,
   clearSearch,
@@ -155,50 +193,70 @@ export const LeftPane: React.FC<PropsType> = ({
   composeDeleteAvatarFromDisk,
   composeReplaceAvatar,
   composeSaveAvatarToDisk,
+  crashReportCount,
   createGroup,
+  endConversationSearch,
+  endSearch,
   getPreferredBadge,
+  hasExpiredDialog,
+  hasFailedStorySends,
+  hasNetworkDialog,
+  hasPendingUpdate,
+  hasRelinkDialog,
+  hasUpdateDialog,
   i18n,
+  lookupConversationWithoutServiceId,
+  isMacOS,
+  isUpdateDownloaded,
   modeSpecificProps,
-  openConversationInternal,
+  navTabsCollapsed,
+  onOutgoingAudioCallInConversation,
+  onOutgoingVideoCallInConversation,
+
+  openUsernameReservationModal,
   preferredWidthFromStorage,
+  preloadConversation,
+  removeConversation,
   renderCaptchaDialog,
   renderCrashReportDialog,
   renderExpiredBuildDialog,
-  renderMainHeader,
   renderMessageSearchResult,
   renderNetworkStatus,
+  renderUnsupportedOSDialog,
   renderRelinkDialog,
   renderUpdateDialog,
+  renderToastManager,
   savePreferredLeftPaneWidth,
   searchInConversation,
   selectedConversationId,
-  selectedMessageId,
+  targetedMessageId,
+  toggleNavTabsCollapse,
+  toggleProfileEditor,
   setChallengeStatus,
   setComposeGroupAvatar,
   setComposeGroupExpireTimer,
   setComposeGroupName,
   setComposeSearchTerm,
+  setComposeSelectedRegion,
+  setIsFetchingUUID,
   showArchivedConversations,
   showChooseGroupMembers,
+  showFindByUsername,
+  showFindByPhoneNumber,
+  showConversation,
   showInbox,
+  showUserNotFoundModal,
   startComposing,
   startSearch,
-  showUserNotFoundModal,
-  setIsFetchingUUID,
-  lookupConversationWithoutUuid,
-  toggleConversationInChooseMembers,
-  showConversation,
   startSettingGroupMetadata,
   theme,
   toggleComposeEditingAvatar,
+  toggleConversationInChooseMembers,
+  unsupportedOSDialogType,
+  usernameCorrupted,
+  usernameLinkCorrupted,
   updateSearchTerm,
-}) => {
-  const [preferredWidth, setPreferredWidth] = useState(
-    // This clamp is present just in case we get a bogus value from storage.
-    clamp(preferredWidthFromStorage, MIN_WIDTH, MAX_WIDTH)
-  );
-  const [isResizing, setIsResizing] = useState(false);
-
+}: PropsType): JSX.Element {
   const previousModeSpecificProps = usePrevious(
     modeSpecificProps,
     modeSpecificProps
@@ -261,6 +319,32 @@ export const LeftPane: React.FC<PropsType> = ({
       helper = composeHelper;
       break;
     }
+    case LeftPaneMode.FindByUsername: {
+      const findByUsernameHelper = new LeftPaneFindByUsernameHelper(
+        modeSpecificProps
+      );
+      shouldRecomputeRowHeights =
+        previousModeSpecificProps.mode === modeSpecificProps.mode
+          ? findByUsernameHelper.shouldRecomputeRowHeights(
+              previousModeSpecificProps
+            )
+          : true;
+      helper = findByUsernameHelper;
+      break;
+    }
+    case LeftPaneMode.FindByPhoneNumber: {
+      const findByPhoneNumberHelper = new LeftPaneFindByPhoneNumberHelper(
+        modeSpecificProps
+      );
+      shouldRecomputeRowHeights =
+        previousModeSpecificProps.mode === modeSpecificProps.mode
+          ? findByPhoneNumberHelper.shouldRecomputeRowHeights(
+              previousModeSpecificProps
+            )
+          : true;
+      helper = findByPhoneNumberHelper;
+      break;
+    }
     case LeftPaneMode.ChooseGroupMembers: {
       const chooseGroupMembersHelper = new LeftPaneChooseGroupMembersHelper(
         modeSpecificProps
@@ -294,7 +378,7 @@ export const LeftPane: React.FC<PropsType> = ({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const { ctrlKey, shiftKey, altKey, metaKey } = event;
-      const commandOrCtrl = OS.isMacOS() ? metaKey : ctrlKey;
+      const commandOrCtrl = isMacOS ? metaKey : ctrlKey;
       const key = KeyboardLayout.lookup(event);
 
       if (key === 'Escape') {
@@ -332,7 +416,8 @@ export const LeftPane: React.FC<PropsType> = ({
           };
 
       const numericIndex = keyboardKeyToNumericIndex(event.key);
-      if (commandOrCtrl && isNumber(numericIndex)) {
+      const openedByNumber = commandOrCtrl && isNumber(numericIndex);
+      if (openedByNumber) {
         conversationToOpen =
           helper.getConversationAndMessageAtIndex(numericIndex);
       } else {
@@ -358,14 +443,17 @@ export const LeftPane: React.FC<PropsType> = ({
           conversationToOpen = helper.getConversationAndMessageInDirection(
             toFind,
             selectedConversationId,
-            selectedMessageId
+            targetedMessageId
           );
         }
       }
 
       if (conversationToOpen) {
         const { conversationId, messageId } = conversationToOpen;
-        openConversationInternal({ conversationId, messageId });
+        showConversation({ conversationId, messageId });
+        if (openedByNumber) {
+          clearSearch();
+        }
         event.preventDefault();
         event.stopPropagation();
       }
@@ -382,82 +470,22 @@ export const LeftPane: React.FC<PropsType> = ({
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [
+    clearSearch,
     helper,
-    openConversationInternal,
+    isMacOS,
     searchInConversation,
     selectedConversationId,
-    selectedMessageId,
+    targetedMessageId,
     showChooseGroupMembers,
+    showConversation,
     showInbox,
     startComposing,
     startSearch,
   ]);
 
-  const requiresFullWidth = helper.requiresFullWidth();
-
-  useEffect(() => {
-    if (!isResizing) {
-      return noop;
-    }
-
-    const onMouseMove = (event: MouseEvent) => {
-      let width: number;
-      if (requiresFullWidth) {
-        width = Math.max(event.clientX, MIN_FULL_WIDTH);
-      } else if (event.clientX < SNAP_WIDTH) {
-        width = MIN_WIDTH;
-      } else {
-        width = clamp(event.clientX, MIN_FULL_WIDTH, MAX_WIDTH);
-      }
-      setPreferredWidth(Math.min(width, MAX_WIDTH));
-
-      event.preventDefault();
-    };
-
-    const stopResizing = () => {
-      setIsResizing(false);
-    };
-
-    document.body.addEventListener('mousemove', onMouseMove);
-    document.body.addEventListener('mouseup', stopResizing);
-    document.body.addEventListener('mouseleave', stopResizing);
-
-    return () => {
-      document.body.removeEventListener('mousemove', onMouseMove);
-      document.body.removeEventListener('mouseup', stopResizing);
-      document.body.removeEventListener('mouseleave', stopResizing);
-    };
-  }, [isResizing, requiresFullWidth]);
-
-  useEffect(() => {
-    if (!isResizing) {
-      return noop;
-    }
-
-    document.body.classList.add('is-resizing-left-pane');
-    return () => {
-      document.body.classList.remove('is-resizing-left-pane');
-    };
-  }, [isResizing]);
-
-  useEffect(() => {
-    if (isResizing || preferredWidth === preferredWidthFromStorage) {
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      savePreferredLeftPaneWidth(preferredWidth);
-    }, 1000);
-
-    return () => {
-      clearTimeout(timeout);
-    };
-  }, [
-    isResizing,
-    preferredWidth,
-    preferredWidthFromStorage,
-    savePreferredLeftPaneWidth,
-  ]);
+  const backgroundNode = helper.getBackgroundNode({
+    i18n,
+  });
 
   const preRowsNode = helper.getPreRowsNode({
     clearConversationSearch,
@@ -480,19 +508,24 @@ export const LeftPane: React.FC<PropsType> = ({
     createGroup,
     i18n,
     startSettingGroupMetadata,
+    lookupConversationWithoutServiceId,
+    showUserNotFoundModal,
+    setIsFetchingUUID,
+    showInbox,
+    showConversation,
   });
 
   const getRow = useMemo(() => helper.getRow.bind(helper), [helper]);
 
   const onSelectConversation = useCallback(
     (conversationId: string, messageId?: string) => {
-      openConversationInternal({
+      showConversation({
         conversationId,
         messageId,
         switchToAssociatedView: true,
       });
     },
-    [openConversationInternal]
+    [showConversation]
   );
 
   const previousSelectedConversationId = usePrevious(
@@ -521,130 +554,305 @@ export const LeftPane: React.FC<PropsType> = ({
   //   It also ensures that we scroll to the top when switching views.
   const listKey = preRowsNode ? 1 : 0;
 
-  const width = getWidthFromPreferredWidth(preferredWidth, {
-    requiresFullWidth,
-  });
+  const measureRef = useRef<HTMLDivElement>(null);
+  const measureSize = useSizeObserver(measureRef);
 
-  const widthBreakpoint = getConversationListWidthBreakpoint(width);
+  const widthBreakpoint = getNavSidebarWidthBreakpoint(
+    measureSize?.width ?? preferredWidthFromStorage
+  );
 
-  // We disable this lint rule because we're trying to capture bubbled events. See [the
-  //   lint rule's docs][0].
-  //
-  // [0]: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/645900a0e296ca7053dbf6cd9e12cc85849de2d5/docs/rules/no-static-element-interactions.md#case-the-event-handler-is-only-being-used-to-capture-bubbled-events
-  /* eslint-disable jsx-a11y/no-static-element-interactions */
+  const commonDialogProps = {
+    i18n,
+    containerWidthBreakpoint: widthBreakpoint,
+  };
+
+  // Yellow dialogs
+  let maybeYellowDialog: JSX.Element | undefined;
+
+  if (unsupportedOSDialogType === 'warning') {
+    maybeYellowDialog = renderUnsupportedOSDialog({
+      type: 'warning',
+      ...commonDialogProps,
+    });
+  } else if (hasNetworkDialog) {
+    maybeYellowDialog = renderNetworkStatus(commonDialogProps);
+  } else if (hasRelinkDialog) {
+    maybeYellowDialog = renderRelinkDialog(commonDialogProps);
+  }
+
+  // Update dialog
+  let maybeUpdateDialog: JSX.Element | undefined;
+  if (hasUpdateDialog && (!hasNetworkDialog || isUpdateDownloaded)) {
+    maybeUpdateDialog = renderUpdateDialog(commonDialogProps);
+  }
+
+  // Red dialogs
+  let maybeRedDialog: JSX.Element | undefined;
+  if (unsupportedOSDialogType === 'error') {
+    maybeRedDialog = renderUnsupportedOSDialog({
+      type: 'error',
+      ...commonDialogProps,
+    });
+  } else if (hasExpiredDialog) {
+    maybeRedDialog = renderExpiredBuildDialog(commonDialogProps);
+  }
+
+  const dialogs = new Array<{ key: string; dialog: JSX.Element }>();
+
+  if (maybeRedDialog) {
+    dialogs.push({ key: 'red', dialog: maybeRedDialog });
+    if (maybeUpdateDialog) {
+      dialogs.push({ key: 'update', dialog: maybeUpdateDialog });
+    } else if (maybeYellowDialog) {
+      dialogs.push({ key: 'yellow', dialog: maybeYellowDialog });
+    }
+  } else {
+    if (maybeUpdateDialog) {
+      dialogs.push({ key: 'update', dialog: maybeUpdateDialog });
+    }
+    if (maybeYellowDialog) {
+      dialogs.push({ key: 'yellow', dialog: maybeYellowDialog });
+    }
+  }
+
+  let maybeBanner: JSX.Element | undefined;
+  if (usernameCorrupted) {
+    maybeBanner = (
+      <LeftPaneBanner
+        actionText={i18n('icu:LeftPane--corrupted-username--action-text')}
+        onClick={() => {
+          openUsernameReservationModal();
+          toggleProfileEditor(ProfileEditorEditState.Username);
+        }}
+      >
+        {i18n('icu:LeftPane--corrupted-username--text')}
+      </LeftPaneBanner>
+    );
+  } else if (usernameLinkCorrupted) {
+    maybeBanner = (
+      <LeftPaneBanner
+        actionText={i18n('icu:LeftPane--corrupted-username-link--action-text')}
+        onClick={() => toggleProfileEditor(ProfileEditorEditState.UsernameLink)}
+      >
+        {i18n('icu:LeftPane--corrupted-username-link--text')}
+      </LeftPaneBanner>
+    );
+  }
+
+  if (maybeBanner) {
+    dialogs.push({ key: 'banner', dialog: maybeBanner });
+  }
+
+  // We'll show the backup media download progress banner if the download is currently or
+  // was ongoing at some point during the lifecycle of this component
+  const [
+    hasMediaBackupDownloadBeenOngoing,
+    setHasMediaBackupDownloadBeenOngoing,
+  ] = useState(false);
+
+  const isMediaBackupDownloadOngoing =
+    backupMediaDownloadProgress?.totalBytes > 0 &&
+    backupMediaDownloadProgress.downloadedBytes <
+      backupMediaDownloadProgress.totalBytes;
+
+  if (isMediaBackupDownloadOngoing && !hasMediaBackupDownloadBeenOngoing) {
+    setHasMediaBackupDownloadBeenOngoing(true);
+  }
+
+  if (hasMediaBackupDownloadBeenOngoing) {
+    dialogs.push({
+      key: 'backupMediaDownload',
+      dialog: (
+        <BackupMediaDownloadProgressBanner
+          i18n={i18n}
+          {...backupMediaDownloadProgress}
+        />
+      ),
+    });
+  }
+
+  const hideHeader =
+    modeSpecificProps.mode === LeftPaneMode.Archive ||
+    modeSpecificProps.mode === LeftPaneMode.Compose ||
+    modeSpecificProps.mode === LeftPaneMode.FindByUsername ||
+    modeSpecificProps.mode === LeftPaneMode.FindByPhoneNumber ||
+    modeSpecificProps.mode === LeftPaneMode.ChooseGroupMembers ||
+    modeSpecificProps.mode === LeftPaneMode.SetGroupMetadata;
+
   return (
-    <div
-      className={classNames(
-        'module-left-pane',
-        isResizing && 'module-left-pane--is-resizing',
-        `module-left-pane--width-${widthBreakpoint}`
-      )}
-      style={{ width }}
-    >
-      {/* eslint-enable jsx-a11y/no-static-element-interactions */}
-      <div className="module-left-pane__header">
-        {helper.getHeaderContents({
-          i18n,
-          showInbox,
-          startComposing,
-          showChooseGroupMembers,
-        }) || renderMainHeader()}
-      </div>
-      {helper.getSearchInput({
-        clearConversationSearch,
-        clearSearch,
-        i18n,
-        onChangeComposeSearchTerm: event => {
-          setComposeSearchTerm(event.target.value);
-        },
-        updateSearchTerm,
-      })}
-      <div className="module-left-pane__dialogs">
-        {renderExpiredBuildDialog({
-          containerWidthBreakpoint: widthBreakpoint,
-        })}
-        {renderRelinkDialog({ containerWidthBreakpoint: widthBreakpoint })}
-        {renderNetworkStatus({ containerWidthBreakpoint: widthBreakpoint })}
-        {renderUpdateDialog({ containerWidthBreakpoint: widthBreakpoint })}
-      </div>
-      {preRowsNode && <React.Fragment key={0}>{preRowsNode}</React.Fragment>}
-      <Measure bounds>
-        {({ contentRect, measureRef }: MeasuredComponentProps) => (
-          <div className="module-left-pane__list--measure" ref={measureRef}>
-            <div className="module-left-pane__list--wrapper">
-              <div
-                aria-live="polite"
-                className="module-left-pane__list"
-                key={listKey}
-                role="presentation"
-                tabIndex={-1}
-              >
-                <ConversationList
-                  dimensions={{
-                    width,
-                    height: contentRect.bounds?.height || 0,
-                  }}
-                  getPreferredBadge={getPreferredBadge}
-                  getRow={getRow}
-                  i18n={i18n}
-                  onClickArchiveButton={showArchivedConversations}
-                  onClickContactCheckbox={(
-                    conversationId: string,
-                    disabledReason: undefined | ContactCheckboxDisabledReason
-                  ) => {
-                    switch (disabledReason) {
-                      case undefined:
-                        toggleConversationInChooseMembers(conversationId);
-                        break;
-                      case ContactCheckboxDisabledReason.AlreadyAdded:
-                      case ContactCheckboxDisabledReason.MaximumContactsSelected:
-                        // These are no-ops.
-                        break;
-                      default:
-                        throw missingCaseError(disabledReason);
-                    }
-                  }}
-                  showUserNotFoundModal={showUserNotFoundModal}
-                  setIsFetchingUUID={setIsFetchingUUID}
-                  lookupConversationWithoutUuid={lookupConversationWithoutUuid}
-                  showConversation={showConversation}
-                  onSelectConversation={onSelectConversation}
-                  renderMessageSearchResult={renderMessageSearchResult}
-                  rowCount={helper.getRowCount()}
-                  scrollBehavior={scrollBehavior}
-                  scrollToRowIndex={rowIndexToScrollTo}
-                  scrollable={isScrollable}
-                  shouldRecomputeRowHeights={shouldRecomputeRowHeights}
-                  showChooseGroupMembers={showChooseGroupMembers}
-                  theme={theme}
+    <NavSidebar
+      title={i18n('icu:LeftPane--chats')}
+      hideHeader={hideHeader}
+      i18n={i18n}
+      otherTabsUnreadStats={otherTabsUnreadStats}
+      hasFailedStorySends={hasFailedStorySends}
+      hasPendingUpdate={hasPendingUpdate}
+      navTabsCollapsed={navTabsCollapsed}
+      onToggleNavTabsCollapse={toggleNavTabsCollapse}
+      preferredLeftPaneWidth={preferredWidthFromStorage}
+      requiresFullWidth={helper.requiresFullWidth()}
+      savePreferredLeftPaneWidth={savePreferredLeftPaneWidth}
+      renderToastManager={renderToastManager}
+      actions={
+        <>
+          <NavSidebarActionButton
+            label={i18n('icu:newConversation')}
+            icon={<span className="module-left-pane__startComposingIcon" />}
+            onClick={startComposing}
+          />
+          <ContextMenu
+            i18n={i18n}
+            menuOptions={[
+              {
+                label: i18n('icu:avatarMenuViewArchive'),
+                onClick: showArchivedConversations,
+              },
+            ]}
+            popperOptions={{
+              placement: 'bottom',
+              strategy: 'absolute',
+            }}
+            portalToRoot
+          >
+            {({ onClick, onKeyDown, ref }) => {
+              return (
+                <NavSidebarActionButton
+                  ref={ref}
+                  onClick={onClick}
+                  onKeyDown={onKeyDown}
+                  icon={<span className="module-left-pane__moreActionsIcon" />}
+                  label="More Actions"
                 />
-              </div>
+              );
+            }}
+          </ContextMenu>
+        </>
+      }
+    >
+      {backgroundNode}
+      <nav
+        className={classNames(
+          'module-left-pane',
+          modeSpecificProps.mode === LeftPaneMode.ChooseGroupMembers &&
+            'module-left-pane--mode-choose-group-members',
+          modeSpecificProps.mode === LeftPaneMode.Compose &&
+            'module-left-pane--mode-compose'
+        )}
+      >
+        <div className="module-left-pane__header">
+          {helper.getHeaderContents({
+            i18n,
+            showInbox,
+            startComposing,
+            showChooseGroupMembers,
+          })}
+        </div>
+        {(widthBreakpoint === WidthBreakpoint.Wide ||
+          modeSpecificProps.mode !== LeftPaneMode.Inbox) && (
+          <NavSidebarSearchHeader>
+            {helper.getSearchInput({
+              clearConversationSearch,
+              clearSearch,
+              endConversationSearch,
+              endSearch,
+              i18n,
+              onChangeComposeSearchTerm: event => {
+                setComposeSearchTerm(event.target.value);
+              },
+              updateSearchTerm,
+              onChangeComposeSelectedRegion: setComposeSelectedRegion,
+              showConversation,
+              lookupConversationWithoutServiceId,
+              showUserNotFoundModal,
+              setIsFetchingUUID,
+              showInbox,
+            })}
+          </NavSidebarSearchHeader>
+        )}
+        <div className="module-left-pane__dialogs">
+          {!hideHeader &&
+            dialogs.map(({ key, dialog }) => (
+              <React.Fragment key={key}>{dialog}</React.Fragment>
+            ))}
+        </div>
+        {preRowsNode && <React.Fragment key={0}>{preRowsNode}</React.Fragment>}
+        <div className="module-left-pane__list--measure" ref={measureRef}>
+          <div className="module-left-pane__list--wrapper">
+            <div
+              aria-live="polite"
+              className="module-left-pane__list"
+              data-supertab
+              key={listKey}
+              role="presentation"
+              tabIndex={-1}
+            >
+              <ConversationList
+                dimensions={measureSize ?? undefined}
+                getPreferredBadge={getPreferredBadge}
+                getRow={getRow}
+                i18n={i18n}
+                onClickArchiveButton={showArchivedConversations}
+                onClickContactCheckbox={(
+                  conversationId: string,
+                  disabledReason: undefined | ContactCheckboxDisabledReason
+                ) => {
+                  switch (disabledReason) {
+                    case undefined:
+                      toggleConversationInChooseMembers(conversationId);
+                      break;
+                    case ContactCheckboxDisabledReason.AlreadyAdded:
+                    case ContactCheckboxDisabledReason.MaximumContactsSelected:
+                      // These are no-ops.
+                      break;
+                    default:
+                      throw missingCaseError(disabledReason);
+                  }
+                }}
+                showUserNotFoundModal={showUserNotFoundModal}
+                setIsFetchingUUID={setIsFetchingUUID}
+                lookupConversationWithoutServiceId={
+                  lookupConversationWithoutServiceId
+                }
+                showConversation={showConversation}
+                blockConversation={blockConversation}
+                onPreloadConversation={preloadConversation}
+                onSelectConversation={onSelectConversation}
+                onOutgoingAudioCallInConversation={
+                  onOutgoingAudioCallInConversation
+                }
+                onOutgoingVideoCallInConversation={
+                  onOutgoingVideoCallInConversation
+                }
+                removeConversation={removeConversation}
+                renderMessageSearchResult={renderMessageSearchResult}
+                rowCount={helper.getRowCount()}
+                scrollBehavior={scrollBehavior}
+                scrollToRowIndex={rowIndexToScrollTo}
+                scrollable={isScrollable}
+                shouldRecomputeRowHeights={shouldRecomputeRowHeights}
+                showChooseGroupMembers={showChooseGroupMembers}
+                showFindByUsername={showFindByUsername}
+                showFindByPhoneNumber={showFindByPhoneNumber}
+                theme={theme}
+              />
             </div>
           </div>
+        </div>
+        {footerContents && (
+          <div className="module-left-pane__footer">{footerContents}</div>
         )}
-      </Measure>
-      {footerContents && (
-        <div className="module-left-pane__footer">{footerContents}</div>
-      )}
-      <>
-        {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-        <div
-          className="module-left-pane__resize-grab-area"
-          onMouseDown={() => {
-            setIsResizing(true);
-          }}
-        />
-      </>
-      {challengeStatus !== 'idle' &&
-        renderCaptchaDialog({
-          onSkip() {
-            setChallengeStatus('idle');
-          },
-        })}
-      {crashReportCount > 0 && renderCrashReportDialog()}
-    </div>
+
+        {challengeStatus !== 'idle' &&
+          renderCaptchaDialog({
+            onSkip() {
+              setChallengeStatus('idle');
+            },
+          })}
+        {crashReportCount > 0 && renderCrashReportDialog()}
+      </nav>
+    </NavSidebar>
   );
-};
+}
 
 function keyboardKeyToNumericIndex(key: string): undefined | number {
   if (key.length !== 1) {

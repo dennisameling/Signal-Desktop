@@ -1,4 +1,4 @@
-<!-- Copyright 2014-2021 Signal Messenger, LLC -->
+<!-- Copyright 2014 Signal Messenger, LLC -->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 <html>
@@ -11,138 +11,10 @@
   <body>
     <div id="mocha"></div>
     <div id="tests"></div>
-
-    <script type="text/x-tmpl-mustache" id="app-loading-screen">
-      <div class='module-title-bar-drag-area'></div>
-
-      <div class='content'>
-        <div class="module-splash-screen__logo module-img--150"></div>
-        <div class='container'>
-          <span class='dot'></span>
-          <span class='dot'></span>
-          <span class='dot'></span>
-        </div>
-        <div class='message'>{{ message }}</div>
-      </div>
-    </script>
-
-    <script type="text/x-tmpl-mustache" id="two-column">
-      <div class='module-title-bar-drag-area'></div>
-
-      <div class='left-pane-placeholder'></div>
-
-      <div class='conversation-stack'>
-        <div class='no-conversation-open'>
-          <div class="module-splash-screen__logo module-img--128 module-logo-blue"></div>
-          <h3>{{ welcomeToSignal }}</h3>
-          <p class="whats-new-placeholder"></p>
-          <p>{{ selectAContact }}</p>
-        </div>
-        <div id="toast"></div>
-      </div>
-
-      <div class='lightbox-container'></div>
-    </script>
-
-    <script type="text/x-tmpl-mustache" id="conversation">
-      <div id="ConversationView__template"></div>
-    </script>
-
-    <script type="text/x-tmpl-mustache" id="recorder">
-      <button class='finish'><span class='icon'></span></button>
-      <span class='time'>0:00</span>
-      <button class='close'><span class='icon'></span></button>
-    </script>
-
-    <script type="text/x-tmpl-mustache" id="file-size-modal">
-      {{ file-size-warning }}
-      ({{ limit }}{{ units }})
-    </script>
-
-    <script type="text/x-tmpl-mustache" id="group-member-list">
-      <div class='container'>
-        {{ #summary }} <div class='summary'>{{ summary }}</div>{{ /summary }}
-      </div>
-    </script>
-
-    <script type="text/javascript" src="../js/components.js"></script>
-    <script type="text/javascript" src="../ts/backboneJquery.js"></script>
-    <script
-      type="text/javascript"
-      src="../js/reliable_trigger.js"
-      data-cover
-    ></script>
     <script
       type="text/javascript"
       src="../node_modules/mocha/mocha.js"
     ></script>
-    <script type="text/javascript">
-      mocha.setup('bdd');
-    </script>
     <script type="text/javascript" src="test.js"></script>
-
-    <script type="text/javascript" src="../js/database.js" data-cover></script>
-
-    <script
-      type="text/javascript"
-      src="../libtextsecure/protocol_wrapper.js"
-    ></script>
-
-    <script type="text/javascript" src="../js/libphonenumber-util.js"></script>
-    <script
-      type="text/javascript"
-      src="../js/expiring_messages.js"
-      data-cover
-    ></script>
-    <script
-      type="text/javascript"
-      src="../js/expiring_tap_to_view_messages.js"
-      data-cover
-    ></script>
-
-    <script
-      type="text/javascript"
-      src="../js/views/react_wrapper_view.js"
-    ></script>
-
-    <script type="text/javascript" src="views/whisper_view_test.js"></script>
-
-    <script type="text/javascript" src="libphonenumber_util_test.js"></script>
-    <script type="text/javascript" src="reliable_trigger_test.js"></script>
-    <script type="text/javascript" src="database_test.js"></script>
-    <script type="text/javascript" src="i18n_test.js"></script>
-    <script type="text/javascript" src="stickers_test.js"></script>
-
-    <script type="text/javascript">
-      window.Signal.conversationControllerStart();
-
-      window.test.prepareTests();
-      delete window.test.prepareTests;
-
-      !(function () {
-        const passed = [];
-        const failed = [];
-
-        class Reporter extends Mocha.reporters.HTML {
-          constructor(runner, options) {
-            super(runner, options);
-
-            runner.on('pass', test => passed.push(test.fullTitle()));
-            runner.on('fail', (test, error) => {
-              failed.push({
-                testName: test.fullTitle(),
-                error: error?.stack || String(error),
-              });
-            });
-
-            runner.on('end', () => window.test.onComplete({ passed, failed }));
-          }
-        }
-
-        mocha.reporter(Reporter);
-
-        mocha.run();
-      })();
-    </script>
   </body>
 </html>

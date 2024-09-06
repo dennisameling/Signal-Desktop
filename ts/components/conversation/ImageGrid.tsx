@@ -1,10 +1,13 @@
-// Copyright 2018-2020 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
 import classNames from 'classnames';
 
-import type { AttachmentType } from '../../types/Attachment';
+import type {
+  AttachmentForUIType,
+  AttachmentType,
+} from '../../types/Attachment';
 import {
   areAllAttachmentsVisual,
   getAlt,
@@ -14,18 +17,23 @@ import {
   isVideoAttachment,
 } from '../../types/Attachment';
 
-import { Image } from './Image';
+import { Image, CurveType } from './Image';
 
 import type { LocalizerType, ThemeType } from '../../types/Util';
 
+export type DirectionType = 'incoming' | 'outgoing';
+
 export type Props = {
-  attachments: Array<AttachmentType>;
-  withContentAbove?: boolean;
-  withContentBelow?: boolean;
+  attachments: ReadonlyArray<AttachmentForUIType>;
   bottomOverlay?: boolean;
+  direction: DirectionType;
   isSticker?: boolean;
+  shouldCollapseAbove?: boolean;
+  shouldCollapseBelow?: boolean;
   stickerSize?: number;
   tabIndex?: number;
+  withContentAbove?: boolean;
+  withContentBelow?: boolean;
 
   i18n: LocalizerType;
   theme?: ThemeType;
@@ -36,27 +44,88 @@ export type Props = {
 
 const GAP = 1;
 
-export const ImageGrid = ({
+function getCurves({
+  direction,
+  shouldCollapseAbove,
+  shouldCollapseBelow,
+  withContentAbove,
+  withContentBelow,
+}: {
+  direction: DirectionType;
+  shouldCollapseAbove?: boolean;
+  shouldCollapseBelow?: boolean;
+  withContentAbove?: boolean;
+  withContentBelow?: boolean;
+}): {
+  curveTopLeft: CurveType;
+  curveTopRight: CurveType;
+  curveBottomLeft: CurveType;
+  curveBottomRight: CurveType;
+} {
+  let curveTopLeft = CurveType.None;
+  let curveTopRight = CurveType.None;
+  let curveBottomLeft = CurveType.None;
+  let curveBottomRight = CurveType.None;
+
+  if (shouldCollapseAbove && direction === 'incoming') {
+    curveTopLeft = CurveType.Tiny;
+    curveTopRight = CurveType.Normal;
+  } else if (shouldCollapseAbove && direction === 'outgoing') {
+    curveTopLeft = CurveType.Normal;
+    curveTopRight = CurveType.Tiny;
+  } else if (!withContentAbove) {
+    curveTopLeft = CurveType.Normal;
+    curveTopRight = CurveType.Normal;
+  }
+
+  if (withContentBelow) {
+    curveBottomLeft = CurveType.None;
+    curveBottomRight = CurveType.None;
+  } else if (shouldCollapseBelow && direction === 'incoming') {
+    curveBottomLeft = CurveType.Tiny;
+    curveBottomRight = CurveType.None;
+  } else if (shouldCollapseBelow && direction === 'outgoing') {
+    curveBottomLeft = CurveType.None;
+    curveBottomRight = CurveType.Tiny;
+  } else {
+    curveBottomLeft = CurveType.Normal;
+    curveBottomRight = CurveType.Normal;
+  }
+
+  return {
+    curveTopLeft,
+    curveTopRight,
+    curveBottomLeft,
+    curveBottomRight,
+  };
+}
+
+export function ImageGrid({
   attachments,
   bottomOverlay,
+  direction,
   i18n,
   isSticker,
   stickerSize,
   onError,
   onClick,
+  shouldCollapseAbove,
+  shouldCollapseBelow,
   tabIndex,
   theme,
   withContentAbove,
   withContentBelow,
-}: Props): JSX.Element | null => {
-  const curveTopLeft = !withContentAbove;
-  const curveTopRight = curveTopLeft;
+}: Props): JSX.Element | null {
+  const { curveTopLeft, curveTopRight, curveBottomLeft, curveBottomRight } =
+    getCurves({
+      direction,
+      shouldCollapseAbove,
+      shouldCollapseBelow,
+      withContentAbove,
+      withContentBelow,
+    });
 
-  const curveBottom = !withContentBelow;
-  const curveBottomLeft = curveBottom;
-  const curveBottomRight = curveBottom;
-
-  const withBottomOverlay = Boolean(bottomOverlay && curveBottom);
+  const withBottomOverlay = Boolean(bottomOverlay && !withContentBelow);
 
   if (!attachments || !attachments.length) {
     return null;
@@ -92,7 +161,9 @@ export const ImageGrid = ({
           playIconOverlay={isVideoAttachment(attachments[0])}
           height={height}
           width={width}
-          url={getUrl(attachments[0])}
+          url={
+            getUrl(attachments[0]) ?? attachments[0].thumbnailFromBackup?.url
+          }
           tabIndex={tabIndex}
           onClick={onClick}
           onError={onError}
@@ -375,4 +446,4 @@ export const ImageGrid = ({
       </div>
     </div>
   );
-};
+}

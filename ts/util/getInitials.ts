@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 export function getInitials(name?: string): string | undefined {
@@ -22,7 +22,7 @@ export function getInitials(name?: string): string | undefined {
     return parsedName;
   }
 
-  const parts = parsedName.toUpperCase().split(' ');
+  const parts = parsedName.split(' ');
   const partsLen = parts.length;
 
   return partsLen === 1

@@ -1,57 +1,72 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 /* eslint-disable camelcase */
 
+import { mkdirSync } from 'fs';
 import { join } from 'path';
-import mkdirp from 'mkdirp';
 import rimraf from 'rimraf';
-import type { Database, Statement } from 'better-sqlite3';
-import SQL from 'better-sqlite3';
-import pProps from 'p-props';
+import { randomBytes } from 'crypto';
+import type { Database, Statement } from '@signalapp/better-sqlite3';
+import SQL from '@signalapp/better-sqlite3';
+import { v4 as generateUuid } from 'uuid';
+import { z } from 'zod';
+import type { ReadonlyDeep } from 'type-fest';
 
 import type { Dictionary } from 'lodash';
 import {
   forEach,
   fromPairs,
   groupBy,
+  isBoolean,
   isNil,
   isNumber,
   isString,
   last,
   map,
   mapValues,
+  noop,
   omit,
+  partition,
   pick,
 } from 'lodash';
 
+import * as Errors from '../types/errors';
 import { ReadStatus } from '../messages/MessageReadStatus';
 import type { GroupV2MemberType } from '../model-types.d';
 import type { ReactionType } from '../types/Reactions';
+import { ReactionReadStatus } from '../types/Reactions';
 import { STORAGE_UI_KEYS } from '../types/StorageUIKeys';
-import { UUID } from '../types/UUID';
-import type { UUIDStringType } from '../types/UUID';
+import type { StoryDistributionIdString } from '../types/StoryDistributionId';
+import type { ServiceIdString, AciString } from '../types/ServiceId';
+import { isServiceIdString } from '../types/ServiceId';
 import type { StoredJob } from '../jobs/types';
-import { assert, assertSync } from '../util/assert';
+import { assertDev, strictAssert } from '../util/assert';
 import { combineNames } from '../util/combineNames';
 import { consoleLogger } from '../util/consoleLogger';
 import { dropNull } from '../util/dropNull';
 import { isNormalNumber } from '../util/isNormalNumber';
 import { isNotNil } from '../util/isNotNil';
-import { missingCaseError } from '../util/missingCaseError';
 import { parseIntOrThrow } from '../util/parseIntOrThrow';
 import * as durations from '../util/durations';
 import { formatCountForLogging } from '../logging/formatCountForLogging';
 import type { ConversationColorType, CustomColorType } from '../types/Colors';
-import { ProcessGroupCallRingRequestResult } from '../types/Calling';
-import { RemoveAllConfiguration } from '../types/RemoveAllConfiguration';
 import type { BadgeType, BadgeImageType } from '../badges/types';
 import { parseBadgeCategory } from '../badges/BadgeCategory';
 import { parseBadgeImageTheme } from '../badges/BadgeImageTheme';
 import type { LoggerType } from '../types/Logging';
-import * as log from '../logging/log';
-import type { EmptyQuery, ArrayQuery, Query, JSONRows } from './util';
+import type {
+  EmptyQuery,
+  ArrayQuery,
+  Query,
+  JSONRows,
+  QueryFragment,
+} from './util';
 import {
+  sqlConstant,
+  sqlJoin,
+  sqlFragment,
+  sql,
   jsonToObject,
   objectToJSON,
   batchMultiVarQuery,
@@ -62,7 +77,6 @@ import {
   getById,
   bulkAdd,
   createOrUpdate,
-  TableIterator,
   setUserVersion,
   getUserVersion,
   getSchemaVersion,
@@ -70,22 +84,37 @@ import {
 import { updateSchema } from './migrations';
 
 import type {
-  AllItemsType,
-  AttachmentDownloadJobType,
+  ReadableDB,
+  WritableDB,
+  AdjacentMessagesByConversationOptionsType,
+  StoredAllItemsType,
   ConversationMetricsType,
   ConversationType,
   DeleteSentProtoRecipientOptionsType,
+  DeleteSentProtoRecipientResultType,
+  EditedMessageType,
   EmojiType,
+  GetAllStoriesResultType,
+  GetConversationRangeCenteredOnMessageResultType,
+  GetKnownMessageAttachmentsResultType,
+  GetRecentStoryRepliesOptionsType,
+  GetUnreadByConversationAndMarkReadResultType,
   IdentityKeyIdType,
-  IdentityKeyType,
+  StoredIdentityKeyType,
+  InstalledStickerPackType,
   ItemKeyType,
-  ItemType,
+  StoredItemType,
   ConversationMessageStatsType,
+  MessageAttachmentsCursorType,
+  MessageCursorType,
   MessageMetricsType,
   MessageType,
   MessageTypeUnhydrated,
+  PageMessagesCursorType,
+  PageMessagesResultType,
   PreKeyIdType,
-  PreKeyType,
+  ReactionResultType,
+  StoredPreKeyType,
   ServerSearchResultMessageType,
   SenderKeyIdType,
   SenderKeyType,
@@ -95,11 +124,13 @@ import type {
   SentProtoWithMessageIdsType,
   SentRecipientsDBType,
   SentRecipientsType,
-  ServerInterface,
+  ServerReadableInterface,
+  ServerWritableInterface,
   SessionIdType,
   SessionType,
   SignedPreKeyIdType,
-  SignedPreKeyType,
+  StoredSignedPreKeyType,
+  StickerPackInfoType,
   StickerPackStatusType,
   StickerPackType,
   StickerType,
@@ -107,13 +138,78 @@ import type {
   StoryDistributionType,
   StoryDistributionWithMembersType,
   StoryReadType,
+  UninstalledStickerPackType,
   UnprocessedType,
   UnprocessedUpdateType,
+  GetNearbyMessageFromDeletedSetOptionsType,
+  StoredKyberPreKeyType,
+  BackupCdnMediaObjectType,
 } from './Interface';
+import { AttachmentDownloadSource } from './Interface';
+import { SeenStatus } from '../MessageSeenStatus';
+import {
+  SNIPPET_LEFT_PLACEHOLDER,
+  SNIPPET_RIGHT_PLACEHOLDER,
+  SNIPPET_TRUNCATION_PLACEHOLDER,
+} from '../util/search';
+import type {
+  CallHistoryDetails,
+  CallHistoryFilter,
+  CallHistoryGroup,
+  CallHistoryPagination,
+  CallLogEventTarget,
+} from '../types/CallDisposition';
+import {
+  DirectCallStatus,
+  callHistoryGroupSchema,
+  CallHistoryFilterStatus,
+  callHistoryDetailsSchema,
+  CallDirection,
+  GroupCallStatus,
+  CallType,
+  CallStatusValue,
+  CallMode,
+} from '../types/CallDisposition';
+import {
+  callLinkExists,
+  getAllCallLinks,
+  getCallLinkByRoomId,
+  getCallLinkRecordByRoomId,
+  insertCallLink,
+  updateCallLink,
+  updateCallLinkAdminKeyByRoomId,
+  updateCallLinkState,
+  beginDeleteAllCallLinks,
+  getAllCallLinkRecordsWithAdminKey,
+  getAllMarkedDeletedCallLinks,
+  finalizeDeleteCallLink,
+  beginDeleteCallLink,
+  deleteCallLinkFromSync,
+  _removeAllCallLinks,
+} from './server/callLinks';
+import {
+  replaceAllEndorsementsForGroup,
+  deleteAllEndorsementsForGroup,
+  getGroupSendCombinedEndorsementExpiration,
+} from './server/groupEndorsements';
+import {
+  attachmentDownloadJobSchema,
+  type AttachmentDownloadJobType,
+} from '../types/AttachmentDownload';
+import { MAX_SYNC_TASK_ATTEMPTS } from '../util/syncTasks.types';
+import type { SyncTaskType } from '../util/syncTasks';
+import { isMoreRecentThan } from '../util/timestamp';
+import {
+  type AttachmentBackupJobType,
+  attachmentBackupJobSchema,
+} from '../types/AttachmentBackup';
+import { redactGenericText } from '../util/privacy';
+import { getAttachmentCiphertextLength } from '../AttachmentCrypto';
 
 type ConversationRow = Readonly<{
   json: string;
   profileLastFetchedAt: null | number;
+  expireTimerVersion: number;
 }>;
 type ConversationRows = Array<ConversationRow>;
 type StickerRow = Readonly<{
@@ -125,105 +221,64 @@ type StickerRow = Readonly<{
   lastUsed: number;
   path: string;
   width: number;
+  version: 1 | 2;
+  localKey: string | null;
+  size: number | null;
 }>;
 
 // Because we can't force this module to conform to an interface, we narrow our exports
 //   to this one default export, which does conform to the interface.
 // Note: In Javascript, you need to access the .default property when requiring it
 // https://github.com/microsoft/TypeScript/issues/420
-const dataInterface: ServerInterface = {
-  close,
-  removeDB,
-  removeIndexedDBFiles,
+export const DataReader: ServerReadableInterface = {
+  close: closeReadable,
 
-  createOrUpdateIdentityKey,
   getIdentityKeyById,
-  bulkAddIdentityKeys,
-  removeIdentityKeyById,
-  removeAllIdentityKeys,
   getAllIdentityKeys,
 
-  createOrUpdatePreKey,
+  getKyberPreKeyById,
+  getAllKyberPreKeys,
+
   getPreKeyById,
-  bulkAddPreKeys,
-  removePreKeyById,
-  removeAllPreKeys,
   getAllPreKeys,
 
-  createOrUpdateSignedPreKey,
   getSignedPreKeyById,
-  bulkAddSignedPreKeys,
-  removeSignedPreKeyById,
-  removeAllSignedPreKeys,
   getAllSignedPreKeys,
 
-  createOrUpdateItem,
   getItemById,
-  removeItemById,
-  removeAllItems,
   getAllItems,
 
-  createOrUpdateSenderKey,
   getSenderKeyById,
-  removeAllSenderKeys,
   getAllSenderKeys,
-  removeSenderKeyById,
 
-  insertSentProto,
-  deleteSentProtosOlderThan,
-  deleteSentProtoByMessageId,
-  insertProtoRecipients,
-  deleteSentProtoRecipient,
-  getSentProtoByRecipient,
-  removeAllSentProtos,
   getAllSentProtos,
   _getAllSentProtoRecipients,
   _getAllSentProtoMessageIds,
 
-  createOrUpdateSession,
-  createOrUpdateSessions,
-  commitDecryptResult,
-  bulkAddSessions,
-  removeSessionById,
-  removeSessionsByConversation,
-  removeAllSessions,
   getAllSessions,
 
-  eraseStorageServiceStateFromConversations,
   getConversationCount,
-  saveConversation,
-  saveConversations,
   getConversationById,
-  updateConversation,
-  updateConversations,
-  removeConversation,
-  updateAllConversationColors,
 
   getAllConversations,
   getAllConversationIds,
-  getAllGroupsInvolvingUuid,
+  getAllGroupsInvolvingServiceId,
+
+  getGroupSendCombinedEndorsementExpiration,
 
   searchMessages,
-  searchMessagesInConversation,
 
   getMessageCount,
   getStoryCount,
-  saveMessage,
-  saveMessages,
-  removeMessage,
-  removeMessages,
-  getUnreadByConversationAndMarkRead,
-  getUnreadReactionsAndMarkRead,
-  markReactionAsRead,
-  addReaction,
-  removeReactionFromConversation,
+  getRecentStoryReplies,
+  countStoryReadsByConversation,
+  getReactionByTimestamp,
   _getAllReactions,
-  _removeAllReactions,
   getMessageBySender,
   getMessageById,
   getMessagesById,
   _getAllMessages,
-  _removeAllMessages,
+  _getAllEditedMessages,
   getAllMessageIds,
   getMessagesBySentAt,
   getExpiredMessages,
@@ -232,128 +287,287 @@ const dataInterface: ServerInterface = {
   getNextTapToViewMessageTimestampToAgeOut,
   getTapToViewMessagesNeedingErase,
   getOlderMessagesByConversation,
-  getOlderStories,
+  getAllStories,
   getNewerMessagesByConversation,
+  getOldestUnreadMentionOfMeForConversation,
   getTotalUnreadForConversation,
+  getTotalUnreadMentionsOfMeForConversation,
   getMessageMetricsForConversation,
   getConversationRangeCenteredOnMessage,
   getConversationMessageStats,
   getLastConversationMessage,
+  getAllCallHistory,
+  getCallHistoryUnreadCount,
+  getCallHistoryMessageByCallId,
+  getCallHistory,
+  getCallHistoryGroupsCount,
+  getCallHistoryGroups,
   hasGroupCallHistoryMessage,
-  migrateConversationMessages,
 
+  callLinkExists,
+  getAllCallLinks,
+  getCallLinkByRoomId,
+  getCallLinkRecordByRoomId,
+  getAllCallLinkRecordsWithAdminKey,
+  getAllMarkedDeletedCallLinks,
+  getMessagesBetween,
+  getNearbyMessageFromDeletedSet,
+  getMostRecentAddressableMessages,
+  getMostRecentAddressableNondisappearingMessages,
   getUnprocessedCount,
-  getAllUnprocessed,
-  updateUnprocessedWithData,
-  updateUnprocessedsWithData,
   getUnprocessedById,
-  removeUnprocessed,
-  removeAllUnprocessed,
+  getAttachmentDownloadJob,
 
-  getNextAttachmentDownloadJobs,
-  saveAttachmentDownloadJob,
-  resetAttachmentDownloadPending,
-  setAttachmentDownloadJobPending,
-  removeAttachmentDownloadJob,
-  removeAllAttachmentDownloadJobs,
-
-  createOrUpdateStickerPack,
-  updateStickerPackStatus,
-  createOrUpdateSticker,
-  updateStickerLastUsed,
-  addStickerPackReference,
-  deleteStickerPackReference,
   getStickerCount,
-  deleteStickerPack,
   getAllStickerPacks,
+  getInstalledStickerPacks,
+  getUninstalledStickerPacks,
+  getStickerPackInfo,
   getAllStickers,
   getRecentStickers,
-  clearAllErrorStickerPackAttempts,
-
-  updateEmojiUsage,
   getRecentEmojis,
 
   getAllBadges,
-  updateOrCreateBadges,
-  badgeImageFileDownloaded,
-
-  _getAllStoryDistributions,
-  _getAllStoryDistributionMembers,
-  _deleteAllStoryDistributions,
-  createNewStoryDistribution,
+  getAllBadgeImageFileLocalPaths,
   getAllStoryDistributionsWithMembers,
   getStoryDistributionWithMembers,
-  modifyStoryDistribution,
-  modifyStoryDistributionMembers,
-  deleteStoryDistribution,
-
+  _getAllStoryDistributions,
+  _getAllStoryDistributionMembers,
   _getAllStoryReads,
-  _deleteAllStoryReads,
-  addNewStoryRead,
   getLastStoryReadsForAuthor,
-  countStoryReadsByConversation,
-
-  removeAll,
-  removeAllConfiguration,
-
   getMessagesNeedingUpgrade,
   getMessagesWithVisualMediaAttachments,
   getMessagesWithFileAttachments,
   getMessageServerGuidsForSpam,
 
   getJobsInQueue,
-  insertJob,
-  deleteJob,
-
-  processGroupCallRingRequest,
-  processGroupCallRingCancelation,
-  cleanExpiredGroupCallRings,
-
+  wasGroupCallRingPreviouslyCanceled,
   getMaxMessageCounter,
 
   getStatisticsForLogging,
 
+  getBackupCdnObjectMetadata,
+  getSizeOfPendingBackupAttachmentDownloadJobs,
+
+  // Server-only
+  getKnownMessageAttachments,
+  finishGetKnownMessageAttachments,
+  pageMessages,
+  finishPageMessages,
+  getKnownDownloads,
+  getKnownConversationAttachments,
+};
+
+export const DataWriter: ServerWritableInterface = {
+  close: closeWritable,
+  removeIndexedDBFiles,
+
+  createOrUpdateIdentityKey,
+  bulkAddIdentityKeys,
+  removeIdentityKeyById,
+  removeAllIdentityKeys,
+
+  createOrUpdateKyberPreKey,
+  bulkAddKyberPreKeys,
+  removeKyberPreKeyById,
+  removeKyberPreKeysByServiceId,
+  removeAllKyberPreKeys,
+
+  createOrUpdatePreKey,
+  bulkAddPreKeys,
+  removePreKeyById,
+  removePreKeysByServiceId,
+  removeAllPreKeys,
+
+  createOrUpdateSignedPreKey,
+  bulkAddSignedPreKeys,
+  removeSignedPreKeyById,
+  removeSignedPreKeysByServiceId,
+  removeAllSignedPreKeys,
+
+  createOrUpdateItem,
+  removeItemById,
+  removeAllItems,
+
+  createOrUpdateSenderKey,
+  removeAllSenderKeys,
+  removeSenderKeyById,
+
+  insertSentProto,
+  deleteSentProtosOlderThan,
+  deleteSentProtoByMessageId,
+  insertProtoRecipients,
+  deleteSentProtoRecipient,
+  removeAllSentProtos,
+  getSentProtoByRecipient,
+
+  createOrUpdateSession,
+  createOrUpdateSessions,
+  commitDecryptResult,
+  bulkAddSessions,
+  removeSessionById,
+  removeSessionsByConversation,
+  removeSessionsByServiceId,
+  removeAllSessions,
+
+  saveConversation,
+  saveConversations,
+  updateConversation,
+  updateConversations,
+  removeConversation,
+  _removeAllConversations,
+  updateAllConversationColors,
+  removeAllProfileKeyCredentials,
+  getUnreadByConversationAndMarkRead,
+  getUnreadReactionsAndMarkRead,
+
+  replaceAllEndorsementsForGroup,
+  deleteAllEndorsementsForGroup,
+
+  saveMessage,
+  saveMessages,
+  removeMessage,
+  removeMessages,
+  markReactionAsRead,
+  addReaction,
+  removeReactionFromConversation,
+  _removeAllReactions,
+  _removeAllMessages,
+  getUnreadEditedMessagesAndMarkRead,
+  clearCallHistory,
+  _removeAllCallHistory,
+  markCallHistoryDeleted,
+  cleanupCallHistoryMessages,
+  markCallHistoryRead,
+  markAllCallHistoryRead,
+  markAllCallHistoryReadInConversation,
+  saveCallHistory,
+  markCallHistoryMissed,
+  insertCallLink,
+  updateCallLink,
+  updateCallLinkAdminKeyByRoomId,
+  updateCallLinkState,
+  beginDeleteAllCallLinks,
+  beginDeleteCallLink,
+  finalizeDeleteCallLink,
+  _removeAllCallLinks,
+  deleteCallLinkFromSync,
+  migrateConversationMessages,
+  saveEditedMessage,
+  saveEditedMessages,
+  incrementMessagesMigrationAttempts,
+
+  removeSyncTaskById,
+  saveSyncTasks,
+  getAllSyncTasks,
+
+  getUnprocessedByIdsAndIncrementAttempts,
+  getAllUnprocessedIds,
+  updateUnprocessedWithData,
+  updateUnprocessedsWithData,
+  removeUnprocessed,
+  removeAllUnprocessed,
+
+  getNextAttachmentDownloadJobs,
+  saveAttachmentDownloadJob,
+  resetAttachmentDownloadActive,
+  removeAttachmentDownloadJob,
+  removeAllBackupAttachmentDownloadJobs,
+
+  getNextAttachmentBackupJobs,
+  saveAttachmentBackupJob,
+  markAllAttachmentBackupJobsInactive,
+  removeAttachmentBackupJob,
+  clearAllAttachmentBackupJobs,
+
+  clearAllBackupCdnObjectMetadata,
+  saveBackupCdnObjectMetadata,
+
+  createOrUpdateStickerPack,
+  updateStickerPackStatus,
+  updateStickerPackInfo,
+  createOrUpdateSticker,
+  createOrUpdateStickers,
+  updateStickerLastUsed,
+  addStickerPackReference,
+  deleteStickerPackReference,
+  deleteStickerPack,
+  addUninstalledStickerPack,
+  removeUninstalledStickerPack,
+  installStickerPack,
+  uninstallStickerPack,
+  clearAllErrorStickerPackAttempts,
+
+  updateEmojiUsage,
+  updateOrCreateBadges,
+  badgeImageFileDownloaded,
+
+  getRecentStaleRingsAndMarkOlderMissed,
+
+  _deleteAllStoryDistributions,
+  createNewStoryDistribution,
+  modifyStoryDistribution,
+  modifyStoryDistributionMembers,
+  modifyStoryDistributionWithMembers,
+  deleteStoryDistribution,
+
+  _deleteAllStoryReads,
+  addNewStoryRead,
+
+  removeAll,
+  removeAllConfiguration,
+  eraseStorageServiceState,
+
+  insertJob,
+  deleteJob,
+
+  processGroupCallRingCancellation,
+  cleanExpiredGroupCallRingCancellations,
+
   // Server-only
 
-  getCorruptionLog,
-  initialize,
-  initializeRenderer,
-
-  removeKnownAttachments,
   removeKnownStickers,
   removeKnownDraftAttachments,
-  getAllBadgeImageFileLocalPaths,
+  runCorruptionChecks,
 };
-export default dataInterface;
 
 type DatabaseQueryCache = Map<string, Statement<Array<unknown>>>;
 
 const statementCache = new WeakMap<Database, DatabaseQueryCache>();
 
-function prepare<T>(db: Database, query: string): Statement<T> {
+export function prepare<T extends Array<unknown> | Record<string, unknown>>(
+  db: ReadableDB,
+  query: string,
+  { pluck = false }: { pluck?: boolean } = {}
+): Statement<T> {
   let dbCache = statementCache.get(db);
   if (!dbCache) {
     dbCache = new Map();
     statementCache.set(db, dbCache);
   }
 
-  let result = dbCache.get(query) as Statement<T>;
+  const cacheKey = `${pluck}:${query}`;
+  let result = dbCache.get(cacheKey) as Statement<T>;
   if (!result) {
     result = db.prepare<T>(query);
-    dbCache.set(query, result);
+    if (pluck === true) {
+      result.pluck();
+    }
+    dbCache.set(cacheKey, result);
   }
 
   return result;
 }
 
 function rowToConversation(row: ConversationRow): ConversationType {
+  const { expireTimerVersion } = row;
   const parsedJson = JSON.parse(row.json);
 
   let profileLastFetchedAt: undefined | number;
   if (isNormalNumber(row.profileLastFetchedAt)) {
     profileLastFetchedAt = row.profileLastFetchedAt;
   } else {
-    assert(
+    assertDev(
       isNil(row.profileLastFetchedAt),
       'profileLastFetchedAt contained invalid data; defaulting to undefined'
     );
@@ -362,6 +576,7 @@ function rowToConversation(row: ConversationRow): ConversationType {
 
   return {
     ...parsedJson,
+    expireTimerVersion,
     profileLastFetchedAt,
   };
 }
@@ -370,29 +585,24 @@ function rowToSticker(row: StickerRow): StickerType {
     ...row,
     isCoverOnly: Boolean(row.isCoverOnly),
     emoji: dropNull(row.emoji),
+    version: row.version || 1,
+    localKey: dropNull(row.localKey),
+    size: dropNull(row.size),
   };
 }
 
-function isRenderer() {
-  if (typeof process === 'undefined' || !process) {
-    return true;
-  }
-
-  return process.type === 'renderer';
-}
-
-function keyDatabase(db: Database, key: string): void {
+function keyDatabase(db: WritableDB, key: string): void {
   // https://www.zetetic.net/sqlcipher/sqlcipher-api/#key
   db.pragma(`key = "x'${key}'"`);
 }
 
-function switchToWAL(db: Database): void {
+function switchToWAL(db: WritableDB): void {
   // https://sqlite.org/wal.html
   db.pragma('journal_mode = WAL');
   db.pragma('synchronous = FULL');
 }
 
-function migrateSchemaVersion(db: Database): void {
+function migrateSchemaVersion(db: WritableDB): void {
   const userVersion = getUserVersion(db);
   if (userVersion > 0) {
     return;
@@ -408,12 +618,18 @@ function migrateSchemaVersion(db: Database): void {
   setUserVersion(db, newUserVersion);
 }
 
-function openAndMigrateDatabase(filePath: string, key: string) {
-  let db: Database | undefined;
+function openAndMigrateDatabase(
+  filePath: string,
+  key: string,
+  readonly: boolean
+): WritableDB {
+  let db: WritableDB | undefined;
 
   // First, we try to open the database without any cipher changes
   try {
-    db = new SQL(filePath);
+    db = new SQL(filePath, {
+      readonly,
+    }) as WritableDB;
     keyDatabase(db, key);
     switchToWAL(db);
     migrateSchemaVersion(db);
@@ -428,72 +644,81 @@ function openAndMigrateDatabase(filePath: string, key: string) {
 
   // If that fails, we try to open the database with 3.x compatibility to extract the
   //   user_version (previously stored in schema_version, blown away by cipher_migrate).
-  db = new SQL(filePath);
-  keyDatabase(db, key);
+  db = new SQL(filePath) as WritableDB;
+  try {
+    keyDatabase(db, key);
 
-  // https://www.zetetic.net/blog/2018/11/30/sqlcipher-400-release/#compatability-sqlcipher-4-0-0
-  db.pragma('cipher_compatibility = 3');
-  migrateSchemaVersion(db);
-  db.close();
+    // https://www.zetetic.net/blog/2018/11/30/sqlcipher-400-release/#compatability-sqlcipher-4-0-0
+    db.pragma('cipher_compatibility = 3');
+    migrateSchemaVersion(db);
+    db.close();
 
-  // After migrating user_version -> schema_version, we reopen database, because we can't
-  //   migrate to the latest ciphers after we've modified the defaults.
-  db = new SQL(filePath);
-  keyDatabase(db, key);
+    // After migrating user_version -> schema_version, we reopen database, because
+    // we can't migrate to the latest ciphers after we've modified the defaults.
+    db = new SQL(filePath) as WritableDB;
+    keyDatabase(db, key);
 
-  db.pragma('cipher_migrate');
-  switchToWAL(db);
+    db.pragma('cipher_migrate');
+    switchToWAL(db);
+  } catch (error) {
+    try {
+      db.close();
+    } catch {
+      // Best effort
+    }
+    throw error;
+  }
 
   return db;
 }
 
 const INVALID_KEY = /[^0-9A-Fa-f]/;
-function openAndSetUpSQLCipher(filePath: string, { key }: { key: string }) {
+function openAndSetUpSQLCipher(
+  filePath: string,
+  { key, readonly }: { key: string; readonly: boolean }
+) {
   const match = INVALID_KEY.exec(key);
   if (match) {
     throw new Error(`setupSQLCipher: key '${key}' is not valid`);
   }
 
-  const db = openAndMigrateDatabase(filePath, key);
+  const db = openAndMigrateDatabase(filePath, key, readonly);
 
-  // Because foreign key support is not enabled by default!
-  db.pragma('foreign_keys = ON');
+  try {
+    // Because foreign key support is not enabled by default!
+    db.pragma('foreign_keys = ON');
+  } catch (error) {
+    try {
+      db.close();
+    } catch {
+      // Best effort
+    }
+    throw error;
+  }
 
   return db;
 }
 
-let globalInstance: Database | undefined;
 let logger = consoleLogger;
-let globalInstanceRenderer: Database | undefined;
 let databaseFilePath: string | undefined;
 let indexedDBPath: string | undefined;
 
-let corruptionLog = new Array<string>();
-
-SQL.setCorruptionLogger(line => {
-  logger.error(`SQL corruption: ${line}`);
-  corruptionLog.push(line);
+SQL.setLogHandler((code, value) => {
+  logger.warn(`Database log code=${code}: ${value}`);
 });
 
-function getCorruptionLog(): string {
-  const result = corruptionLog.join('\n');
-  corruptionLog = [];
-  return result;
-}
-
-async function initialize({
+export function initialize({
   configDir,
   key,
+  isPrimary,
   logger: suppliedLogger,
 }: {
+  appVersion: string;
   configDir: string;
   key: string;
+  isPrimary: boolean;
   logger: LoggerType;
-}): Promise<void> {
-  if (globalInstance) {
-    throw new Error('Cannot initialize more than once!');
-  }
-
+}): WritableDB {
   if (!isString(configDir)) {
     throw new Error('initialize: configDir is required!');
   }
@@ -506,114 +731,73 @@ async function initialize({
   indexedDBPath = join(configDir, 'IndexedDB');
 
   const dbDir = join(configDir, 'sql');
-  mkdirp.sync(dbDir);
+  mkdirSync(dbDir, { recursive: true });
 
   databaseFilePath = join(dbDir, 'db.sqlite');
 
-  let db: Database | undefined;
+  let db: WritableDB | undefined;
 
   try {
-    db = openAndSetUpSQLCipher(databaseFilePath, { key });
+    db = openAndSetUpSQLCipher(databaseFilePath, {
+      key,
+      readonly: false,
+    });
 
     // For profiling use:
     // db.pragma('cipher_profile=\'sqlcipher.log\'');
 
-    updateSchema(db, logger);
-
-    // At this point we can allow general access to the database
-    globalInstance = db;
+    // Only the first worker gets to upgrade the schema. The rest just folow.
+    if (isPrimary) {
+      updateSchema(db, logger);
+    }
 
     // test database
-    getMessageCountSync();
+    getMessageCount(db);
+
+    return db;
   } catch (error) {
     logger.error('Database startup error:', error.stack);
-    if (db) {
-      db.close();
-    }
+    db?.close();
     throw error;
   }
 }
 
-async function initializeRenderer({
-  configDir,
-  key,
-}: {
-  configDir: string;
-  key: string;
-}): Promise<void> {
-  if (!isRenderer()) {
-    throw new Error('Cannot call from main process.');
-  }
-  if (globalInstanceRenderer) {
-    throw new Error('Cannot initialize more than once!');
-  }
-  if (!isString(configDir)) {
-    throw new Error('initialize: configDir is required!');
-  }
-  if (!isString(key)) {
-    throw new Error('initialize: key is required!');
-  }
+export function setupTests(db: WritableDB): void {
+  const silentLogger = {
+    ...consoleLogger,
+    info: noop,
+  };
+  logger = silentLogger;
 
-  if (!indexedDBPath) {
-    indexedDBPath = join(configDir, 'IndexedDB');
-  }
-
-  const dbDir = join(configDir, 'sql');
-
-  if (!databaseFilePath) {
-    databaseFilePath = join(dbDir, 'db.sqlite');
-  }
-
-  let promisified: Database | undefined;
-
-  try {
-    promisified = openAndSetUpSQLCipher(databaseFilePath, { key });
-
-    // At this point we can allow general access to the database
-    globalInstanceRenderer = promisified;
-
-    // test database
-    getMessageCountSync();
-  } catch (error) {
-    log.error('Database startup error:', error.stack);
-    throw error;
-  }
+  updateSchema(db, logger);
 }
 
-async function close(): Promise<void> {
-  for (const dbRef of [globalInstanceRenderer, globalInstance]) {
-    // SQLLite documentation suggests that we run `PRAGMA optimize` right
-    // before closing the database connection.
-    dbRef?.pragma('optimize');
-
-    dbRef?.close();
-  }
-
-  globalInstance = undefined;
-  globalInstanceRenderer = undefined;
+function closeReadable(db: ReadableDB): void {
+  db.close();
 }
 
-async function removeDB(): Promise<void> {
-  if (globalInstance) {
-    try {
-      globalInstance.close();
-    } catch (error) {
-      logger.error('removeDB: Failed to close database:', error.stack);
-    }
-    globalInstance = undefined;
-  }
+function closeWritable(db: WritableDB): void {
+  // SQLLite documentation suggests that we run `PRAGMA optimize` right
+  // before closing the database connection.
+  db.pragma('optimize');
+
+  db.close();
+}
+
+export function removeDB(): void {
   if (!databaseFilePath) {
     throw new Error(
       'removeDB: Cannot erase database without a databaseFilePath!'
     );
   }
 
+  logger.warn('removeDB: Removing all database files');
   rimraf.sync(databaseFilePath);
   rimraf.sync(`${databaseFilePath}-shm`);
   rimraf.sync(`${databaseFilePath}-wal`);
 }
 
-async function removeIndexedDBFiles(): Promise<void> {
+function removeIndexedDBFiles(_db: WritableDB): void {
   if (!indexedDBPath) {
     throw new Error(
       'removeIndexedDBFiles: Need to initialize and set indexedDBPath first!'
@@ -625,91 +809,165 @@ async function removeIndexedDBFiles(): Promise<void> {
   indexedDBPath = undefined;
 }
 
-function getInstance(): Database {
-  if (isRenderer()) {
-    if (!globalInstanceRenderer) {
-      throw new Error('getInstance: globalInstanceRenderer not set!');
-    }
-    return globalInstanceRenderer;
-  }
-
-  if (!globalInstance) {
-    throw new Error('getInstance: globalInstance not set!');
-  }
-
-  return globalInstance;
+// This is okay to use for queries that:
+//
+// - Don't modify persistent tables, but create and do work in temporary
+//   tables
+// - Integrity checks
+//
+function toUnsafeWritableDB(
+  db: ReadableDB,
+  _reason: 'only temp table use' | 'integrity check'
+): WritableDB {
+  return db as unknown as WritableDB;
 }
 
 const IDENTITY_KEYS_TABLE = 'identityKeys';
-async function createOrUpdateIdentityKey(data: IdentityKeyType): Promise<void> {
-  return createOrUpdate(getInstance(), IDENTITY_KEYS_TABLE, data);
+function createOrUpdateIdentityKey(
+  db: WritableDB,
+  data: StoredIdentityKeyType
+): void {
+  return createOrUpdate(db, IDENTITY_KEYS_TABLE, data);
 }
-async function getIdentityKeyById(
+function getIdentityKeyById(
+  db: ReadableDB,
   id: IdentityKeyIdType
-): Promise<IdentityKeyType | undefined> {
-  return getById(getInstance(), IDENTITY_KEYS_TABLE, id);
+): StoredIdentityKeyType | undefined {
+  return getById(db, IDENTITY_KEYS_TABLE, id);
 }
-async function bulkAddIdentityKeys(
-  array: Array<IdentityKeyType>
-): Promise<void> {
-  return bulkAdd(getInstance(), IDENTITY_KEYS_TABLE, array);
+function bulkAddIdentityKeys(
+  db: WritableDB,
+  array: Array<StoredIdentityKeyType>
+): void {
+  return bulkAdd(db, IDENTITY_KEYS_TABLE, array);
 }
-async function removeIdentityKeyById(id: IdentityKeyIdType): Promise<void> {
-  return removeById(getInstance(), IDENTITY_KEYS_TABLE, id);
+function removeIdentityKeyById(db: WritableDB, id: IdentityKeyIdType): number {
+  return removeById(db, IDENTITY_KEYS_TABLE, id);
 }
-async function removeAllIdentityKeys(): Promise<void> {
-  return removeAllFromTable(getInstance(), IDENTITY_KEYS_TABLE);
+function removeAllIdentityKeys(db: WritableDB): number {
+  return removeAllFromTable(db, IDENTITY_KEYS_TABLE);
 }
-async function getAllIdentityKeys(): Promise<Array<IdentityKeyType>> {
-  return getAllFromTable(getInstance(), IDENTITY_KEYS_TABLE);
+function getAllIdentityKeys(db: ReadableDB): Array<StoredIdentityKeyType> {
+  return getAllFromTable(db, IDENTITY_KEYS_TABLE);
+}
+
+const KYBER_PRE_KEYS_TABLE = 'kyberPreKeys';
+function createOrUpdateKyberPreKey(
+  db: WritableDB,
+  data: StoredKyberPreKeyType
+): void {
+  return createOrUpdate(db, KYBER_PRE_KEYS_TABLE, data);
+}
+function getKyberPreKeyById(
+  db: ReadableDB,
+  id: PreKeyIdType
+): StoredKyberPreKeyType | undefined {
+  return getById(db, KYBER_PRE_KEYS_TABLE, id);
+}
+function bulkAddKyberPreKeys(
+  db: WritableDB,
+  array: Array<StoredKyberPreKeyType>
+): void {
+  return bulkAdd(db, KYBER_PRE_KEYS_TABLE, array);
+}
+function removeKyberPreKeyById(
+  db: WritableDB,
+  id: PreKeyIdType | Array<PreKeyIdType>
+): number {
+  return removeById(db, KYBER_PRE_KEYS_TABLE, id);
+}
+function removeKyberPreKeysByServiceId(
+  db: WritableDB,
+  serviceId: ServiceIdString
+): void {
+  db.prepare<Query>(
+    'DELETE FROM kyberPreKeys WHERE ourServiceId IS $serviceId;'
+  ).run({
+    serviceId,
+  });
+}
+function removeAllKyberPreKeys(db: WritableDB): number {
+  return removeAllFromTable(db, KYBER_PRE_KEYS_TABLE);
+}
+function getAllKyberPreKeys(db: ReadableDB): Array<StoredKyberPreKeyType> {
+  return getAllFromTable(db, KYBER_PRE_KEYS_TABLE);
 }
 
 const PRE_KEYS_TABLE = 'preKeys';
-async function createOrUpdatePreKey(data: PreKeyType): Promise<void> {
-  return createOrUpdate(getInstance(), PRE_KEYS_TABLE, data);
+function createOrUpdatePreKey(db: WritableDB, data: StoredPreKeyType): void {
+  return createOrUpdate(db, PRE_KEYS_TABLE, data);
 }
-async function getPreKeyById(
+function getPreKeyById(
+  db: ReadableDB,
   id: PreKeyIdType
-): Promise<PreKeyType | undefined> {
-  return getById(getInstance(), PRE_KEYS_TABLE, id);
+): StoredPreKeyType | undefined {
+  return getById(db, PRE_KEYS_TABLE, id);
 }
-async function bulkAddPreKeys(array: Array<PreKeyType>): Promise<void> {
-  return bulkAdd(getInstance(), PRE_KEYS_TABLE, array);
+function bulkAddPreKeys(db: WritableDB, array: Array<StoredPreKeyType>): void {
+  return bulkAdd(db, PRE_KEYS_TABLE, array);
 }
-async function removePreKeyById(id: PreKeyIdType): Promise<void> {
-  return removeById(getInstance(), PRE_KEYS_TABLE, id);
+function removePreKeyById(
+  db: WritableDB,
+  id: PreKeyIdType | Array<PreKeyIdType>
+): number {
+  return removeById(db, PRE_KEYS_TABLE, id);
 }
-async function removeAllPreKeys(): Promise<void> {
-  return removeAllFromTable(getInstance(), PRE_KEYS_TABLE);
+function removePreKeysByServiceId(
+  db: WritableDB,
+  serviceId: ServiceIdString
+): void {
+  db.prepare<Query>(
+    'DELETE FROM preKeys WHERE ourServiceId IS $serviceId;'
+  ).run({
+    serviceId,
+  });
 }
-async function getAllPreKeys(): Promise<Array<PreKeyType>> {
-  return getAllFromTable(getInstance(), PRE_KEYS_TABLE);
+function removeAllPreKeys(db: WritableDB): number {
+  return removeAllFromTable(db, PRE_KEYS_TABLE);
+}
+function getAllPreKeys(db: ReadableDB): Array<StoredPreKeyType> {
+  return getAllFromTable(db, PRE_KEYS_TABLE);
 }
 
 const SIGNED_PRE_KEYS_TABLE = 'signedPreKeys';
-async function createOrUpdateSignedPreKey(
-  data: SignedPreKeyType
-): Promise<void> {
-  return createOrUpdate(getInstance(), SIGNED_PRE_KEYS_TABLE, data);
+function createOrUpdateSignedPreKey(
+  db: WritableDB,
+  data: StoredSignedPreKeyType
+): void {
+  return createOrUpdate(db, SIGNED_PRE_KEYS_TABLE, data);
 }
-async function getSignedPreKeyById(
+function getSignedPreKeyById(
+  db: ReadableDB,
   id: SignedPreKeyIdType
-): Promise<SignedPreKeyType | undefined> {
-  return getById(getInstance(), SIGNED_PRE_KEYS_TABLE, id);
+): StoredSignedPreKeyType | undefined {
+  return getById(db, SIGNED_PRE_KEYS_TABLE, id);
 }
-async function bulkAddSignedPreKeys(
-  array: Array<SignedPreKeyType>
-): Promise<void> {
-  return bulkAdd(getInstance(), SIGNED_PRE_KEYS_TABLE, array);
+function bulkAddSignedPreKeys(
+  db: WritableDB,
+  array: Array<StoredSignedPreKeyType>
+): void {
+  return bulkAdd(db, SIGNED_PRE_KEYS_TABLE, array);
 }
-async function removeSignedPreKeyById(id: SignedPreKeyIdType): Promise<void> {
-  return removeById(getInstance(), SIGNED_PRE_KEYS_TABLE, id);
+function removeSignedPreKeyById(
+  db: WritableDB,
+  id: SignedPreKeyIdType | Array<SignedPreKeyIdType>
+): number {
+  return removeById(db, SIGNED_PRE_KEYS_TABLE, id);
 }
-async function removeAllSignedPreKeys(): Promise<void> {
-  return removeAllFromTable(getInstance(), SIGNED_PRE_KEYS_TABLE);
+function removeSignedPreKeysByServiceId(
+  db: WritableDB,
+  serviceId: ServiceIdString
+): void {
+  db.prepare<Query>(
+    'DELETE FROM signedPreKeys WHERE ourServiceId IS $serviceId;'
+  ).run({
+    serviceId,
+  });
 }
-async function getAllSignedPreKeys(): Promise<Array<SignedPreKeyType>> {
-  const db = getInstance();
+function removeAllSignedPreKeys(db: WritableDB): number {
+  return removeAllFromTable(db, SIGNED_PRE_KEYS_TABLE);
+}
+function getAllSignedPreKeys(db: ReadableDB): Array<StoredSignedPreKeyType> {
   const rows: JSONRows = db
     .prepare<EmptyQuery>(
       `
@@ -724,18 +982,19 @@ async function getAllSignedPreKeys(): Promise<Array<SignedPreKeyType>> {
 }
 
 const ITEMS_TABLE = 'items';
-async function createOrUpdateItem<K extends ItemKeyType>(
-  data: ItemType<K>
-): Promise<void> {
-  return createOrUpdate(getInstance(), ITEMS_TABLE, data);
+function createOrUpdateItem<K extends ItemKeyType>(
+  db: WritableDB,
+  data: StoredItemType<K>
+): void {
+  return createOrUpdate(db, ITEMS_TABLE, data);
 }
-async function getItemById<K extends ItemKeyType>(
+function getItemById<K extends ItemKeyType>(
+  db: ReadableDB,
   id: K
-): Promise<ItemType<K> | undefined> {
-  return getById(getInstance(), ITEMS_TABLE, id);
+): StoredItemType<K> | undefined {
+  return getById(db, ITEMS_TABLE, id);
 }
-async function getAllItems(): Promise<AllItemsType> {
-  const db = getInstance();
+function getAllItems(db: ReadableDB): StoredAllItemsType {
   const rows: JSONRows = db
     .prepare<EmptyQuery>('SELECT json FROM items ORDER BY id ASC;')
     .all();
@@ -750,22 +1009,19 @@ async function getAllItems(): Promise<AllItemsType> {
     result[id] = value;
   }
 
-  return result as unknown as AllItemsType;
+  return result as unknown as StoredAllItemsType;
 }
-async function removeItemById(id: ItemKeyType): Promise<void> {
-  return removeById(getInstance(), ITEMS_TABLE, id);
+function removeItemById(
+  db: WritableDB,
+  id: ItemKeyType | Array<ItemKeyType>
+): number {
+  return removeById(db, ITEMS_TABLE, id);
 }
-async function removeAllItems(): Promise<void> {
-  return removeAllFromTable(getInstance(), ITEMS_TABLE);
+function removeAllItems(db: WritableDB): number {
+  return removeAllFromTable(db, ITEMS_TABLE);
 }
 
-async function createOrUpdateSenderKey(key: SenderKeyType): Promise<void> {
-  createOrUpdateSenderKeySync(key);
-}
-
-function createOrUpdateSenderKeySync(key: SenderKeyType): void {
-  const db = getInstance();
-
+function createOrUpdateSenderKey(db: WritableDB, key: SenderKeyType): void {
   prepare(
     db,
     `
@@ -785,39 +1041,36 @@ function createOrUpdateSenderKeySync(key: SenderKeyType): void {
     `
   ).run(key);
 }
-async function getSenderKeyById(
+function getSenderKeyById(
+  db: ReadableDB,
   id: SenderKeyIdType
-): Promise<SenderKeyType | undefined> {
-  const db = getInstance();
+): SenderKeyType | undefined {
   const row = prepare(db, 'SELECT * FROM senderKeys WHERE id = $id').get({
     id,
   });
 
   return row;
 }
-async function removeAllSenderKeys(): Promise<void> {
-  const db = getInstance();
+function removeAllSenderKeys(db: WritableDB): void {
   prepare<EmptyQuery>(db, 'DELETE FROM senderKeys').run();
 }
-async function getAllSenderKeys(): Promise<Array<SenderKeyType>> {
-  const db = getInstance();
+function getAllSenderKeys(db: ReadableDB): Array<SenderKeyType> {
   const rows = prepare<EmptyQuery>(db, 'SELECT * FROM senderKeys').all();
 
   return rows;
 }
-async function removeSenderKeyById(id: SenderKeyIdType): Promise<void> {
-  const db = getInstance();
+function removeSenderKeyById(db: WritableDB, id: SenderKeyIdType): void {
   prepare(db, 'DELETE FROM senderKeys WHERE id = $id').run({ id });
 }
 
-async function insertSentProto(
+function insertSentProto(
+  db: WritableDB,
   proto: SentProtoType,
   options: {
     recipients: SentRecipientsType;
     messageIds: SentMessagesType;
   }
-): Promise<number> {
-  const db = getInstance();
+): number {
   const { recipients, messageIds } = options;
 
   // Note: we use `pluck` in this function to fetch only the first column of returned row.
@@ -830,14 +1083,22 @@ async function insertSentProto(
       INSERT INTO sendLogPayloads (
         contentHint,
         proto,
-        timestamp
+        timestamp,
+        urgent,
+        hasPniSignatureMessage
       ) VALUES (
         $contentHint,
         $proto,
-        $timestamp
+        $timestamp,
+        $urgent,
+        $hasPniSignatureMessage
       );
       `
-    ).run(proto);
+    ).run({
+      ...proto,
+      urgent: proto.urgent ? 1 : 0,
+      hasPniSignatureMessage: proto.hasPniSignatureMessage ? 1 : 0,
+    });
     const id = parseIntOrThrow(
       info.lastInsertRowid,
       'insertSentProto/lastInsertRowid'
@@ -849,24 +1110,28 @@ async function insertSentProto(
       `
       INSERT INTO sendLogRecipients (
         payloadId,
-        recipientUuid,
+        recipientServiceId,
         deviceId
       ) VALUES (
         $id,
-        $recipientUuid,
+        $recipientServiceId,
         $deviceId
       );
       `
     );
 
-    const recipientUuids = Object.keys(recipients);
-    for (const recipientUuid of recipientUuids) {
-      const deviceIds = recipients[recipientUuid];
+    const recipientServiceIds = Object.keys(recipients);
+    for (const recipientServiceId of recipientServiceIds) {
+      strictAssert(
+        isServiceIdString(recipientServiceId),
+        'Recipient must be a service id'
+      );
+      const deviceIds = recipients[recipientServiceId];
 
       for (const deviceId of deviceIds) {
         recipientStatement.run({
           id,
-          recipientUuid,
+          recipientServiceId,
           deviceId,
         });
       }
@@ -886,7 +1151,7 @@ async function insertSentProto(
       `
     );
 
-    for (const messageId of messageIds) {
+    for (const messageId of new Set(messageIds)) {
       messageStatement.run({
         id,
         messageId,
@@ -897,9 +1162,7 @@ async function insertSentProto(
   })();
 }
 
-async function deleteSentProtosOlderThan(timestamp: number): Promise<void> {
-  const db = getInstance();
-
+function deleteSentProtosOlderThan(db: WritableDB, timestamp: number): void {
   prepare(
     db,
     `
@@ -913,9 +1176,7 @@ async function deleteSentProtosOlderThan(timestamp: number): Promise<void> {
   });
 }
 
-async function deleteSentProtoByMessageId(messageId: string): Promise<void> {
-  const db = getInstance();
-
+function deleteSentProtoByMessageId(db: WritableDB, messageId: string): void {
   prepare(
     db,
     `
@@ -929,28 +1190,29 @@ async function deleteSentProtoByMessageId(messageId: string): Promise<void> {
   });
 }
 
-async function insertProtoRecipients({
-  id,
-  recipientUuid,
-  deviceIds,
-}: {
-  id: number;
-  recipientUuid: string;
-  deviceIds: Array<number>;
-}): Promise<void> {
-  const db = getInstance();
-
+function insertProtoRecipients(
+  db: WritableDB,
+  {
+    id,
+    recipientServiceId,
+    deviceIds,
+  }: {
+    id: number;
+    recipientServiceId: ServiceIdString;
+    deviceIds: Array<number>;
+  }
+): void {
   db.transaction(() => {
     const statement = prepare(
       db,
       `
       INSERT INTO sendLogRecipients (
         payloadId,
-        recipientUuid,
+        recipientServiceId,
         deviceId
       ) VALUES (
         $id,
-        $recipientUuid,
+        $recipientServiceId,
         $deviceId
       );
       `
@@ -959,42 +1221,44 @@ async function insertProtoRecipients({
     for (const deviceId of deviceIds) {
       statement.run({
         id,
-        recipientUuid,
+        recipientServiceId,
         deviceId,
       });
     }
   })();
 }
 
-async function deleteSentProtoRecipient(
+function deleteSentProtoRecipient(
+  db: WritableDB,
   options:
     | DeleteSentProtoRecipientOptionsType
     | ReadonlyArray<DeleteSentProtoRecipientOptionsType>
-): Promise<void> {
-  const db = getInstance();
-
+): DeleteSentProtoRecipientResultType {
   const items = Array.isArray(options) ? options : [options];
 
   // Note: we use `pluck` in this function to fetch only the first column of
   // returned row.
 
-  db.transaction(() => {
+  return db.transaction(() => {
+    const successfulPhoneNumberShares = new Array<ServiceIdString>();
+
     for (const item of items) {
-      const { timestamp, recipientUuid, deviceId } = item;
+      const { timestamp, recipientServiceId, deviceId } = item;
 
       // 1. Figure out what payload we're talking about.
       const rows = prepare(
         db,
         `
-        SELECT sendLogPayloads.id FROM sendLogPayloads
+        SELECT sendLogPayloads.id, sendLogPayloads.hasPniSignatureMessage
+        FROM sendLogPayloads
         INNER JOIN sendLogRecipients
           ON sendLogRecipients.payloadId = sendLogPayloads.id
         WHERE
           sendLogPayloads.timestamp = $timestamp AND
-          sendLogRecipients.recipientUuid = $recipientUuid AND
+          sendLogRecipients.recipientServiceId = $recipientServiceId AND
           sendLogRecipients.deviceId = $deviceId;
        `
-      ).all({ timestamp, recipientUuid, deviceId });
+      ).all({ timestamp, recipientServiceId, deviceId });
       if (!rows.length) {
         continue;
       }
@@ -1003,10 +1267,9 @@ async function deleteSentProtoRecipient(
           'deleteSentProtoRecipient: More than one payload matches ' +
             `recipient and timestamp ${timestamp}. Using the first.`
         );
-        continue;
       }
 
-      const { id } = rows[0];
+      const { id, hasPniSignatureMessage } = rows[0];
 
       // 2. Delete the recipient/device combination in question.
       prepare(
@@ -1015,56 +1278,84 @@ async function deleteSentProtoRecipient(
         DELETE FROM sendLogRecipients
         WHERE
           payloadId = $id AND
-          recipientUuid = $recipientUuid AND
+          recipientServiceId = $recipientServiceId AND
           deviceId = $deviceId;
         `
-      ).run({ id, recipientUuid, deviceId });
+      ).run({ id, recipientServiceId, deviceId });
 
       // 3. See how many more recipient devices there were for this payload.
-      const remaining = prepare(
+      const remainingDevices = prepare(
         db,
-        'SELECT count(*) FROM sendLogRecipients WHERE payloadId = $id;'
-      )
-        .pluck(true)
-        .get({ id });
+        `
+        SELECT count(1) FROM sendLogRecipients
+        WHERE payloadId = $id AND recipientServiceId = $recipientServiceId;
+        `,
+        { pluck: true }
+      ).get({ id, recipientServiceId });
 
-      if (!isNumber(remaining)) {
-        throw new Error(
-          'deleteSentProtoRecipient: select count() returned non-number!'
+      // 4. If there are no remaining devices for this recipient and we included
+      //    the pni signature in the proto - return the recipient to the caller.
+      if (remainingDevices === 0 && hasPniSignatureMessage) {
+        logger.info(
+          'deleteSentProtoRecipient: ' +
+            `Successfully shared phone number with ${recipientServiceId} ` +
+            `through message ${timestamp}`
         );
+        successfulPhoneNumberShares.push(recipientServiceId);
       }
 
-      if (remaining > 0) {
+      strictAssert(
+        isNumber(remainingDevices),
+        'deleteSentProtoRecipient: select count() returned non-number!'
+      );
+
+      // 5. See how many more recipients there were for this payload.
+      const remainingTotal = prepare(
+        db,
+        'SELECT count(1) FROM sendLogRecipients WHERE payloadId = $id;',
+        { pluck: true }
+      ).get({ id });
+
+      strictAssert(
+        isNumber(remainingTotal),
+        'deleteSentProtoRecipient: select count() returned non-number!'
+      );
+
+      if (remainingTotal > 0) {
         continue;
       }
 
-      // 4. Delete the entire payload if there are no more recipients left.
+      // 6. Delete the entire payload if there are no more recipients left.
       logger.info(
         'deleteSentProtoRecipient: ' +
           `Deleting proto payload for timestamp ${timestamp}`
       );
+
       prepare(db, 'DELETE FROM sendLogPayloads WHERE id = $id;').run({
         id,
       });
     }
+
+    return { successfulPhoneNumberShares };
   })();
 }
 
-async function getSentProtoByRecipient({
-  now,
-  recipientUuid,
-  timestamp,
-}: {
-  now: number;
-  recipientUuid: string;
-  timestamp: number;
-}): Promise<SentProtoWithMessageIdsType | undefined> {
-  const db = getInstance();
-
+function getSentProtoByRecipient(
+  db: WritableDB,
+  {
+    now,
+    recipientServiceId,
+    timestamp,
+  }: {
+    now: number;
+    recipientServiceId: ServiceIdString;
+    timestamp: number;
+  }
+): SentProtoWithMessageIdsType | undefined {
   const HOUR = 1000 * 60 * 60;
   const oneDayAgo = now - HOUR * 24;
 
-  await deleteSentProtosOlderThan(oneDayAgo);
+  deleteSentProtosOlderThan(db, oneDayAgo);
 
   const row = prepare(
     db,
@@ -1077,12 +1368,12 @@ async function getSentProtoByRecipient({
     LEFT JOIN sendLogMessageIds ON sendLogMessageIds.payloadId = sendLogPayloads.id
     WHERE
       sendLogPayloads.timestamp = $timestamp AND
-      sendLogRecipients.recipientUuid = $recipientUuid
+      sendLogRecipients.recipientServiceId = $recipientServiceId
     GROUP BY sendLogPayloads.id;
     `
   ).get({
     timestamp,
-    recipientUuid,
+    recipientServiceId,
   });
 
   if (!row) {
@@ -1092,23 +1383,30 @@ async function getSentProtoByRecipient({
   const { messageIds } = row;
   return {
     ...row,
+    urgent: isNumber(row.urgent) ? Boolean(row.urgent) : true,
+    hasPniSignatureMessage: isNumber(row.hasPniSignatureMessage)
+      ? Boolean(row.hasPniSignatureMessage)
+      : true,
     messageIds: messageIds ? messageIds.split(',') : [],
   };
 }
-async function removeAllSentProtos(): Promise<void> {
-  const db = getInstance();
+function removeAllSentProtos(db: WritableDB): void {
   prepare<EmptyQuery>(db, 'DELETE FROM sendLogPayloads;').run();
 }
-async function getAllSentProtos(): Promise<Array<SentProtoType>> {
-  const db = getInstance();
+function getAllSentProtos(db: ReadableDB): Array<SentProtoType> {
   const rows = prepare<EmptyQuery>(db, 'SELECT * FROM sendLogPayloads;').all();
 
-  return rows;
+  return rows.map(row => ({
+    ...row,
+    urgent: isNumber(row.urgent) ? Boolean(row.urgent) : true,
+    hasPniSignatureMessage: isNumber(row.hasPniSignatureMessage)
+      ? Boolean(row.hasPniSignatureMessage)
+      : true,
+  }));
 }
-async function _getAllSentProtoRecipients(): Promise<
-  Array<SentRecipientsDBType>
-> {
-  const db = getInstance();
+function _getAllSentProtoRecipients(
+  db: ReadableDB
+): Array<SentRecipientsDBType> {
   const rows = prepare<EmptyQuery>(
     db,
     'SELECT * FROM sendLogRecipients;'
@@ -1116,8 +1414,7 @@ async function _getAllSentProtoRecipients(): Promise<
 
   return rows;
 }
-async function _getAllSentProtoMessageIds(): Promise<Array<SentMessageDBType>> {
-  const db = getInstance();
+function _getAllSentProtoMessageIds(db: ReadableDB): Array<SentMessageDBType> {
   const rows = prepare<EmptyQuery>(
     db,
     'SELECT * FROM sendLogMessageIds;'
@@ -1127,9 +1424,8 @@ async function _getAllSentProtoMessageIds(): Promise<Array<SentMessageDBType>> {
 }
 
 const SESSIONS_TABLE = 'sessions';
-function createOrUpdateSessionSync(data: SessionType): void {
-  const db = getInstance();
-  const { id, conversationId, ourUuid, uuid } = data;
+function createOrUpdateSession(db: WritableDB, data: SessionType): void {
+  const { id, conversationId, ourServiceId, serviceId } = data;
   if (!id) {
     throw new Error(
       'createOrUpdateSession: Provided data did not have a truthy id'
@@ -1147,77 +1443,74 @@ function createOrUpdateSessionSync(data: SessionType): void {
     INSERT OR REPLACE INTO sessions (
       id,
       conversationId,
-      ourUuid,
-      uuid,
+      ourServiceId,
+      serviceId,
       json
     ) values (
       $id,
       $conversationId,
-      $ourUuid,
-      $uuid,
+      $ourServiceId,
+      $serviceId,
       $json
     )
     `
   ).run({
     id,
     conversationId,
-    ourUuid,
-    uuid,
+    ourServiceId,
+    serviceId,
     json: objectToJSON(data),
   });
 }
-async function createOrUpdateSession(data: SessionType): Promise<void> {
-  return createOrUpdateSessionSync(data);
-}
 
-async function createOrUpdateSessions(
+function createOrUpdateSessions(
+  db: WritableDB,
   array: Array<SessionType>
-): Promise<void> {
-  const db = getInstance();
-
+): void {
   db.transaction(() => {
     for (const item of array) {
-      assertSync(createOrUpdateSessionSync(item));
+      createOrUpdateSession(db, item);
     }
   })();
 }
 
-async function commitDecryptResult({
-  senderKeys,
-  sessions,
-  unprocessed,
-}: {
-  senderKeys: Array<SenderKeyType>;
-  sessions: Array<SessionType>;
-  unprocessed: Array<UnprocessedType>;
-}): Promise<void> {
-  const db = getInstance();
-
+function commitDecryptResult(
+  db: WritableDB,
+  {
+    senderKeys,
+    sessions,
+    unprocessed,
+  }: {
+    senderKeys: Array<SenderKeyType>;
+    sessions: Array<SessionType>;
+    unprocessed: Array<UnprocessedType>;
+  }
+): void {
   db.transaction(() => {
     for (const item of senderKeys) {
-      assertSync(createOrUpdateSenderKeySync(item));
+      createOrUpdateSenderKey(db, item);
     }
 
     for (const item of sessions) {
-      assertSync(createOrUpdateSessionSync(item));
+      createOrUpdateSession(db, item);
     }
 
     for (const item of unprocessed) {
-      assertSync(saveUnprocessedSync(item));
+      saveUnprocessed(db, item);
     }
   })();
 }
 
-async function bulkAddSessions(array: Array<SessionType>): Promise<void> {
-  return bulkAdd(getInstance(), SESSIONS_TABLE, array);
+function bulkAddSessions(db: WritableDB, array: Array<SessionType>): void {
+  return bulkAdd(db, SESSIONS_TABLE, array);
 }
-async function removeSessionById(id: SessionIdType): Promise<void> {
-  return removeById(getInstance(), SESSIONS_TABLE, id);
+function removeSessionById(db: WritableDB, id: SessionIdType): number {
+  return removeById(db, SESSIONS_TABLE, id);
 }
-async function removeSessionsByConversation(
+function removeSessionsByConversation(
+  db: WritableDB,
   conversationId: string
-): Promise<void> {
-  const db = getInstance();
+): void {
   db.prepare<Query>(
     `
     DELETE FROM sessions
@@ -1227,21 +1520,34 @@ async function removeSessionsByConversation(
     conversationId,
   });
 }
-async function removeAllSessions(): Promise<void> {
-  return removeAllFromTable(getInstance(), SESSIONS_TABLE);
+function removeSessionsByServiceId(
+  db: WritableDB,
+  serviceId: ServiceIdString
+): void {
+  db.prepare<Query>(
+    `
+    DELETE FROM sessions
+    WHERE serviceId = $serviceId;
+    `
+  ).run({
+    serviceId,
+  });
 }
-async function getAllSessions(): Promise<Array<SessionType>> {
-  return getAllFromTable(getInstance(), SESSIONS_TABLE);
+function removeAllSessions(db: WritableDB): number {
+  return removeAllFromTable(db, SESSIONS_TABLE);
+}
+function getAllSessions(db: ReadableDB): Array<SessionType> {
+  return getAllFromTable(db, SESSIONS_TABLE);
 }
 // Conversations
 
-async function getConversationCount(): Promise<number> {
-  return getCountFromTable(getInstance(), 'conversations');
+function getConversationCount(db: ReadableDB): number {
+  return getCountFromTable(db, 'conversations');
 }
 
 function getConversationMembersList({ members, membersV2 }: ConversationType) {
   if (membersV2) {
-    return membersV2.map((item: GroupV2MemberType) => item.uuid).join(' ');
+    return membersV2.map((item: GroupV2MemberType) => item.aci).join(' ');
   }
   if (members) {
     return members.join(' ');
@@ -1249,10 +1555,7 @@ function getConversationMembersList({ members, membersV2 }: ConversationType) {
   return null;
 }
 
-function saveConversationSync(
-  data: ConversationType,
-  db = getInstance()
-): void {
+function saveConversation(db: WritableDB, data: ConversationType): void {
   const {
     active_at,
     e164,
@@ -1263,7 +1566,7 @@ function saveConversationSync(
     profileName,
     profileLastFetchedAt,
     type,
-    uuid,
+    serviceId,
   } = data;
 
   const membersList = getConversationMembersList(data);
@@ -1275,7 +1578,7 @@ function saveConversationSync(
       json,
 
       e164,
-      uuid,
+      serviceId,
       groupId,
 
       active_at,
@@ -1291,7 +1594,7 @@ function saveConversationSync(
       $json,
 
       $e164,
-      $uuid,
+      $serviceId,
       $groupId,
 
       $active_at,
@@ -1307,11 +1610,11 @@ function saveConversationSync(
   ).run({
     id,
     json: objectToJSON(
-      omit(data, ['profileLastFetchedAt', 'unblurredAvatarPath'])
+      omit(data, ['profileLastFetchedAt', 'unblurredAvatarUrl'])
     ),
 
     e164: e164 || null,
-    uuid: uuid || null,
+    serviceId: serviceId || null,
     groupId: groupId || null,
 
     active_at: active_at || null,
@@ -1325,29 +1628,18 @@ function saveConversationSync(
   });
 }
 
-async function saveConversation(
-  data: ConversationType,
-  db = getInstance()
-): Promise<void> {
-  return saveConversationSync(data, db);
-}
-
-async function saveConversations(
+function saveConversations(
+  db: WritableDB,
   arrayOfConversations: Array<ConversationType>
-): Promise<void> {
-  const db = getInstance();
-
+): void {
   db.transaction(() => {
     for (const conversation of arrayOfConversations) {
-      assertSync(saveConversationSync(conversation));
+      saveConversation(db, conversation);
     }
   })();
 }
 
-function updateConversationSync(
-  data: ConversationType,
-  db = getInstance()
-): void {
+function updateConversation(db: WritableDB, data: ConversationType): void {
   const {
     id,
     active_at,
@@ -1357,7 +1649,8 @@ function updateConversationSync(
     profileFamilyName,
     profileLastFetchedAt,
     e164,
-    uuid,
+    serviceId,
+    expireTimerVersion,
   } = data;
 
   const membersList = getConversationMembersList(data);
@@ -1368,7 +1661,7 @@ function updateConversationSync(
       json = $json,
 
       e164 = $e164,
-      uuid = $uuid,
+      serviceId = $serviceId,
 
       active_at = $active_at,
       type = $type,
@@ -1377,17 +1670,18 @@ function updateConversationSync(
       profileName = $profileName,
       profileFamilyName = $profileFamilyName,
       profileFullName = $profileFullName,
-      profileLastFetchedAt = $profileLastFetchedAt
+      profileLastFetchedAt = $profileLastFetchedAt,
+      expireTimerVersion = $expireTimerVersion
     WHERE id = $id;
     `
   ).run({
     id,
     json: objectToJSON(
-      omit(data, ['profileLastFetchedAt', 'unblurredAvatarPath'])
+      omit(data, ['profileLastFetchedAt', 'unblurredAvatarUrl'])
     ),
 
     e164: e164 || null,
-    uuid: uuid || null,
+    serviceId: serviceId || null,
 
     active_at: active_at || null,
     type,
@@ -1397,28 +1691,22 @@ function updateConversationSync(
     profileFamilyName: profileFamilyName || null,
     profileFullName: combineNames(profileName, profileFamilyName) || null,
     profileLastFetchedAt: profileLastFetchedAt || null,
+    expireTimerVersion,
   });
 }
 
-async function updateConversation(data: ConversationType): Promise<void> {
-  return updateConversationSync(data);
-}
-
-async function updateConversations(
+function updateConversations(
+  db: WritableDB,
   array: Array<ConversationType>
-): Promise<void> {
-  const db = getInstance();
-
+): void {
   db.transaction(() => {
     for (const item of array) {
-      assertSync(updateConversationSync(item));
+      updateConversation(db, item);
     }
   })();
 }
 
-function removeConversationsSync(ids: Array<string>): void {
-  const db = getInstance();
-
+function removeConversations(db: WritableDB, ids: ReadonlyArray<string>): void {
   // Our node interface doesn't seem to allow you to replace one single ? with an array
   db.prepare<ArrayQuery>(
     `
@@ -1428,9 +1716,7 @@ function removeConversationsSync(ids: Array<string>): void {
   ).run(ids);
 }
 
-async function removeConversation(id: Array<string> | string): Promise<void> {
-  const db = getInstance();
-
+function removeConversation(db: WritableDB, id: Array<string> | string): void {
   if (!Array.isArray(id)) {
     db.prepare<Query>('DELETE FROM conversations WHERE id = $id;').run({
       id,
@@ -1443,13 +1729,17 @@ async function removeConversation(id: Array<string> | string): Promise<void> {
     throw new Error('removeConversation: No ids to delete!');
   }
 
-  batchMultiVarQuery(db, id, removeConversationsSync);
+  batchMultiVarQuery(db, id, ids => removeConversations(db, ids));
 }
 
-async function getConversationById(
+function _removeAllConversations(db: WritableDB): void {
+  db.prepare<EmptyQuery>('DELETE from conversations;').run();
+}
+
+function getConversationById(
+  db: ReadableDB,
   id: string
-): Promise<ConversationType | undefined> {
-  const db = getInstance();
+): ConversationType | undefined {
   const row: { json: string } = db
     .prepare<Query>('SELECT json FROM conversations WHERE id = $id;')
     .get({ id });
@@ -1461,23 +1751,11 @@ async function getConversationById(
   return jsonToObject(row.json);
 }
 
-async function eraseStorageServiceStateFromConversations(): Promise<void> {
-  const db = getInstance();
-
-  db.prepare<EmptyQuery>(
-    `
-    UPDATE conversations
-    SET
-      json = json_remove(json, '$.storageID', '$.needsStorageServiceSync', '$.unknownFields', '$.storageProfileKey');
-    `
-  ).run();
-}
-
-function getAllConversationsSync(db = getInstance()): Array<ConversationType> {
+function getAllConversations(db: ReadableDB): Array<ConversationType> {
   const rows: ConversationRows = db
     .prepare<EmptyQuery>(
       `
-      SELECT json, profileLastFetchedAt
+      SELECT json, profileLastFetchedAt, expireTimerVersion
       FROM conversations
       ORDER BY id ASC;
       `
@@ -1487,12 +1765,7 @@ function getAllConversationsSync(db = getInstance()): Array<ConversationType> {
   return rows.map(row => rowToConversation(row));
 }
 
-async function getAllConversations(): Promise<Array<ConversationType>> {
-  return getAllConversationsSync();
-}
-
-async function getAllConversationIds(): Promise<Array<string>> {
-  const db = getInstance();
+function getAllConversationIds(db: ReadableDB): Array<string> {
   const rows: Array<{ id: string }> = db
     .prepare<EmptyQuery>(
       `
@@ -1504,34 +1777,54 @@ async function getAllConversationIds(): Promise<Array<string>> {
   return rows.map(row => row.id);
 }
 
-async function getAllGroupsInvolvingUuid(
-  uuid: UUIDStringType
-): Promise<Array<ConversationType>> {
-  const db = getInstance();
+function getAllGroupsInvolvingServiceId(
+  db: ReadableDB,
+  serviceId: ServiceIdString
+): Array<ConversationType> {
   const rows: ConversationRows = db
     .prepare<Query>(
       `
-      SELECT json, profileLastFetchedAt
+      SELECT json, profileLastFetchedAt, expireTimerVersion
       FROM conversations WHERE
         type = 'group' AND
-        members LIKE $uuid
+        members LIKE $serviceId
       ORDER BY id ASC;
       `
     )
     .all({
-      uuid: `%${uuid}%`,
+      serviceId: `%${serviceId}%`,
     });
 
   return rows.map(row => rowToConversation(row));
 }
 
-async function searchMessages(
-  query: string,
-  params: { limit?: number; conversationId?: string } = {}
-): Promise<Array<ServerSearchResultMessageType>> {
-  const { limit = 500, conversationId } = params;
+function searchMessages(
+  db: ReadableDB,
+  {
+    query,
+    options,
+    conversationId,
+    contactServiceIdsMatchingQuery,
+  }: {
+    query: string;
+    options?: { limit?: number };
+    conversationId?: string;
+    contactServiceIdsMatchingQuery?: Array<ServiceIdString>;
+  }
+): Array<ServerSearchResultMessageType> {
+  const { limit = conversationId ? 100 : 500 } = options ?? {};
 
-  const db = getInstance();
+  const writable = toUnsafeWritableDB(db, 'only temp table use');
+
+  const normalizedQuery = writable
+    .signalTokenize(query)
+    .map(token => `"${token.replace(/"/g, '""')}"*`)
+    .join(' ');
+
+  // FTS5 is not happy about empty "MATCH" so short-circuit early.
+  if (!normalizedQuery) {
+    return [];
+  }
 
   // sqlite queries with a join on a virtual table (like FTS5) are de-optimized
   // and can't use indices for ordering results. Instead an in-memory index of
@@ -1544,16 +1837,17 @@ async function searchMessages(
   // the snippets and json. The benefit of this is that the `ORDER BY` and
   // `LIMIT` happen without virtual table and are thus covered by
   // `messages_searchOrder` index.
-  return db.transaction(() => {
-    db.exec(
+  return writable.transaction(() => {
+    writable.exec(
       `
       CREATE TEMP TABLE tmp_results(rowid INTEGER PRIMARY KEY ASC);
       CREATE TEMP TABLE tmp_filtered_results(rowid INTEGER PRIMARY KEY ASC);
       `
     );
 
-    db.prepare<Query>(
-      `
+    writable
+      .prepare<Query>(
+        `
         INSERT INTO tmp_results (rowid)
         SELECT
           rowid
@@ -1562,11 +1856,13 @@ async function searchMessages(
         WHERE
           messages_fts.body MATCH $query;
       `
-    ).run({ query });
+      )
+      .run({ query: normalizedQuery });
 
     if (conversationId === undefined) {
-      db.prepare<Query>(
-        `
+      writable
+        .prepare<Query>(
+          `
           INSERT INTO tmp_filtered_results (rowid)
           SELECT
             tmp_results.rowid
@@ -1577,10 +1873,12 @@ async function searchMessages(
           ORDER BY messages.received_at DESC, messages.sent_at DESC
           LIMIT $limit;
         `
-      ).run({ limit });
+        )
+        .run({ limit });
     } else {
-      db.prepare<Query>(
-        `
+      writable
+        .prepare<Query>(
+          `
           INSERT INTO tmp_filtered_results (rowid)
           SELECT
             tmp_results.rowid
@@ -1593,55 +1891,106 @@ async function searchMessages(
           ORDER BY messages.received_at DESC, messages.sent_at DESC
           LIMIT $limit;
         `
-      ).run({ conversationId, limit });
+        )
+        .run({ conversationId, limit });
     }
 
     // The `MATCH` is necessary in order to for `snippet()` helper function to
     // give us the right results. We can't call `snippet()` in the query above
     // because it would bloat the temporary table with text data and we want
     // to keep its size minimal for `ORDER BY` + `LIMIT` to be fast.
-    const result = db
-      .prepare<Query>(
-        `
-        SELECT
-          messages.json,
-          snippet(messages_fts, -1, '<<left>>', '<<right>>', '...', 10)
-            AS snippet
-        FROM tmp_filtered_results
-        INNER JOIN messages_fts
-          ON messages_fts.rowid = tmp_filtered_results.rowid
-        INNER JOIN messages
-          ON messages.rowid = tmp_filtered_results.rowid
-        WHERE
-          messages_fts.body MATCH $query
-        ORDER BY messages.received_at DESC, messages.sent_at DESC;
-        `
-      )
-      .all({ query });
+    const ftsFragment = sqlFragment`
+      SELECT
+        messages.rowid,
+        messages.json,
+        messages.sent_at,
+        messages.received_at,
+        snippet(messages_fts, -1, ${SNIPPET_LEFT_PLACEHOLDER}, ${SNIPPET_RIGHT_PLACEHOLDER}, ${SNIPPET_TRUNCATION_PLACEHOLDER}, 10) AS ftsSnippet
+      FROM tmp_filtered_results
+      INNER JOIN messages_fts
+        ON messages_fts.rowid = tmp_filtered_results.rowid
+      INNER JOIN messages
+        ON messages.rowid = tmp_filtered_results.rowid
+      WHERE
+        messages_fts.body MATCH ${normalizedQuery}
+      ORDER BY messages.received_at DESC, messages.sent_at DESC
+      LIMIT ${limit}
+    `;
 
-    db.exec(
+    let result: Array<ServerSearchResultMessageType>;
+
+    if (!contactServiceIdsMatchingQuery?.length) {
+      const [sqlQuery, params] = sql`${ftsFragment};`;
+      result = writable.prepare(sqlQuery).all(params);
+    } else {
+      // If contactServiceIdsMatchingQuery is not empty, we due an OUTER JOIN
+      // between:
+      // 1) the messages that mention at least one of
+      //    contactServiceIdsMatchingQuery, and
+      // 2) the messages that match all the search terms via FTS
+      //
+      // Note: this groups the results by rowid, so even if one message
+      // mentions multiple matching UUIDs, we only return one to be
+      // highlighted
+      const [sqlQuery, params] = sql`
+        SELECT
+          messages.rowid as rowid,
+          COALESCE(messages.json, ftsResults.json) as json,
+          COALESCE(messages.sent_at, ftsResults.sent_at) as sent_at,
+          COALESCE(messages.received_at, ftsResults.received_at) as received_at,
+          ftsResults.ftsSnippet,
+          mentionAci,
+          start as mentionStart,
+          length as mentionLength
+        FROM mentions
+        INNER JOIN messages
+        ON
+          messages.id = mentions.messageId
+          AND mentions.mentionAci IN (
+            ${sqlJoin(contactServiceIdsMatchingQuery)}
+          )
+          AND ${
+            conversationId
+              ? sqlFragment`messages.conversationId = ${conversationId}`
+              : '1 IS 1'
+          }
+          AND messages.isViewOnce IS NOT 1
+          AND messages.storyId IS NULL
+        FULL OUTER JOIN (
+          ${ftsFragment}
+        ) as ftsResults
+        USING (rowid)
+        GROUP BY rowid
+        ORDER BY received_at DESC, sent_at DESC
+        LIMIT ${limit};
+        `;
+      result = writable.prepare(sqlQuery).all(params);
+    }
+
+    writable.exec(
       `
       DROP TABLE tmp_results;
       DROP TABLE tmp_filtered_results;
       `
     );
-
     return result;
   })();
 }
 
-async function searchMessagesInConversation(
-  query: string,
-  conversationId: string,
-  { limit = 100 }: { limit?: number } = {}
-): Promise<Array<ServerSearchResultMessageType>> {
-  return searchMessages(query, { conversationId, limit });
+function getStoryCount(db: ReadableDB, conversationId: string): number {
+  return db
+    .prepare<Query>(
+      `
+        SELECT count(1)
+        FROM messages
+        WHERE conversationId = $conversationId AND isStory = 1;
+        `
+    )
+    .pluck()
+    .get({ conversationId });
 }
 
-function getMessageCountSync(
-  conversationId?: string,
-  db = getInstance()
-): number {
+function getMessageCount(db: ReadableDB, conversationId?: string): number {
   if (conversationId === undefined) {
     return getCountFromTable(db, 'messages');
   }
@@ -1649,7 +1998,7 @@ function getMessageCountSync(
   const count = db
     .prepare<Query>(
       `
-        SELECT count(*)
+        SELECT count(1)
         FROM messages
         WHERE conversationId = $conversationId;
         `
@@ -1660,71 +2009,174 @@ function getMessageCountSync(
   return count;
 }
 
-async function getStoryCount(conversationId: string): Promise<number> {
-  const db = getInstance();
-  return db
+// Note: we really only use this in 1:1 conversations, where story replies are always
+//   shown, so this has no need to be story-aware.
+function hasUserInitiatedMessages(
+  db: ReadableDB,
+  conversationId: string
+): boolean {
+  const exists: number = db
     .prepare<Query>(
       `
-        SELECT count(*)
-        FROM messages
-        WHERE conversationId = $conversationId AND isStory = 1;
-        `
+      SELECT EXISTS(
+        SELECT 1 FROM messages
+        INDEXED BY message_user_initiated
+        WHERE
+          conversationId IS $conversationId AND
+          isUserInitiatedMessage IS 1
+      );
+      `
     )
     .pluck()
     .get({ conversationId });
+
+  return exists !== 0;
 }
 
-async function getMessageCount(conversationId?: string): Promise<number> {
-  return getMessageCountSync(conversationId);
+export function getMostRecentAddressableMessages(
+  db: ReadableDB,
+  conversationId: string,
+  limit = 5
+): Array<MessageType> {
+  const [query, parameters] = sql`
+    SELECT json FROM messages
+    INDEXED BY messages_by_date_addressable
+    WHERE
+      conversationId IS ${conversationId} AND
+      isAddressableMessage = 1
+    ORDER BY received_at DESC, sent_at DESC
+    LIMIT ${limit};
+  `;
+
+  const rows = db.prepare(query).all(parameters);
+
+  return rows.map(row => jsonToObject(row.json));
 }
 
-function hasUserInitiatedMessages(conversationId: string): boolean {
-  const db = getInstance();
+export function getMostRecentAddressableNondisappearingMessages(
+  db: ReadableDB,
+  conversationId: string,
+  limit = 5
+): Array<MessageType> {
+  const [query, parameters] = sql`
+    SELECT json FROM messages
+    INDEXED BY messages_by_date_addressable_nondisappearing
+    WHERE
+      expireTimer IS NULL AND
+      conversationId IS ${conversationId} AND
+      isAddressableMessage = 1
+    ORDER BY received_at DESC, sent_at DESC
+    LIMIT ${limit};
+  `;
 
-  const row: { count: number } = db
-    .prepare<Query>(
-      `
-      SELECT COUNT(*) as count FROM
-        (
-          SELECT 1 FROM messages
-          WHERE
-            conversationId = $conversationId AND
-            isUserInitiatedMessage = 1
-          LIMIT 1
-        );
-      `
+  const rows = db.prepare(query).all(parameters);
+
+  return rows.map(row => jsonToObject(row.json));
+}
+
+export function removeSyncTaskById(db: WritableDB, id: string): void {
+  const [query, parameters] = sql`
+    DELETE FROM syncTasks
+    WHERE id IS ${id}
+  `;
+
+  db.prepare(query).run(parameters);
+}
+export function saveSyncTasks(
+  db: WritableDB,
+  tasks: Array<SyncTaskType>
+): void {
+  return db.transaction(() => {
+    tasks.forEach(task => saveSyncTask(db, task));
+  })();
+}
+function saveSyncTask(db: WritableDB, task: SyncTaskType): void {
+  const { id, attempts, createdAt, data, envelopeId, sentAt, type } = task;
+
+  const [query, parameters] = sql`
+    INSERT INTO syncTasks (
+      id,
+      attempts,
+      createdAt,
+      data,
+      envelopeId,
+      sentAt,
+      type
+    ) VALUES (
+      ${id},
+      ${attempts},
+      ${createdAt},
+      ${objectToJSON(data)},
+      ${envelopeId},
+      ${sentAt},
+      ${type}
     )
-    .get({ conversationId });
+  `;
 
-  return row.count !== 0;
+  db.prepare(query).run(parameters);
+}
+export function getAllSyncTasks(db: WritableDB): Array<SyncTaskType> {
+  return db.transaction(() => {
+    const [selectAllQuery] = sql`
+      SELECT * FROM syncTasks ORDER BY createdAt ASC, sentAt ASC, id ASC
+    `;
+
+    const rows = db.prepare(selectAllQuery).all();
+
+    const tasks: Array<SyncTaskType> = rows.map(row => ({
+      ...row,
+      data: jsonToObject(row.data),
+    }));
+
+    const [query] = sql`
+      UPDATE syncTasks
+      SET attempts = attempts + 1
+    `;
+    db.prepare(query).run();
+
+    const [toDelete, toReturn] = partition(tasks, task => {
+      if (
+        isNormalNumber(task.attempts) &&
+        task.attempts < MAX_SYNC_TASK_ATTEMPTS
+      ) {
+        return false;
+      }
+      if (isMoreRecentThan(task.createdAt, durations.WEEK)) {
+        return false;
+      }
+
+      return true;
+    });
+
+    if (toDelete.length > 0) {
+      logger.warn(`getAllSyncTasks: Removing ${toDelete.length} expired tasks`);
+      toDelete.forEach(task => {
+        removeSyncTaskById(db, task.id);
+      });
+    }
+
+    return toReturn;
+  })();
 }
 
-function saveMessageSync(
-  data: MessageType,
+export function saveMessage(
+  db: WritableDB,
+  data: ReadonlyDeep<MessageType>,
   options: {
     alreadyInTransaction?: boolean;
-    db?: Database;
     forceSave?: boolean;
     jobToInsert?: StoredJob;
-    ourUuid: UUIDStringType;
+    ourAci: AciString;
   }
 ): string {
-  const {
-    alreadyInTransaction,
-    db = getInstance(),
-    forceSave,
-    jobToInsert,
-    ourUuid,
-  } = options;
+  const { alreadyInTransaction, forceSave, jobToInsert, ourAci } = options;
 
   if (!alreadyInTransaction) {
     return db.transaction(() => {
-      return assertSync(
-        saveMessageSync(data, {
-          ...options,
-          alreadyInTransaction: true,
-        })
-      );
+      return saveMessage(db, data, {
+        ...options,
+        alreadyInTransaction: true,
+      });
     })();
   }
 
@@ -1738,19 +2190,48 @@ function saveMessageSync(
     id,
     isErased,
     isViewOnce,
+    mentionsMe,
     received_at,
     schemaVersion,
     sent_at,
     serverGuid,
     source,
-    sourceUuid,
+    sourceServiceId,
     sourceDevice,
     storyId,
     type,
     readStatus,
     expireTimer,
     expirationStartTimestamp,
+    attachments,
   } = data;
+  let { seenStatus } = data;
+
+  if (attachments) {
+    strictAssert(
+      attachments.every(
+        attachment =>
+          !attachment.data &&
+          !attachment.screenshotData &&
+          !attachment.screenshot?.data &&
+          !attachment.thumbnail?.data
+      ),
+      'Attempting to save a message with binary attachment data'
+    );
+  }
+
+  if (readStatus === ReadStatus.Unread && seenStatus !== SeenStatus.Unseen) {
+    logger.warn(
+      `saveMessage: Message ${id}/${type} is unread but had seenStatus=${seenStatus}. Forcing to UnseenStatus.Unseen.`
+    );
+
+    // eslint-disable-next-line no-param-reassign
+    data = {
+      ...data,
+      seenStatus: SeenStatus.Unseen,
+    };
+    seenStatus = SeenStatus.Unseen;
+  }
 
   const payload = {
     id,
@@ -1763,19 +2244,21 @@ function saveMessageSync(
     hasAttachments: hasAttachments ? 1 : 0,
     hasFileAttachments: hasFileAttachments ? 1 : 0,
     hasVisualMediaAttachments: hasVisualMediaAttachments ? 1 : 0,
-    isChangeCreatedByUs: groupV2Change?.from === ourUuid ? 1 : 0,
+    isChangeCreatedByUs: groupV2Change?.from === ourAci ? 1 : 0,
     isErased: isErased ? 1 : 0,
     isViewOnce: isViewOnce ? 1 : 0,
+    mentionsMe: mentionsMe ? 1 : 0,
     received_at: received_at || null,
     schemaVersion: schemaVersion || 0,
     serverGuid: serverGuid || null,
     sent_at: sent_at || null,
     source: source || null,
-    sourceUuid: sourceUuid || null,
+    sourceServiceId: sourceServiceId || null,
     sourceDevice: sourceDevice || null,
     storyId: storyId || null,
     type: type || null,
     readStatus: readStatus ?? null,
+    seenStatus: seenStatus ?? SeenStatus.NotApplicable,
   };
 
   if (id && !forceSave) {
@@ -1796,22 +2279,24 @@ function saveMessageSync(
         isChangeCreatedByUs = $isChangeCreatedByUs,
         isErased = $isErased,
         isViewOnce = $isViewOnce,
+        mentionsMe = $mentionsMe,
         received_at = $received_at,
         schemaVersion = $schemaVersion,
         serverGuid = $serverGuid,
         sent_at = $sent_at,
         source = $source,
-        sourceUuid = $sourceUuid,
+        sourceServiceId = $sourceServiceId,
         sourceDevice = $sourceDevice,
         storyId = $storyId,
         type = $type,
-        readStatus = $readStatus
+        readStatus = $readStatus,
+        seenStatus = $seenStatus
       WHERE id = $id;
       `
     ).run(payload);
 
     if (jobToInsert) {
-      insertJobSync(db, jobToInsert);
+      insertJob(db, jobToInsert);
     }
 
     return id;
@@ -1819,7 +2304,7 @@ function saveMessageSync(
 
   const toCreate = {
     ...data,
-    id: id || UUID.generate().toString(),
+    id: id || generateUuid(),
   };
 
   prepare(
@@ -1839,16 +2324,18 @@ function saveMessageSync(
       isChangeCreatedByUs,
       isErased,
       isViewOnce,
+      mentionsMe,
       received_at,
       schemaVersion,
       serverGuid,
       sent_at,
       source,
-      sourceUuid,
+      sourceServiceId,
       sourceDevice,
       storyId,
       type,
-      readStatus
+      readStatus,
+      seenStatus
     ) values (
       $id,
       $json,
@@ -1863,16 +2350,18 @@ function saveMessageSync(
       $isChangeCreatedByUs,
       $isErased,
       $isViewOnce,
+      $mentionsMe,
       $received_at,
       $schemaVersion,
       $serverGuid,
       $sent_at,
       $source,
-      $sourceUuid,
+      $sourceServiceId,
       $sourceDevice,
       $storyId,
       $type,
-      $readStatus
+      $readStatus,
+      $seenStatus
     );
     `
   ).run({
@@ -1882,48 +2371,36 @@ function saveMessageSync(
   });
 
   if (jobToInsert) {
-    insertJobSync(db, jobToInsert);
+    insertJob(db, jobToInsert);
   }
 
   return toCreate.id;
 }
 
-async function saveMessage(
-  data: MessageType,
-  options: {
-    jobToInsert?: StoredJob;
-    forceSave?: boolean;
-    alreadyInTransaction?: boolean;
-    ourUuid: UUIDStringType;
-  }
-): Promise<string> {
-  return saveMessageSync(data, options);
-}
-
-async function saveMessages(
-  arrayOfMessages: ReadonlyArray<MessageType>,
-  options: { forceSave?: boolean; ourUuid: UUIDStringType }
-): Promise<void> {
-  const db = getInstance();
-
-  db.transaction(() => {
+function saveMessages(
+  db: WritableDB,
+  arrayOfMessages: ReadonlyArray<ReadonlyDeep<MessageType>>,
+  options: { forceSave?: boolean; ourAci: AciString }
+): Array<string> {
+  return db.transaction(() => {
+    const result = new Array<string>();
     for (const message of arrayOfMessages) {
-      assertSync(
-        saveMessageSync(message, { ...options, alreadyInTransaction: true })
+      result.push(
+        saveMessage(db, message, {
+          ...options,
+          alreadyInTransaction: true,
+        })
       );
     }
+    return result;
   })();
 }
 
-async function removeMessage(id: string): Promise<void> {
-  const db = getInstance();
-
+function removeMessage(db: WritableDB, id: string): void {
   db.prepare<Query>('DELETE FROM messages WHERE id = $id;').run({ id });
 }
 
-function removeMessagesSync(ids: Array<string>): void {
-  const db = getInstance();
-
+function removeMessagesBatch(db: WritableDB, ids: ReadonlyArray<string>): void {
   db.prepare<ArrayQuery>(
     `
     DELETE FROM messages
@@ -1932,17 +2409,12 @@ function removeMessagesSync(ids: Array<string>): void {
   ).run(ids);
 }
 
-async function removeMessages(ids: Array<string>): Promise<void> {
-  batchMultiVarQuery(getInstance(), ids, removeMessagesSync);
+function removeMessages(db: WritableDB, ids: ReadonlyArray<string>): void {
+  batchMultiVarQuery(db, ids, batch => removeMessagesBatch(db, batch));
 }
 
-async function getMessageById(id: string): Promise<MessageType | undefined> {
-  const db = getInstance();
-  return getMessageByIdSync(db, id);
-}
-
-export function getMessageByIdSync(
-  db: Database,
+export function getMessageById(
+  db: ReadableDB,
   id: string
 ): MessageType | undefined {
   const row = db
@@ -1958,15 +2430,14 @@ export function getMessageByIdSync(
   return jsonToObject(row.json);
 }
 
-async function getMessagesById(
-  messageIds: Array<string>
-): Promise<Array<MessageType>> {
-  const db = getInstance();
-
+function getMessagesById(
+  db: ReadableDB,
+  messageIds: ReadonlyArray<string>
+): Array<MessageType> {
   return batchMultiVarQuery(
     db,
     messageIds,
-    (batch: Array<string>): Array<MessageType> => {
+    (batch: ReadonlyArray<string>): Array<MessageType> => {
       const query = db.prepare<ArrayQuery>(
         `SELECT json FROM messages WHERE id IN (${Array(batch.length)
           .fill('?')
@@ -1978,21 +2449,21 @@ async function getMessagesById(
   );
 }
 
-async function _getAllMessages(): Promise<Array<MessageType>> {
-  const db = getInstance();
+function _getAllMessages(db: ReadableDB): Array<MessageType> {
   const rows: JSONRows = db
     .prepare<EmptyQuery>('SELECT json FROM messages ORDER BY id ASC;')
     .all();
 
   return rows.map(row => jsonToObject(row.json));
 }
-async function _removeAllMessages(): Promise<void> {
-  const db = getInstance();
-  db.prepare<EmptyQuery>('DELETE from messages;').run();
+function _removeAllMessages(db: WritableDB): void {
+  db.exec(`
+    DELETE FROM messages;
+    INSERT INTO messages_fts(messages_fts) VALUES('optimize');
+  `);
 }
 
-async function getAllMessageIds(): Promise<Array<string>> {
-  const db = getInstance();
+function getAllMessageIds(db: ReadableDB): Array<string> {
   const rows: Array<{ id: string }> = db
     .prepare<EmptyQuery>('SELECT id FROM messages ORDER BY id ASC;')
     .all();
@@ -2000,39 +2471,41 @@ async function getAllMessageIds(): Promise<Array<string>> {
   return rows.map(row => row.id);
 }
 
-async function getMessageBySender({
-  source,
-  sourceUuid,
-  sourceDevice,
-  sent_at,
-}: {
-  source: string;
-  sourceUuid: string;
-  sourceDevice: number;
-  sent_at: number;
-}): Promise<MessageType | undefined> {
-  const db = getInstance();
+function getMessageBySender(
+  db: ReadableDB,
+  {
+    source,
+    sourceServiceId,
+    sourceDevice,
+    sent_at,
+  }: {
+    source?: string;
+    sourceServiceId?: ServiceIdString;
+    sourceDevice?: number;
+    sent_at: number;
+  }
+): MessageType | undefined {
   const rows: JSONRows = prepare(
     db,
     `
     SELECT json FROM messages WHERE
-      (source = $source OR sourceUuid = $sourceUuid) AND
+      (source = $source OR sourceServiceId = $sourceServiceId) AND
       sourceDevice = $sourceDevice AND
       sent_at = $sent_at
     LIMIT 2;
     `
   ).all({
-    source,
-    sourceUuid,
-    sourceDevice,
+    source: source || null,
+    sourceServiceId: sourceServiceId || null,
+    sourceDevice: sourceDevice || null,
     sent_at,
   });
 
   if (rows.length > 1) {
-    log.warn('getMessageBySender: More than one message found for', {
+    logger.warn('getMessageBySender: More than one message found for', {
       sent_at,
       source,
-      sourceUuid,
+      sourceServiceId,
       sourceDevice,
     });
   }
@@ -2044,105 +2517,112 @@ async function getMessageBySender({
   return jsonToObject(rows[0].json);
 }
 
-export function _storyIdPredicate(storyId: string | undefined): string {
-  if (storyId === undefined) {
-    // We could use 'TRUE' here, but it is better to require `$storyId`
-    // parameter
-    return '$storyId IS NULL';
+export function _storyIdPredicate(
+  storyId: string | undefined,
+  includeStoryReplies: boolean
+): QueryFragment {
+  // This is unintuitive, but 'including story replies' means that we need replies to
+  //   lots of different stories. So, we remove the storyId check with a clause that will
+  //   always be true. We don't just return TRUE because we want to use our passed-in
+  //   $storyId parameter.
+  if (includeStoryReplies && storyId === undefined) {
+    return sqlFragment`${storyId} IS NULL`;
   }
 
-  return 'storyId IS $storyId';
+  // In contrast to: replies to a specific story
+  return sqlFragment`storyId IS ${storyId}`;
 }
 
-async function getUnreadByConversationAndMarkRead({
-  conversationId,
-  newestUnreadAt,
-  storyId,
-  readAt,
-}: {
-  conversationId: string;
-  newestUnreadAt: number;
-  storyId?: UUIDStringType;
-  readAt?: number;
-}): Promise<
-  Array<Pick<MessageType, 'id' | 'source' | 'sourceUuid' | 'sent_at' | 'type'>>
-> {
-  const db = getInstance();
+function getUnreadByConversationAndMarkRead(
+  db: WritableDB,
+  {
+    conversationId,
+    includeStoryReplies,
+    newestUnreadAt,
+    storyId,
+    readAt,
+    now = Date.now(),
+  }: {
+    conversationId: string;
+    includeStoryReplies: boolean;
+    newestUnreadAt: number;
+    storyId?: string;
+    readAt?: number;
+    now?: number;
+  }
+): GetUnreadByConversationAndMarkReadResultType {
   return db.transaction(() => {
-    const expirationStartTimestamp = Math.min(Date.now(), readAt ?? Infinity);
-    db.prepare<Query>(
-      `
+    const expirationStartTimestamp = Math.min(now, readAt ?? Infinity);
+
+    const expirationJsonPatch = JSON.stringify({ expirationStartTimestamp });
+
+    const [updateExpirationQuery, updateExpirationParams] = sql`
       UPDATE messages
       INDEXED BY expiring_message_by_conversation_and_received_at
       SET
-        expirationStartTimestamp = $expirationStartTimestamp,
-        json = json_patch(json, $jsonPatch)
+        expirationStartTimestamp = ${expirationStartTimestamp},
+        json = json_patch(json, ${expirationJsonPatch})
       WHERE
+        conversationId = ${conversationId} AND
+        (${_storyIdPredicate(storyId, includeStoryReplies)}) AND
+        isStory IS 0 AND
+        type IS 'incoming' AND
         (
           expirationStartTimestamp IS NULL OR
-          expirationStartTimestamp > $expirationStartTimestamp
+          expirationStartTimestamp > ${expirationStartTimestamp}
         ) AND
         expireTimer > 0 AND
-        conversationId = $conversationId AND
-        (${_storyIdPredicate(storyId)}) AND
-        received_at <= $newestUnreadAt;
-      `
-    ).run({
-      conversationId,
-      expirationStartTimestamp,
-      jsonPatch: JSON.stringify({ expirationStartTimestamp }),
-      newestUnreadAt,
-      storyId: storyId || null,
+        received_at <= ${newestUnreadAt};
+    `;
+
+    db.prepare(updateExpirationQuery).run(updateExpirationParams);
+
+    const [selectQuery, selectParams] = sql`
+      SELECT id, json FROM messages
+        WHERE
+          conversationId = ${conversationId} AND
+          seenStatus = ${SeenStatus.Unseen} AND
+          isStory = 0 AND
+          (${_storyIdPredicate(storyId, includeStoryReplies)}) AND
+          received_at <= ${newestUnreadAt}
+        ORDER BY received_at DESC, sent_at DESC;
+    `;
+
+    const rows = db.prepare(selectQuery).all(selectParams);
+
+    const statusJsonPatch = JSON.stringify({
+      readStatus: ReadStatus.Read,
+      seenStatus: SeenStatus.Seen,
     });
 
-    const rows = db
-      .prepare<Query>(
-        `
-        SELECT id, json FROM messages
-        INDEXED BY messages_unread
-        WHERE
-          readStatus = ${ReadStatus.Unread} AND
-          conversationId = $conversationId AND
-          (${_storyIdPredicate(storyId)}) AND
-          received_at <= $newestUnreadAt
-        ORDER BY received_at DESC, sent_at DESC;
-        `
-      )
-      .all({
-        conversationId,
-        newestUnreadAt,
-        storyId: storyId || null,
-      });
-
-    db.prepare<Query>(
-      `
-        UPDATE messages
+    const [updateStatusQuery, updateStatusParams] = sql`
+      UPDATE messages
         SET
           readStatus = ${ReadStatus.Read},
-          json = json_patch(json, $jsonPatch)
+          seenStatus = ${SeenStatus.Seen},
+          json = json_patch(json, ${statusJsonPatch})
         WHERE
-          readStatus = ${ReadStatus.Unread} AND
-          conversationId = $conversationId AND
-          (${_storyIdPredicate(storyId)}) AND
-          received_at <= $newestUnreadAt;
-        `
-    ).run({
-      conversationId,
-      jsonPatch: JSON.stringify({ readStatus: ReadStatus.Read }),
-      newestUnreadAt,
-      storyId: storyId || null,
-    });
+          conversationId = ${conversationId} AND
+          seenStatus = ${SeenStatus.Unseen} AND
+          isStory = 0 AND
+          (${_storyIdPredicate(storyId, includeStoryReplies)}) AND
+          received_at <= ${newestUnreadAt};
+    `;
+
+    db.prepare(updateStatusQuery).run(updateStatusParams);
 
     return rows.map(row => {
       const json = jsonToObject<MessageType>(row.json);
       return {
+        originalReadStatus: json.readStatus,
         readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         ...pick(json, [
           'expirationStartTimestamp',
           'id',
           'sent_at',
           'source',
-          'sourceUuid',
+          'sourceServiceId',
           'type',
         ]),
       };
@@ -2150,31 +2630,29 @@ async function getUnreadByConversationAndMarkRead({
   })();
 }
 
-type ReactionResultType = Pick<
-  ReactionType,
-  'targetAuthorUuid' | 'targetTimestamp' | 'messageId'
-> & { rowid: number };
-async function getUnreadReactionsAndMarkRead({
-  conversationId,
-  newestUnreadAt,
-  storyId,
-}: {
-  conversationId: string;
-  newestUnreadAt: number;
-  storyId?: UUIDStringType;
-}): Promise<Array<ReactionResultType>> {
-  const db = getInstance();
-
+function getUnreadReactionsAndMarkRead(
+  db: WritableDB,
+  {
+    conversationId,
+    newestUnreadAt,
+    storyId,
+  }: {
+    conversationId: string;
+    newestUnreadAt: number;
+    storyId?: string;
+  }
+): Array<ReactionResultType> {
   return db.transaction(() => {
     const unreadMessages: Array<ReactionResultType> = db
       .prepare<Query>(
         `
-        SELECT reactions.rowid, targetAuthorUuid, targetTimestamp, messageId
+        SELECT reactions.rowid, targetAuthorAci, targetTimestamp, messageId
         FROM reactions
+        INDEXED BY reactions_unread
         JOIN messages on messages.id IS reactions.messageId
         WHERE
-          unread > 0 AND
-          messages.conversationId IS $conversationId AND
+          reactions.conversationId IS $conversationId AND
+          reactions.unread > 0 AND
           messages.received_at <= $newestUnreadAt AND
           messages.storyId IS $storyId
         ORDER BY messageReceivedAt DESC;
@@ -2187,11 +2665,12 @@ async function getUnreadReactionsAndMarkRead({
       });
 
     const idsToUpdate = unreadMessages.map(item => item.rowid);
-    batchMultiVarQuery(db, idsToUpdate, (ids: Array<number>): void => {
+    batchMultiVarQuery(db, idsToUpdate, (ids: ReadonlyArray<number>): void => {
       db.prepare<ArrayQuery>(
         `
-        UPDATE reactions SET
-        unread = 0 WHERE rowid IN ( ${ids.map(() => '?').join(', ')} );
+        UPDATE reactions
+        SET unread = 0
+        WHERE rowid IN ( ${ids.map(() => '?').join(', ')} );
         `
       ).run(ids);
     });
@@ -2200,11 +2679,11 @@ async function getUnreadReactionsAndMarkRead({
   })();
 }
 
-async function markReactionAsRead(
-  targetAuthorUuid: string,
+function markReactionAsRead(
+  db: WritableDB,
+  targetAuthorServiceId: ServiceIdString,
   targetTimestamp: number
-): Promise<ReactionType | undefined> {
-  const db = getInstance();
+): ReactionType | undefined {
   return db.transaction(() => {
     const readReaction = db
       .prepare(
@@ -2212,7 +2691,7 @@ async function markReactionAsRead(
           SELECT *
           FROM reactions
           WHERE
-            targetAuthorUuid = $targetAuthorUuid AND
+            targetAuthorAci = $targetAuthorAci AND
             targetTimestamp = $targetTimestamp AND
             unread = 1
           ORDER BY rowId DESC
@@ -2220,7 +2699,7 @@ async function markReactionAsRead(
         `
       )
       .get({
-        targetAuthorUuid,
+        targetAuthorAci: targetAuthorServiceId,
         targetTimestamp,
       });
 
@@ -2228,11 +2707,11 @@ async function markReactionAsRead(
       `
         UPDATE reactions SET
         unread = 0 WHERE
-        targetAuthorUuid = $targetAuthorUuid AND
+        targetAuthorAci = $targetAuthorAci AND
         targetTimestamp = $targetTimestamp;
       `
     ).run({
-      targetAuthorUuid,
+      targetAuthorAci: targetAuthorServiceId,
       targetTimestamp,
     });
 
@@ -2240,26 +2719,43 @@ async function markReactionAsRead(
   })();
 }
 
-async function addReaction({
-  conversationId,
-  emoji,
-  fromId,
-  messageId,
-  messageReceivedAt,
-  targetAuthorUuid,
-  targetTimestamp,
-}: ReactionType): Promise<void> {
-  const db = getInstance();
-  await db
-    .prepare(
-      `INSERT INTO reactions (
+function getReactionByTimestamp(
+  db: ReadableDB,
+  fromId: string,
+  timestamp: number
+): ReactionType | undefined {
+  const [query, params] = sql`
+    SELECT * FROM reactions
+    WHERE fromId IS ${fromId} AND timestamp IS ${timestamp}
+  `;
+
+  return db.prepare(query).get(params);
+}
+
+function addReaction(
+  db: WritableDB,
+  {
+    conversationId,
+    emoji,
+    fromId,
+    messageId,
+    messageReceivedAt,
+    targetAuthorAci,
+    targetTimestamp,
+    timestamp,
+  }: ReactionType,
+  { readStatus }: { readStatus: ReactionReadStatus }
+): void {
+  db.prepare(
+    `INSERT INTO reactions (
       conversationId,
       emoji,
       fromId,
       messageId,
       messageReceivedAt,
-      targetAuthorUuid,
+      targetAuthorAci,
       targetTimestamp,
+      timestamp,
       unread
     ) VALUES (
       $conversationId,
@@ -2267,229 +2763,295 @@ async function addReaction({
       $fromId,
       $messageId,
       $messageReceivedAt,
-      $targetAuthorUuid,
+      $targetAuthorAci,
       $targetTimestamp,
+      $timestamp,
       $unread
     );`
-    )
-    .run({
-      conversationId,
-      emoji,
-      fromId,
-      messageId,
-      messageReceivedAt,
-      targetAuthorUuid,
-      targetTimestamp,
-      unread: 1,
-    });
+  ).run({
+    conversationId,
+    emoji,
+    fromId,
+    messageId,
+    messageReceivedAt,
+    targetAuthorAci,
+    targetTimestamp,
+    timestamp,
+    unread: readStatus === ReactionReadStatus.Unread ? 1 : 0,
+  });
 }
 
-async function removeReactionFromConversation({
-  emoji,
-  fromId,
-  targetAuthorUuid,
-  targetTimestamp,
-}: {
-  emoji: string;
-  fromId: string;
-  targetAuthorUuid: string;
-  targetTimestamp: number;
-}): Promise<void> {
-  const db = getInstance();
-  await db
-    .prepare(
-      `DELETE FROM reactions WHERE
+function removeReactionFromConversation(
+  db: WritableDB,
+  {
+    emoji,
+    fromId,
+    targetAuthorServiceId,
+    targetTimestamp,
+  }: {
+    emoji: string;
+    fromId: string;
+    targetAuthorServiceId: ServiceIdString;
+    targetTimestamp: number;
+  }
+): void {
+  db.prepare(
+    `DELETE FROM reactions WHERE
       emoji = $emoji AND
       fromId = $fromId AND
-      targetAuthorUuid = $targetAuthorUuid AND
+      targetAuthorAci = $targetAuthorAci AND
       targetTimestamp = $targetTimestamp;`
-    )
-    .run({
-      emoji,
-      fromId,
-      targetAuthorUuid,
-      targetTimestamp,
-    });
+  ).run({
+    emoji,
+    fromId,
+    targetAuthorAci: targetAuthorServiceId,
+    targetTimestamp,
+  });
 }
 
-async function _getAllReactions(): Promise<Array<ReactionType>> {
-  const db = getInstance();
+function _getAllReactions(db: ReadableDB): Array<ReactionType> {
   return db.prepare<EmptyQuery>('SELECT * from reactions;').all();
 }
-async function _removeAllReactions(): Promise<void> {
-  const db = getInstance();
+function _removeAllReactions(db: WritableDB): void {
   db.prepare<EmptyQuery>('DELETE from reactions;').run();
 }
 
-async function getOlderMessagesByConversation(
-  conversationId: string,
-  options?: {
-    limit?: number;
-    messageId?: string;
-    receivedAt?: number;
-    sentAt?: number;
-    storyId?: UUIDStringType;
-  }
-): Promise<Array<MessageTypeUnhydrated>> {
-  return getOlderMessagesByConversationSync(conversationId, options);
+enum AdjacentDirection {
+  Older = 'Older',
+  Newer = 'Newer',
 }
-function getOlderMessagesByConversationSync(
-  conversationId: string,
+
+// This function needs to pull story replies from all conversations, because when we send
+//   a story to one or more distribution lists, each reply to it will be in the sender's
+//   1:1 conversation with us.
+function getRecentStoryReplies(
+  db: ReadableDB,
+  storyId: string,
   {
     limit = 100,
     messageId,
     receivedAt = Number.MAX_VALUE,
     sentAt = Number.MAX_VALUE,
-    storyId,
-  }: {
-    limit?: number;
-    messageId?: string;
-    receivedAt?: number;
-    sentAt?: number;
-    storyId?: UUIDStringType;
-  } = {}
+  }: GetRecentStoryRepliesOptionsType = {}
 ): Array<MessageTypeUnhydrated> {
-  const db = getInstance();
+  const timeFilters = {
+    first: sqlFragment`received_at = ${receivedAt} AND sent_at < ${sentAt}`,
+    second: sqlFragment`received_at < ${receivedAt}`,
+  };
 
-  return db
-    .prepare<Query>(
-      `
-      SELECT json FROM messages WHERE
-        conversationId = $conversationId AND
-        ($messageId IS NULL OR id IS NOT $messageId) AND
-        isStory IS 0 AND
-        (${_storyIdPredicate(storyId)}) AND
-        (
-          (received_at = $received_at AND sent_at < $sent_at) OR
-          received_at < $received_at
-        )
+  const createQuery = (timeFilter: QueryFragment): QueryFragment => sqlFragment`
+    SELECT json FROM messages WHERE
+      (${messageId} IS NULL OR id IS NOT ${messageId}) AND
+      isStory IS 0 AND
+      storyId IS ${storyId} AND
+      (
+        ${timeFilter}
+      )
       ORDER BY received_at DESC, sent_at DESC
-      LIMIT $limit;
-      `
-    )
-    .all({
-      conversationId,
-      limit,
-      messageId: messageId || null,
-      received_at: receivedAt,
-      sent_at: sentAt,
-      storyId: storyId || null,
-    })
-    .reverse();
+  `;
+
+  const template = sqlFragment`
+    SELECT first.json FROM (${createQuery(timeFilters.first)}) as first
+    UNION ALL
+    SELECT second.json FROM (${createQuery(timeFilters.second)}) as second
+  `;
+
+  const [query, params] = sql`${template} LIMIT ${limit}`;
+
+  return db.prepare(query).all(params);
 }
 
-async function getOlderStories({
-  conversationId,
-  limit = 9999,
-  receivedAt = Number.MAX_VALUE,
-  sentAt,
-  sourceUuid,
-}: {
-  conversationId?: string;
-  limit?: number;
-  receivedAt?: number;
-  sentAt?: number;
-  sourceUuid?: string;
-}): Promise<Array<MessageType>> {
-  const db = getInstance();
-  const rows: JSONRows = db
-    .prepare<Query>(
-      `
-      SELECT json
-      FROM messages
-      WHERE
-        type IS 'story' AND
-        ($conversationId IS NULL OR conversationId IS $conversationId) AND
-        ($sourceUuid IS NULL OR sourceUuid IS $sourceUuid) AND
-        (received_at < $receivedAt
-          OR (received_at IS $receivedAt AND sent_at < $sentAt)
-        )
-      ORDER BY received_at ASC, sent_at ASC
-      LIMIT $limit;
-      `
-    )
-    .all({
-      conversationId: conversationId || null,
-      receivedAt,
-      sentAt: sentAt || null,
-      sourceUuid: sourceUuid || null,
-      limit,
-    });
-
-  return rows.map(row => jsonToObject(row.json));
-}
-
-async function getNewerMessagesByConversation(
-  conversationId: string,
-  options?: {
-    limit?: number;
-    receivedAt?: number;
-    sentAt?: number;
-    storyId?: UUIDStringType;
-  }
-): Promise<Array<MessageTypeUnhydrated>> {
-  return getNewerMessagesByConversationSync(conversationId, options);
-}
-function getNewerMessagesByConversationSync(
-  conversationId: string,
+function getAdjacentMessagesByConversation(
+  db: ReadableDB,
+  direction: AdjacentDirection,
   {
+    conversationId,
+    includeStoryReplies,
     limit = 100,
-    receivedAt = 0,
-    sentAt = 0,
+    messageId,
+    receivedAt = direction === AdjacentDirection.Older ? Number.MAX_VALUE : 0,
+    sentAt = direction === AdjacentDirection.Older ? Number.MAX_VALUE : 0,
+    requireVisualMediaAttachments,
     storyId,
-  }: {
-    limit?: number;
-    receivedAt?: number;
-    sentAt?: number;
-    storyId?: UUIDStringType;
-  } = {}
+  }: AdjacentMessagesByConversationOptionsType
 ): Array<MessageTypeUnhydrated> {
-  const db = getInstance();
-  const rows: JSONRows = db
-    .prepare<Query>(
-      `
-      SELECT json FROM messages WHERE
-        conversationId = $conversationId AND
-        isStory IS 0 AND
-        (${_storyIdPredicate(storyId)}) AND
-        (
-          (received_at = $received_at AND sent_at > $sent_at) OR
-          received_at > $received_at
-        )
-      ORDER BY received_at ASC, sent_at ASC
-      LIMIT $limit;
-      `
-    )
-    .all({
-      conversationId,
-      limit,
-      received_at: receivedAt,
-      sent_at: sentAt,
-      storyId: storyId || null,
-    });
+  let timeFilters: { first: QueryFragment; second: QueryFragment };
+  let timeOrder: QueryFragment;
 
-  return rows;
+  if (direction === AdjacentDirection.Older) {
+    timeFilters = {
+      first: sqlFragment`received_at = ${receivedAt} AND sent_at < ${sentAt}`,
+      second: sqlFragment`received_at < ${receivedAt}`,
+    };
+    timeOrder = sqlFragment`DESC`;
+  } else {
+    timeFilters = {
+      first: sqlFragment`received_at = ${receivedAt} AND sent_at > ${sentAt}`,
+      second: sqlFragment`received_at > ${receivedAt}`,
+    };
+    timeOrder = sqlFragment`ASC`;
+  }
+
+  const requireDifferentMessage =
+    direction === AdjacentDirection.Older || requireVisualMediaAttachments;
+
+  const createQuery = (timeFilter: QueryFragment): QueryFragment => sqlFragment`
+    SELECT json FROM messages WHERE
+      conversationId = ${conversationId} AND
+      ${
+        requireDifferentMessage
+          ? sqlFragment`(${messageId} IS NULL OR id IS NOT ${messageId}) AND`
+          : sqlFragment``
+      }
+      ${
+        requireVisualMediaAttachments
+          ? sqlFragment`hasVisualMediaAttachments IS 1 AND`
+          : sqlFragment``
+      }
+      isStory IS 0 AND
+      (${_storyIdPredicate(storyId, includeStoryReplies)}) AND
+      (
+        ${timeFilter}
+      )
+      ORDER BY received_at ${timeOrder}, sent_at ${timeOrder}
+  `;
+
+  let template = sqlFragment`
+    SELECT first.json FROM (${createQuery(timeFilters.first)}) as first
+    UNION ALL
+    SELECT second.json FROM (${createQuery(timeFilters.second)}) as second
+  `;
+
+  // See `filterValidAttachments` in ts/state/ducks/lightbox.ts
+  if (requireVisualMediaAttachments) {
+    template = sqlFragment`
+      SELECT json
+      FROM (${template}) as messages
+      WHERE
+        (
+          SELECT COUNT(*)
+          FROM json_each(messages.json ->> 'attachments') AS attachment
+          WHERE
+            attachment.value ->> 'thumbnail' IS NOT NULL AND
+            attachment.value ->> 'pending' IS NOT 1 AND
+            attachment.value ->> 'error' IS NULL
+        ) > 0
+      LIMIT ${limit};
+    `;
+  } else {
+    template = sqlFragment`${template} LIMIT ${limit}`;
+  }
+
+  const [query, params] = sql`${template}`;
+
+  const results = db.prepare(query).all(params);
+
+  if (direction === AdjacentDirection.Older) {
+    results.reverse();
+  }
+
+  return results;
+}
+
+function getOlderMessagesByConversation(
+  db: ReadableDB,
+  options: AdjacentMessagesByConversationOptionsType
+): Array<MessageTypeUnhydrated> {
+  return getAdjacentMessagesByConversation(
+    db,
+    AdjacentDirection.Older,
+    options
+  );
+}
+
+function getAllStories(
+  db: ReadableDB,
+  {
+    conversationId,
+    sourceServiceId,
+  }: {
+    conversationId?: string;
+    sourceServiceId?: ServiceIdString;
+  }
+): GetAllStoriesResultType {
+  const [storiesQuery, storiesParams] = sql`
+    SELECT json, id
+    FROM messages
+    WHERE
+      isStory = 1 AND
+      (${conversationId} IS NULL OR conversationId IS ${conversationId}) AND
+      (${sourceServiceId} IS NULL OR sourceServiceId IS ${sourceServiceId})
+    ORDER BY received_at ASC, sent_at ASC;
+  `;
+  const rows: ReadonlyArray<{
+    id: string;
+    json: string;
+  }> = db.prepare(storiesQuery).all(storiesParams);
+
+  const [repliesQuery, repliesParams] = sql`
+    SELECT DISTINCT storyId
+    FROM messages
+    WHERE storyId IS NOT NULL
+  `;
+  const replies: ReadonlyArray<{
+    storyId: string;
+  }> = db.prepare(repliesQuery).all(repliesParams);
+
+  const [repliesFromSelfQuery, repliesFromSelfParams] = sql`
+    SELECT DISTINCT storyId
+    FROM messages
+    WHERE (
+      storyId IS NOT NULL AND
+      type IS 'outgoing'
+    )
+  `;
+  const repliesFromSelf: ReadonlyArray<{
+    storyId: string;
+  }> = db.prepare(repliesFromSelfQuery).all(repliesFromSelfParams);
+
+  const repliesLookup = new Set(replies.map(row => row.storyId));
+  const repliesFromSelfLookup = new Set(
+    repliesFromSelf.map(row => row.storyId)
+  );
+
+  return rows.map(row => ({
+    ...jsonToObject(row.json),
+    hasReplies: Boolean(repliesLookup.has(row.id)),
+    hasRepliesFromSelf: Boolean(repliesFromSelfLookup.has(row.id)),
+  }));
+}
+
+function getNewerMessagesByConversation(
+  db: ReadableDB,
+  options: AdjacentMessagesByConversationOptionsType
+): Array<MessageTypeUnhydrated> {
+  return getAdjacentMessagesByConversation(
+    db,
+    AdjacentDirection.Newer,
+    options
+  );
 }
 function getOldestMessageForConversation(
+  db: ReadableDB,
   conversationId: string,
-  storyId?: UUIDStringType
+  {
+    storyId,
+    includeStoryReplies,
+  }: {
+    storyId?: string;
+    includeStoryReplies: boolean;
+  }
 ): MessageMetricsType | undefined {
-  const db = getInstance();
-  const row = db
-    .prepare<Query>(
-      `
-      SELECT * FROM messages WHERE
-        conversationId = $conversationId AND
+  const [query, params] = sql`
+    SELECT received_at, sent_at, id FROM messages WHERE
+        conversationId = ${conversationId} AND
         isStory IS 0 AND
-        (${_storyIdPredicate(storyId)})
+        (${_storyIdPredicate(storyId, includeStoryReplies)})
       ORDER BY received_at ASC, sent_at ASC
       LIMIT 1;
-      `
-    )
-    .get({
-      conversationId,
-      storyId: storyId || null,
-    });
+  `;
+
+  const row = db.prepare(query).get(params);
 
   if (!row) {
     return undefined;
@@ -2498,25 +3060,25 @@ function getOldestMessageForConversation(
   return row;
 }
 function getNewestMessageForConversation(
+  db: ReadableDB,
   conversationId: string,
-  storyId?: UUIDStringType
+  {
+    storyId,
+    includeStoryReplies,
+  }: {
+    storyId?: string;
+    includeStoryReplies: boolean;
+  }
 ): MessageMetricsType | undefined {
-  const db = getInstance();
-  const row = db
-    .prepare<Query>(
-      `
-      SELECT * FROM messages WHERE
-        conversationId = $conversationId AND
+  const [query, params] = sql`
+    SELECT received_at, sent_at, id FROM messages WHERE
+        conversationId = ${conversationId} AND
         isStory IS 0 AND
-        (${_storyIdPredicate(storyId)})
+        (${_storyIdPredicate(storyId, includeStoryReplies)})
       ORDER BY received_at DESC, sent_at DESC
       LIMIT 1;
-      `
-    )
-    .get({
-      conversationId,
-      storyId: storyId || null,
-    });
+  `;
+  const row = db.prepare(query).get(params);
 
   if (!row) {
     return undefined;
@@ -2525,29 +3087,122 @@ function getNewestMessageForConversation(
   return row;
 }
 
-function getLastConversationActivity({
-  conversationId,
-  ourUuid,
-}: {
-  conversationId: string;
-  ourUuid: UUIDStringType;
-}): MessageType | undefined {
-  const db = getInstance();
+export type GetMessagesBetweenOptions = Readonly<{
+  after: { received_at: number; sent_at: number };
+  before: { received_at: number; sent_at: number };
+  includeStoryReplies: boolean;
+}>;
+
+function getMessagesBetween(
+  db: ReadableDB,
+  conversationId: string,
+  options: GetMessagesBetweenOptions
+): Array<string> {
+  // In the future we could accept this as an option, but for now we just
+  // use it for the story predicate.
+  const storyId = undefined;
+
+  const { after, before, includeStoryReplies } = options;
+
+  const [query, params] = sql`
+    SELECT id
+    FROM messages
+    WHERE
+      conversationId = ${conversationId} AND
+      (${_storyIdPredicate(storyId, includeStoryReplies)}) AND
+      isStory IS 0 AND
+      (
+        received_at > ${after.received_at}
+        OR (received_at = ${after.received_at} AND sent_at > ${after.sent_at})
+      ) AND (
+        received_at < ${before.received_at}
+        OR (received_at = ${before.received_at} AND sent_at < ${before.sent_at})
+      )
+    ORDER BY received_at ASC, sent_at ASC;
+  `;
+
+  const rows = db.prepare(query).all(params);
+
+  return rows.map(row => row.id);
+}
+
+/**
+ * Given a set of deleted message IDs, find a message in the conversation that
+ * is close to the set. Searching from the last selected message as a starting
+ * point.
+ */
+function getNearbyMessageFromDeletedSet(
+  db: ReadableDB,
+  {
+    conversationId,
+    lastSelectedMessage,
+    deletedMessageIds,
+    storyId,
+    includeStoryReplies,
+  }: GetNearbyMessageFromDeletedSetOptionsType
+): string | null {
+  function runQuery(after: boolean) {
+    const dir = after ? sqlFragment`ASC` : sqlFragment`DESC`;
+    const compare = after ? sqlFragment`>` : sqlFragment`<`;
+    const { received_at, sent_at } = lastSelectedMessage;
+
+    const [query, params] = sql`
+      SELECT id FROM messages WHERE
+        conversationId = ${conversationId} AND
+        (${_storyIdPredicate(storyId, includeStoryReplies)}) AND
+        isStory IS 0 AND
+        id NOT IN (${sqlJoin(deletedMessageIds)}) AND
+        type IN ('incoming', 'outgoing')
+        AND (
+          (received_at = ${received_at} AND sent_at ${compare} ${sent_at}) OR
+          received_at ${compare} ${received_at}
+        )
+      ORDER BY received_at ${dir}, sent_at ${dir}
+      LIMIT 1
+    `;
+
+    return db.prepare(query).pluck().get(params);
+  }
+
+  const after = runQuery(true);
+  if (after != null) {
+    return after;
+  }
+
+  const before = runQuery(false);
+  if (before != null) {
+    return before;
+  }
+
+  return null;
+}
+
+function getLastConversationActivity(
+  db: ReadableDB,
+  {
+    conversationId,
+    includeStoryReplies,
+  }: {
+    conversationId: string;
+    includeStoryReplies: boolean;
+  }
+): MessageType | undefined {
   const row = prepare(
     db,
     `
       SELECT json FROM messages
+      INDEXED BY messages_activity
       WHERE
-        conversationId = $conversationId AND
+        conversationId IS $conversationId AND
         shouldAffectActivity IS 1 AND
         isTimerChangeFromSync IS 0 AND
+        ${includeStoryReplies ? '' : 'storyId IS NULL AND'}
         isGroupLeaveEventFromOther IS 0
       ORDER BY received_at DESC, sent_at DESC
       LIMIT 1;
       `
   ).get({
     conversationId,
-    ourUuid,
   });
 
   if (!row) {
@@ -2556,71 +3211,85 @@ function getLastConversationActivity({
 
   return jsonToObject(row.json);
 }
-function getLastConversationPreview({
-  conversationId,
-}: {
-  conversationId: string;
-}): MessageType | undefined {
-  const db = getInstance();
-  const row = prepare(
+function getLastConversationPreview(
+  db: ReadableDB,
+  {
+    conversationId,
+    includeStoryReplies,
+  }: {
+    conversationId: string;
+    includeStoryReplies: boolean;
+  }
+): MessageType | undefined {
+  type Row = Readonly<{
+    json: string;
+  }>;
+
+  const index = includeStoryReplies
+    ? 'messages_preview'
+    : 'messages_preview_without_story';
+
+  const row: Row | undefined = prepare(
     db,
     `
-      SELECT json FROM messages
-      WHERE
-        conversationId = $conversationId AND
-        shouldAffectPreview IS 1 AND
-        isGroupLeaveEventFromOther IS 0 AND
-        (
-          expiresAt IS NULL
-          OR
-          expiresAt > $now
-        )
-      ORDER BY received_at DESC, sent_at DESC
-      LIMIT 1;
-      `
+      SELECT json FROM (
+        SELECT json, expiresAt FROM messages
+        INDEXED BY ${index}
+        WHERE
+          conversationId IS $conversationId AND
+          shouldAffectPreview IS 1 AND
+          isGroupLeaveEventFromOther IS 0
+          ${includeStoryReplies ? '' : 'AND storyId IS NULL'}
+        ORDER BY received_at DESC, sent_at DESC
+      )
+      WHERE likely(expiresAt > $now)
+      LIMIT 1
+    `
   ).get({
     conversationId,
     now: Date.now(),
   });
 
-  if (!row) {
-    return undefined;
-  }
-
-  return jsonToObject(row.json);
+  return row ? jsonToObject(row.json) : undefined;
 }
 
-async function getConversationMessageStats({
-  conversationId,
-  ourUuid,
-}: {
-  conversationId: string;
-  ourUuid: UUIDStringType;
-}): Promise<ConversationMessageStatsType> {
-  const db = getInstance();
-
+function getConversationMessageStats(
+  db: ReadableDB,
+  {
+    conversationId,
+    includeStoryReplies,
+  }: {
+    conversationId: string;
+    includeStoryReplies: boolean;
+  }
+): ConversationMessageStatsType {
   return db.transaction(() => {
     return {
-      activity: getLastConversationActivity({
+      activity: getLastConversationActivity(db, {
         conversationId,
-        ourUuid,
+        includeStoryReplies,
       }),
-      preview: getLastConversationPreview({ conversationId }),
-      hasUserInitiatedMessages: hasUserInitiatedMessages(conversationId),
+      preview: getLastConversationPreview(db, {
+        conversationId,
+        includeStoryReplies,
+      }),
+      hasUserInitiatedMessages: hasUserInitiatedMessages(db, conversationId),
     };
   })();
 }
 
-async function getLastConversationMessage({
-  conversationId,
-}: {
-  conversationId: string;
-}): Promise<MessageType | undefined> {
-  const db = getInstance();
+function getLastConversationMessage(
+  db: ReadableDB,
+  {
+    conversationId,
+  }: {
+    conversationId: string;
+  }
+): MessageType | undefined {
   const row = db
     .prepare<Query>(
       `
-      SELECT * FROM messages WHERE
+      SELECT json FROM messages WHERE
         conversationId = $conversationId
       ORDER BY received_at DESC, sent_at DESC
       LIMIT 1;
@@ -2637,27 +3306,28 @@ async function getLastConversationMessage({
   return jsonToObject(row.json);
 }
 
-function getOldestUnreadMessageForConversation(
+function getOldestUnseenMessageForConversation(
+  db: ReadableDB,
   conversationId: string,
-  storyId?: UUIDStringType
+  {
+    storyId,
+    includeStoryReplies,
+  }: {
+    storyId?: string;
+    includeStoryReplies: boolean;
+  }
 ): MessageMetricsType | undefined {
-  const db = getInstance();
-  const row = db
-    .prepare<Query>(
-      `
-      SELECT * FROM messages WHERE
-        conversationId = $conversationId AND
-        readStatus = ${ReadStatus.Unread} AND
-        isStory IS 0 AND
-        (${_storyIdPredicate(storyId)})
-      ORDER BY received_at ASC, sent_at ASC
-      LIMIT 1;
-      `
-    )
-    .get({
-      conversationId,
-      storyId: storyId || null,
-    });
+  const [query, params] = sql`
+    SELECT received_at, sent_at, id FROM messages WHERE
+      conversationId = ${conversationId} AND
+      seenStatus = ${SeenStatus.Unseen} AND
+      isStory IS 0 AND
+      (${_storyIdPredicate(storyId, includeStoryReplies)})
+    ORDER BY received_at ASC, sent_at ASC
+    LIMIT 1;
+  `;
+
+  const row = db.prepare(query).get(params);
 
   if (!row) {
     return undefined;
@@ -2666,188 +3336,1029 @@ function getOldestUnreadMessageForConversation(
   return row;
 }
 
-async function getTotalUnreadForConversation(
+function getOldestUnreadMentionOfMeForConversation(
+  db: ReadableDB,
   conversationId: string,
-  storyId?: UUIDStringType
-): Promise<number> {
-  return getTotalUnreadForConversationSync(conversationId, storyId);
+  options: {
+    storyId?: string;
+    includeStoryReplies: boolean;
+  }
+): MessageMetricsType | undefined {
+  const [query, params] = sql`
+      SELECT received_at, sent_at, id FROM messages WHERE
+        conversationId = ${conversationId} AND
+        readStatus = ${ReadStatus.Unread} AND
+        mentionsMe IS 1 AND
+        isStory IS 0 AND
+        (${_storyIdPredicate(options.storyId, options.includeStoryReplies)})
+      ORDER BY received_at ASC, sent_at ASC
+      LIMIT 1;
+      `;
+
+  return db.prepare(query).get(params);
 }
-function getTotalUnreadForConversationSync(
+
+function getTotalUnreadForConversation(
+  db: ReadableDB,
   conversationId: string,
-  storyId?: UUIDStringType
+  {
+    storyId,
+    includeStoryReplies,
+  }: {
+    storyId: string | undefined;
+    includeStoryReplies: boolean;
+  }
 ): number {
-  const db = getInstance();
-  const row = db
-    .prepare<Query>(
-      `
-      SELECT count(id)
+  const [query, params] = sql`
+    SELECT count(1)
+    FROM messages
+    WHERE
+      conversationId = ${conversationId} AND
+      readStatus = ${ReadStatus.Unread} AND
+      isStory IS 0 AND
+      (${_storyIdPredicate(storyId, includeStoryReplies)})
+  `;
+  const row = db.prepare(query).pluck().get(params);
+
+  return row;
+}
+function getTotalUnreadMentionsOfMeForConversation(
+  db: ReadableDB,
+  conversationId: string,
+  {
+    storyId,
+    includeStoryReplies,
+  }: {
+    storyId?: string;
+    includeStoryReplies: boolean;
+  }
+): number {
+  const [query, params] = sql`
+    SELECT count(1)
+    FROM messages
+    WHERE
+      conversationId = ${conversationId} AND
+      readStatus = ${ReadStatus.Unread} AND
+      mentionsMe IS 1 AND
+      isStory IS 0 AND
+      (${_storyIdPredicate(storyId, includeStoryReplies)})
+  `;
+  const row = db.prepare(query).pluck().get(params);
+
+  return row;
+}
+function getTotalUnseenForConversation(
+  db: ReadableDB,
+  conversationId: string,
+  {
+    storyId,
+    includeStoryReplies,
+  }: {
+    storyId?: string;
+    includeStoryReplies: boolean;
+  }
+): number {
+  const [query, params] = sql`
+    SELECT count(1)
       FROM messages
       WHERE
-        conversationId = $conversationId AND
-        readStatus = ${ReadStatus.Unread} AND
+        conversationId = ${conversationId} AND
+        seenStatus = ${SeenStatus.Unseen} AND
         isStory IS 0 AND
-        (${_storyIdPredicate(storyId)})
-      `
-    )
-    .get({
-      conversationId,
-      storyId: storyId || null,
-    });
+        (${_storyIdPredicate(storyId, includeStoryReplies)})
+  `;
+  const row = db.prepare(query).pluck().get(params);
 
-  if (!row) {
-    throw new Error('getTotalUnreadForConversation: Unable to get count');
+  return row;
+}
+
+function getMessageMetricsForConversation(
+  db: ReadableDB,
+  options: {
+    conversationId: string;
+    storyId?: string;
+    includeStoryReplies: boolean;
   }
-
-  return row['count(id)'];
-}
-
-async function getMessageMetricsForConversation(
-  conversationId: string,
-  storyId?: UUIDStringType
-): Promise<ConversationMetricsType> {
-  return getMessageMetricsForConversationSync(conversationId, storyId);
-}
-function getMessageMetricsForConversationSync(
-  conversationId: string,
-  storyId?: UUIDStringType
 ): ConversationMetricsType {
-  const oldest = getOldestMessageForConversation(conversationId, storyId);
-  const newest = getNewestMessageForConversation(conversationId, storyId);
-  const oldestUnread = getOldestUnreadMessageForConversation(
+  const { conversationId } = options;
+  const oldest = getOldestMessageForConversation(db, conversationId, options);
+  const newest = getNewestMessageForConversation(db, conversationId, options);
+  const oldestUnseen = getOldestUnseenMessageForConversation(
+    db,
     conversationId,
-    storyId
+    options
   );
-  const totalUnread = getTotalUnreadForConversationSync(
+  const totalUnseen = getTotalUnseenForConversation(
+    db,
     conversationId,
-    storyId
+    options
   );
 
   return {
-    oldest: oldest ? pick(oldest, ['received_at', 'sent_at', 'id']) : undefined,
-    newest: newest ? pick(newest, ['received_at', 'sent_at', 'id']) : undefined,
-    oldestUnread: oldestUnread
-      ? pick(oldestUnread, ['received_at', 'sent_at', 'id'])
-      : undefined,
-    totalUnread,
+    oldest,
+    newest,
+    oldestUnseen,
+    totalUnseen,
   };
 }
 
-async function getConversationRangeCenteredOnMessage({
-  conversationId,
-  limit,
-  messageId,
-  receivedAt,
-  sentAt,
-  storyId,
-}: {
-  conversationId: string;
-  limit?: number;
-  messageId: string;
-  receivedAt: number;
-  sentAt?: number;
-  storyId?: UUIDStringType;
-}): Promise<{
-  older: Array<MessageTypeUnhydrated>;
-  newer: Array<MessageTypeUnhydrated>;
-  metrics: ConversationMetricsType;
-}> {
-  const db = getInstance();
-
+function getConversationRangeCenteredOnMessage(
+  db: ReadableDB,
+  options: AdjacentMessagesByConversationOptionsType
+): GetConversationRangeCenteredOnMessageResultType<MessageTypeUnhydrated> {
   return db.transaction(() => {
     return {
-      older: getOlderMessagesByConversationSync(conversationId, {
-        limit,
-        messageId,
-        receivedAt,
-        sentAt,
-        storyId,
-      }),
-      newer: getNewerMessagesByConversationSync(conversationId, {
-        limit,
-        receivedAt,
-        sentAt,
-        storyId,
-      }),
-      metrics: getMessageMetricsForConversationSync(conversationId, storyId),
+      older: getAdjacentMessagesByConversation(
+        db,
+        AdjacentDirection.Older,
+        options
+      ),
+      newer: getAdjacentMessagesByConversation(
+        db,
+        AdjacentDirection.Newer,
+        options
+      ),
+      metrics: getMessageMetricsForConversation(db, options),
     };
   })();
 }
 
-async function hasGroupCallHistoryMessage(
+function getAllCallHistory(db: ReadableDB): ReadonlyArray<CallHistoryDetails> {
+  const [query] = sql`
+    SELECT * FROM callsHistory;
+  `;
+  return db.prepare(query).all();
+}
+
+function _removeAllCallHistory(db: WritableDB): void {
+  const [query, params] = sql`
+    DELETE FROM callsHistory;
+  `;
+  db.prepare(query).run(params);
+}
+
+function clearCallHistory(
+  db: WritableDB,
+  target: CallLogEventTarget
+): ReadonlyArray<string> {
+  return db.transaction(() => {
+    const callHistory = getCallHistoryForCallLogEventTarget(db, target);
+    if (callHistory == null) {
+      logger.error('clearCallHistory: Target call not found');
+      return [];
+    }
+    const { timestamp } = callHistory;
+
+    const [selectCallsQuery, selectCallsParams] = sql`
+      SELECT callsHistory.callId
+      FROM callsHistory
+      WHERE
+        -- Prior calls
+        (callsHistory.timestamp <= ${timestamp})
+        -- Unused call links
+        OR (
+          callsHistory.mode IS ${CALL_MODE_ADHOC} AND
+          callsHistory.status IS ${CALL_STATUS_PENDING}
+        );
+    `;
+
+    const deletedCallIds: ReadonlyArray<string> = db
+      .prepare(selectCallsQuery)
+      .pluck()
+      .all(selectCallsParams);
+
+    let deletedMessageIds: ReadonlyArray<string> = [];
+
+    batchMultiVarQuery(db, deletedCallIds, (ids): void => {
+      const idsFragment = sqlJoin(ids);
+
+      const [clearCallsHistoryQuery, clearCallsHistoryParams] = sql`
+        UPDATE callsHistory
+        SET
+          status = ${DirectCallStatus.Deleted},
+          timestamp = ${Date.now()}
+        WHERE callsHistory.callId IN (${idsFragment});
+      `;
+
+      db.prepare(clearCallsHistoryQuery).run(clearCallsHistoryParams);
+
+      const [deleteMessagesQuery, deleteMessagesParams] = sql`
+        DELETE FROM messages
+        WHERE messages.type IS 'call-history'
+        AND messages.callId IN (${idsFragment})
+        RETURNING id;
+      `;
+
+      const batchDeletedMessageIds = db
+        .prepare(deleteMessagesQuery)
+        .pluck()
+        .all(deleteMessagesParams);
+
+      deletedMessageIds = deletedMessageIds.concat(batchDeletedMessageIds);
+    });
+
+    return deletedMessageIds;
+  })();
+}
+
+function markCallHistoryDeleted(db: WritableDB, callId: string): void {
+  const [query, params] = sql`
+    UPDATE callsHistory
+    SET
+      status = ${DirectCallStatus.Deleted},
+      timestamp = ${Date.now()}
+    WHERE callId = ${callId}
+  `;
+  db.prepare(query).run(params);
+}
+
+function cleanupCallHistoryMessages(db: WritableDB): void {
+  return db.transaction(() => {
+    const [query, params] = sql`
+        DELETE FROM messages
+        WHERE messages.id IN (
+          SELECT messages.id FROM messages
+          LEFT JOIN callsHistory ON callsHistory.callId IS messages.callId
+          WHERE messages.type IS 'call-history'
+          AND callsHistory.status IS ${CALL_STATUS_DELETED}
+        )
+      `;
+    db.prepare(query).run(params);
+  })();
+}
+
+function getCallHistoryMessageByCallId(
+  db: ReadableDB,
+  options: {
+    conversationId: string;
+    callId: string;
+  }
+): MessageType | undefined {
+  const [query, params] = sql`
+    SELECT json
+    FROM messages
+    WHERE conversationId = ${options.conversationId}
+      AND type = 'call-history'
+      AND callId = ${options.callId}
+  `;
+  const row = db.prepare(query).get(params);
+  if (row == null) {
+    return;
+  }
+  return jsonToObject(row.json);
+}
+
+function getCallHistory(
+  db: ReadableDB,
+  callId: string,
+  peerId: ServiceIdString | string
+): CallHistoryDetails | undefined {
+  const [query, params] = sql`
+    SELECT * FROM callsHistory
+    WHERE callId IS ${callId}
+    AND peerId IS ${peerId};
+  `;
+
+  const row = db.prepare(query).get(params);
+
+  if (row == null) {
+    return;
+  }
+
+  return callHistoryDetailsSchema.parse(row);
+}
+
+const SEEN_STATUS_UNSEEN = sqlConstant(SeenStatus.Unseen);
+const SEEN_STATUS_SEEN = sqlConstant(SeenStatus.Seen);
+const CALL_STATUS_MISSED = sqlConstant(CallStatusValue.Missed);
+const CALL_STATUS_DELETED = sqlConstant(CallStatusValue.Deleted);
+const CALL_STATUS_PENDING = sqlConstant(CallStatusValue.Pending);
+const CALL_STATUS_INCOMING = sqlConstant(CallDirection.Incoming);
+const CALL_MODE_ADHOC = sqlConstant(CallMode.Adhoc);
+const FOUR_HOURS_IN_MS = sqlConstant(4 * 60 * 60 * 1000);
+
+function getCallHistoryUnreadCount(db: ReadableDB): number {
+  const [query, params] = sql`
+    SELECT count(*) FROM messages
+    INNER JOIN callsHistory ON callsHistory.callId = messages.callId
+    WHERE messages.type IS 'call-history'
+      AND messages.seenStatus IS ${SEEN_STATUS_UNSEEN}
+      AND callsHistory.status IS ${CALL_STATUS_MISSED}
+      AND callsHistory.direction IS ${CALL_STATUS_INCOMING}
+  `;
+  const row = db.prepare(query).pluck().get(params);
+  return row;
+}
+
+function markCallHistoryRead(db: WritableDB, callId: string): void {
+  const jsonPatch = JSON.stringify({
+    seenStatus: SeenStatus.Seen,
+  });
+
+  const [query, params] = sql`
+    UPDATE messages
+    SET
+      seenStatus = ${SEEN_STATUS_SEEN},
+      json = json_patch(json, ${jsonPatch})
+    WHERE type IS 'call-history'
+    AND callId IS ${callId}
+  `;
+  db.prepare(query).run(params);
+}
+
+function getCallHistoryForCallLogEventTarget(
+  db: ReadableDB,
+  target: CallLogEventTarget
+): CallHistoryDetails | null {
+  const { callId, peerId, timestamp } = target;
+
+  let row: unknown;
+
+  if (callId == null || peerId == null) {
+    const predicate =
+      peerId != null
+        ? sqlFragment`callsHistory.peerId IS ${target.peerId}`
+        : sqlFragment`TRUE`;
+
+    // Get the most recent call history timestamp for the target.timestamp
+    const [selectQuery, selectParams] = sql`
+      SELECT *
+      FROM callsHistory
+      WHERE ${predicate}
+        AND callsHistory.timestamp <= ${timestamp}
+      ORDER BY callsHistory.timestamp DESC
+      LIMIT 1
+    `;
+
+    row = db.prepare(selectQuery).get(selectParams);
+  } else {
+    const [selectQuery, selectParams] = sql`
+      SELECT *
+      FROM callsHistory
+      WHERE callsHistory.peerId IS ${target.peerId}
+        AND callsHistory.callId IS ${target.callId}
+      LIMIT 1
+    `;
+
+    row = db.prepare(selectQuery).get(selectParams);
+  }
+
+  if (row == null) {
+    return null;
+  }
+
+  return callHistoryDetailsSchema.parse(row);
+}
+
+function getConversationIdForCallHistory(
+  db: ReadableDB,
+  callHistory: CallHistoryDetails
+): string | null {
+  const { peerId, mode } = callHistory;
+
+  if (mode === CallMode.Adhoc) {
+    throw new Error(
+      'getConversationIdForCallHistory: Adhoc calls do not have conversations'
+    );
+  }
+
+  const predicate =
+    mode === CallMode.Direct
+      ? sqlFragment`serviceId IS ${peerId}`
+      : sqlFragment`groupId IS ${peerId}`;
+
+  const [selectConversationIdQuery, selectConversationIdParams] = sql`
+    SELECT id FROM conversations
+    WHERE ${predicate}
+  `;
+
+  const conversationId = db
+    .prepare(selectConversationIdQuery)
+    .pluck()
+    .get(selectConversationIdParams);
+
+  if (typeof conversationId !== 'string') {
+    logger.warn('getConversationIdForCallHistory: Unknown conversation');
+    return null;
+  }
+
+  return conversationId ?? null;
+}
+
+function getMessageReceivedAtForCall(
+  db: ReadableDB,
+  callId: string,
+  conversationId: string
+): number | null {
+  const [selectQuery, selectParams] = sql`
+    SELECT messages.received_at
+    FROM messages
+    WHERE messages.type IS 'call-history'
+      AND messages.conversationId IS ${conversationId}
+      AND messages.callId IS ${callId}
+    LIMIT 1
+  `;
+
+  const receivedAt = db.prepare(selectQuery).pluck().get(selectParams);
+  if (receivedAt == null) {
+    logger.warn('getMessageReceivedAtForCall: Target call message not found');
+  }
+
+  return receivedAt ?? null;
+}
+
+export function markAllCallHistoryRead(
+  db: WritableDB,
+  target: CallLogEventTarget,
+  inConversation = false
+): number {
+  if (inConversation) {
+    strictAssert(target.peerId, 'peerId is required');
+  }
+
+  return db.transaction(() => {
+    const callHistory = getCallHistoryForCallLogEventTarget(db, target);
+    if (callHistory == null) {
+      logger.warn('markAllCallHistoryRead: Target call not found');
+      return 0;
+    }
+
+    const { callId } = callHistory;
+
+    strictAssert(
+      target.callId == null || callId === target.callId,
+      'Call ID must be the same as target if supplied'
+    );
+
+    const conversationId = getConversationIdForCallHistory(db, callHistory);
+    if (conversationId == null) {
+      logger.warn('markAllCallHistoryRead: Conversation not found for call');
+      return 0;
+    }
+    logger.info(`markAllCallHistoryRead: Found conversation ${conversationId}`);
+    const receivedAt = getMessageReceivedAtForCall(db, callId, conversationId);
+
+    if (receivedAt == null) {
+      logger.warn('markAllCallHistoryRead: Message not found for call');
+      return 0;
+    }
+
+    const predicate = inConversation
+      ? sqlFragment`messages.conversationId IS ${conversationId}`
+      : sqlFragment`TRUE`;
+
+    const jsonPatch = JSON.stringify({
+      seenStatus: SeenStatus.Seen,
+    });
+
+    logger.warn(
+      `markAllCallHistoryRead: Marking calls before ${receivedAt} read`
+    );
+
+    const [updateQuery, updateParams] = sql`
+      UPDATE messages
+      SET
+        seenStatus = ${SEEN_STATUS_SEEN},
+        json = json_patch(json, ${jsonPatch})
+      WHERE messages.type IS 'call-history'
+        AND ${predicate}
+        AND messages.seenStatus IS ${SEEN_STATUS_UNSEEN}
+        AND messages.received_at <= ${receivedAt};
+    `;
+
+    const result = db.prepare(updateQuery).run(updateParams);
+    return result.changes;
+  })();
+}
+
+function markAllCallHistoryReadInConversation(
+  db: WritableDB,
+  target: CallLogEventTarget
+): number {
+  strictAssert(target.peerId, 'peerId is required');
+  return markAllCallHistoryRead(db, target, true);
+}
+
+function getCallHistoryGroupData(
+  db: WritableDB,
+  isCount: boolean,
+  filter: CallHistoryFilter,
+  pagination: CallHistoryPagination
+): unknown {
+  return db.transaction(() => {
+    const { limit, offset } = pagination;
+    const { status, conversationIds, callLinkRoomIds } = filter;
+
+    const isUsingTempTable = conversationIds != null || callLinkRoomIds != null;
+    if (isUsingTempTable) {
+      const [createTempTable] = sql`
+        CREATE TEMP TABLE temp_callHistory_filtered_peers (
+          conversationId TEXT,
+          serviceId TEXT,
+          groupId TEXT,
+          callLinkRoomId TEXT
+        );
+      `;
+
+      db.exec(createTempTable);
+      if (conversationIds != null) {
+        strictAssert(conversationIds.length > 0, "can't filter by empty array");
+
+        batchMultiVarQuery(db, conversationIds, ids => {
+          const idList = sqlJoin(ids.map(id => sqlFragment`${id}`));
+
+          const [insertQuery, insertParams] = sql`
+            INSERT INTO temp_callHistory_filtered_peers
+              (conversationId, serviceId, groupId)
+            SELECT id, serviceId, groupId
+            FROM conversations
+            WHERE conversations.id IN (${idList});
+          `;
+
+          db.prepare(insertQuery).run(insertParams);
+        });
+      }
+
+      if (callLinkRoomIds != null) {
+        strictAssert(callLinkRoomIds.length > 0, "can't filter by empty array");
+
+        batchMultiVarQuery(db, callLinkRoomIds, ids => {
+          const idList = sqlJoin(ids.map(id => sqlFragment`(${id})`));
+
+          const [insertQuery, insertParams] = sql`
+            INSERT INTO temp_callHistory_filtered_peers
+              (callLinkRoomId)
+            VALUES ${idList};
+          `;
+
+          db.prepare(insertQuery).run(insertParams);
+        });
+      }
+    }
+
+    // peerId can be a conversation id (legacy), a serviceId, groupId, or call
+    // link roomId
+    const innerJoin = isUsingTempTable
+      ? sqlFragment`
+          INNER JOIN temp_callHistory_filtered_peers ON (
+            temp_callHistory_filtered_peers.conversationId IS c.peerId
+            OR temp_callHistory_filtered_peers.serviceId IS c.peerId
+            OR temp_callHistory_filtered_peers.groupId IS c.peerId
+            OR temp_callHistory_filtered_peers.callLinkRoomId IS c.peerId
+          )
+        `
+      : sqlFragment``;
+
+    const filterClause =
+      status === CallHistoryFilterStatus.All
+        ? sqlFragment`status IS NOT ${CALL_STATUS_DELETED}`
+        : sqlFragment`
+            direction IS ${CALL_STATUS_INCOMING} AND
+            status IS ${CALL_STATUS_MISSED} AND status IS NOT ${CALL_STATUS_DELETED}
+          `;
+
+    const offsetLimit =
+      limit > 0 ? sqlFragment`LIMIT ${limit} OFFSET ${offset}` : sqlFragment``;
+
+    // COUNT(*) OVER(): As a result of GROUP BY in the query (to limit adhoc
+    // call history to the single latest call), COUNT(*) changes to counting
+    // each group's counts rather than the total number of rows. Example: Say
+    // we have 2 group calls (A and B) and 10 adhoc calls on a single link.
+    // COUNT(*) ... GROUP BY returns [1, 1, 10] corresponding with callId A,
+    // callId B, adhoc peerId (the GROUP conditions). However we want COUNT(*)
+    // to do the normal thing and return total rows (so in the example above
+    // we want 3). COUNT(*) OVER achieves this.
+    const projection = isCount
+      ? sqlFragment`COUNT(*) OVER() AS count`
+      : sqlFragment`peerId, ringerId, mode, type, direction, status, timestamp, possibleChildren, inPeriod`;
+
+    const [query, params] = sql`
+      SELECT
+        ${projection}
+      FROM (
+        -- 1. 'callAndGroupInfo': This section collects metadata to determine the
+        -- parent and children of each call. We can identify the real parents of calls
+        -- within the query, but we need to build the children at runtime.
+        WITH callAndGroupInfo AS (
+          SELECT
+            *,
+            -- 1a. 'possibleParent': This identifies the first call that _could_ be
+            -- considered the current call's parent. Note: The 'possibleParent' is not
+            -- necessarily the true parent if there is another call between them that
+            -- isn't a part of the group.
+            (
+              SELECT callId
+              FROM callsHistory
+              WHERE
+                callsHistory.direction IS c.direction
+                AND callsHistory.type IS c.type
+                AND callsHistory.peerId IS c.peerId
+                AND (callsHistory.timestamp - ${FOUR_HOURS_IN_MS}) <= c.timestamp
+                AND callsHistory.timestamp >= c.timestamp
+                -- Tracking Android & Desktop separately to make the queries easier to compare
+                -- Android Constraints:
+                AND (
+                  (callsHistory.status IS c.status AND callsHistory.status IS ${CALL_STATUS_MISSED}) OR
+                  (callsHistory.status IS NOT ${CALL_STATUS_MISSED} AND c.status IS NOT ${CALL_STATUS_MISSED})
+                )
+                -- Desktop Constraints:
+                AND callsHistory.status IS c.status
+                AND ${filterClause}
+              ORDER BY timestamp DESC
+            ) as possibleParent,
+            -- 1b. 'possibleChildren': This identifies all possible calls that can
+            -- be grouped with the current call. Note: This current call is not
+            -- necessarily the parent, and not all possible children will end up as
+            -- children as they might have another parent
+            (
+              SELECT JSON_GROUP_ARRAY(
+                JSON_OBJECT(
+                  'callId', callId,
+                  'timestamp', timestamp
+                )
+              )
+              FROM callsHistory
+              WHERE
+                callsHistory.direction IS c.direction
+                AND callsHistory.type IS c.type
+                AND callsHistory.peerId IS c.peerId
+                AND (c.timestamp - ${FOUR_HOURS_IN_MS}) <= callsHistory.timestamp
+                AND c.timestamp >= callsHistory.timestamp
+                -- Tracking Android & Desktop separately to make the queries easier to compare
+                -- Android Constraints:
+                AND (
+                  (callsHistory.status IS c.status AND callsHistory.status IS ${CALL_STATUS_MISSED}) OR
+                  (callsHistory.status IS NOT ${CALL_STATUS_MISSED} AND c.status IS NOT ${CALL_STATUS_MISSED})
+                )
+                -- Desktop Constraints:
+                AND callsHistory.status IS c.status
+                AND ${filterClause}
+              ORDER BY timestamp DESC
+            ) as possibleChildren,
+
+            -- 1c. 'inPeriod': This identifies all calls in a time period after the
+            -- current call. They may or may not be a part of the group.
+            (
+              SELECT GROUP_CONCAT(callId)
+              FROM callsHistory
+              WHERE
+                (c.timestamp - ${FOUR_HOURS_IN_MS}) <= callsHistory.timestamp
+                AND c.timestamp >= callsHistory.timestamp
+                AND ${filterClause}
+            ) AS inPeriod
+          FROM callsHistory AS c
+          ${innerJoin}
+          WHERE
+            ${filterClause}
+          ORDER BY timestamp DESC
+        )
+        -- 2. 'isParent': We need to identify the true parent of the group in cases
+        -- where the previous call is not a part of the group.
+        SELECT
+          *,
+          CASE
+            WHEN LAG (possibleParent, 1, 0) OVER (
+              -- Note: This is an optimization assuming that we've already got 'timestamp DESC' ordering
+              -- from the query above. If we find that ordering isn't always correct, we can uncomment this:
+              -- ORDER BY timestamp DESC
+            ) != possibleParent THEN callId
+            ELSE possibleParent
+          END AS parent
+        FROM callAndGroupInfo
+      ) AS parentCallAndGroupInfo
+      WHERE parent = parentCallAndGroupInfo.callId
+      GROUP BY
+        CASE
+          -- By spec, limit adhoc call history to the most recent call
+          WHEN mode IS ${CALL_MODE_ADHOC} THEN peerId
+          ELSE callId
+        END
+      ORDER BY parentCallAndGroupInfo.timestamp DESC
+      ${offsetLimit};
+    `;
+
+    const result = isCount
+      ? db.prepare(query).pluck(true).get(params)
+      : db.prepare(query).all(params);
+
+    if (isUsingTempTable) {
+      const [dropTempTableQuery] = sql`
+        DROP TABLE temp_callHistory_filtered_peers;
+      `;
+
+      db.exec(dropTempTableQuery);
+    }
+
+    return result;
+  })();
+}
+
+const countSchema = z.number().int().nonnegative();
+
+function getCallHistoryGroupsCount(
+  db: ReadableDB,
+  filter: CallHistoryFilter
+): number {
+  // getCallHistoryGroupData creates a temporary table and thus requires
+  // write access.
+  const writable = toUnsafeWritableDB(db, 'only temp table use');
+  const result = getCallHistoryGroupData(writable, true, filter, {
+    limit: 0,
+    offset: 0,
+  });
+
+  if (result == null) {
+    return 0;
+  }
+
+  return countSchema.parse(result);
+}
+
+const groupsDataSchema = z.array(
+  callHistoryGroupSchema.omit({ children: true }).extend({
+    possibleChildren: z.string(),
+    inPeriod: z.string(),
+  })
+);
+
+const possibleChildrenSchema = z.array(
+  callHistoryDetailsSchema.pick({
+    callId: true,
+    timestamp: true,
+  })
+);
+
+function getCallHistoryGroups(
+  db: ReadableDB,
+  filter: CallHistoryFilter,
+  pagination: CallHistoryPagination
+): Array<CallHistoryGroup> {
+  // getCallHistoryGroupData creates a temporary table and thus requires
+  // write access.
+  const writable = toUnsafeWritableDB(db, 'only temp table use');
+  const groupsData = groupsDataSchema.parse(
+    getCallHistoryGroupData(writable, false, filter, pagination)
+  );
+
+  const taken = new Set<string>();
+
+  return groupsData
+    .map(groupData => {
+      return {
+        ...groupData,
+        possibleChildren: possibleChildrenSchema.parse(
+          JSON.parse(groupData.possibleChildren)
+        ),
+        inPeriod: new Set(groupData.inPeriod.split(',')),
+      };
+    })
+    .reverse()
+    .map(group => {
+      const { possibleChildren, inPeriod, type, ...rest } = group;
+      const children = [];
+
+      for (const child of possibleChildren) {
+        if (!taken.has(child.callId) && inPeriod.has(child.callId)) {
+          children.push(child);
+          taken.add(child.callId);
+          if (type === CallType.Adhoc) {
+            // By spec, limit adhoc call history to the most recent call
+            break;
+          }
+        }
+      }
+
+      return callHistoryGroupSchema.parse({ ...rest, type, children });
+    })
+    .reverse();
+}
+
+function saveCallHistory(
+  db: WritableDB,
+  callHistory: CallHistoryDetails
+): void {
+  const [insertQuery, insertParams] = sql`
+    INSERT OR REPLACE INTO callsHistory (
+      callId,
+      peerId,
+      ringerId,
+      mode,
+      type,
+      direction,
+      status,
+      timestamp
+    ) VALUES (
+      ${callHistory.callId},
+      ${callHistory.peerId},
+      ${callHistory.ringerId},
+      ${callHistory.mode},
+      ${callHistory.type},
+      ${callHistory.direction},
+      ${callHistory.status},
+      ${callHistory.timestamp}
+    );
+  `;
+
+  db.prepare(insertQuery).run(insertParams);
+}
+
+function hasGroupCallHistoryMessage(
+  db: ReadableDB,
   conversationId: string,
   eraId: string
-): Promise<boolean> {
-  const db = getInstance();
-
-  const row: { 'count(*)': number } | undefined = db
+): boolean {
+  const exists: number = db
     .prepare<Query>(
       `
-      SELECT count(*) FROM messages
-      WHERE conversationId = $conversationId
-      AND type = 'call-history'
-      AND json_extract(json, '$.callHistoryDetails.callMode') = 'Group'
-      AND json_extract(json, '$.callHistoryDetails.eraId') = $eraId
-      LIMIT 1;
+      SELECT EXISTS(
+        SELECT 1 FROM messages
+        WHERE conversationId = $conversationId
+        AND type = 'call-history'
+        AND json_extract(json, '$.callHistoryDetails.callMode') = 'Group'
+        AND json_extract(json, '$.callHistoryDetails.eraId') = $eraId
+      );
       `
     )
+    .pluck()
     .get({
       conversationId,
       eraId,
     });
 
-  if (row) {
-    return Boolean(row['count(*)']);
-  }
-  return false;
+  return exists !== 0;
 }
 
-async function migrateConversationMessages(
-  obsoleteId: string,
-  currentId: string
-): Promise<void> {
-  const db = getInstance();
-
-  db.prepare<Query>(
-    `
-    UPDATE messages SET
-      conversationId = $currentId,
-      json = json_set(json, '$.conversationId', $currentId)
-    WHERE conversationId = $obsoleteId;
-    `
-  ).run({
-    obsoleteId,
-    currentId,
+function _markCallHistoryMissed(
+  db: WritableDB,
+  callIds: ReadonlyArray<string>
+) {
+  batchMultiVarQuery(db, callIds, batch => {
+    const [updateQuery, updateParams] = sql`
+      UPDATE callsHistory
+      SET status = ${sqlConstant(GroupCallStatus.Missed)}
+      WHERE callId IN (${sqlJoin(batch)})
+    `;
+    return db.prepare(updateQuery).run(updateParams);
   });
 }
 
-async function getMessagesBySentAt(
-  sentAt: number
-): Promise<Array<MessageType>> {
-  const db = getInstance();
-  const rows: JSONRows = db
-    .prepare<Query>(
-      `
-      SELECT json FROM messages
-      WHERE sent_at = $sent_at
-      ORDER BY received_at DESC, sent_at DESC;
-      `
-    )
-    .all({
-      sent_at: sentAt,
+function markCallHistoryMissed(
+  db: WritableDB,
+  callIds: ReadonlyArray<string>
+): void {
+  return db.transaction(() => _markCallHistoryMissed(db, callIds))();
+}
+
+export type MaybeStaleCallHistory = Readonly<
+  Pick<CallHistoryDetails, 'callId' | 'peerId'>
+>;
+
+function getRecentStaleRingsAndMarkOlderMissed(
+  db: WritableDB
+): ReadonlyArray<MaybeStaleCallHistory> {
+  return db.transaction(() => {
+    const [selectQuery, selectParams] = sql`
+      SELECT callId, peerId FROM callsHistory
+      WHERE
+        type = ${sqlConstant(CallType.Group)} AND
+        status = ${sqlConstant(GroupCallStatus.Ringing)}
+      ORDER BY timestamp DESC
+    `;
+
+    const ringingCalls = db.prepare(selectQuery).all(selectParams);
+
+    const seen = new Set<string>();
+    const [latestCalls, pastCalls] = partition(ringingCalls, result => {
+      if (seen.size >= 10) {
+        return false;
+      }
+      if (seen.has(result.peerId)) {
+        return false;
+      }
+      seen.add(result.peerId);
+      return true;
     });
+
+    _markCallHistoryMissed(
+      db,
+      pastCalls.map(result => result.callId)
+    );
+
+    // These are returned so we can peek them.
+    return latestCalls;
+  })();
+}
+
+export function migrateConversationMessages(
+  db: WritableDB,
+  obsoleteId: string,
+  currentId: string
+): void {
+  const PAGE_SIZE = 1000;
+
+  const getPage = db.prepare(`
+    SELECT
+      rowid,
+      json -> '$.sendStateByConversationId' AS sendStateJson,
+      json -> '$.editHistory' AS editHistoryJson
+    FROM messages
+    WHERE conversationId IS $obsoleteId
+    ORDER BY rowid
+    LIMIT $pageSize OFFSET $offset`);
+
+  const updateOne = db.prepare(`
+    UPDATE messages
+    SET
+      conversationId = $currentId,
+      json = json_patch(json, $patch)
+    WHERE
+      rowid IS $rowid
+  `);
+
+  db.transaction(() => {
+    // eslint-disable-next-line no-constant-condition
+    for (let offset = 0; true; offset += PAGE_SIZE) {
+      const parts: Array<{
+        rowid: number;
+        sendStateJson?: string;
+        editHistoryJson?: string;
+      }> = getPage.all({ obsoleteId, pageSize: PAGE_SIZE, offset });
+
+      for (const { rowid, sendStateJson, editHistoryJson } of parts) {
+        const editHistory = JSON.parse(editHistoryJson || '[]') as Array<{
+          sendStateByConversationId?: Record<string, unknown>;
+        }>;
+        const sendState = JSON.parse(sendStateJson || '{}');
+        const patch = {
+          conversationId: currentId,
+          sendStateByConversationId: {
+            [obsoleteId]: null,
+            [currentId]: sendState[obsoleteId],
+          },
+
+          // Unlike above here we have to provide the full object with all
+          // existing properties because arrays can't be patched and can only
+          // be replaced.
+          editHistory: editHistory.map(
+            ({ sendStateByConversationId, ...rest }) => {
+              const existingState = sendStateByConversationId?.[obsoleteId];
+              if (!existingState) {
+                return rest;
+              }
+
+              return {
+                ...rest,
+                sendStateByConversationId: {
+                  ...sendStateByConversationId,
+                  [obsoleteId]: undefined,
+                  [currentId]: existingState,
+                },
+              };
+            }
+          ),
+        };
+
+        updateOne.run({
+          rowid,
+          patch: JSON.stringify(patch),
+          currentId,
+        });
+      }
+
+      if (parts.length < PAGE_SIZE) {
+        break;
+      }
+    }
+  })();
+}
+
+function getMessagesBySentAt(
+  db: ReadableDB,
+  sentAt: number
+): Array<MessageType> {
+  const [query, params] = sql`
+      SELECT messages.json, received_at, sent_at FROM edited_messages
+      INNER JOIN messages ON
+        messages.id = edited_messages.messageId
+      WHERE edited_messages.sentAt = ${sentAt}
+      UNION
+      SELECT json, received_at, sent_at FROM messages
+      WHERE sent_at = ${sentAt}
+      ORDER BY messages.received_at DESC, messages.sent_at DESC;
+    `;
+
+  const rows = db.prepare(query).all(params);
 
   return rows.map(row => jsonToObject(row.json));
 }
 
-async function getExpiredMessages(): Promise<Array<MessageType>> {
-  const db = getInstance();
+function getExpiredMessages(db: ReadableDB): Array<MessageType> {
   const now = Date.now();
 
   const rows: JSONRows = db
     .prepare<Query>(
       `
       SELECT json FROM messages WHERE
-        expiresAt IS NOT NULL AND
         expiresAt <= $now
       ORDER BY expiresAt ASC;
       `
@@ -2857,10 +4368,9 @@ async function getExpiredMessages(): Promise<Array<MessageType>> {
   return rows.map(row => jsonToObject(row.json));
 }
 
-async function getMessagesUnexpectedlyMissingExpirationStartTimestamp(): Promise<
-  Array<MessageType>
-> {
-  const db = getInstance();
+function getMessagesUnexpectedlyMissingExpirationStartTimestamp(
+  db: ReadableDB
+): Array<MessageType> {
   const rows: JSONRows = db
     .prepare<EmptyQuery>(
       `
@@ -2884,9 +4394,7 @@ async function getMessagesUnexpectedlyMissingExpirationStartTimestamp(): Promise
   return rows.map(row => jsonToObject(row.json));
 }
 
-async function getSoonestMessageExpiry(): Promise<undefined | number> {
-  const db = getInstance();
-
+function getSoonestMessageExpiry(db: ReadableDB): undefined | number {
   // Note: we use `pluck` to only get the first column.
   const result: null | number = db
     .prepare<EmptyQuery>(
@@ -2898,13 +4406,16 @@ async function getSoonestMessageExpiry(): Promise<undefined | number> {
     .pluck(true)
     .get();
 
+  if (result != null && result >= Number.MAX_SAFE_INTEGER) {
+    return undefined;
+  }
+
   return result || undefined;
 }
 
-async function getNextTapToViewMessageTimestampToAgeOut(): Promise<
-  undefined | number
-> {
-  const db = getInstance();
+function getNextTapToViewMessageTimestampToAgeOut(
+  db: ReadableDB
+): undefined | number {
   const row = db
     .prepare<EmptyQuery>(
       `
@@ -2927,8 +4438,7 @@ async function getNextTapToViewMessageTimestampToAgeOut(): Promise<
   return isNormalNumber(result) ? result : undefined;
 }
 
-async function getTapToViewMessagesNeedingErase(): Promise<Array<MessageType>> {
-  const db = getInstance();
+function getTapToViewMessagesNeedingErase(db: ReadableDB): Array<MessageType> {
   const THIRTY_DAYS_AGO = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
   const rows: JSONRows = db
@@ -2950,10 +4460,9 @@ async function getTapToViewMessagesNeedingErase(): Promise<Array<MessageType>> {
   return rows.map(row => jsonToObject(row.json));
 }
 
-const MAX_UNPROCESSED_ATTEMPTS = 3;
+const MAX_UNPROCESSED_ATTEMPTS = 10;
 
-function saveUnprocessedSync(data: UnprocessedType): string {
-  const db = getInstance();
+function saveUnprocessed(db: WritableDB, data: UnprocessedType): string {
   const {
     id,
     timestamp,
@@ -2962,19 +4471,16 @@ function saveUnprocessedSync(data: UnprocessedType): string {
     attempts,
     envelope,
     source,
-    sourceUuid,
+    sourceServiceId,
     sourceDevice,
     serverGuid,
     serverTimestamp,
     decrypted,
+    urgent,
+    story,
   } = data;
   if (!id) {
-    throw new Error('saveUnprocessedSync: id was falsey');
-  }
-
-  if (attempts >= MAX_UNPROCESSED_ATTEMPTS) {
-    removeUnprocessedSync(id);
-    return id;
+    throw new Error('saveUnprocessed: id was falsey');
   }
 
   prepare(
@@ -2988,11 +4494,13 @@ function saveUnprocessedSync(data: UnprocessedType): string {
       attempts,
       envelope,
       source,
-      sourceUuid,
+      sourceServiceId,
       sourceDevice,
       serverGuid,
       serverTimestamp,
-      decrypted
+      decrypted,
+      urgent,
+      story
     ) values (
       $id,
       $timestamp,
@@ -3001,11 +4509,13 @@ function saveUnprocessedSync(data: UnprocessedType): string {
       $attempts,
       $envelope,
       $source,
-      $sourceUuid,
+      $sourceServiceId,
       $sourceDevice,
       $serverGuid,
       $serverTimestamp,
-      $decrypted
+      $decrypted,
+      $urgent,
+      $story
     );
     `
   ).run({
@@ -3016,24 +4526,26 @@ function saveUnprocessedSync(data: UnprocessedType): string {
     attempts,
     envelope: envelope || null,
     source: source || null,
-    sourceUuid: sourceUuid || null,
+    sourceServiceId: sourceServiceId || null,
     sourceDevice: sourceDevice || null,
     serverGuid: serverGuid || null,
     serverTimestamp: serverTimestamp || null,
     decrypted: decrypted || null,
+    urgent: urgent || !isBoolean(urgent) ? 1 : 0,
+    story: story ? 1 : 0,
   });
 
   return id;
 }
 
-function updateUnprocessedWithDataSync(
+function updateUnprocessedWithData(
+  db: WritableDB,
   id: string,
   data: UnprocessedUpdateType
 ): void {
-  const db = getInstance();
   const {
     source,
-    sourceUuid,
+    sourceServiceId,
     sourceDevice,
     serverGuid,
     serverTimestamp,
@@ -3045,7 +4557,7 @@ function updateUnprocessedWithDataSync(
     `
     UPDATE unprocessed SET
       source = $source,
-      sourceUuid = $sourceUuid,
+      sourceServiceId = $sourceServiceId,
       sourceDevice = $sourceDevice,
       serverGuid = $serverGuid,
       serverTimestamp = $serverTimestamp,
@@ -3055,7 +4567,7 @@ function updateUnprocessedWithDataSync(
   ).run({
     id,
     source: source || null,
-    sourceUuid: sourceUuid || null,
+    sourceServiceId: sourceServiceId || null,
     sourceDevice: sourceDevice || null,
     serverGuid: serverGuid || null,
     serverTimestamp: serverTimestamp || null,
@@ -3063,73 +4575,124 @@ function updateUnprocessedWithDataSync(
   });
 }
 
-async function updateUnprocessedWithData(
-  id: string,
-  data: UnprocessedUpdateType
-): Promise<void> {
-  return updateUnprocessedWithDataSync(id, data);
-}
-
-async function updateUnprocessedsWithData(
+function updateUnprocessedsWithData(
+  db: WritableDB,
   arrayOfUnprocessed: Array<{ id: string; data: UnprocessedUpdateType }>
-): Promise<void> {
-  const db = getInstance();
-
+): void {
   db.transaction(() => {
     for (const { id, data } of arrayOfUnprocessed) {
-      assertSync(updateUnprocessedWithDataSync(id, data));
+      updateUnprocessedWithData(db, id, data);
     }
   })();
 }
 
-async function getUnprocessedById(
+function getUnprocessedById(
+  db: ReadableDB,
   id: string
-): Promise<UnprocessedType | undefined> {
-  const db = getInstance();
+): UnprocessedType | undefined {
   const row = db
     .prepare<Query>('SELECT * FROM unprocessed WHERE id = $id;')
     .get({
       id,
     });
 
-  return row;
+  return {
+    ...row,
+    urgent: isNumber(row.urgent) ? Boolean(row.urgent) : true,
+    story: Boolean(row.story),
+  };
 }
 
-async function getUnprocessedCount(): Promise<number> {
-  return getCountFromTable(getInstance(), 'unprocessed');
+function getUnprocessedCount(db: ReadableDB): number {
+  return getCountFromTable(db, 'unprocessed');
 }
 
-async function getAllUnprocessed(): Promise<Array<UnprocessedType>> {
-  const db = getInstance();
+function getAllUnprocessedIds(db: WritableDB): Array<string> {
+  logger.info('getAllUnprocessedIds');
+  return db.transaction(() => {
+    // cleanup first
+    const { changes: deletedStaleCount } = db
+      .prepare<Query>('DELETE FROM unprocessed WHERE timestamp < $monthAgo')
+      .run({
+        monthAgo: Date.now() - durations.MONTH,
+      });
 
-  const { changes: deletedCount } = db
-    .prepare<Query>('DELETE FROM unprocessed WHERE timestamp < $monthAgo')
-    .run({
-      monthAgo: Date.now() - durations.MONTH,
-    });
+    if (deletedStaleCount !== 0) {
+      logger.warn(
+        'getAllUnprocessedAndIncrementAttempts: ' +
+          `deleting ${deletedStaleCount} old unprocessed envelopes`
+      );
+    }
 
-  if (deletedCount !== 0) {
-    logger.warn(
-      `getAllUnprocessed: deleting ${deletedCount} old unprocessed envelopes`
-    );
-  }
+    const { changes: deletedInvalidCount } = db
+      .prepare<Query>(
+        `
+          DELETE FROM unprocessed
+          WHERE attempts >= $MAX_UNPROCESSED_ATTEMPTS
+        `
+      )
+      .run({ MAX_UNPROCESSED_ATTEMPTS });
 
-  const rows = db
-    .prepare<EmptyQuery>(
-      `
-      SELECT *
-      FROM unprocessed
-      ORDER BY timestamp ASC;
-      `
-    )
-    .all();
+    if (deletedInvalidCount !== 0) {
+      logger.warn(
+        'getAllUnprocessedAndIncrementAttempts: ' +
+          `deleting ${deletedInvalidCount} invalid unprocessed envelopes`
+      );
+    }
 
-  return rows;
+    return db
+      .prepare<EmptyQuery>(
+        `
+          SELECT id
+          FROM unprocessed
+          ORDER BY receivedAtCounter ASC
+        `
+      )
+      .pluck()
+      .all();
+  })();
 }
 
-function removeUnprocessedsSync(ids: Array<string>): void {
-  const db = getInstance();
+function getUnprocessedByIdsAndIncrementAttempts(
+  db: WritableDB,
+  ids: ReadonlyArray<string>
+): Array<UnprocessedType> {
+  logger.info('getUnprocessedByIdsAndIncrementAttempts', {
+    totalIds: ids.length,
+  });
 
+  batchMultiVarQuery(db, ids, batch => {
+    return db
+      .prepare<ArrayQuery>(
+        `
+          UPDATE unprocessed
+          SET attempts = attempts + 1
+          WHERE id IN (${batch.map(() => '?').join(', ')})
+        `
+      )
+      .run(batch);
+  });
+
+  return batchMultiVarQuery(db, ids, batch => {
+    return db
+      .prepare<ArrayQuery>(
+        `
+          SELECT *
+          FROM unprocessed
+          WHERE id IN (${batch.map(() => '?').join(', ')})
+          ORDER BY receivedAtCounter ASC;
+        `
+      )
+      .all(batch)
+      .map(row => ({
+        ...row,
+        urgent: isNumber(row.urgent) ? Boolean(row.urgent) : true,
+        story: Boolean(row.story),
+      }));
+  });
+}
+
+function removeUnprocesseds(db: WritableDB, ids: ReadonlyArray<string>): void {
   db.prepare<ArrayQuery>(
     `
     DELETE FROM unprocessed
@@ -3138,128 +4701,366 @@ function removeUnprocessedsSync(ids: Array<string>): void {
   ).run(ids);
 }
 
-function removeUnprocessedSync(id: string | Array<string>): void {
-  const db = getInstance();
-
+function removeUnprocessed(db: WritableDB, id: string | Array<string>): void {
   if (!Array.isArray(id)) {
     prepare(db, 'DELETE FROM unprocessed WHERE id = $id;').run({ id });
 
     return;
   }
 
+  // This can happen normally due to flushing of `cacheRemoveBatcher` in
+  // MessageReceiver.
   if (!id.length) {
-    throw new Error('removeUnprocessedSync: No ids to delete!');
+    return;
   }
 
-  assertSync(batchMultiVarQuery(db, id, removeUnprocessedsSync));
+  batchMultiVarQuery(db, id, batch => removeUnprocesseds(db, batch));
 }
 
-async function removeUnprocessed(id: string | Array<string>): Promise<void> {
-  removeUnprocessedSync(id);
-}
-
-async function removeAllUnprocessed(): Promise<void> {
-  const db = getInstance();
+function removeAllUnprocessed(db: WritableDB): void {
   db.prepare<EmptyQuery>('DELETE FROM unprocessed;').run();
 }
 
 // Attachment Downloads
 
-const ATTACHMENT_DOWNLOADS_TABLE = 'attachment_downloads';
-async function getNextAttachmentDownloadJobs(
-  limit?: number,
-  options: { timestamp?: number } = {}
-): Promise<Array<AttachmentDownloadJobType>> {
-  const db = getInstance();
-  const timestamp =
-    options && options.timestamp ? options.timestamp : Date.now();
+function getAttachmentDownloadJob(
+  db: ReadableDB,
+  job: Pick<
+    AttachmentDownloadJobType,
+    'messageId' | 'attachmentType' | 'digest'
+  >
+): AttachmentDownloadJobType {
+  const [query, params] = sql`
+    SELECT * FROM attachment_downloads
+    WHERE
+      messageId = ${job.messageId}
+    AND
+      attachmentType = ${job.attachmentType}
+    AND
+      digest = ${job.digest};
+  `;
 
-  const rows: JSONRows = db
-    .prepare<Query>(
-      `
-      SELECT json
-      FROM attachment_downloads
-      WHERE pending = 0 AND timestamp <= $timestamp
-      ORDER BY timestamp DESC
-      LIMIT $limit;
-      `
-    )
-    .all({
-      limit: limit || 3,
-      timestamp,
-    });
-
-  return rows.map(row => jsonToObject(row.json));
+  return db.prepare(query).get(params);
 }
-async function saveAttachmentDownloadJob(
-  job: AttachmentDownloadJobType
-): Promise<void> {
-  const db = getInstance();
-  const { id, pending, timestamp } = job;
-  if (!id) {
-    throw new Error(
-      'saveAttachmentDownloadJob: Provided job did not have a truthy id'
-    );
+
+function removeAllBackupAttachmentDownloadJobs(db: WritableDB): void {
+  const [query, params] = sql`
+    DELETE FROM attachment_downloads 
+    WHERE source = ${AttachmentDownloadSource.BACKUP_IMPORT};`;
+  db.prepare(query).run(params);
+}
+
+function getSizeOfPendingBackupAttachmentDownloadJobs(db: ReadableDB): number {
+  const [query, params] = sql`
+    SELECT SUM(ciphertextSize) FROM attachment_downloads 
+    WHERE source = ${AttachmentDownloadSource.BACKUP_IMPORT};`;
+  return db.prepare(query).pluck().get(params);
+}
+
+function getNextAttachmentDownloadJobs(
+  db: WritableDB,
+  {
+    limit = 3,
+    prioritizeMessageIds,
+    timestamp = Date.now(),
+    maxLastAttemptForPrioritizedMessages,
+  }: {
+    limit: number;
+    prioritizeMessageIds?: Array<string>;
+    timestamp?: number;
+    maxLastAttemptForPrioritizedMessages?: number;
+  }
+): Array<AttachmentDownloadJobType> {
+  let priorityJobs = [];
+
+  // First, try to get jobs for prioritized messages (e.g. those currently user-visible)
+  if (prioritizeMessageIds?.length) {
+    const [priorityQuery, priorityParams] = sql`
+      SELECT * FROM attachment_downloads
+      -- very few rows will match messageIds, so in this case we want to optimize
+      -- the WHERE clause rather than the ORDER BY
+      INDEXED BY attachment_downloads_active_messageId
+      WHERE
+        active = 0
+      AND
+        -- for priority messages, we want to retry based on the last attempt, rather than retryAfter
+        (lastAttemptTimestamp is NULL OR lastAttemptTimestamp <= ${
+          maxLastAttemptForPrioritizedMessages ?? timestamp - durations.HOUR
+        })
+      AND
+        messageId IN (${sqlJoin(prioritizeMessageIds)})
+      -- for priority messages, let's load them oldest first; this helps, e.g. for stories where we
+      -- want the oldest one first
+      ORDER BY receivedAt ASC
+      LIMIT ${limit}
+    `;
+    priorityJobs = db.prepare(priorityQuery).all(priorityParams);
   }
 
-  db.prepare<Query>(
-    `
+  // Next, get any other jobs, sorted by receivedAt
+  const numJobsRemaining = limit - priorityJobs.length;
+  let standardJobs = [];
+  if (numJobsRemaining > 0) {
+    const [query, params] = sql`
+      SELECT * FROM attachment_downloads
+      WHERE
+        active = 0
+      AND
+        (retryAfter is NULL OR retryAfter <= ${timestamp})
+      ORDER BY receivedAt DESC
+      LIMIT ${numJobsRemaining}
+    `;
+
+    standardJobs = db.prepare(query).all(params);
+  }
+
+  const allJobs = priorityJobs.concat(standardJobs);
+  const INNER_ERROR = 'jsonToObject or SchemaParse error';
+  try {
+    return allJobs.map(row => {
+      try {
+        return attachmentDownloadJobSchema.parse({
+          ...row,
+          active: Boolean(row.active),
+          attachment: jsonToObject(row.attachmentJson),
+          ciphertextSize:
+            row.ciphertextSize ||
+            getAttachmentCiphertextLength(row.attachment.size),
+        });
+      } catch (error) {
+        logger.error(
+          `getNextAttachmentDownloadJobs: Error with job for message ${row.messageId}, deleting.`
+        );
+
+        removeAttachmentDownloadJob(db, row);
+        throw new Error(error);
+      }
+    });
+  } catch (error) {
+    if ('message' in error && error.message === INNER_ERROR) {
+      return getNextAttachmentDownloadJobs(db, {
+        limit,
+        prioritizeMessageIds,
+        timestamp,
+        maxLastAttemptForPrioritizedMessages,
+      });
+    }
+    throw error;
+  }
+}
+
+function saveAttachmentDownloadJob(
+  db: WritableDB,
+  job: AttachmentDownloadJobType
+): void {
+  const [query, params] = sql`
     INSERT OR REPLACE INTO attachment_downloads (
-      id,
-      pending,
-      timestamp,
-      json
-    ) values (
-      $id,
-      $pending,
-      $timestamp,
-      $json
-    )
-    `
-  ).run({
-    id,
-    pending,
-    timestamp,
-    json: objectToJSON(job),
-  });
+      messageId,
+      attachmentType,
+      digest,
+      receivedAt,
+      sentAt,
+      contentType,
+      size,
+      active,
+      attempts,
+      retryAfter,
+      lastAttemptTimestamp,
+      attachmentJson,
+      ciphertextSize,
+      source
+    ) VALUES (
+      ${job.messageId},
+      ${job.attachmentType},
+      ${job.digest},
+      ${job.receivedAt},
+      ${job.sentAt},
+      ${job.contentType},
+      ${job.size},
+      ${job.active ? 1 : 0},
+      ${job.attempts},
+      ${job.retryAfter},
+      ${job.lastAttemptTimestamp},
+      ${objectToJSON(job.attachment)},
+      ${job.ciphertextSize},
+      ${job.source}
+    );
+  `;
+  db.prepare(query).run(params);
 }
-async function setAttachmentDownloadJobPending(
-  id: string,
-  pending: boolean
-): Promise<void> {
-  const db = getInstance();
-  db.prepare<Query>(
-    `
-    UPDATE attachment_downloads
-    SET pending = $pending
-    WHERE id = $id;
-    `
-  ).run({
-    id,
-    pending: pending ? 1 : 0,
-  });
-}
-async function resetAttachmentDownloadPending(): Promise<void> {
-  const db = getInstance();
+
+function resetAttachmentDownloadActive(db: WritableDB): void {
   db.prepare<EmptyQuery>(
     `
     UPDATE attachment_downloads
-    SET pending = 0
-    WHERE pending != 0;
+    SET active = 0
+    WHERE active != 0;
     `
   ).run();
 }
-async function removeAttachmentDownloadJob(id: string): Promise<void> {
-  return removeById(getInstance(), ATTACHMENT_DOWNLOADS_TABLE, id);
+
+function removeAttachmentDownloadJob(
+  db: WritableDB,
+  job: AttachmentDownloadJobType
+): void {
+  const [query, params] = sql`
+    DELETE FROM attachment_downloads
+    WHERE
+      messageId = ${job.messageId}
+    AND
+      attachmentType = ${job.attachmentType}
+    AND
+      digest = ${job.digest};
+  `;
+
+  db.prepare(query).run(params);
 }
-async function removeAllAttachmentDownloadJobs(): Promise<void> {
-  return removeAllFromTable(getInstance(), ATTACHMENT_DOWNLOADS_TABLE);
+
+// Backup Attachments
+
+function clearAllAttachmentBackupJobs(db: WritableDB): void {
+  db.prepare('DELETE FROM attachment_backup_jobs;').run();
+}
+
+function markAllAttachmentBackupJobsInactive(db: WritableDB): void {
+  db.prepare<EmptyQuery>(
+    `
+    UPDATE attachment_backup_jobs
+    SET active = 0;
+    `
+  ).run();
+}
+
+function saveAttachmentBackupJob(
+  db: WritableDB,
+  job: AttachmentBackupJobType
+): void {
+  const [query, params] = sql`
+    INSERT OR REPLACE INTO attachment_backup_jobs (
+      active,
+      attempts,
+      data,
+      lastAttemptTimestamp,
+      mediaName,
+      receivedAt,
+      retryAfter,
+      type
+    ) VALUES (
+      ${job.active ? 1 : 0},
+      ${job.attempts},
+      ${objectToJSON(job.data)},
+      ${job.lastAttemptTimestamp},
+      ${job.mediaName},
+      ${job.receivedAt},
+      ${job.retryAfter},
+      ${job.type}
+    );
+  `;
+  db.prepare(query).run(params);
+}
+
+function getNextAttachmentBackupJobs(
+  db: WritableDB,
+  {
+    limit,
+    timestamp = Date.now(),
+  }: {
+    limit: number;
+    timestamp?: number;
+  }
+): Array<AttachmentBackupJobType> {
+  const [query, params] = sql`
+    SELECT * FROM attachment_backup_jobs
+    WHERE
+      active = 0
+    AND
+      (retryAfter is NULL OR retryAfter <= ${timestamp})
+    ORDER BY
+      -- type is "standard" or "thumbnail"; we prefer "standard" jobs
+      type ASC, receivedAt DESC
+    LIMIT ${limit}
+  `;
+  const rows = db.prepare(query).all(params);
+  return rows
+    .map(row => {
+      const parseResult = attachmentBackupJobSchema.safeParse({
+        ...row,
+        active: Boolean(row.active),
+        data: jsonToObject(row.data),
+      });
+      if (!parseResult.success) {
+        const redactedMediaName = redactGenericText(row.mediaName);
+        logger.error(
+          `getNextAttachmentBackupJobs: invalid data, removing. mediaName: ${redactedMediaName}`,
+          Errors.toLogFormat(parseResult.error)
+        );
+        removeAttachmentBackupJob(db, { mediaName: row.mediaName });
+        return null;
+      }
+      return parseResult.data;
+    })
+    .filter(isNotNil);
+}
+
+function removeAttachmentBackupJob(
+  db: WritableDB,
+  job: Pick<AttachmentBackupJobType, 'mediaName'>
+): void {
+  const [query, params] = sql`
+    DELETE FROM attachment_backup_jobs
+    WHERE
+      mediaName = ${job.mediaName};
+  `;
+
+  db.prepare(query).run(params);
+}
+
+// Attachments on backup CDN
+function clearAllBackupCdnObjectMetadata(db: WritableDB): void {
+  db.prepare('DELETE FROM backup_cdn_object_metadata;').run();
+}
+
+function saveBackupCdnObjectMetadata(
+  db: WritableDB,
+  storedMediaObjects: Array<BackupCdnMediaObjectType>
+): void {
+  db.transaction(() => {
+    for (const obj of storedMediaObjects) {
+      const { mediaId, cdnNumber, sizeOnBackupCdn } = obj;
+      const [query, params] = sql`
+        INSERT OR REPLACE INTO backup_cdn_object_metadata
+        (
+          mediaId,
+          cdnNumber,
+          sizeOnBackupCdn
+        ) VALUES (
+          ${mediaId},
+          ${cdnNumber},
+          ${sizeOnBackupCdn}
+        );
+      `;
+
+      db.prepare(query).run(params);
+    }
+  })();
+}
+
+function getBackupCdnObjectMetadata(
+  db: ReadableDB,
+  mediaId: string
+): BackupCdnMediaObjectType | undefined {
+  const [query, params] =
+    sql`SELECT * from backup_cdn_object_metadata WHERE mediaId = ${mediaId}`;
+
+  return db.prepare(query).get(params);
 }
 
 // Stickers
 
-async function createOrUpdateStickerPack(pack: StickerPackType): Promise<void> {
-  const db = getInstance();
+function createOrUpdateStickerPack(
+  db: WritableDB,
+  pack: StickerPackType
+): void {
   const {
     attemptedStatus,
     author,
@@ -3273,6 +5074,10 @@ async function createOrUpdateStickerPack(pack: StickerPackType): Promise<void> {
     status,
     stickerCount,
     title,
+    storageID,
+    storageVersion,
+    storageUnknownFields,
+    storageNeedsSync,
   } = pack;
   if (!id) {
     throw new Error(
@@ -3280,7 +5085,22 @@ async function createOrUpdateStickerPack(pack: StickerPackType): Promise<void> {
     );
   }
 
-  const rows = db
+  let { position } = pack;
+
+  // Assign default position
+  if (!isNumber(position)) {
+    position = db
+      .prepare<EmptyQuery>(
+        `
+        SELECT IFNULL(MAX(position) + 1, 0)
+        FROM sticker_packs
+        `
+      )
+      .pluck()
+      .get();
+  }
+
+  const row = db
     .prepare<Query>(
       `
       SELECT id
@@ -3288,7 +5108,7 @@ async function createOrUpdateStickerPack(pack: StickerPackType): Promise<void> {
       WHERE id = $id;
       `
     )
-    .all({ id });
+    .get({ id });
   const payload = {
     attemptedStatus: attemptedStatus ?? null,
     author,
@@ -3302,9 +5122,14 @@ async function createOrUpdateStickerPack(pack: StickerPackType): Promise<void> {
     status,
     stickerCount,
     title,
+    position: position ?? 0,
+    storageID: storageID ?? null,
+    storageVersion: storageVersion ?? null,
+    storageUnknownFields: storageUnknownFields ?? null,
+    storageNeedsSync: storageNeedsSync ? 1 : 0,
   };
 
-  if (rows && rows.length) {
+  if (row) {
     db.prepare<Query>(
       `
       UPDATE sticker_packs SET
@@ -3318,7 +5143,12 @@ async function createOrUpdateStickerPack(pack: StickerPackType): Promise<void> {
         lastUsed = $lastUsed,
         status = $status,
         stickerCount = $stickerCount,
-        title = $title
+        title = $title,
+        position = $position,
+        storageID = $storageID,
+        storageVersion = $storageVersion,
+        storageUnknownFields = $storageUnknownFields,
+        storageNeedsSync = $storageNeedsSync
       WHERE id = $id;
       `
     ).run(payload);
@@ -3340,7 +5170,12 @@ async function createOrUpdateStickerPack(pack: StickerPackType): Promise<void> {
       lastUsed,
       status,
       stickerCount,
-      title
+      title,
+      position,
+      storageID,
+      storageVersion,
+      storageUnknownFields,
+      storageNeedsSync
     ) values (
       $attemptedStatus,
       $author,
@@ -3353,17 +5188,22 @@ async function createOrUpdateStickerPack(pack: StickerPackType): Promise<void> {
       $lastUsed,
       $status,
       $stickerCount,
-      $title
+      $title,
+      $position,
+      $storageID,
+      $storageVersion,
+      $storageUnknownFields,
+      $storageNeedsSync
     )
     `
   ).run(payload);
 }
-async function updateStickerPackStatus(
+function updateStickerPackStatus(
+  db: WritableDB,
   id: string,
   status: StickerPackStatusType,
   options?: { timestamp: number }
-): Promise<void> {
-  const db = getInstance();
+): void {
   const timestamp = options ? options.timestamp || Date.now() : Date.now();
   const installedAt = status === 'installed' ? timestamp : null;
 
@@ -3379,9 +5219,56 @@ async function updateStickerPackStatus(
     installedAt,
   });
 }
-async function clearAllErrorStickerPackAttempts(): Promise<void> {
-  const db = getInstance();
-
+function updateStickerPackInfo(
+  db: WritableDB,
+  {
+    id,
+    storageID,
+    storageVersion,
+    storageUnknownFields,
+    storageNeedsSync,
+    uninstalledAt,
+  }: StickerPackInfoType
+): void {
+  if (uninstalledAt) {
+    db.prepare<Query>(
+      `
+      UPDATE uninstalled_sticker_packs
+      SET
+        storageID = $storageID,
+        storageVersion = $storageVersion,
+        storageUnknownFields = $storageUnknownFields,
+        storageNeedsSync = $storageNeedsSync
+      WHERE id = $id;
+      `
+    ).run({
+      id,
+      storageID: storageID ?? null,
+      storageVersion: storageVersion ?? null,
+      storageUnknownFields: storageUnknownFields ?? null,
+      storageNeedsSync: storageNeedsSync ? 1 : 0,
+    });
+  } else {
+    db.prepare<Query>(
+      `
+      UPDATE sticker_packs
+      SET
+        storageID = $storageID,
+        storageVersion = $storageVersion,
+        storageUnknownFields = $storageUnknownFields,
+        storageNeedsSync = $storageNeedsSync
+      WHERE id = $id;
+      `
+    ).run({
+      id,
+      storageID: storageID ?? null,
+      storageVersion: storageVersion ?? null,
+      storageUnknownFields: storageUnknownFields ?? null,
+      storageNeedsSync: storageNeedsSync ? 1 : 0,
+    });
+  }
+}
+function clearAllErrorStickerPackAttempts(db: WritableDB): void {
   db.prepare<EmptyQuery>(
     `
     UPDATE sticker_packs
@@ -3390,10 +5277,20 @@ async function clearAllErrorStickerPackAttempts(): Promise<void> {
     `
   ).run();
 }
-async function createOrUpdateSticker(sticker: StickerType): Promise<void> {
-  const db = getInstance();
-  const { emoji, height, id, isCoverOnly, lastUsed, packId, path, width } =
-    sticker;
+function createOrUpdateSticker(db: WritableDB, sticker: StickerType): void {
+  const {
+    emoji,
+    height,
+    id,
+    isCoverOnly,
+    lastUsed,
+    packId,
+    path,
+    width,
+    version,
+    localKey,
+    size,
+  } = sticker;
 
   if (!isNumber(id)) {
     throw new Error(
@@ -3416,7 +5313,10 @@ async function createOrUpdateSticker(sticker: StickerType): Promise<void> {
       lastUsed,
       packId,
       path,
-      width
+      width,
+      version,
+      localKey,
+      size
     ) values (
       $emoji,
       $height,
@@ -3425,7 +5325,10 @@ async function createOrUpdateSticker(sticker: StickerType): Promise<void> {
       $lastUsed,
       $packId,
       $path,
-      $width
+      $width,
+      $version,
+      $localKey,
+      $size
     )
     `
   ).run({
@@ -3437,14 +5340,27 @@ async function createOrUpdateSticker(sticker: StickerType): Promise<void> {
     packId,
     path,
     width,
+    version: version || 1,
+    localKey: localKey || null,
+    size: size || null,
   });
 }
-async function updateStickerLastUsed(
+function createOrUpdateStickers(
+  db: WritableDB,
+  stickers: ReadonlyArray<StickerType>
+): void {
+  db.transaction(() => {
+    for (const sticker of stickers) {
+      createOrUpdateSticker(db, sticker);
+    }
+  })();
+}
+function updateStickerLastUsed(
+  db: WritableDB,
   packId: string,
   stickerId: number,
   lastUsed: number
-): Promise<void> {
-  const db = getInstance();
+): void {
   db.prepare<Query>(
     `
     UPDATE stickers
@@ -3467,12 +5383,11 @@ async function updateStickerLastUsed(
     lastUsed,
   });
 }
-async function addStickerPackReference(
+function addStickerPackReference(
+  db: WritableDB,
   messageId: string,
   packId: string
-): Promise<void> {
-  const db = getInstance();
-
+): void {
   if (!messageId) {
     throw new Error(
       'addStickerPackReference: Provided data did not have a truthy messageId'
@@ -3499,12 +5414,11 @@ async function addStickerPackReference(
     packId,
   });
 }
-async function deleteStickerPackReference(
+function deleteStickerPackReference(
+  db: WritableDB,
   messageId: string,
   packId: string
-): Promise<ReadonlyArray<string> | undefined> {
-  const db = getInstance();
-
+): ReadonlyArray<string> | undefined {
   if (!messageId) {
     throw new Error(
       'addStickerPackReference: Provided data did not have a truthy messageId'
@@ -3516,150 +5430,276 @@ async function deleteStickerPackReference(
     );
   }
 
-  return db
-    .transaction(() => {
-      // We use an immediate transaction here to immediately acquire an exclusive lock,
-      //   which would normally only happen when we did our first write.
+  return db.transaction(() => {
+    // We use an immediate transaction here to immediately acquire an exclusive lock,
+    //   which would normally only happen when we did our first write.
 
-      // We need this to ensure that our five queries are all atomic, with no
-      // other changes happening while we do it:
-      // 1. Delete our target messageId/packId references
-      // 2. Check the number of references still pointing at packId
-      // 3. If that number is zero, get pack from sticker_packs database
-      // 4. If it's not installed, then grab all of its sticker paths
-      // 5. If it's not installed, then sticker pack (which cascades to all
-      //    stickers and references)
-      db.prepare<Query>(
-        `
+    // We need this to ensure that our five queries are all atomic, with no
+    // other changes happening while we do it:
+    // 1. Delete our target messageId/packId references
+    // 2. Check the number of references still pointing at packId
+    // 3. If that number is zero, get pack from sticker_packs database
+    // 4. If it's not installed, then grab all of its sticker paths
+    // 5. If it's not installed, then sticker pack (which cascades to all
+    //    stickers and references)
+    db.prepare<Query>(
+      `
         DELETE FROM sticker_references
         WHERE messageId = $messageId AND packId = $packId;
         `
-      ).run({
-        messageId,
-        packId,
-      });
+    ).run({
+      messageId,
+      packId,
+    });
 
-      const countRow = db
-        .prepare<Query>(
-          `
-          SELECT count(*) FROM sticker_references
+    const count = db
+      .prepare<Query>(
+        `
+          SELECT count(1) FROM sticker_references
           WHERE packId = $packId;
           `
-        )
-        .get({ packId });
-      if (!countRow) {
-        throw new Error(
-          'deleteStickerPackReference: Unable to get count of references'
-        );
-      }
-      const count = countRow['count(*)'];
-      if (count > 0) {
-        return undefined;
-      }
+      )
+      .pluck()
+      .get({ packId });
+    if (count > 0) {
+      return undefined;
+    }
 
-      const packRow: { status: StickerPackStatusType } = db
-        .prepare<Query>(
-          `
+    const packRow: { status: StickerPackStatusType } = db
+      .prepare<Query>(
+        `
           SELECT status FROM sticker_packs
           WHERE id = $packId;
           `
-        )
-        .get({ packId });
-      if (!packRow) {
-        logger.warn('deleteStickerPackReference: did not find referenced pack');
-        return undefined;
-      }
-      const { status } = packRow;
+      )
+      .get({ packId });
+    if (!packRow) {
+      logger.warn('deleteStickerPackReference: did not find referenced pack');
+      return undefined;
+    }
+    const { status } = packRow;
 
-      if (status === 'installed') {
-        return undefined;
-      }
+    if (status === 'installed') {
+      return undefined;
+    }
 
-      const stickerPathRows: Array<{ path: string }> = db
-        .prepare<Query>(
-          `
+    const stickerPathRows: Array<{ path: string }> = db
+      .prepare<Query>(
+        `
           SELECT path FROM stickers
           WHERE packId = $packId;
           `
-        )
-        .all({
-          packId,
-        });
-      db.prepare<Query>(
-        `
+      )
+      .all({
+        packId,
+      });
+    db.prepare<Query>(
+      `
         DELETE FROM sticker_packs
         WHERE id = $packId;
         `
-      ).run({
-        packId,
-      });
+    ).run({
+      packId,
+    });
 
-      return (stickerPathRows || []).map(row => row.path);
-    })
-    .immediate();
+    return (stickerPathRows || []).map(row => row.path);
+  })();
 }
 
-async function deleteStickerPack(packId: string): Promise<Array<string>> {
-  const db = getInstance();
-
+function deleteStickerPack(db: WritableDB, packId: string): Array<string> {
   if (!packId) {
     throw new Error(
       'deleteStickerPack: Provided data did not have a truthy packId'
     );
   }
 
-  return db
-    .transaction(() => {
-      // We use an immediate transaction here to immediately acquire an exclusive lock,
-      //   which would normally only happen when we did our first write.
+  return db.transaction(() => {
+    // We use an immediate transaction here to immediately acquire an exclusive lock,
+    //   which would normally only happen when we did our first write.
 
-      // We need this to ensure that our two queries are atomic, with no other changes
-      //   happening while we do it:
-      // 1. Grab all of target pack's sticker paths
-      // 2. Delete sticker pack (which cascades to all stickers and references)
+    // We need this to ensure that our two queries are atomic, with no other changes
+    //   happening while we do it:
+    // 1. Grab all of target pack's sticker paths
+    // 2. Delete sticker pack (which cascades to all stickers and references)
 
-      const stickerPathRows: Array<{ path: string }> = db
-        .prepare<Query>(
-          `
+    const stickerPathRows: Array<{ path: string }> = db
+      .prepare<Query>(
+        `
           SELECT path FROM stickers
           WHERE packId = $packId;
           `
-        )
-        .all({
-          packId,
-        });
-      db.prepare<Query>(
-        `
+      )
+      .all({
+        packId,
+      });
+    db.prepare<Query>(
+      `
         DELETE FROM sticker_packs
         WHERE id = $packId;
         `
-      ).run({ packId });
+    ).run({ packId });
 
-      return (stickerPathRows || []).map(row => row.path);
-    })
-    .immediate();
+    return (stickerPathRows || []).map(row => row.path);
+  })();
 }
 
-async function getStickerCount(): Promise<number> {
-  return getCountFromTable(getInstance(), 'stickers');
+function getStickerCount(db: ReadableDB): number {
+  return getCountFromTable(db, 'stickers');
 }
-async function getAllStickerPacks(): Promise<Array<StickerPackType>> {
-  const db = getInstance();
-
+function getAllStickerPacks(db: ReadableDB): Array<StickerPackType> {
   const rows = db
     .prepare<EmptyQuery>(
       `
       SELECT * FROM sticker_packs
-      ORDER BY installedAt DESC, createdAt DESC
+      ORDER BY position ASC, id ASC
+      `
+    )
+    .all();
+
+  return rows.map(row => {
+    return {
+      ...row,
+      // The columns have STRING type so if they have numeric value, sqlite
+      // will return integers.
+      author: String(row.author),
+      title: String(row.title),
+    };
+  });
+}
+function addUninstalledStickerPack(
+  db: WritableDB,
+  pack: UninstalledStickerPackType
+): void {
+  db.prepare<Query>(
+    `
+        INSERT OR REPLACE INTO uninstalled_sticker_packs
+        (
+          id, uninstalledAt, storageID, storageVersion, storageUnknownFields,
+          storageNeedsSync
+        )
+        VALUES
+        (
+          $id, $uninstalledAt, $storageID, $storageVersion, $unknownFields,
+          $storageNeedsSync
+        )
+      `
+  ).run({
+    id: pack.id,
+    uninstalledAt: pack.uninstalledAt,
+    storageID: pack.storageID ?? null,
+    storageVersion: pack.storageVersion ?? null,
+    unknownFields: pack.storageUnknownFields ?? null,
+    storageNeedsSync: pack.storageNeedsSync ? 1 : 0,
+  });
+}
+function removeUninstalledStickerPack(db: WritableDB, packId: string): void {
+  db.prepare<Query>(
+    'DELETE FROM uninstalled_sticker_packs WHERE id IS $id'
+  ).run({ id: packId });
+}
+function getUninstalledStickerPacks(
+  db: ReadableDB
+): Array<UninstalledStickerPackType> {
+  const rows = db
+    .prepare<EmptyQuery>(
+      'SELECT * FROM uninstalled_sticker_packs ORDER BY id ASC'
+    )
+    .all();
+
+  return rows || [];
+}
+function getInstalledStickerPacks(db: ReadableDB): Array<StickerPackType> {
+  // If sticker pack has a storageID - it is being downloaded and about to be
+  // installed so we better sync it back to storage service if asked.
+  const rows = db
+    .prepare<EmptyQuery>(
+      `
+      SELECT *
+      FROM sticker_packs
+      WHERE
+        status IS 'installed' OR
+        storageID IS NOT NULL
+      ORDER BY id ASC
       `
     )
     .all();
 
   return rows || [];
 }
-async function getAllStickers(): Promise<Array<StickerType>> {
-  const db = getInstance();
+function getStickerPackInfo(
+  db: ReadableDB,
+  packId: string
+): StickerPackInfoType | undefined {
+  return db.transaction(() => {
+    const uninstalled = db
+      .prepare<Query>(
+        `
+        SELECT * FROM uninstalled_sticker_packs
+        WHERE id IS $packId
+        `
+      )
+      .get({ packId });
+    if (uninstalled) {
+      return uninstalled as UninstalledStickerPackType;
+    }
 
+    const installed = db
+      .prepare<Query>(
+        `
+        SELECT
+          id, key, position, storageID, storageVersion, storageUnknownFields
+        FROM sticker_packs
+        WHERE id IS $packId
+        `
+      )
+      .get({ packId });
+    if (installed) {
+      return installed as InstalledStickerPackType;
+    }
+
+    return undefined;
+  })();
+}
+function installStickerPack(
+  db: WritableDB,
+  packId: string,
+  timestamp: number
+): void {
+  return db.transaction(() => {
+    const status = 'installed';
+    updateStickerPackStatus(db, packId, status, { timestamp });
+
+    removeUninstalledStickerPack(db, packId);
+  })();
+}
+function uninstallStickerPack(
+  db: WritableDB,
+  packId: string,
+  timestamp: number
+): void {
+  return db.transaction(() => {
+    const status = 'downloaded';
+    updateStickerPackStatus(db, packId, status);
+
+    db.prepare<Query>(
+      `
+      UPDATE sticker_packs SET
+        storageID = NULL,
+        storageVersion = NULL,
+        storageUnknownFields = NULL,
+        storageNeedsSync = 0
+      WHERE id = $packId;
+      `
+    ).run({ packId });
+
+    addUninstalledStickerPack(db, {
+      id: packId,
+      uninstalledAt: timestamp,
+      storageNeedsSync: true,
+    });
+  })();
+}
+function getAllStickers(db: ReadableDB): Array<StickerType> {
   const rows = db
     .prepare<EmptyQuery>(
       `
@@ -3671,11 +5711,10 @@ async function getAllStickers(): Promise<Array<StickerType>> {
 
   return (rows || []).map(row => rowToSticker(row));
 }
-async function getRecentStickers({ limit }: { limit?: number } = {}): Promise<
-  Array<StickerType>
-> {
-  const db = getInstance();
-
+function getRecentStickers(
+  db: ReadableDB,
+  { limit }: { limit?: number } = {}
+): Array<StickerType> {
   // Note: we avoid 'IS NOT NULL' here because it does seem to bypass our index
   const rows = db
     .prepare<Query>(
@@ -3695,12 +5734,11 @@ async function getRecentStickers({ limit }: { limit?: number } = {}): Promise<
 }
 
 // Emojis
-async function updateEmojiUsage(
+function updateEmojiUsage(
+  db: WritableDB,
   shortName: string,
   timeUsed: number = Date.now()
-): Promise<void> {
-  const db = getInstance();
-
+): void {
   db.transaction(() => {
     const rows = db
       .prepare<Query>(
@@ -3732,8 +5770,7 @@ async function updateEmojiUsage(
   })();
 }
 
-async function getRecentEmojis(limit = 32): Promise<Array<EmojiType>> {
-  const db = getInstance();
+function getRecentEmojis(db: ReadableDB, limit = 32): Array<EmojiType> {
   const rows = db
     .prepare<Query>(
       `
@@ -3748,9 +5785,7 @@ async function getRecentEmojis(limit = 32): Promise<Array<EmojiType>> {
   return rows || [];
 }
 
-async function getAllBadges(): Promise<Array<BadgeType>> {
-  const db = getInstance();
-
+function getAllBadges(db: ReadableDB): Array<BadgeType> {
   const [badgeRows, badgeImageFileRows] = db.transaction(() => [
     db.prepare<EmptyQuery>('SELECT * FROM badges').all(),
     db.prepare<EmptyQuery>('SELECT * FROM badgeImageFiles').all(),
@@ -3783,11 +5818,10 @@ async function getAllBadges(): Promise<Array<BadgeType>> {
 }
 
 // This should match the logic in the badges Redux reducer.
-async function updateOrCreateBadges(
+function updateOrCreateBadges(
+  db: WritableDB,
   badges: ReadonlyArray<BadgeType>
-): Promise<void> {
-  const db = getInstance();
-
+): void {
   const insertBadge = prepare<Query>(
     db,
     `
@@ -3861,19 +5895,18 @@ async function updateOrCreateBadges(
   })();
 }
 
-async function badgeImageFileDownloaded(
+function badgeImageFileDownloaded(
+  db: WritableDB,
   url: string,
   localPath: string
-): Promise<void> {
-  const db = getInstance();
+): void {
   prepare<Query>(
     db,
     'UPDATE badgeImageFiles SET localPath = $localPath WHERE url = $url'
   ).run({ url, localPath });
 }
 
-async function getAllBadgeImageFileLocalPaths(): Promise<Set<string>> {
-  const db = getInstance();
+function getAllBadgeImageFileLocalPaths(db: ReadableDB): Set<string> {
   const localPaths = db
     .prepare<EmptyQuery>(
       'SELECT localPath FROM badgeImageFiles WHERE localPath IS NOT NULL'
@@ -3883,10 +5916,62 @@ async function getAllBadgeImageFileLocalPaths(): Promise<Set<string>> {
   return new Set(localPaths);
 }
 
+function runCorruptionChecks(db: ReadableDB): void {
+  let writable: WritableDB;
+  try {
+    writable = toUnsafeWritableDB(db, 'integrity check');
+  } catch (error) {
+    logger.error(
+      'runCorruptionChecks: not running the check, no writable instance',
+      Errors.toLogFormat(error)
+    );
+    return;
+  }
+  try {
+    const result = writable.pragma('integrity_check');
+    if (result.length === 1 && result.at(0)?.integrity_check === 'ok') {
+      logger.info('runCorruptionChecks: general integrity is ok');
+    } else {
+      logger.error('runCorruptionChecks: general integrity is not ok', result);
+    }
+  } catch (error) {
+    logger.error(
+      'runCorruptionChecks: general integrity check error',
+      Errors.toLogFormat(error)
+    );
+  }
+  try {
+    writable.exec(
+      "INSERT INTO messages_fts(messages_fts) VALUES('integrity-check')"
+    );
+    logger.info('runCorruptionChecks: FTS5 integrity ok');
+  } catch (error) {
+    logger.error(
+      'runCorruptionChecks: FTS5 integrity check error.',
+      Errors.toLogFormat(error)
+    );
+  }
+}
+
 type StoryDistributionForDatabase = Readonly<
   {
+    allowsReplies: 0 | 1;
+    deletedAtTimestamp: number | null;
+    isBlockList: 0 | 1;
     senderKeyInfoJson: string | null;
-  } & Omit<StoryDistributionType, 'senderKeyInfo'>
+    storageID: string | null;
+    storageVersion: number | null;
+    storageNeedsSync: 0 | 1;
+  } & Omit<
+    StoryDistributionType,
+    | 'allowsReplies'
+    | 'deletedAtTimestamp'
+    | 'isBlockList'
+    | 'senderKeyInfo'
+    | 'storageID'
+    | 'storageVersion'
+    | 'storageNeedsSync'
+  >
 >;
 
 function hydrateStoryDistribution(
@@ -3894,9 +5979,16 @@ function hydrateStoryDistribution(
 ): StoryDistributionType {
   return {
     ...omit(fromDatabase, 'senderKeyInfoJson'),
+    allowsReplies: Boolean(fromDatabase.allowsReplies),
+    deletedAtTimestamp: fromDatabase.deletedAtTimestamp || undefined,
+    isBlockList: Boolean(fromDatabase.isBlockList),
     senderKeyInfo: fromDatabase.senderKeyInfoJson
       ? JSON.parse(fromDatabase.senderKeyInfoJson)
       : undefined,
+    storageID: fromDatabase.storageID || undefined,
+    storageVersion: fromDatabase.storageVersion || undefined,
+    storageNeedsSync: Boolean(fromDatabase.storageNeedsSync),
+    storageUnknownFields: fromDatabase.storageUnknownFields || undefined,
   };
 }
 function freezeStoryDistribution(
@@ -3904,38 +5996,46 @@ function freezeStoryDistribution(
 ): StoryDistributionForDatabase {
   return {
     ...omit(story, 'senderKeyInfo'),
+    allowsReplies: story.allowsReplies ? 1 : 0,
+    deletedAtTimestamp: story.deletedAtTimestamp || null,
+    isBlockList: story.isBlockList ? 1 : 0,
     senderKeyInfoJson: story.senderKeyInfo
       ? JSON.stringify(story.senderKeyInfo)
       : null,
+    storageID: story.storageID || null,
+    storageVersion: story.storageVersion || null,
+    storageNeedsSync: story.storageNeedsSync ? 1 : 0,
+    storageUnknownFields: story.storageUnknownFields || null,
   };
 }
 
-async function _getAllStoryDistributions(): Promise<
-  Array<StoryDistributionType>
-> {
-  const db = getInstance();
+function _getAllStoryDistributions(
+  db: ReadableDB
+): Array<StoryDistributionType> {
   const storyDistributions = db
     .prepare<EmptyQuery>('SELECT * FROM storyDistributions;')
     .all();
 
   return storyDistributions.map(hydrateStoryDistribution);
 }
-async function _getAllStoryDistributionMembers(): Promise<
-  Array<StoryDistributionMemberType>
-> {
-  const db = getInstance();
+function _getAllStoryDistributionMembers(
+  db: ReadableDB
+): Array<StoryDistributionMemberType> {
   return db
     .prepare<EmptyQuery>('SELECT * FROM storyDistributionMembers;')
     .all();
 }
-async function _deleteAllStoryDistributions(): Promise<void> {
-  const db = getInstance();
+function _deleteAllStoryDistributions(db: WritableDB): void {
   db.prepare<EmptyQuery>('DELETE FROM storyDistributions;').run();
 }
-async function createNewStoryDistribution(
+function createNewStoryDistribution(
+  db: WritableDB,
   distribution: StoryDistributionWithMembersType
-): Promise<void> {
-  const db = getInstance();
+): void {
+  strictAssert(
+    distribution.name,
+    'Distribution list does not have a valid name'
+  );
 
   db.transaction(() => {
     const payload = freezeStoryDistribution(distribution);
@@ -3946,15 +6046,25 @@ async function createNewStoryDistribution(
       INSERT INTO storyDistributions(
         id,
         name,
-        avatarUrlPath,
-        avatarKey,
-        senderKeyInfoJson
+        deletedAtTimestamp,
+        allowsReplies,
+        isBlockList,
+        senderKeyInfoJson,
+        storageID,
+        storageVersion,
+        storageUnknownFields,
+        storageNeedsSync
       ) VALUES (
         $id,
         $name,
-        $avatarUrlPath,
-        $avatarKey,
-        $senderKeyInfoJson
+        $deletedAtTimestamp,
+        $allowsReplies,
+        $isBlockList,
+        $senderKeyInfoJson,
+        $storageID,
+        $storageVersion,
+        $storageUnknownFields,
+        $storageNeedsSync
       );
       `
     ).run(payload);
@@ -3966,40 +6076,40 @@ async function createNewStoryDistribution(
       `
       INSERT OR REPLACE INTO storyDistributionMembers (
         listId,
-        uuid
+        serviceId
       ) VALUES (
         $listId,
-        $uuid
+        $serviceId
       );
       `
     );
 
-    for (const uuid of members) {
+    for (const serviceId of members) {
       memberInsertStatement.run({
         listId,
-        uuid,
+        serviceId,
       });
     }
   })();
 }
-async function getAllStoryDistributionsWithMembers(): Promise<
-  Array<StoryDistributionWithMembersType>
-> {
-  const allDistributions = await _getAllStoryDistributions();
-  const allMembers = await _getAllStoryDistributionMembers();
+function getAllStoryDistributionsWithMembers(
+  db: ReadableDB
+): Array<StoryDistributionWithMembersType> {
+  const allDistributions = _getAllStoryDistributions(db);
+  const allMembers = _getAllStoryDistributionMembers(db);
 
   const byListId = groupBy(allMembers, member => member.listId);
 
   return allDistributions.map(list => ({
     ...list,
-    members: (byListId[list.id] || []).map(member => member.uuid),
+    members: (byListId[list.id] || []).map(member => member.serviceId),
   }));
 }
-async function getStoryDistributionWithMembers(
+function getStoryDistributionWithMembers(
+  db: ReadableDB,
   id: string
-): Promise<StoryDistributionWithMembersType | undefined> {
-  const db = getInstance();
-  const storyDistribution = prepare(
+): StoryDistributionWithMembersType | undefined {
+  const storyDistribution: StoryDistributionForDatabase | undefined = prepare(
     db,
     'SELECT * FROM storyDistributions WHERE id = $id;'
   ).get({
@@ -4018,86 +6128,120 @@ async function getStoryDistributionWithMembers(
   });
 
   return {
-    ...storyDistribution,
-    members: members.map(({ uuid }) => uuid),
+    ...hydrateStoryDistribution(storyDistribution),
+    members: members.map(({ serviceId }) => serviceId),
   };
 }
-async function modifyStoryDistribution(
+function modifyStoryDistribution(
+  db: WritableDB,
   distribution: StoryDistributionType
-): Promise<void> {
+): void {
   const payload = freezeStoryDistribution(distribution);
-  const db = getInstance();
+
+  if (payload.deletedAtTimestamp) {
+    strictAssert(
+      !payload.name,
+      'Attempt to delete distribution list but still has a name'
+    );
+  } else {
+    strictAssert(
+      payload.name,
+      'Cannot clear distribution list name without deletedAtTimestamp set'
+    );
+  }
+
   prepare(
     db,
     `
     UPDATE storyDistributions
     SET
       name = $name,
-      avatarUrlPath = $avatarUrlPath,
-      avatarKey = $avatarKey,
-      senderKeyInfoJson = $senderKeyInfoJson
+      deletedAtTimestamp = $deletedAtTimestamp,
+      allowsReplies = $allowsReplies,
+      isBlockList = $isBlockList,
+      senderKeyInfoJson = $senderKeyInfoJson,
+      storageID = $storageID,
+      storageVersion = $storageVersion,
+      storageUnknownFields = $storageUnknownFields,
+      storageNeedsSync = $storageNeedsSync
     WHERE id = $id
     `
   ).run(payload);
 }
-async function modifyStoryDistributionMembers(
+function modifyStoryDistributionMembers(
+  db: WritableDB,
   listId: string,
   {
     toAdd,
     toRemove,
-  }: { toAdd: Array<UUIDStringType>; toRemove: Array<UUIDStringType> }
-): Promise<void> {
-  const db = getInstance();
-
-  db.transaction(() => {
-    const memberInsertStatement = prepare(
-      db,
-      `
-      INSERT OR REPLACE INTO storyDistributionMembers (
-        listId,
-        uuid
-      ) VALUES (
-        $listId,
-        $uuid
-      );
-      `
+  }: { toAdd: Array<ServiceIdString>; toRemove: Array<ServiceIdString> }
+): void {
+  const memberInsertStatement = prepare(
+    db,
+    `
+    INSERT OR REPLACE INTO storyDistributionMembers (
+      listId,
+      serviceId
+    ) VALUES (
+      $listId,
+      $serviceId
     );
+    `
+  );
 
-    for (const uuid of toAdd) {
-      memberInsertStatement.run({
-        listId,
-        uuid,
-      });
-    }
-
-    batchMultiVarQuery(db, toRemove, (uuids: Array<UUIDStringType>) => {
-      db.prepare<ArrayQuery>(
-        `
-        DELETE FROM storyDistributionMembers
-        WHERE listId = ? AND uuid IN ( ${uuids.map(() => '?').join(', ')} );
-        `
-      ).run([listId, ...uuids]);
+  for (const serviceId of toAdd) {
+    memberInsertStatement.run({
+      listId,
+      serviceId,
     });
-  })();
+  }
+
+  batchMultiVarQuery(
+    db,
+    toRemove,
+    (serviceIds: ReadonlyArray<ServiceIdString>) => {
+      const serviceIdSet = sqlJoin(serviceIds);
+      const [sqlQuery, sqlParams] = sql`
+        DELETE FROM storyDistributionMembers
+        WHERE listId = ${listId} AND serviceId IN (${serviceIdSet});
+      `;
+      db.prepare(sqlQuery).run(sqlParams);
+    }
+  );
 }
-async function deleteStoryDistribution(id: UUIDStringType): Promise<void> {
-  const db = getInstance();
+function modifyStoryDistributionWithMembers(
+  db: WritableDB,
+  distribution: StoryDistributionType,
+  {
+    toAdd,
+    toRemove,
+  }: { toAdd: Array<ServiceIdString>; toRemove: Array<ServiceIdString> }
+): void {
+  if (toAdd.length || toRemove.length) {
+    db.transaction(() => {
+      modifyStoryDistribution(db, distribution);
+      modifyStoryDistributionMembers(db, distribution.id, { toAdd, toRemove });
+    })();
+  } else {
+    modifyStoryDistribution(db, distribution);
+  }
+}
+function deleteStoryDistribution(
+  db: WritableDB,
+  id: StoryDistributionIdString
+): void {
   db.prepare<Query>('DELETE FROM storyDistributions WHERE id = $id;').run({
     id,
   });
 }
 
-async function _getAllStoryReads(): Promise<Array<StoryReadType>> {
-  const db = getInstance();
+function _getAllStoryReads(db: ReadableDB): Array<StoryReadType> {
   return db.prepare<EmptyQuery>('SELECT * FROM storyReads;').all();
 }
-async function _deleteAllStoryReads(): Promise<void> {
-  const db = getInstance();
+function _deleteAllStoryReads(db: WritableDB): void {
   db.prepare<EmptyQuery>('DELETE FROM storyReads;').run();
 }
-async function addNewStoryRead(read: StoryReadType): Promise<void> {
-  const db = getInstance();
-
+function addNewStoryRead(db: WritableDB, read: StoryReadType): void {
   prepare(
     db,
     `
@@ -4115,18 +6259,20 @@ async function addNewStoryRead(read: StoryReadType): Promise<void> {
     `
   ).run(read);
 }
-async function getLastStoryReadsForAuthor({
-  authorId,
-  conversationId,
-  limit: initialLimit,
-}: {
-  authorId: UUIDStringType;
-  conversationId?: UUIDStringType;
-  limit?: number;
-}): Promise<Array<StoryReadType>> {
+function getLastStoryReadsForAuthor(
+  db: ReadableDB,
+  {
+    authorId,
+    conversationId,
+    limit: initialLimit,
+  }: {
+    authorId: ServiceIdString;
+    conversationId?: string;
+    limit?: number;
+  }
+): Array<StoryReadType> {
   const limit = initialLimit || 5;
 
-  const db = getInstance();
   return db
     .prepare<Query>(
       `
@@ -4145,14 +6291,14 @@ async function getLastStoryReadsForAuthor({
     });
 }
 
-async function countStoryReadsByConversation(
+function countStoryReadsByConversation(
+  db: ReadableDB,
   conversationId: string
-): Promise<number> {
-  const db = getInstance();
+): number {
   return db
     .prepare<Query>(
       `
-      SELECT COUNT(storyId) FROM storyReads
+      SELECT count(1) FROM storyReads
       WHERE conversationId = $conversationId;
       `
     )
@@ -4161,20 +6307,28 @@ async function countStoryReadsByConversation(
 }
 
 // All data in database
-async function removeAll(): Promise<void> {
-  const db = getInstance();
-
+function removeAll(db: WritableDB): void {
   db.transaction(() => {
     db.exec(`
+      --- Remove messages delete trigger for performance
+      DROP   TRIGGER messages_on_delete;
+
       DELETE FROM attachment_downloads;
+      DELETE FROM attachment_backup_jobs;
+      DELETE FROM backup_cdn_object_metadata;
       DELETE FROM badgeImageFiles;
       DELETE FROM badges;
+      DELETE FROM callLinks;
+      DELETE FROM callsHistory;
       DELETE FROM conversations;
       DELETE FROM emojis;
-      DELETE FROM groupCallRings;
+      DELETE FROM groupCallRingCancellations;
+      DELETE FROM groupSendCombinedEndorsement;
+      DELETE FROM groupSendMemberEndorsement;
       DELETE FROM identityKeys;
       DELETE FROM items;
       DELETE FROM jobs;
+      DELETE FROM kyberPreKeys;
       DELETE FROM messages_fts;
       DELETE FROM messages;
       DELETE FROM preKeys;
@@ -4191,22 +6345,41 @@ async function removeAll(): Promise<void> {
       DELETE FROM storyDistributionMembers;
       DELETE FROM storyDistributions;
       DELETE FROM storyReads;
+      DELETE FROM syncTasks;
       DELETE FROM unprocessed;
+      DELETE FROM uninstalled_sticker_packs;
+
+      INSERT INTO messages_fts(messages_fts) VALUES('optimize');
+
+      --- Re-create the messages delete trigger
+      --- See migration 45
+      CREATE TRIGGER messages_on_delete AFTER DELETE ON messages BEGIN
+        DELETE FROM messages_fts WHERE rowid = old.rowid;
+        DELETE FROM sendLogPayloads WHERE id IN (
+          SELECT payloadId FROM sendLogMessageIds
+          WHERE messageId = old.id
+        );
+        DELETE FROM reactions WHERE rowid IN (
+          SELECT rowid FROM reactions
+          WHERE messageId = old.id
+        );
+        DELETE FROM storyReads WHERE storyId = old.storyId;
+      END;
     `);
   })();
 }
 
 // Anything that isn't user-visible data
-async function removeAllConfiguration(
-  mode = RemoveAllConfiguration.Full
-): Promise<void> {
-  const db = getInstance();
-
+function removeAllConfiguration(db: WritableDB): void {
   db.transaction(() => {
     db.exec(
       `
-      DELETE FROM identityKeys;
+      DELETE FROM attachment_backup_jobs;
+      DELETE FROM backup_cdn_object_metadata;
+      DELETE FROM groupSendCombinedEndorsement;
+      DELETE FROM groupSendMemberEndorsement;
       DELETE FROM jobs;
+      DELETE FROM kyberPreKeys;
       DELETE FROM preKeys;
       DELETE FROM senderKeys;
       DELETE FROM sendLogMessageIds;
@@ -4214,73 +6387,151 @@ async function removeAllConfiguration(
       DELETE FROM sendLogRecipients;
       DELETE FROM sessions;
       DELETE FROM signedPreKeys;
+      DELETE FROM syncTasks;
       DELETE FROM unprocessed;
       `
     );
 
-    if (mode === RemoveAllConfiguration.Full) {
-      db.exec(
-        `
-        DELETE FROM items;
-        `
-      );
-    } else if (mode === RemoveAllConfiguration.Soft) {
-      const itemIds: ReadonlyArray<string> = db
-        .prepare<EmptyQuery>('SELECT id FROM items')
-        .pluck(true)
-        .all();
+    const itemIds: ReadonlyArray<string> = db
+      .prepare<EmptyQuery>('SELECT id FROM items')
+      .pluck(true)
+      .all();
 
-      const allowedSet = new Set<string>(STORAGE_UI_KEYS);
-      for (const id of itemIds) {
-        if (!allowedSet.has(id)) {
-          removeById(db, 'items', id);
-        }
+    const allowedSet = new Set<string>(STORAGE_UI_KEYS);
+    for (const id of itemIds) {
+      if (!allowedSet.has(id)) {
+        removeById(db, 'items', id);
       }
-    } else {
-      throw missingCaseError(mode);
     }
 
     db.exec(
-      "UPDATE conversations SET json = json_remove(json, '$.senderKeyInfo');"
+      `
+      UPDATE conversations
+      SET
+        json = json_remove(
+          json,
+          '$.senderKeyInfo',
+          '$.storageID',
+          '$.needsStorageServiceSync',
+          '$.storageUnknownFields'
+        );
+
+      UPDATE storyDistributions SET senderKeyInfoJson = NULL;
+      `
     );
   })();
 }
 
-async function getMessagesNeedingUpgrade(
+function eraseStorageServiceState(db: WritableDB): void {
+  db.exec(`
+    -- Conversations
+    UPDATE conversations
+    SET
+      json = json_remove(json, '$.storageID', '$.needsStorageServiceSync', '$.storageUnknownFields');
+
+    -- Stickers
+    UPDATE sticker_packs
+    SET
+      storageID = null,
+      storageVersion = null,
+      storageUnknownFields = null,
+      storageNeedsSync = 0;
+
+    UPDATE uninstalled_sticker_packs
+    SET
+      storageID = null,
+      storageVersion = null,
+      storageUnknownFields = null,
+      storageNeedsSync = 0;
+
+    -- Story Distribution Lists
+    UPDATE storyDistributions
+    SET
+      storageID = null,
+      storageVersion = null,
+      storageUnknownFields = null,
+      storageNeedsSync = 0;
+
+    -- Call links
+    UPDATE callLinks
+    SET
+      storageID = null,
+      storageVersion = null,
+      storageUnknownFields = null,
+      storageNeedsSync = 0;
+  `);
+}
+
+const MAX_MESSAGE_MIGRATION_ATTEMPTS = 5;
+
+function getMessagesNeedingUpgrade(
+  db: ReadableDB,
   limit: number,
   { maxVersion }: { maxVersion: number }
-): Promise<Array<MessageType>> {
-  const db = getInstance();
+): Array<MessageType> {
   const rows: JSONRows = db
     .prepare<Query>(
       `
       SELECT json
       FROM messages
-      WHERE schemaVersion IS NULL OR schemaVersion < $maxVersion
+      WHERE
+        (schemaVersion IS NULL OR schemaVersion < $maxVersion) AND
+        IFNULL(
+          json_extract(json, '$.schemaMigrationAttempts'),
+          0
+        ) < $maxAttempts
       LIMIT $limit;
       `
     )
     .all({
       maxVersion,
+      maxAttempts: MAX_MESSAGE_MIGRATION_ATTEMPTS,
       limit,
     });
 
   return rows.map(row => jsonToObject(row.json));
 }
 
-async function getMessagesWithVisualMediaAttachments(
+// Exported for tests
+export function incrementMessagesMigrationAttempts(
+  db: WritableDB,
+  messageIds: ReadonlyArray<string>
+): void {
+  batchMultiVarQuery(db, messageIds, (batch: ReadonlyArray<string>): void => {
+    const idSet = sqlJoin(batch);
+    const [sqlQuery, sqlParams] = sql`
+        UPDATE
+          messages
+        SET
+          json = json_set(
+            json,
+            '$.schemaMigrationAttempts',
+            IFNULL(json -> '$.schemaMigrationAttempts', 0) + 1
+          )
+        WHERE
+          id IN (${idSet})
+      `;
+    db.prepare(sqlQuery).run(sqlParams);
+  });
+}
+
+function getMessagesWithVisualMediaAttachments(
+  db: ReadableDB,
   conversationId: string,
   { limit }: { limit: number }
-): Promise<Array<MessageType>> {
-  const db = getInstance();
+): Array<MessageType> {
   const rows: JSONRows = db
     .prepare<Query>(
       `
-      SELECT json FROM messages WHERE
+      SELECT json FROM messages
+      INDEXED BY messages_hasVisualMediaAttachments
+      WHERE
         isStory IS 0 AND
         storyId IS NULL AND
         conversationId = $conversationId AND
-        hasVisualMediaAttachments = 1
+        -- Note that this check has to use 'IS' to utilize
+        -- 'messages_hasVisualMediaAttachments' INDEX
+        hasVisualMediaAttachments IS 1
       ORDER BY received_at DESC, sent_at DESC
       LIMIT $limit;
       `
@@ -4293,11 +6544,11 @@ async function getMessagesWithVisualMediaAttachments(
   return rows.map(row => jsonToObject(row.json));
 }
 
-async function getMessagesWithFileAttachments(
+function getMessagesWithFileAttachments(
+  db: ReadableDB,
   conversationId: string,
   { limit }: { limit: number }
-): Promise<Array<MessageType>> {
-  const db = getInstance();
+): Array<MessageType> {
   const rows = db
     .prepare<Query>(
       `
@@ -4318,11 +6569,10 @@ async function getMessagesWithFileAttachments(
   return map(rows, row => jsonToObject(row.json));
 }
 
-async function getMessageServerGuidsForSpam(
+function getMessageServerGuidsForSpam(
+  db: ReadableDB,
   conversationId: string
-): Promise<Array<string>> {
-  const db = getInstance();
-
+): Array<string> {
   // The server's maximum is 3, which is why you see `LIMIT 3` in this query. Note that we
   //   use `pluck` here to only get the first column!
   return db
@@ -4341,22 +6591,42 @@ async function getMessageServerGuidsForSpam(
     .all({ conversationId });
 }
 
-function getExternalFilesForMessage(message: MessageType): Array<string> {
+function getExternalFilesForMessage(message: MessageType): {
+  externalAttachments: Array<string>;
+  externalDownloads: Array<string>;
+} {
   const { attachments, contact, quote, preview, sticker } = message;
-  const files: Array<string> = [];
+  const externalAttachments: Array<string> = [];
+  const externalDownloads: Array<string> = [];
 
   forEach(attachments, attachment => {
-    const { path: file, thumbnail, screenshot } = attachment;
+    const {
+      path: file,
+      thumbnail,
+      screenshot,
+      thumbnailFromBackup,
+      downloadPath,
+    } = attachment;
     if (file) {
-      files.push(file);
+      externalAttachments.push(file);
+    }
+
+    // downloadPath is relative to downloads folder and has to be tracked
+    // separately.
+    if (downloadPath) {
+      externalDownloads.push(downloadPath);
     }
 
     if (thumbnail && thumbnail.path) {
-      files.push(thumbnail.path);
+      externalAttachments.push(thumbnail.path);
     }
 
     if (screenshot && screenshot.path) {
-      files.push(screenshot.path);
+      externalAttachments.push(screenshot.path);
+    }
+
+    if (thumbnailFromBackup && thumbnailFromBackup.path) {
+      externalAttachments.push(thumbnailFromBackup.path);
     }
   });
 
@@ -4365,7 +6635,7 @@ function getExternalFilesForMessage(message: MessageType): Array<string> {
       const { thumbnail } = attachment;
 
       if (thumbnail && thumbnail.path) {
-        files.push(thumbnail.path);
+        externalAttachments.push(thumbnail.path);
       }
     });
   }
@@ -4375,7 +6645,7 @@ function getExternalFilesForMessage(message: MessageType): Array<string> {
       const { avatar } = item;
 
       if (avatar && avatar.avatar && avatar.avatar.path) {
-        files.push(avatar.avatar.path);
+        externalAttachments.push(avatar.avatar.path);
       }
     });
   }
@@ -4385,20 +6655,20 @@ function getExternalFilesForMessage(message: MessageType): Array<string> {
       const { image } = item;
 
       if (image && image.path) {
-        files.push(image.path);
+        externalAttachments.push(image.path);
       }
     });
   }
 
   if (sticker && sticker.data && sticker.data.path) {
-    files.push(sticker.data.path);
+    externalAttachments.push(sticker.data.path);
 
     if (sticker.data.thumbnail && sticker.data.thumbnail.path) {
-      files.push(sticker.data.thumbnail.path);
+      externalAttachments.push(sticker.data.thumbnail.path);
     }
   }
 
-  return files;
+  return { externalAttachments, externalDownloads };
 }
 
 function getExternalFilesForConversation(
@@ -4442,39 +6712,166 @@ function getExternalDraftFilesForConversation(
   return files;
 }
 
-async function removeKnownAttachments(
-  allAttachments: Array<string>
-): Promise<Array<string>> {
-  const db = getInstance();
-  const lookup: Dictionary<boolean> = fromPairs(
-    map(allAttachments, file => [file, true])
-  );
-  const chunkSize = 500;
+function getKnownMessageAttachments(
+  db: ReadableDB,
+  cursor?: MessageAttachmentsCursorType
+): GetKnownMessageAttachmentsResultType {
+  const innerCursor = cursor as MessageCursorType | undefined as
+    | PageMessagesCursorType
+    | undefined;
+  const attachments = new Set<string>();
+  const downloads = new Set<string>();
 
-  const total = getMessageCountSync();
-  logger.info(
-    `removeKnownAttachments: About to iterate through ${total} messages`
-  );
-
-  let count = 0;
-
-  for (const message of new TableIterator<MessageType>(db, 'messages')) {
-    const externalFiles = getExternalFilesForMessage(message);
-    forEach(externalFiles, file => {
-      delete lookup[file];
-    });
-    count += 1;
+  const { messages, cursor: newCursor } = pageMessages(db, innerCursor);
+  for (const message of messages) {
+    const { externalAttachments, externalDownloads } =
+      getExternalFilesForMessage(message);
+    externalAttachments.forEach(file => attachments.add(file));
+    externalDownloads.forEach(file => downloads.add(file));
   }
 
-  logger.info(`removeKnownAttachments: Done processing ${count} messages`);
+  return {
+    attachments: Array.from(attachments),
+    downloads: Array.from(downloads),
+    cursor: newCursor as MessageCursorType as MessageAttachmentsCursorType,
+  };
+}
+
+function finishGetKnownMessageAttachments(
+  db: ReadableDB,
+  cursor: MessageAttachmentsCursorType
+): void {
+  const innerCursor = cursor as MessageCursorType as PageMessagesCursorType;
+
+  finishPageMessages(db, innerCursor);
+}
+
+function pageMessages(
+  db: ReadableDB,
+  cursor?: PageMessagesCursorType
+): PageMessagesResultType {
+  const writable = toUnsafeWritableDB(db, 'only temp table use');
+  const chunkSize = 1000;
+
+  return writable.transaction(() => {
+    let count = cursor?.count ?? 0;
+
+    strictAssert(!cursor?.done, 'pageMessages: iteration cannot be restarted');
+
+    let runId: string;
+    if (cursor === undefined) {
+      runId = randomBytes(8).toString('hex');
+
+      const total = getMessageCount(db);
+      logger.info(
+        `pageMessages(${runId}): ` +
+          `Starting iteration through ${total} messages`
+      );
+
+      writable.exec(
+        `
+        CREATE TEMP TABLE tmp_${runId}_updated_messages
+          (rowid INTEGER PRIMARY KEY ASC);
+
+        INSERT INTO tmp_${runId}_updated_messages (rowid)
+        SELECT rowid FROM messages;
+
+        CREATE TEMP TRIGGER tmp_${runId}_message_updates
+        UPDATE OF json ON messages
+        BEGIN
+          INSERT OR IGNORE INTO tmp_${runId}_updated_messages (rowid)
+          VALUES (NEW.rowid);
+        END;
+
+        CREATE TEMP TRIGGER tmp_${runId}_message_inserts
+        AFTER INSERT ON messages
+        BEGIN
+          INSERT OR IGNORE INTO tmp_${runId}_updated_messages (rowid)
+          VALUES (NEW.rowid);
+        END;
+        `
+      );
+    } else {
+      ({ runId } = cursor);
+    }
+
+    const rowids: Array<number> = writable
+      .prepare<Query>(
+        `
+      DELETE FROM tmp_${runId}_updated_messages
+      RETURNING rowid
+      LIMIT $chunkSize;
+      `
+      )
+      .pluck()
+      .all({ chunkSize });
+
+    const messages = batchMultiVarQuery(
+      writable,
+      rowids,
+      (batch: ReadonlyArray<number>): Array<MessageType> => {
+        const query = writable.prepare<ArrayQuery>(
+          `SELECT json FROM messages WHERE rowid IN (${Array(batch.length)
+            .fill('?')
+            .join(',')});`
+        );
+        const rows: JSONRows = query.all(batch);
+        return rows.map(row => jsonToObject(row.json));
+      }
+    );
+
+    count += messages.length;
+    const done = rowids.length < chunkSize;
+    const newCursor: MessageCursorType = { runId, count, done };
+
+    return {
+      messages,
+      cursor: newCursor as PageMessagesCursorType,
+    };
+  })();
+}
+
+function finishPageMessages(
+  db: ReadableDB,
+  { runId, count, done }: PageMessagesCursorType
+): void {
+  const writable = toUnsafeWritableDB(db, 'only temp table use');
+
+  const logId = `finishPageMessages(${runId})`;
+  if (!done) {
+    logger.warn(`${logId}: iteration not finished`);
+  }
+
+  logger.info(`${logId}: reached the end after processing ${count} messages`);
+  writable.exec(`
+    DROP TABLE tmp_${runId}_updated_messages;
+    DROP TRIGGER tmp_${runId}_message_updates;
+    DROP TRIGGER tmp_${runId}_message_inserts;
+  `);
+}
+
+function getKnownDownloads(db: ReadableDB): Array<string> {
+  const result = [];
+
+  const backup = getItemById(db, 'backupDownloadPath');
+  if (backup) {
+    result.push(backup.value);
+  }
+
+  return result;
+}
+
+function getKnownConversationAttachments(db: ReadableDB): Array<string> {
+  const result = new Set<string>();
+  const chunkSize = 500;
 
   let complete = false;
-  count = 0;
   let id = '';
 
-  const conversationTotal = await getConversationCount();
+  const conversationTotal = getConversationCount(db);
   logger.info(
-    `removeKnownAttachments: About to iterate through ${conversationTotal} conversations`
+    'getKnownConversationAttachments: About to iterate through ' +
+      `${conversationTotal}`
   );
 
   const fetchConversations = db.prepare<Query>(
@@ -4497,9 +6894,7 @@ async function removeKnownAttachments(
     );
     conversations.forEach(conversation => {
       const externalFiles = getExternalFilesForConversation(conversation);
-      externalFiles.forEach(file => {
-        delete lookup[file];
-      });
+      externalFiles.forEach(file => result.add(file));
     });
 
     const lastMessage: ConversationType | undefined = last(conversations);
@@ -4507,24 +6902,23 @@ async function removeKnownAttachments(
       ({ id } = lastMessage);
     }
     complete = conversations.length < chunkSize;
-    count += conversations.length;
   }
 
-  logger.info(`removeKnownAttachments: Done processing ${count} conversations`);
+  logger.info('getKnownConversationAttachments: Done processing');
 
-  return Object.keys(lookup);
+  return Array.from(result);
 }
 
-async function removeKnownStickers(
-  allStickers: Array<string>
-): Promise<Array<string>> {
-  const db = getInstance();
+function removeKnownStickers(
+  db: WritableDB,
+  allStickers: ReadonlyArray<string>
+): Array<string> {
   const lookup: Dictionary<boolean> = fromPairs(
     map(allStickers, file => [file, true])
   );
   const chunkSize = 50;
 
-  const total = await getStickerCount();
+  const total = getStickerCount(db);
   logger.info(
     `removeKnownStickers: About to iterate through ${total} stickers`
   );
@@ -4566,16 +6960,16 @@ async function removeKnownStickers(
   return Object.keys(lookup);
 }
 
-async function removeKnownDraftAttachments(
-  allStickers: Array<string>
-): Promise<Array<string>> {
-  const db = getInstance();
+function removeKnownDraftAttachments(
+  db: WritableDB,
+  allStickers: ReadonlyArray<string>
+): Array<string> {
   const lookup: Dictionary<boolean> = fromPairs(
     map(allStickers, file => [file, true])
   );
   const chunkSize = 50;
 
-  const total = await getConversationCount();
+  const total = getConversationCount(db);
   logger.info(
     `removeKnownDraftAttachments: About to iterate through ${total} conversations`
   );
@@ -4626,13 +7020,8 @@ async function removeKnownDraftAttachments(
   return Object.keys(lookup);
 }
 
-async function getJobsInQueue(queueType: string): Promise<Array<StoredJob>> {
-  const db = getInstance();
-  return getJobsInQueueSync(db, queueType);
-}
-
-export function getJobsInQueueSync(
-  db: Database,
+export function getJobsInQueue(
+  db: ReadableDB,
   queueType: string
 ): Array<StoredJob> {
   return db
@@ -4653,7 +7042,7 @@ export function getJobsInQueueSync(
     }));
 }
 
-export function insertJobSync(db: Database, job: Readonly<StoredJob>): void {
+export function insertJob(db: WritableDB, job: Readonly<StoredJob>): void {
   db.prepare<Query>(
     `
       INSERT INTO jobs
@@ -4669,80 +7058,40 @@ export function insertJobSync(db: Database, job: Readonly<StoredJob>): void {
   });
 }
 
-async function insertJob(job: Readonly<StoredJob>): Promise<void> {
-  const db = getInstance();
-  return insertJobSync(db, job);
-}
-
-async function deleteJob(id: string): Promise<void> {
-  const db = getInstance();
-
+function deleteJob(db: WritableDB, id: string): void {
   db.prepare<Query>('DELETE FROM jobs WHERE id = $id').run({ id });
 }
 
-async function processGroupCallRingRequest(
+function wasGroupCallRingPreviouslyCanceled(
+  db: ReadableDB,
   ringId: bigint
-): Promise<ProcessGroupCallRingRequestResult> {
-  const db = getInstance();
-
-  return db.transaction(() => {
-    let result: ProcessGroupCallRingRequestResult;
-
-    const wasRingPreviouslyCanceled = Boolean(
-      db
-        .prepare<Query>(
-          `
-          SELECT 1 FROM groupCallRings
-          WHERE ringId = $ringId AND isActive = 0
-          LIMIT 1;
-          `
-        )
-        .pluck(true)
-        .get({ ringId })
-    );
-
-    if (wasRingPreviouslyCanceled) {
-      result = ProcessGroupCallRingRequestResult.RingWasPreviouslyCanceled;
-    } else {
-      const isThereAnotherActiveRing = Boolean(
-        db
-          .prepare<EmptyQuery>(
-            `
-            SELECT 1 FROM groupCallRings
-            WHERE isActive = 1
-            LIMIT 1;
-            `
-          )
-          .pluck(true)
-          .get()
+): boolean {
+  return db
+    .prepare<Query>(
+      `
+      SELECT EXISTS (
+        SELECT 1 FROM groupCallRingCancellations
+        WHERE ringId = $ringId
+        AND createdAt >= $ringsOlderThanThisAreIgnored
       );
-      if (isThereAnotherActiveRing) {
-        result = ProcessGroupCallRingRequestResult.ThereIsAnotherActiveRing;
-      } else {
-        result = ProcessGroupCallRingRequestResult.ShouldRing;
-      }
-
-      db.prepare<Query>(
-        `
-        INSERT OR IGNORE INTO groupCallRings (ringId, isActive, createdAt)
-        VALUES ($ringId, 1, $createdAt);
-        `
-      );
-    }
-
-    return result;
-  })();
+      `
+    )
+    .pluck()
+    .get({
+      ringId,
+      ringsOlderThanThisAreIgnored: Date.now() - MAX_GROUP_CALL_RING_AGE,
+    });
 }
 
-async function processGroupCallRingCancelation(ringId: bigint): Promise<void> {
-  const db = getInstance();
-
+function processGroupCallRingCancellation(
+  db: WritableDB,
+  ringId: bigint
+): void {
   db.prepare<Query>(
     `
-    INSERT INTO groupCallRings (ringId, isActive, createdAt)
-    VALUES ($ringId, 0, $createdAt)
-    ON CONFLICT (ringId) DO
-    UPDATE SET isActive = 0;
+    INSERT INTO groupCallRingCancellations (ringId, createdAt)
+    VALUES ($ringId, $createdAt)
+    ON CONFLICT (ringId) DO NOTHING;
     `
   ).run({ ringId, createdAt: Date.now() });
 }
@@ -4751,12 +7100,10 @@ async function processGroupCallRingCancelation(ringId: bigint): Promise<void> {
 //   that, it doesn't really matter what the value is.
 const MAX_GROUP_CALL_RING_AGE = 30 * durations.MINUTE;
 
-async function cleanExpiredGroupCallRings(): Promise<void> {
-  const db = getInstance();
-
+function cleanExpiredGroupCallRingCancellations(db: WritableDB): void {
   db.prepare<Query>(
     `
-    DELETE FROM groupCallRings
+    DELETE FROM groupCallRingCancellations
     WHERE createdAt < $expiredRingTime;
     `
   ).run({
@@ -4764,9 +7111,7 @@ async function cleanExpiredGroupCallRings(): Promise<void> {
   });
 }
 
-async function getMaxMessageCounter(): Promise<number | undefined> {
-  const db = getInstance();
-
+function getMaxMessageCounter(db: ReadableDB): number | undefined {
   return db
     .prepare<EmptyQuery>(
       `
@@ -4783,26 +7128,24 @@ async function getMaxMessageCounter(): Promise<number | undefined> {
     .get();
 }
 
-async function getStatisticsForLogging(): Promise<Record<string, string>> {
-  const db = getInstance();
-  const counts = await pProps({
-    messageCount: getMessageCount(),
-    conversationCount: getConversationCount(),
+function getStatisticsForLogging(db: ReadableDB): Record<string, string> {
+  const counts = {
+    messageCount: getMessageCount(db),
+    conversationCount: getConversationCount(db),
     sessionCount: getCountFromTable(db, 'sessions'),
     senderKeyCount: getCountFromTable(db, 'senderKeys'),
-  });
+  };
   return mapValues(counts, formatCountForLogging);
 }
 
-async function updateAllConversationColors(
+function updateAllConversationColors(
+  db: WritableDB,
   conversationColor?: ConversationColorType,
   customColorData?: {
     id: string;
     value: CustomColorType;
   }
-): Promise<void> {
-  const db = getInstance();
-
+): void {
   db.prepare<Query>(
     `
     UPDATE conversations
@@ -4815,4 +7158,133 @@ async function updateAllConversationColors(
       customColorId: customColorData?.id || null,
     }),
   });
+}
+
+function removeAllProfileKeyCredentials(db: WritableDB): void {
+  db.exec(
+    `
+    UPDATE conversations
+    SET
+      json = json_remove(json, '$.profileKeyCredential')
+    `
+  );
+}
+
+function saveEditedMessages(
+  db: WritableDB,
+  mainMessage: ReadonlyDeep<MessageType>,
+  ourAci: AciString,
+  history: ReadonlyArray<ReadonlyDeep<EditedMessageType>>
+): void {
+  db.transaction(() => {
+    saveMessage(db, mainMessage, {
+      ourAci,
+      alreadyInTransaction: true,
+    });
+
+    for (const { conversationId, messageId, readStatus, sentAt } of history) {
+      const [query, params] = sql`
+        INSERT INTO edited_messages (
+          conversationId,
+          messageId,
+          sentAt,
+          readStatus
+        ) VALUES (
+          ${conversationId},
+          ${messageId},
+          ${sentAt},
+          ${readStatus}
+        );
+      `;
+
+      db.prepare(query).run(params);
+    }
+  })();
+}
+
+function saveEditedMessage(
+  db: WritableDB,
+  mainMessage: ReadonlyDeep<MessageType>,
+  ourAci: AciString,
+  editedMessage: ReadonlyDeep<EditedMessageType>
+): void {
+  return saveEditedMessages(db, mainMessage, ourAci, [editedMessage]);
+}
+
+function _getAllEditedMessages(
+  db: ReadableDB
+): Array<{ messageId: string; sentAt: number }> {
+  return db
+    .prepare<Query>(
+      `
+      SELECT * FROM edited_messages;
+      `
+    )
+    .all({});
+}
+
+function getUnreadEditedMessagesAndMarkRead(
+  db: WritableDB,
+  {
+    conversationId,
+    newestUnreadAt,
+  }: {
+    conversationId: string;
+    newestUnreadAt: number;
+  }
+): GetUnreadByConversationAndMarkReadResultType {
+  return db.transaction(() => {
+    const [selectQuery, selectParams] = sql`
+      SELECT
+        messages.id,
+        messages.json,
+        edited_messages.sentAt,
+        edited_messages.readStatus
+      FROM edited_messages
+      JOIN messages
+        ON messages.id = edited_messages.messageId
+      WHERE
+        edited_messages.readStatus = ${ReadStatus.Unread} AND
+        edited_messages.conversationId = ${conversationId} AND
+        received_at <= ${newestUnreadAt}
+      ORDER BY messages.received_at DESC, messages.sent_at DESC;
+    `;
+
+    const rows = db.prepare(selectQuery).all(selectParams);
+
+    if (rows.length) {
+      const newestSentAt = rows[0].sentAt;
+
+      const [updateStatusQuery, updateStatusParams] = sql`
+        UPDATE edited_messages
+          SET
+            readStatus = ${ReadStatus.Read}
+          WHERE
+            readStatus = ${ReadStatus.Unread} AND
+            conversationId = ${conversationId} AND
+            sentAt <= ${newestSentAt};
+      `;
+
+      db.prepare(updateStatusQuery).run(updateStatusParams);
+    }
+
+    return rows.map(row => {
+      const json = jsonToObject<MessageType>(row.json);
+      return {
+        originalReadStatus: row.readStatus,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
+        ...pick(json, [
+          'expirationStartTimestamp',
+          'id',
+          'sent_at',
+          'source',
+          'sourceServiceId',
+          'type',
+        ]),
+        // Use the edited message timestamp
+        sent_at: row.sentAt,
+      };
+    });
+  })();
 }

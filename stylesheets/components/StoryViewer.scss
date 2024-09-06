@@ -3,10 +3,9 @@
 
 .StoryViewer {
   &__overlay {
-    background: $color-gray-95;
-    filter: blur(160px);
-    height: 100vh;
-    left: 0;
+    background-size: contain;
+    height: 100%;
+    inset-inline-start: 0;
     position: absolute;
     top: 0;
     width: 100%;
@@ -15,11 +14,13 @@
 
   &__content {
     align-items: center;
+    backdrop-filter: blur(90px);
+    background: $color-black-alpha-20;
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
     justify-content: center;
-    left: 0;
+    inset-inline-start: 0;
     position: absolute;
     top: 0;
     width: 100%;
@@ -29,86 +30,370 @@
   &__close-button {
     @include button-reset;
     @include modal-close-button;
-  }
-
-  &__more {
-    @include button-reset;
-    height: 24px;
-    position: absolute;
-    right: 48px;
-    top: 12px;
-    width: 24px;
-
-    @include color-svg('../images/icons/v2/more-horiz-24.svg', $color-white);
+    @include light-theme {
+      @include color-svg('../images/icons/v3/x/x.svg', $color-gray-15);
+    }
+    width: 20px;
+    height: 20px;
+    top: var(--title-bar-drag-area-height);
+    inset-inline-end: 28px;
+    z-index: $z-index-above-above-base;
   }
 
   &__container {
     flex-grow: 1;
-    margin-top: 36px;
     overflow: hidden;
-    position: relative;
-    z-index: $z-index-base;
+    outline: none;
   }
 
   &__story {
-    border-radius: 12px;
     max-height: 100%;
     outline: none;
     width: auto;
+
+    &__image {
+      object-fit: contain;
+    }
   }
 
   &__meta {
+    @include position-absolute-center-x;
     bottom: 0;
-    left: 50%;
-    padding: 16px;
-    position: absolute;
-    transform: translateX(-50%);
-    width: 284px;
-    z-index: $z-index-above-base;
+    min-width: 284px;
+    padding-block: 0;
+    padding-inline: 16px;
+    width: clamp(0vh, 56.25vh, 100vw);
+    z-index: $z-index-story-meta;
+
+    &__list {
+      @include font-body-2;
+      align-items: center;
+      display: flex;
+      color: $color-white-alpha-80;
+
+      &::before {
+        @include color-svg(
+          '../images/icons/v3/stories/stories-fill-compact.svg',
+          $color-white-alpha-80
+        );
+        content: '';
+        display: block;
+        height: 14px;
+        margin-inline-end: 6px;
+        width: 14px;
+      }
+    }
 
     &--group-avatar {
-      margin-left: -8px;
+      margin-inline-start: -8px;
+    }
+
+    &--title-container {
+      padding-inline-start: 8px;
     }
 
     &--title {
       @include font-body-1-bold;
       color: $color-white;
       display: inline;
-      margin: 0 8px;
+      margin-inline-end: 8px;
     }
 
     &--timestamp {
       @include font-body-2;
       color: $color-white-alpha-60;
     }
+
+    &__playback-bar {
+      display: flex;
+      justify-content: space-between;
+      user-select: none;
+
+      &__container {
+        align-items: center;
+        display: flex;
+      }
+    }
+
+    &__playback-controls {
+      align-items: center;
+      display: flex;
+    }
+  }
+
+  &__caption {
+    @include font-body-1;
+    color: $color-white;
+    padding-block: 4px;
+    padding-inline: 0;
+    margin-bottom: 24px;
+    text-shadow: 0px 0px 48px 0px $color-black-alpha-80;
+
+    &__overlay {
+      @include button-reset;
+      background: $color-black-alpha-60;
+      height: 100%;
+      inset-inline-start: 0;
+      position: absolute;
+      top: 0;
+      width: 100%;
+      z-index: $z-index-base;
+    }
   }
 
   &__actions {
-    margin: 16px 0 32px 0;
+    display: flex;
+    justify-content: center;
+    min-height: 60px;
+
+    &__failed {
+      @include button-reset;
+      @include font-body-1;
+      align-items: center;
+      color: $color-white;
+      display: flex;
+
+      &::before {
+        content: '';
+        display: block;
+        height: 18px;
+        margin-inline-end: 12px;
+        width: 18px;
+        @include color-svg(
+          '../images/icons/v3/error/error-circle.svg',
+          $color-accent-red
+        );
+      }
+    }
   }
 
   &__reply {
     @include button-reset;
+    color: $color-gray-05;
+    @include keyboard-mode {
+      &:focus {
+        color: $color-ultramarine;
+      }
+    }
+
+    &__arrow {
+      display: flex;
+      align-items: center;
+
+      &::before {
+        content: '';
+        height: 20px;
+        margin-inline-end: 12px;
+        width: 20px;
+        @include color-svg('../images/icons/v3/reply/reply.svg', $color-white);
+      }
+    }
+
+    &__chevron {
+      display: flex;
+      align-items: center;
+
+      &::after {
+        content: '';
+        display: inline-block;
+        height: 16px;
+        margin-inline-start: 4px;
+        vertical-align: middle;
+        width: 16px;
+        @include color-svg(
+          '../images/icons/v3/chevron/chevron-right.svg',
+          $color-white
+        );
+      }
+    }
+  }
+
+  &__more__button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 24px;
+    width: 24px;
+
+    &::after {
+      @include color-svg('../images/icons/v3/more/more.svg', $color-white);
+      content: '';
+      height: 20px;
+      width: 20px;
+
+      @include keyboard-mode {
+        &:focus {
+          background-color: $color-black;
+        }
+      }
+    }
+  }
+
+  &__mute {
+    @include button-reset;
+    height: 20px;
+    margin-block: 0;
+    margin-inline: 24px;
+    width: 20px;
+    @include color-svg('../images/icons/v3/speaker/speaker.svg', $color-white);
+    @include keyboard-mode {
+      &:focus {
+        background-color: $color-white-alpha-80;
+      }
+    }
+  }
+
+  &__pause {
+    @include button-reset;
+    height: 20px;
+    width: 20px;
+    @include color-svg('../images/icons/v3/pause/pause.svg', $color-white);
+    @include keyboard-mode {
+      &:focus {
+        background-color: $color-white-alpha-80;
+      }
+    }
+  }
+
+  &__play {
+    @include button-reset;
+    height: 20px;
+    width: 20px;
+    @include color-svg('../images/icons/v3/play/play-fill.svg', $color-white);
+    @include keyboard-mode {
+      &:focus {
+        background-color: $color-white-alpha-80;
+      }
+    }
+  }
+
+  &__unmute {
+    @include button-reset;
+    height: 20px;
+    margin-block: 0;
+    margin-inline: 24px;
+    width: 20px;
+    @include color-svg(
+      '../images/icons/v3/speaker/speaker-slash.svg',
+      $color-white
+    );
+    @include keyboard-mode {
+      &:focus {
+        background-color: $color-white-alpha-80;
+      }
+    }
+  }
+
+  &__soundless {
+    @include button-reset;
+    height: 20px;
+    margin-block: 0;
+    margin-inline: 24px;
+    width: 20px;
+    @include color-svg(
+      '../images/icons/v3/speaker/speaker-x.svg',
+      $color-white
+    );
+    @include keyboard-mode {
+      &:focus {
+        background-color: $color-white-alpha-80;
+      }
+    }
   }
 
   &__progress {
     display: flex;
+  }
 
-    &--container {
-      background: $color-white-alpha-40;
-      border-radius: 2px;
-      height: 2px;
-      margin: 12px 1px 0 1px;
-      overflow: hidden;
-      width: 100%;
+  &__animated-emojis {
+    height: 100%;
+    position: absolute;
+    width: 100%;
+    z-index: $z-index-above-base;
+  }
+
+  &__arrow {
+    @include button-reset;
+    align-items: center;
+    display: flex;
+    height: 100%;
+    position: absolute;
+    width: 25%;
+    z-index: $z-index-above-above-base;
+
+    &::before {
+      content: '';
+      height: 28px;
+      opacity: 0;
+      width: 28px;
+      transition: opacity 200ms ease-in-out;
     }
 
-    &--bar {
-      background: $color-white;
-      background-size: 200% 100%;
-      border-radius: 2px;
-      display: block;
-      height: 100%;
+    &--left {
+      justify-content: flex-start;
+      inset-inline-start: 0;
+
+      &::before {
+        margin-inline-start: 16px;
+        @include color-svg(
+          '../images/icons/v3/chevron/chevron-left.svg',
+          $color-white
+        );
+      }
+    }
+
+    &--right {
+      justify-content: flex-end;
+      inset-inline-end: 0;
+
+      &::before {
+        margin-inline-end: 16px;
+        @include color-svg(
+          '../images/icons/v3/chevron/chevron-right.svg',
+          $color-white
+        );
+      }
+    }
+
+    &--visible::before {
+      opacity: 1;
+    }
+  }
+
+  &__protection {
+    position: absolute;
+    width: 100%;
+    z-index: $z-index-base;
+
+    &--top {
+      background: linear-gradient($color-black-alpha-16, $color-transparent);
+      top: 0;
+      height: 80px;
+    }
+
+    &--bottom {
+      background: linear-gradient($color-transparent, $color-black-alpha-60);
+      bottom: 0;
+      height: 140px;
+    }
+    &--bottom.StoryViewer__protection--has-caption {
+      background: linear-gradient($color-transparent, $color-black-alpha-80);
+      height: 280px;
+    }
+
+    &--whole {
+      top: 0;
+      bottom: 0;
+      background: linear-gradient($color-transparent, $color-black-alpha-40);
+    }
+  }
+
+  &__sending {
+    align-items: center;
+    display: flex;
+
+    &__spinner__container {
+      margin-inline: 0 12px;
     }
   }
 }

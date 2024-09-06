@@ -1,89 +1,109 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import type { PropsType as ContactNameProps } from './ContactName';
 import { ContactName } from './ContactName';
 import { Button, ButtonVariant } from '../Button';
-import type { Props as MessageRequestActionsConfirmationProps } from './MessageRequestActionsConfirmation';
+import type { MessageRequestActionsConfirmationProps } from './MessageRequestActionsConfirmation';
 import {
   MessageRequestActionsConfirmation,
   MessageRequestState,
 } from './MessageRequestActionsConfirmation';
-import { Intl } from '../Intl';
+import { I18n } from '../I18n';
 import type { LocalizerType } from '../../types/Util';
 
 export type Props = {
   i18n: LocalizerType;
-  firstName?: string;
-  onAccept(): unknown;
-} & Omit<ContactNameProps, 'module'> &
-  Pick<
-    MessageRequestActionsConfirmationProps,
-    'conversationType' | 'onBlock' | 'onBlockAndReportSpam' | 'onDelete'
-  >;
+} & Pick<
+  MessageRequestActionsConfirmationProps,
+  | 'addedByName'
+  | 'conversationId'
+  | 'conversationType'
+  | 'conversationName'
+  | 'isBlocked'
+  | 'isReported'
+  | 'acceptConversation'
+  | 'reportSpam'
+  | 'blockAndReportSpam'
+  | 'blockConversation'
+  | 'deleteConversation'
+>;
 
-export const MandatoryProfileSharingActions = ({
+const learnMoreLink = (parts: Array<JSX.Element | string>) => (
+  <a
+    href="https://support.signal.org/hc/articles/360007459591"
+    target="_blank"
+    rel="noreferrer"
+    className="module-message-request-actions__message__learn-more"
+  >
+    {parts}
+  </a>
+);
+
+export function MandatoryProfileSharingActions({
+  addedByName,
+  conversationId,
   conversationType,
-  firstName,
+  conversationName,
   i18n,
-  onAccept,
-  onBlock,
-  onBlockAndReportSpam,
-  onDelete,
-  title,
-}: Props): JSX.Element => {
+  isBlocked,
+  isReported,
+  acceptConversation,
+  reportSpam,
+  blockAndReportSpam,
+  blockConversation,
+  deleteConversation,
+}: Props): JSX.Element {
   const [mrState, setMrState] = React.useState(MessageRequestState.default);
+
+  const firstNameContact = (
+    <strong
+      key="name"
+      className="module-message-request-actions__message__name"
+    >
+      <ContactName {...conversationName} preferFirstName />
+    </strong>
+  );
 
   return (
     <>
       {mrState !== MessageRequestState.default ? (
         <MessageRequestActionsConfirmation
+          addedByName={addedByName}
+          conversationId={conversationId}
+          conversationType={conversationType}
+          conversationName={conversationName}
           i18n={i18n}
-          onBlock={onBlock}
-          onBlockAndReportSpam={onBlockAndReportSpam}
-          onUnblock={() => {
+          isBlocked={isBlocked}
+          isReported={isReported}
+          state={mrState}
+          acceptConversation={() => {
             throw new Error(
               'Should not be able to unblock from MandatoryProfileSharingActions'
             );
           }}
-          onDelete={onDelete}
-          title={title}
-          conversationType={conversationType}
-          state={mrState}
+          blockConversation={blockConversation}
+          deleteConversation={deleteConversation}
+          reportSpam={reportSpam}
+          blockAndReportSpam={blockAndReportSpam}
           onChangeState={setMrState}
         />
       ) : null}
       <div className="module-message-request-actions">
         <p className="module-message-request-actions__message">
-          <Intl
-            i18n={i18n}
-            id={`MessageRequests--profile-sharing--${conversationType}`}
-            components={{
-              firstName: (
-                <strong
-                  key="name"
-                  className="module-message-request-actions__message__name"
-                >
-                  <ContactName
-                    firstName={firstName}
-                    title={title}
-                    preferFirstName
-                  />
-                </strong>
-              ),
-              learnMore: (
-                <a
-                  href="https://support.signal.org/hc/articles/360007459591"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="module-message-request-actions__message__learn-more"
-                >
-                  {i18n('MessageRequests--learn-more')}
-                </a>
-              ),
-            }}
-          />
+          {conversationType === 'direct' ? (
+            <I18n
+              i18n={i18n}
+              id="icu:MessageRequests--profile-sharing--direct--link"
+              components={{ firstName: firstNameContact, learnMoreLink }}
+            />
+          ) : (
+            <I18n
+              i18n={i18n}
+              id="icu:MessageRequests--profile-sharing--group--link"
+              components={{ learnMoreLink }}
+            />
+          )}
         </p>
         <div className="module-message-request-actions__buttons">
           <Button
@@ -92,7 +112,7 @@ export const MandatoryProfileSharingActions = ({
             }}
             variant={ButtonVariant.SecondaryDestructive}
           >
-            {i18n('MessageRequests--block')}
+            {i18n('icu:MessageRequests--block')}
           </Button>
           <Button
             onClick={() => {
@@ -100,16 +120,16 @@ export const MandatoryProfileSharingActions = ({
             }}
             variant={ButtonVariant.SecondaryDestructive}
           >
-            {i18n('MessageRequests--delete')}
+            {i18n('icu:MessageRequests--delete')}
           </Button>
           <Button
-            onClick={onAccept}
+            onClick={() => acceptConversation(conversationId)}
             variant={ButtonVariant.SecondaryAffirmative}
           >
-            {i18n('MessageRequests--continue')}
+            {i18n('icu:MessageRequests--continue')}
           </Button>
         </div>
       </div>
     </>
   );
-};
+}

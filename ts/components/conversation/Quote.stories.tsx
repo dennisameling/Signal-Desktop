@@ -1,17 +1,16 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { Meta, StoryFn } from '@storybook/react';
 import * as React from 'react';
-import { isString } from 'lodash';
 
 import { action } from '@storybook/addon-actions';
-import { boolean, text } from '@storybook/addon-knobs';
-import { storiesOf } from '@storybook/react';
 
 import { ConversationColors } from '../../types/Colors';
 import { pngUrl } from '../../storybook/Fixtures';
-import type { Props as MessagesProps } from './Message';
-import { Message, TextDirection } from './Message';
+import type { Props as TimelineMessagesProps } from './TimelineMessage';
+import { TimelineMessage } from './TimelineMessage';
+import { TextDirection } from './Message';
 import {
   AUDIO_MP3,
   IMAGE_PNG,
@@ -27,16 +26,56 @@ import enMessages from '../../../_locales/en/messages.json';
 import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
 import { WidthBreakpoint } from '../_util';
 import { ThemeType } from '../../types/Util';
+import { PaymentEventKind } from '../../types/Payment';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf('Components/Conversation/Quote', module);
+export default {
+  component: Quote,
+  title: 'Components/Conversation/Quote',
+  argTypes: {
+    isFromMe: {
+      control: { type: 'boolean' },
+    },
+    isGiftBadge: {
+      control: { type: 'boolean' },
+    },
+    isIncoming: {
+      control: { type: 'boolean' },
+    },
+    isViewOnce: {
+      control: { type: 'boolean' },
+    },
+    referencedMessageNotFound: {
+      control: { type: 'boolean' },
+    },
+  },
+  args: {
+    authorTitle: 'Default Sender',
+    conversationColor: 'forest',
+    doubleCheckMissingQuoteReference: action(
+      'doubleCheckMissingQuoteReference'
+    ),
+    i18n,
+    isFromMe: false,
+    isGiftBadge: false,
+    isIncoming: false,
+    isViewOnce: false,
+    onClick: action('onClick'),
+    onClose: action('onClose'),
+    rawAttachment: undefined,
+    referencedMessageNotFound: false,
+    text: 'A sample message from a pal',
+  },
+} satisfies Meta<Props>;
 
-const defaultMessageProps: MessagesProps = {
+const defaultMessageProps: TimelineMessagesProps = {
   author: getDefaultConversation({
     id: 'some-id',
     title: 'Person X',
   }),
+  canCopy: true,
+  canEditMessage: true,
   canReact: true,
   canReply: true,
   canRetry: true,
@@ -44,48 +83,55 @@ const defaultMessageProps: MessagesProps = {
   canDeleteForEveryone: true,
   canDownload: true,
   checkForAccount: action('checkForAccount'),
-  clearSelectedMessage: action('default--clearSelectedMessage'),
+  clearTargetedMessage: action('default--clearTargetedMessage'),
   containerElementRef: React.createRef<HTMLElement>(),
   containerWidthBreakpoint: WidthBreakpoint.Wide,
   conversationColor: 'crimson',
   conversationId: 'conversationId',
+  conversationTitle: 'Conversation Title',
   conversationType: 'direct', // override
-  deleteMessage: action('default--deleteMessage'),
-  deleteMessageForEveryone: action('default--deleteMessageForEveryone'),
   direction: 'incoming',
-  displayTapToViewMessage: action('default--displayTapToViewMessage'),
-  downloadAttachment: action('default--downloadAttachment'),
+  showLightboxForViewOnceMedia: action('default--showLightboxForViewOnceMedia'),
   doubleCheckMissingQuoteReference: action(
     'default--doubleCheckMissingQuoteReference'
   ),
   getPreferredBadge: () => undefined,
   i18n,
+  platform: 'darwin',
   id: 'messageId',
-  renderingContext: 'storybook',
+  // renderingContext: 'storybook',
   interactionMode: 'keyboard',
   isBlocked: false,
   isMessageRequestAccepted: true,
+  isSelected: false,
+  isSelectMode: false,
+  isSMS: false,
+  isSpoilerExpanded: {},
+  toggleSelectMessage: action('toggleSelectMessage'),
   kickOffAttachmentDownload: action('default--kickOffAttachmentDownload'),
   markAttachmentAsCorrupted: action('default--markAttachmentAsCorrupted'),
-  markViewed: action('default--markViewed'),
   messageExpanded: action('default--message-expanded'),
-  openConversation: action('default--openConversation'),
-  openLink: action('default--openLink'),
+  showConversation: action('default--showConversation'),
+  openGiftBadge: action('openGiftBadge'),
   previews: [],
   reactToMessage: action('default--reactToMessage'),
   readStatus: ReadStatus.Read,
   renderEmojiPicker: () => <div />,
   renderReactionPicker: () => <div />,
   renderAudioAttachment: () => <div>*AudioAttachment*</div>,
-  replyToMessage: action('default--replyToMessage'),
-  retrySend: action('default--retrySend'),
+  setMessageToEdit: action('setMessageToEdit'),
+  setQuoteByMessageId: action('default--setQuoteByMessageId'),
+  retryMessageSend: action('default--retryMessageSend'),
+  copyMessageText: action('copyMessageText'),
   retryDeleteForEveryone: action('default--retryDeleteForEveryone'),
+  saveAttachment: action('saveAttachment'),
   scrollToQuotedMessage: action('default--scrollToQuotedMessage'),
-  selectMessage: action('default--selectMessage'),
+  targetMessage: action('default--targetMessage'),
   shouldCollapseAbove: false,
   shouldCollapseBelow: false,
   shouldHideMetadata: false,
-  showContactDetail: action('default--showContactDetail'),
+  showSpoiler: action('showSpoiler'),
+  pushPanelForConversation: action('default--pushPanelForConversation'),
   showContactModal: action('default--showContactModal'),
   showExpiredIncomingTapToViewToast: action(
     'showExpiredIncomingTapToViewToast'
@@ -93,14 +139,16 @@ const defaultMessageProps: MessagesProps = {
   showExpiredOutgoingTapToViewToast: action(
     'showExpiredOutgoingTapToViewToast'
   ),
-  showForwardMessageModal: action('default--showForwardMessageModal'),
-  showMessageDetail: action('default--showMessageDetail'),
-  showVisualAttachment: action('default--showVisualAttachment'),
+  toggleDeleteMessagesModal: action('default--toggleDeleteMessagesModal'),
+  toggleForwardMessagesModal: action('default--toggleForwardMessagesModal'),
+  showLightbox: action('default--showLightbox'),
+  startConversation: action('default--startConversation'),
   status: 'sent',
   text: 'This is really interesting.',
   textDirection: TextDirection.Default,
   theme: ThemeType.light,
   timestamp: Date.now(),
+  viewStory: action('viewStory'),
 };
 
 const renderInMessage = ({
@@ -109,6 +157,7 @@ const renderInMessage = ({
   isFromMe,
   rawAttachment,
   isViewOnce,
+  isGiftBadge,
   referencedMessageNotFound,
   text: quoteText,
 }: Props) => {
@@ -119,9 +168,11 @@ const renderInMessage = ({
       authorId: 'an-author',
       authorTitle,
       conversationColor,
+      conversationTitle: getDefaultConversation().title,
       isFromMe,
       rawAttachment,
       isViewOnce,
+      isGiftBadge,
       referencedMessageNotFound,
       sentAt: Date.now() - 30 * 1000,
       text: quoteText,
@@ -130,393 +181,352 @@ const renderInMessage = ({
 
   return (
     <div style={{ overflow: 'hidden' }}>
-      <Message {...messageProps} />
+      <TimelineMessage {...messageProps} />
       <br />
-      <Message {...messageProps} direction="outgoing" />
+      <TimelineMessage {...messageProps} direction="outgoing" />
     </div>
   );
 };
 
-const createProps = (overrideProps: Partial<Props> = {}): Props => ({
-  authorTitle: text('authorTitle', overrideProps.authorTitle || ''),
-  conversationColor: overrideProps.conversationColor || 'forest',
-  doubleCheckMissingQuoteReference:
-    overrideProps.doubleCheckMissingQuoteReference ||
-    action('doubleCheckMissingQuoteReference'),
-  i18n,
-  isFromMe: boolean('isFromMe', overrideProps.isFromMe || false),
-  isIncoming: boolean('isIncoming', overrideProps.isIncoming || false),
-  onClick: action('onClick'),
-  onClose: action('onClose'),
-  rawAttachment: overrideProps.rawAttachment || undefined,
-  referencedMessageNotFound: boolean(
-    'referencedMessageNotFound',
-    overrideProps.referencedMessageNotFound || false
-  ),
-  isViewOnce: boolean('isViewOnce', overrideProps.isViewOnce || false),
-  text: text(
-    'text',
-    isString(overrideProps.text)
-      ? overrideProps.text
-      : 'A sample message from a pal'
-  ),
-});
+// eslint-disable-next-line react/function-component-definition
+const Template: StoryFn<Props> = args => <Quote {...args} />;
+const TemplateInMessage: StoryFn<Props> = args => renderInMessage(args);
 
-story.add('Outgoing by Another Author', () => {
-  const props = createProps({
-    authorTitle: 'Terrence Malick',
-  });
+export const OutgoingByAnotherAuthor = Template.bind({});
+OutgoingByAnotherAuthor.args = {
+  authorTitle: getDefaultConversation().title,
+};
 
-  return <Quote {...props} />;
-});
+export const OutgoingByMe = Template.bind({});
+OutgoingByMe.args = {
+  isFromMe: true,
+};
 
-story.add('Outgoing by Me', () => {
-  const props = createProps({
-    isFromMe: true,
-  });
+export const IncomingByAnotherAuthor = Template.bind({});
+IncomingByAnotherAuthor.args = {
+  authorTitle: getDefaultConversation().title,
+  isIncoming: true,
+};
 
-  return <Quote {...props} />;
-});
+export const IncomingByMe = Template.bind({});
+IncomingByMe.args = {
+  isFromMe: true,
+  isIncoming: true,
+};
 
-story.add('Incoming by Another Author', () => {
-  const props = createProps({
-    authorTitle: 'Terrence Malick',
-    isIncoming: true,
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('Incoming by Me', () => {
-  const props = createProps({
-    isFromMe: true,
-    isIncoming: true,
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('Incoming/Outgoing Colors', () => {
-  const props = createProps({});
+export function IncomingOutgoingColors(args: Props): JSX.Element {
   return (
     <>
       {ConversationColors.map(color =>
-        renderInMessage({ ...props, conversationColor: color })
+        renderInMessage({ ...args, conversationColor: color })
       )}
     </>
   );
-});
+}
+IncomingOutgoingColors.args = {};
 
-story.add('Image Only', () => {
-  const props = createProps({
-    text: '',
-    rawAttachment: {
+export const ImageOnly = Template.bind({});
+ImageOnly.args = {
+  text: '',
+  rawAttachment: {
+    contentType: IMAGE_PNG,
+    fileName: 'sax.png',
+    isVoiceMessage: false,
+    thumbnail: {
       contentType: IMAGE_PNG,
-      fileName: 'sax.png',
-      isVoiceMessage: false,
-      thumbnail: {
-        contentType: IMAGE_PNG,
-        height: 100,
-        width: 100,
-        path: pngUrl,
-        objectUrl: pngUrl,
-      },
+      height: 100,
+      width: 100,
+      size: 100,
+      path: pngUrl,
+      objectUrl: pngUrl,
     },
-  });
+  },
+};
 
-  return <Quote {...props} />;
-});
-story.add('Image Attachment', () => {
-  const props = createProps({
-    rawAttachment: {
+export const ImageAttachment = Template.bind({});
+ImageAttachment.args = {
+  rawAttachment: {
+    contentType: IMAGE_PNG,
+    fileName: 'sax.png',
+    isVoiceMessage: false,
+    thumbnail: {
       contentType: IMAGE_PNG,
-      fileName: 'sax.png',
-      isVoiceMessage: false,
-      thumbnail: {
-        contentType: IMAGE_PNG,
-        height: 100,
-        width: 100,
-        path: pngUrl,
-        objectUrl: pngUrl,
-      },
+      height: 100,
+      width: 100,
+      size: 100,
+      path: pngUrl,
+      objectUrl: pngUrl,
     },
-  });
+  },
+};
 
-  return <Quote {...props} />;
-});
+export const ImageAttachmentNoThumbnail = Template.bind({});
+ImageAttachmentNoThumbnail.args = {
+  rawAttachment: {
+    contentType: IMAGE_PNG,
+    fileName: 'sax.png',
+    isVoiceMessage: false,
+  },
+};
 
-story.add('Image Attachment w/o Thumbnail', () => {
-  const props = createProps({
-    rawAttachment: {
+export const ImageTapToView = Template.bind({});
+ImageTapToView.args = {
+  text: '',
+  isViewOnce: true,
+  rawAttachment: {
+    contentType: IMAGE_PNG,
+    fileName: 'sax.png',
+    isVoiceMessage: false,
+  },
+};
+
+export const VideoOnly = Template.bind({});
+VideoOnly.args = {
+  rawAttachment: {
+    contentType: VIDEO_MP4,
+    fileName: 'great-video.mp4',
+    isVoiceMessage: false,
+    thumbnail: {
       contentType: IMAGE_PNG,
-      fileName: 'sax.png',
-      isVoiceMessage: false,
+      height: 100,
+      width: 100,
+      size: 100,
+      path: pngUrl,
+      objectUrl: pngUrl,
     },
-  });
+  },
+  text: undefined,
+};
 
-  return <Quote {...props} />;
-});
-
-story.add('Image Tap-to-View', () => {
-  const props = createProps({
-    text: '',
-    isViewOnce: true,
-    rawAttachment: {
+export const VideoAttachment = Template.bind({});
+VideoAttachment.args = {
+  rawAttachment: {
+    contentType: VIDEO_MP4,
+    fileName: 'great-video.mp4',
+    isVoiceMessage: false,
+    thumbnail: {
       contentType: IMAGE_PNG,
-      fileName: 'sax.png',
-      isVoiceMessage: false,
+      height: 100,
+      width: 100,
+      size: 100,
+      path: pngUrl,
+      objectUrl: pngUrl,
     },
-  });
+  },
+};
 
-  return <Quote {...props} />;
-});
+export const VideoAttachmentNoThumbnail = Template.bind({});
+VideoAttachmentNoThumbnail.args = {
+  rawAttachment: {
+    contentType: VIDEO_MP4,
+    fileName: 'great-video.mp4',
+    isVoiceMessage: false,
+  },
+};
 
-story.add('Video Only', () => {
-  const props = createProps({
-    rawAttachment: {
-      contentType: VIDEO_MP4,
-      fileName: 'great-video.mp4',
-      isVoiceMessage: false,
-      thumbnail: {
-        contentType: IMAGE_PNG,
-        height: 100,
-        width: 100,
-        path: pngUrl,
-        objectUrl: pngUrl,
-      },
+export const VideoTapToView = Template.bind({});
+VideoTapToView.args = {
+  text: '',
+  isViewOnce: true,
+  rawAttachment: {
+    contentType: VIDEO_MP4,
+    fileName: 'great-video.mp4',
+    isVoiceMessage: false,
+  },
+};
+
+export const GiftBadge = TemplateInMessage.bind({});
+GiftBadge.args = {
+  text: "Some text which shouldn't be rendered",
+  isGiftBadge: true,
+};
+
+export const AudioOnly = Template.bind({});
+AudioOnly.args = {
+  rawAttachment: {
+    contentType: AUDIO_MP3,
+    fileName: 'great-video.mp3',
+    isVoiceMessage: false,
+  },
+  text: undefined,
+};
+
+export const AudioAttachment = Template.bind({});
+AudioAttachment.args = {
+  rawAttachment: {
+    contentType: AUDIO_MP3,
+    fileName: 'great-video.mp3',
+    isVoiceMessage: false,
+  },
+};
+
+export const VoiceMessageOnly = Template.bind({});
+VoiceMessageOnly.args = {
+  rawAttachment: {
+    contentType: AUDIO_MP3,
+    fileName: 'great-video.mp3',
+    isVoiceMessage: true,
+  },
+  text: undefined,
+};
+
+export const VoiceMessageAttachment = Template.bind({});
+VoiceMessageAttachment.args = {
+  rawAttachment: {
+    contentType: AUDIO_MP3,
+    fileName: 'great-video.mp3',
+    isVoiceMessage: true,
+  },
+};
+
+export const OtherFileOnly = Template.bind({});
+OtherFileOnly.args = {
+  rawAttachment: {
+    contentType: stringToMIMEType('application/json'),
+    fileName: 'great-data.json',
+    isVoiceMessage: false,
+  },
+  text: undefined,
+};
+
+export const MediaTapToView = Template.bind({});
+MediaTapToView.args = {
+  text: '',
+  isViewOnce: true,
+  rawAttachment: {
+    contentType: AUDIO_MP3,
+    fileName: 'great-video.mp3',
+    isVoiceMessage: false,
+  },
+};
+
+export const OtherFileAttachment = Template.bind({});
+OtherFileAttachment.args = {
+  rawAttachment: {
+    contentType: stringToMIMEType('application/json'),
+    fileName: 'great-data.json',
+    isVoiceMessage: false,
+  },
+};
+
+export const LongMessageAttachmentShouldBeHidden = Template.bind({});
+LongMessageAttachmentShouldBeHidden.args = {
+  rawAttachment: {
+    contentType: LONG_MESSAGE,
+    fileName: 'signal-long-message-123.txt',
+    isVoiceMessage: false,
+  },
+};
+
+export const NoCloseButton = Template.bind({});
+NoCloseButton.args = {
+  onClose: undefined,
+};
+
+export const MessageNotFound = TemplateInMessage.bind({});
+MessageNotFound.args = {
+  referencedMessageNotFound: true,
+};
+
+export const MissingTextAttachment = Template.bind({});
+MissingTextAttachment.args = {
+  text: undefined,
+};
+
+export const MentionOutgoingAnotherAuthor = Template.bind({});
+MentionOutgoingAnotherAuthor.args = {
+  authorTitle: 'Tony Stark',
+  text: '@Captain America Lunch later?',
+};
+
+export const MentionOutgoingMe = Template.bind({});
+MentionOutgoingMe.args = {
+  isFromMe: true,
+  text: '@Captain America Lunch later?',
+};
+
+export const MentionIncomingAnotherAuthor = Template.bind({});
+MentionIncomingAnotherAuthor.args = {
+  authorTitle: 'Captain America',
+  isIncoming: true,
+  text: '@Tony Stark sure',
+};
+
+export const MentionIncomingMe = Template.bind({});
+MentionIncomingMe.args = {
+  isFromMe: true,
+  isIncoming: true,
+  text: '@Tony Stark sure',
+};
+
+export function CustomColor(args: Props): JSX.Element {
+  return (
+    <>
+      <Quote
+        {...args}
+        customColor={{
+          start: { hue: 82, saturation: 35 },
+        }}
+      />
+      <Quote
+        {...args}
+        isIncoming={false}
+        text="A gradient"
+        customColor={{
+          deg: 192,
+          start: { hue: 304, saturation: 85 },
+          end: { hue: 231, saturation: 76 },
+        }}
+      />
+    </>
+  );
+}
+CustomColor.args = {
+  isIncoming: true,
+  text: 'Solid + Gradient',
+};
+
+export const IsStoryReply = Template.bind({});
+IsStoryReply.args = {
+  text: 'Wow!',
+  authorTitle: 'Amanda',
+  isStoryReply: true,
+  moduleClassName: 'StoryReplyQuote',
+  onClose: undefined,
+  rawAttachment: {
+    contentType: VIDEO_MP4,
+    fileName: 'great-video.mp4',
+    isVoiceMessage: false,
+  },
+};
+
+export const IsStoryReplyEmoji = Template.bind({});
+IsStoryReplyEmoji.args = {
+  authorTitle: getDefaultConversation().firstName,
+  isStoryReply: true,
+  moduleClassName: 'StoryReplyQuote',
+  onClose: undefined,
+  rawAttachment: {
+    contentType: IMAGE_PNG,
+    fileName: 'sax.png',
+    isVoiceMessage: false,
+    thumbnail: {
+      contentType: IMAGE_PNG,
+      height: 100,
+      width: 100,
+      size: 100,
+      path: pngUrl,
+      objectUrl: pngUrl,
     },
-  });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  props.text = undefined as any;
+  },
+  reactionEmoji: '🏋️',
+};
 
-  return <Quote {...props} />;
-});
-
-story.add('Video Attachment', () => {
-  const props = createProps({
-    rawAttachment: {
-      contentType: VIDEO_MP4,
-      fileName: 'great-video.mp4',
-      isVoiceMessage: false,
-      thumbnail: {
-        contentType: IMAGE_PNG,
-        height: 100,
-        width: 100,
-        path: pngUrl,
-        objectUrl: pngUrl,
-      },
-    },
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('Video Attachment w/o Thumbnail', () => {
-  const props = createProps({
-    rawAttachment: {
-      contentType: VIDEO_MP4,
-      fileName: 'great-video.mp4',
-      isVoiceMessage: false,
-    },
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('Video Tap-to-View', () => {
-  const props = createProps({
-    text: '',
-    isViewOnce: true,
-    rawAttachment: {
-      contentType: VIDEO_MP4,
-      fileName: 'great-video.mp4',
-      isVoiceMessage: false,
-    },
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('Audio Only', () => {
-  const props = createProps({
-    rawAttachment: {
-      contentType: AUDIO_MP3,
-      fileName: 'great-video.mp3',
-      isVoiceMessage: false,
-    },
-  });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  props.text = undefined as any;
-
-  return <Quote {...props} />;
-});
-
-story.add('Audio Attachment', () => {
-  const props = createProps({
-    rawAttachment: {
-      contentType: AUDIO_MP3,
-      fileName: 'great-video.mp3',
-      isVoiceMessage: false,
-    },
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('Voice Message Only', () => {
-  const props = createProps({
-    rawAttachment: {
-      contentType: AUDIO_MP3,
-      fileName: 'great-video.mp3',
-      isVoiceMessage: true,
-    },
-  });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  props.text = undefined as any;
-
-  return <Quote {...props} />;
-});
-
-story.add('Voice Message Attachment', () => {
-  const props = createProps({
-    rawAttachment: {
-      contentType: AUDIO_MP3,
-      fileName: 'great-video.mp3',
-      isVoiceMessage: true,
-    },
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('Other File Only', () => {
-  const props = createProps({
-    rawAttachment: {
-      contentType: stringToMIMEType('application/json'),
-      fileName: 'great-data.json',
-      isVoiceMessage: false,
-    },
-  });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  props.text = undefined as any;
-
-  return <Quote {...props} />;
-});
-
-story.add('Media Tap-to-View', () => {
-  const props = createProps({
-    text: '',
-    isViewOnce: true,
-    rawAttachment: {
-      contentType: AUDIO_MP3,
-      fileName: 'great-video.mp3',
-      isVoiceMessage: false,
-    },
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('Other File Attachment', () => {
-  const props = createProps({
-    rawAttachment: {
-      contentType: stringToMIMEType('application/json'),
-      fileName: 'great-data.json',
-      isVoiceMessage: false,
-    },
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('Long message attachment (should be hidden)', () => {
-  const props = createProps({
-    rawAttachment: {
-      contentType: LONG_MESSAGE,
-      fileName: 'signal-long-message-123.txt',
-      isVoiceMessage: false,
-    },
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('No Close Button', () => {
-  const props = createProps();
-  props.onClose = undefined;
-
-  return <Quote {...props} />;
-});
-
-story.add('Message Not Found', () => {
-  const props = createProps({
-    referencedMessageNotFound: true,
-  });
-
-  return renderInMessage(props);
-});
-
-story.add('Missing Text & Attachment', () => {
-  const props = createProps();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  props.text = undefined as any;
-
-  return <Quote {...props} />;
-});
-
-story.add('@mention + outgoing + another author', () => {
-  const props = createProps({
-    authorTitle: 'Tony Stark',
-    text: '@Captain America Lunch later?',
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('@mention + outgoing + me', () => {
-  const props = createProps({
-    isFromMe: true,
-    text: '@Captain America Lunch later?',
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('@mention + incoming + another author', () => {
-  const props = createProps({
-    authorTitle: 'Captain America',
-    isIncoming: true,
-    text: '@Tony Stark sure',
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('@mention + incoming + me', () => {
-  const props = createProps({
-    isFromMe: true,
-    isIncoming: true,
-    text: '@Tony Stark sure',
-  });
-
-  return <Quote {...props} />;
-});
-
-story.add('Custom Color', () => (
-  <>
-    <Quote
-      {...createProps({ isIncoming: true, text: 'Solid + Gradient' })}
-      customColor={{
-        start: { hue: 82, saturation: 35 },
-      }}
-    />
-    <Quote
-      {...createProps()}
-      customColor={{
-        deg: 192,
-        start: { hue: 304, saturation: 85 },
-        end: { hue: 231, saturation: 76 },
-      }}
-    />
-  </>
-));
+export const Payment = Template.bind({});
+Payment.args = {
+  text: '',
+  payment: {
+    kind: PaymentEventKind.Notification,
+    note: null,
+  },
+};

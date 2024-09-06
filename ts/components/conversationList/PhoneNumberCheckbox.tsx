@@ -6,11 +6,15 @@ import React, { useState } from 'react';
 
 import { ButtonVariant } from '../Button';
 import { ConfirmationDialog } from '../ConfirmationDialog';
-import { BaseConversationListItem } from './BaseConversationListItem';
+import { SPINNER_CLASS_NAME } from './BaseConversationListItem';
 import type { ParsedE164Type } from '../../util/libphonenumberInstance';
 import type { LocalizerType, ThemeType } from '../../types/Util';
 import { AvatarColors } from '../../types/Colors';
-import type { LookupConversationWithoutUuidActionsType } from '../../util/lookupConversationWithoutUuid';
+import type { LookupConversationWithoutServiceIdActionsType } from '../../util/lookupConversationWithoutServiceId';
+import { ListTile } from '../ListTile';
+import { Avatar, AvatarSize } from '../Avatar';
+import { Spinner } from '../Spinner';
+import { UserText } from '../UserText';
 
 export type PropsDataType = {
   phoneNumber: ParsedE164Type;
@@ -22,7 +26,7 @@ type PropsHousekeepingType = {
   i18n: LocalizerType;
   theme: ThemeType;
   toggleConversationInChooseMembers: (conversationId: string) => void;
-} & LookupConversationWithoutUuidActionsType;
+} & LookupConversationWithoutServiceIdActionsType;
 
 type PropsType = PropsDataType & PropsHousekeepingType;
 
@@ -31,9 +35,8 @@ export const PhoneNumberCheckbox: FunctionComponent<PropsType> = React.memo(
     phoneNumber,
     isChecked,
     isFetching,
-    theme,
     i18n,
-    lookupConversationWithoutUuid,
+    lookupConversationWithoutServiceId,
     showUserNotFoundModal,
     setIsFetchingUUID,
     toggleConversationInChooseMembers,
@@ -49,7 +52,7 @@ export const PhoneNumberCheckbox: FunctionComponent<PropsType> = React.memo(
         return;
       }
 
-      const conversationId = await lookupConversationWithoutUuid({
+      const conversationId = await lookupConversationWithoutServiceId({
         showUserNotFoundModal,
         setIsFetchingUUID,
 
@@ -64,7 +67,7 @@ export const PhoneNumberCheckbox: FunctionComponent<PropsType> = React.memo(
     }, [
       isFetching,
       toggleConversationInChooseMembers,
-      lookupConversationWithoutUuid,
+      lookupConversationWithoutServiceId,
       showUserNotFoundModal,
       setIsFetchingUUID,
       setIsModalVisible,
@@ -75,36 +78,59 @@ export const PhoneNumberCheckbox: FunctionComponent<PropsType> = React.memo(
     if (isModalVisible) {
       modal = (
         <ConfirmationDialog
-          cancelText={i18n('ok')}
+          dialogName="PhoneNumberCheckbox.invalidPhoneNumber"
+          cancelText={i18n('icu:ok')}
           cancelButtonVariant={ButtonVariant.Secondary}
           i18n={i18n}
           onClose={() => setIsModalVisible(false)}
         >
-          {i18n('startConversation--phone-number-not-valid', {
+          {i18n('icu:startConversation--phone-number-not-valid', {
             phoneNumber: phoneNumber.userInput,
           })}
         </ConfirmationDialog>
       );
     }
 
+    const avatar = (
+      <Avatar
+        acceptedMessageRequest={false}
+        color={AvatarColors[0]}
+        conversationType="direct"
+        i18n={i18n}
+        isMe={false}
+        phoneNumber={phoneNumber.userInput}
+        title={phoneNumber.userInput}
+        sharedGroupNames={[]}
+        size={AvatarSize.THIRTY_TWO}
+        badge={undefined}
+      />
+    );
+
+    const title = <UserText text={phoneNumber.userInput} />;
+
     return (
       <>
-        <BaseConversationListItem
-          acceptedMessageRequest={false}
-          checked={isChecked}
-          color={AvatarColors[0]}
-          conversationType="direct"
-          headerName={phoneNumber.userInput}
-          i18n={i18n}
-          isMe={false}
-          isSelected={false}
-          onClick={onClickItem}
-          phoneNumber={phoneNumber.userInput}
-          shouldShowSpinner={isFetching}
-          theme={theme}
-          sharedGroupNames={[]}
-          title={phoneNumber.userInput}
-        />
+        {isFetching ? (
+          <ListTile
+            leading={avatar}
+            title={title}
+            trailing={
+              <Spinner
+                size="20px"
+                svgSize="small"
+                moduleClassName={SPINNER_CLASS_NAME}
+                direction="on-progress-dialog"
+              />
+            }
+          />
+        ) : (
+          <ListTile.checkbox
+            isChecked={isChecked}
+            onClick={onClickItem}
+            leading={avatar}
+            title={<UserText text={phoneNumber.userInput} />}
+          />
+        )}
         {modal}
       </>
     );

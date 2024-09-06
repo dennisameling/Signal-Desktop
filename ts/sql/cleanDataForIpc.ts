@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { isPlainObject } from 'lodash';
+import * as log from '../logging/log';
 
 import { isIterable } from '../util/iterables';
 
@@ -22,7 +23,7 @@ export function cleanDataForIpc(data: unknown): {
   pathsChanged: Array<string>;
 } {
   const pathsChanged: Array<string> = [];
-  const cleaned = cleanDataInner(data, 'root', pathsChanged);
+  const cleaned = cleanDataInner(data, 'root', pathsChanged, 0);
   return { cleaned, pathsChanged };
 }
 
@@ -49,8 +50,17 @@ interface CleanedArray extends Array<CleanedDataValue> {}
 function cleanDataInner(
   data: unknown,
   path: string,
-  pathsChanged: Array<string>
+  pathsChanged: Array<string>,
+  depth: number
 ): CleanedDataValue {
+  if (depth > 10) {
+    log.error(
+      `cleanDataInner: Reached maximum depth ${depth}; path is ${path}`
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return { cleaned: data as any, pathsChanged };
+  }
+
   switch (typeof data) {
     case 'undefined':
     case 'boolean':
@@ -65,6 +75,7 @@ function cleanDataInner(
       //   functions but don't mark them as cleaned.
       return undefined;
     case 'object': {
+      // eslint-disable-next-line eqeqeq
       if (data === null) {
         return null;
       }
@@ -73,10 +84,12 @@ function cleanDataInner(
         const result: CleanedArray = [];
         data.forEach((item, index) => {
           const indexPath = `${path}.${index}`;
-          if (item === undefined || item === null) {
+          if (item == null) {
             pathsChanged.push(indexPath);
           } else {
-            result.push(cleanDataInner(item, indexPath, pathsChanged));
+            result.push(
+              cleanDataInner(item, indexPath, pathsChanged, depth + 1)
+            );
           }
         });
         return result;
@@ -90,7 +103,8 @@ function cleanDataInner(
             result[key] = cleanDataInner(
               value,
               `${path}.<map value at ${key}>`,
-              pathsChanged
+              pathsChanged,
+              depth + 1
             );
           } else {
             pathsChanged.push(`${path}.<map key ${String(key)}>`);
@@ -120,7 +134,12 @@ function cleanDataInner(
         typeof dataAsRecord.toNumber === 'function'
       ) {
         // We clean this just in case `toNumber` returns something bogus.
-        return cleanDataInner(dataAsRecord.toNumber(), path, pathsChanged);
+        return cleanDataInner(
+          dataAsRecord.toNumber(),
+          path,
+          pathsChanged,
+          depth + 1
+        );
       }
 
       if (isIterable(dataAsRecord)) {
@@ -132,7 +151,8 @@ function cleanDataInner(
             cleanDataInner(
               value,
               `${path}.<iterator index ${index}>`,
-              pathsChanged
+              pathsChanged,
+              depth + 1
             )
           );
           index += 1;
@@ -150,7 +170,12 @@ function cleanDataInner(
 
       // Conveniently, `Object.entries` removes symbol keys.
       Object.entries(dataAsRecord).forEach(([key, value]) => {
-        result[key] = cleanDataInner(value, `${path}.${key}`, pathsChanged);
+        result[key] = cleanDataInner(
+          value,
+          `${path}.${key}`,
+          pathsChanged,
+          depth + 1
+        );
       });
 
       return result;

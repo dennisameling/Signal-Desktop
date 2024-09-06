@@ -1,8 +1,9 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { webFrame } from 'electron';
-import type { AudioDevice } from 'ringrtc';
+import { ipcRenderer } from 'electron';
+import type { AudioDevice } from '@signalapp/ringrtc';
+import { noop } from 'lodash';
 
 import type { ZoomFactorType } from '../types/Storage.d';
 import type {
@@ -11,38 +12,58 @@ import type {
   DefaultConversationColorType,
 } from '../types/Colors';
 import { DEFAULT_CONVERSATION_COLOR } from '../types/Colors';
+import * as Errors from '../types/errors';
 import * as Stickers from '../types/Stickers';
-import type { SystemTraySetting } from '../types/SystemTraySetting';
-import { parseSystemTraySetting } from '../types/SystemTraySetting';
 
 import type { ConversationType } from '../state/ducks/conversations';
 import { calling } from '../services/calling';
+import { resolveUsernameByLinkBase64 } from '../services/username';
+import { writeProfile } from '../services/writeProfile';
+import { isInCall } from '../state/selectors/calling';
 import { getConversationsWithCustomColorSelector } from '../state/selectors/conversations';
 import { getCustomColors } from '../state/selectors/items';
-import { trigger } from '../shims/events';
 import { themeChanged } from '../shims/themeChanged';
 import { renderClearingDataView } from '../shims/renderClearingDataView';
 
 import * as universalExpireTimer from './universalExpireTimer';
 import { PhoneNumberDiscoverability } from './phoneNumberDiscoverability';
 import { PhoneNumberSharingMode } from './phoneNumberSharingMode';
-import { assert } from './assert';
+import { strictAssert, assertDev } from './assert';
 import * as durations from './durations';
-import { isPhoneNumberSharingEnabled } from './isPhoneNumberSharingEnabled';
-import { parseE164FromSignalDotMeHash } from './sgnlHref';
+import type { DurationInSeconds } from './durations';
+import * as Registration from './registration';
+import { lookupConversationWithoutServiceId } from './lookupConversationWithoutServiceId';
 import * as log from '../logging/log';
+import { deleteAllMyStories } from './deleteAllMyStories';
+import type { NotificationClickData } from '../services/notifications';
+import { StoryViewModeType, StoryViewTargetType } from '../types/Stories';
+import { isValidE164 } from './isValidE164';
+import { fromWebSafeBase64 } from './webSafeBase64';
+import { getConversation } from './getConversation';
+import { instance, PhoneNumberFormat } from './libphonenumberInstance';
+import { showConfirmationDialog } from './showConfirmationDialog';
+import type {
+  EphemeralSettings,
+  SettingsValuesType,
+  ThemeType,
+} from './preload';
+import type { SystemTraySetting } from '../types/SystemTraySetting';
+import { drop } from './drop';
 
-type ThemeType = 'light' | 'dark' | 'system';
+type SentMediaQualityType = 'standard' | 'high';
 type NotificationSettingType = 'message' | 'name' | 'count' | 'off';
 
 export type IPCEventsValuesType = {
   alwaysRelayCalls: boolean | undefined;
   audioNotification: boolean | undefined;
+  audioMessage: boolean;
+  autoConvertEmoji: boolean;
   autoDownloadUpdate: boolean;
   autoLaunch: boolean;
   callRingtoneNotification: boolean;
   callSystemNotification: boolean;
   countMutedConversations: boolean;
+  hasStoriesDisabled: boolean;
   hideMenuBar: boolean | undefined;
   incomingCallNotification: boolean;
   lastSyncTime: number | undefined;
@@ -51,11 +72,11 @@ export type IPCEventsValuesType = {
   preferredAudioInputDevice: AudioDevice | undefined;
   preferredAudioOutputDevice: AudioDevice | undefined;
   preferredVideoInputDevice: string | undefined;
-  spellCheck: boolean;
-  systemTraySetting: SystemTraySetting;
-  themeSetting: ThemeType;
-  universalExpireTimer: number;
+  sentMediaQualitySetting: SentMediaQualityType;
+  textFormatting: boolean;
+  universalExpireTimer: DurationInSeconds;
   zoomFactor: ZoomFactorType;
+  storyViewReceiptsEnabled: boolean;
 
   // Optional
   mediaPermissions: boolean;
@@ -70,6 +91,7 @@ export type IPCEventsValuesType = {
   readReceiptSetting: boolean;
   typingIndicatorSetting: boolean;
   deviceName: string | undefined;
+  phoneNumber: string | undefined;
 };
 
 export type IPCEventsCallbacksType = {
@@ -82,23 +104,33 @@ export type IPCEventsCallbacksType = {
   }>;
   addCustomColor: (customColor: CustomColorType) => void;
   addDarkOverlay: () => void;
+  cleanupDownloads: () => Promise<void>;
   deleteAllData: () => Promise<void>;
-  closeDB: () => Promise<void>;
+  deleteAllMyStories: () => Promise<void>;
   editCustomColor: (colorId: string, customColor: CustomColorType) => void;
   getConversationsWithCustomColor: (x: string) => Array<ConversationType>;
+  getMediaAccessStatus: (
+    mediaType: 'screen' | 'microphone' | 'camera'
+  ) => Promise<string | unknown>;
   installStickerPack: (packId: string, key: string) => Promise<void>;
-  isPhoneNumberSharingEnabled: () => boolean;
   isPrimary: () => boolean;
   removeCustomColor: (x: string) => void;
   removeCustomColorOnConversations: (x: string) => void;
   removeDarkOverlay: () => void;
   resetAllChatColors: () => void;
   resetDefaultChatColor: () => void;
-  showConversationViaSignalDotMe: (hash: string) => void;
+  setMediaPlaybackDisabled: (playbackDisabled: boolean) => void;
+  showConversationViaNotification: (data: NotificationClickData) => void;
+  showConversationViaSignalDotMe: (
+    kind: string,
+    value: string
+  ) => Promise<void>;
   showKeyboardShortcuts: () => void;
-  showGroupViaLink: (x: string) => Promise<void>;
+  showGroupViaLink: (value: string) => Promise<void>;
   showReleaseNotes: () => void;
   showStickerPack: (packId: string, key: string) => void;
+  requestCloseConfirmation: () => Promise<boolean>;
+  getIsInCall: () => boolean;
   shutdown: () => Promise<void>;
   unknownSignalLink: () => void;
   getCustomColors: () => Record<string, CustomColorType>;
@@ -108,40 +140,73 @@ export type IPCEventsCallbacksType = {
     customColor?: { id: string; value: CustomColorType }
   ) => void;
   getDefaultConversationColor: () => DefaultConversationColorType;
-  persistZoomFactor: (factor: number) => Promise<void>;
+  uploadStickerPack: (
+    manifest: Uint8Array,
+    stickers: ReadonlyArray<Uint8Array>
+  ) => Promise<string>;
 };
 
 type ValuesWithGetters = Omit<
-  IPCEventsValuesType,
+  SettingsValuesType,
+  // Async
+  | 'zoomFactor'
+  | 'localeOverride'
+  | 'spellCheck'
+  | 'themeSetting'
   // Optional
-  'mediaPermissions' | 'mediaCameraPermissions' | 'autoLaunch'
+  | 'mediaPermissions'
+  | 'mediaCameraPermissions'
+  | 'autoLaunch'
+  | 'systemTraySetting'
 >;
 
 type ValuesWithSetters = Omit<
-  IPCEventsValuesType,
+  SettingsValuesType,
   | 'blockedCount'
   | 'defaultConversationColor'
   | 'linkPreviewSetting'
-  | 'phoneNumberDiscoverabilitySetting'
-  | 'phoneNumberSharingSetting'
   | 'readReceiptSetting'
   | 'typingIndicatorSetting'
   | 'deviceName'
+  | 'phoneNumber'
 
   // Optional
   | 'mediaPermissions'
   | 'mediaCameraPermissions'
+
+  // Only set in the Settings window
+  | 'localeOverride'
+  | 'spellCheck'
+  | 'systemTraySetting'
 >;
 
-export type IPCEventGetterType<Key extends keyof IPCEventsValuesType> =
+export type IPCEventsUpdatersType = {
+  [Key in keyof EphemeralSettings as IPCEventUpdaterType<Key>]?: (
+    value: EphemeralSettings[Key]
+  ) => void;
+};
+
+export type IPCEventGetterType<Key extends keyof SettingsValuesType> =
   `get${Capitalize<Key>}`;
 
-export type IPCEventSetterType<Key extends keyof IPCEventsValuesType> =
+export type IPCEventSetterType<Key extends keyof SettingsValuesType> =
   `set${Capitalize<Key>}`;
+
+export type IPCEventUpdaterType<Key extends keyof SettingsValuesType> =
+  `update${Capitalize<Key>}`;
 
 export type IPCEventsGettersType = {
   [Key in keyof ValuesWithGetters as IPCEventGetterType<Key>]: () => ValuesWithGetters[Key];
 } & {
+  // Async
+  getZoomFactor: () => Promise<ZoomFactorType>;
+  getLocaleOverride: () => Promise<string | null>;
+  getSpellCheck: () => Promise<boolean>;
+  getSystemTraySetting: () => Promise<SystemTraySetting>;
+  getThemeSetting: () => Promise<ThemeType>;
+  // Events
+  onZoomFactorChange: (callback: (zoomFactor: ZoomFactorType) => void) => void;
+  // Optional
   getMediaPermissions?: () => Promise<boolean>;
   getMediaCameraPermissions?: () => Promise<boolean>;
   getAutoLaunch?: () => Promise<boolean>;
@@ -158,17 +223,94 @@ export type IPCEventsSettersType = {
 
 export type IPCEventsType = IPCEventsGettersType &
   IPCEventsSettersType &
+  IPCEventsUpdatersType &
   IPCEventsCallbacksType;
 
 export function createIPCEvents(
   overrideEvents: Partial<IPCEventsType> = {}
 ): IPCEventsType {
+  const setPhoneNumberDiscoverabilitySetting = async (
+    newValue: PhoneNumberDiscoverability
+  ): Promise<void> => {
+    strictAssert(window.textsecure.server, 'WebAPI must be available');
+    await window.storage.put('phoneNumberDiscoverability', newValue);
+    await window.textsecure.server.setPhoneNumberDiscoverability(
+      newValue === PhoneNumberDiscoverability.Discoverable
+    );
+    const account = window.ConversationController.getOurConversationOrThrow();
+    account.captureChange('phoneNumberDiscoverability');
+  };
+
   return {
     getDeviceName: () => window.textsecure.storage.user.getDeviceName(),
+    getPhoneNumber: () => {
+      try {
+        const e164 = window.textsecure.storage.user.getNumber();
+        const parsedNumber = instance.parse(e164);
+        return instance.format(parsedNumber, PhoneNumberFormat.INTERNATIONAL);
+      } catch (error) {
+        log.warn(
+          'IPC.getPhoneNumber: failed to parse our E164',
+          Errors.toLogFormat(error)
+        );
+        return '';
+      }
+    },
 
-    getZoomFactor: () => window.storage.get('zoomFactor', 1),
-    setZoomFactor: async (zoomFactor: ZoomFactorType) => {
-      webFrame.setZoomFactor(zoomFactor);
+    getZoomFactor: () => {
+      return ipcRenderer.invoke('getZoomFactor');
+    },
+    setZoomFactor: async zoomFactor => {
+      ipcRenderer.send('setZoomFactor', zoomFactor);
+    },
+    onZoomFactorChange: callback => {
+      ipcRenderer.on('zoomFactorChanged', (_event, zoomFactor) => {
+        callback(zoomFactor);
+      });
+    },
+
+    setPhoneNumberDiscoverabilitySetting,
+    setPhoneNumberSharingSetting: async (newValue: PhoneNumberSharingMode) => {
+      const account = window.ConversationController.getOurConversationOrThrow();
+
+      const promises = new Array<Promise<void>>();
+      promises.push(window.storage.put('phoneNumberSharingMode', newValue));
+      if (newValue === PhoneNumberSharingMode.Everybody) {
+        promises.push(
+          setPhoneNumberDiscoverabilitySetting(
+            PhoneNumberDiscoverability.Discoverable
+          )
+        );
+      }
+      account.captureChange('phoneNumberSharingMode');
+      await Promise.all(promises);
+
+      // Write profile after updating storage so that the write has up-to-date
+      // information.
+      await writeProfile(getConversation(account), {
+        keepAvatar: true,
+      });
+    },
+
+    getHasStoriesDisabled: () =>
+      window.storage.get('hasStoriesDisabled', false),
+    setHasStoriesDisabled: async (value: boolean) => {
+      await window.storage.put('hasStoriesDisabled', value);
+      const account = window.ConversationController.getOurConversationOrThrow();
+      account.captureChange('hasStoriesDisabled');
+      window.textsecure.server?.onHasStoriesDisabledChange(value);
+    },
+    getStoryViewReceiptsEnabled: () => {
+      return (
+        window.storage.get('storyViewReceiptsEnabled') ??
+        window.storage.get('read-receipt-setting') ??
+        false
+      );
+    },
+    setStoryViewReceiptsEnabled: async (value: boolean) => {
+      await window.storage.put('storyViewReceiptsEnabled', value);
+      const account = window.ConversationController.getOurConversationOrThrow();
+      account.captureChange('storyViewReceiptsEnabled');
     },
 
     getPreferredAudioInputDevice: () =>
@@ -183,6 +325,10 @@ export function createIPCEvents(
       window.storage.get('preferred-video-input-device'),
     setPreferredVideoInputDevice: device =>
       window.storage.put('preferred-video-input-device', device),
+
+    deleteAllMyStories: async () => {
+      await deleteAllMyStories();
+    },
 
     // Chat Color redux hookups
     getCustomColors: () => {
@@ -230,7 +376,7 @@ export function createIPCEvents(
       };
     },
     getBlockedCount: () =>
-      window.storage.blocked.getBlockedUuids().length +
+      window.storage.blocked.getBlockedServiceIds().length +
       window.storage.blocked.getBlockedGroups().length,
     getDefaultConversationColor: () =>
       window.storage.get(
@@ -258,35 +404,42 @@ export function createIPCEvents(
       window.storage.get('auto-download-update', true),
     setAutoDownloadUpdate: value =>
       window.storage.put('auto-download-update', value),
-    getThemeSetting: () => window.storage.get('theme-setting', 'system'),
-    setThemeSetting: value => {
-      const promise = window.storage.put('theme-setting', value);
-      themeChanged();
-      return promise;
+    getAutoConvertEmoji: () => window.storage.get('autoConvertEmoji', true),
+    setAutoConvertEmoji: value => window.storage.put('autoConvertEmoji', value),
+    getSentMediaQualitySetting: () =>
+      window.storage.get('sent-media-quality', 'standard'),
+    setSentMediaQualitySetting: value =>
+      window.storage.put('sent-media-quality', value),
+    getThemeSetting: async () => {
+      return getEphemeralSetting('themeSetting') ?? null;
+    },
+    setThemeSetting: async value => {
+      drop(setEphemeralSetting('themeSetting', value));
+    },
+    updateThemeSetting: _theme => {
+      drop(themeChanged());
     },
     getHideMenuBar: () => window.storage.get('hide-menu-bar'),
     setHideMenuBar: value => {
       const promise = window.storage.put('hide-menu-bar', value);
-      window.setAutoHideMenuBar(value);
-      window.setMenuBarVisibility(!value);
+      window.IPC.setAutoHideMenuBar(value);
+      window.IPC.setMenuBarVisibility(!value);
       return promise;
     },
-    getSystemTraySetting: () =>
-      parseSystemTraySetting(window.storage.get('system-tray-setting')),
-    setSystemTraySetting: value => {
-      const promise = window.storage.put('system-tray-setting', value);
-      window.updateSystemTraySetting(value);
-      return promise;
+    getSystemTraySetting: () => getEphemeralSetting('systemTraySetting'),
+    getLocaleOverride: async () => {
+      return getEphemeralSetting('localeOverride') ?? null;
     },
-
     getNotificationSetting: () =>
       window.storage.get('notification-setting', 'message'),
     setNotificationSetting: (value: 'message' | 'name' | 'count' | 'off') =>
       window.storage.put('notification-setting', value),
     getNotificationDrawAttention: () =>
-      window.storage.get('notification-draw-attention', true),
+      window.storage.get('notification-draw-attention', false),
     setNotificationDrawAttention: value =>
       window.storage.put('notification-draw-attention', value),
+    getAudioMessage: () => window.storage.get('audioMessage', false),
+    setAudioMessage: value => window.storage.put('audioMessage', value),
     getAudioNotification: () => window.storage.get('audio-notification'),
     setAudioNotification: value =>
       window.storage.put('audio-notification', value),
@@ -313,19 +466,21 @@ export function createIPCEvents(
     setIncomingCallNotification: value =>
       window.storage.put('incoming-call-notification', value),
 
-    getSpellCheck: () => window.storage.get('spell-check', true),
-    setSpellCheck: value => window.storage.put('spell-check', value),
+    getSpellCheck: () => {
+      return getEphemeralSetting('spellCheck');
+    },
+    getTextFormatting: () => window.storage.get('textFormatting', true),
+    setTextFormatting: value => window.storage.put('textFormatting', value),
 
     getAlwaysRelayCalls: () => window.storage.get('always-relay-calls'),
     setAlwaysRelayCalls: value =>
       window.storage.put('always-relay-calls', value),
 
-    getAutoLaunch: () => window.getAutoLaunch(),
+    getAutoLaunch: () => window.IPC.getAutoLaunch(),
     setAutoLaunch: async (value: boolean) => {
-      return window.setAutoLaunch(value);
+      return window.IPC.setAutoLaunch(value);
     },
 
-    isPhoneNumberSharingEnabled: () => isPhoneNumberSharingEnabled(),
     isPrimary: () => window.textsecure.storage.user.getDeviceId() === 1,
     syncRequest: () =>
       new Promise<void>((resolve, reject) => {
@@ -343,11 +498,7 @@ export function createIPCEvents(
       await universalExpireTimer.set(newValue);
 
       // Update account in Storage Service
-      const conversationId =
-        window.ConversationController.getOurConversationIdOrThrow();
-      const account = window.ConversationController.get(conversationId);
-      assert(account, "Account wasn't found");
-
+      const account = window.ConversationController.getOurConversationOrThrow();
       account.captureChange('universalExpireTimer');
 
       // Add a notification to the currently open conversation
@@ -355,134 +506,170 @@ export function createIPCEvents(
       const selectedId = state.conversations.selectedConversationId;
       if (selectedId) {
         const conversation = window.ConversationController.get(selectedId);
-        assert(conversation, "Conversation wasn't found");
+        assertDev(conversation, "Conversation wasn't found");
 
         await conversation.updateLastMessage();
       }
     },
 
     addDarkOverlay: () => {
-      if ($('.dark-overlay').length) {
+      const elems = document.querySelectorAll('.dark-overlay');
+      if (elems.length) {
         return;
       }
-      $(document.body).prepend('<div class="dark-overlay"></div>');
-      $('.dark-overlay').on('click', () => $('.dark-overlay').remove());
+      const newOverlay = document.createElement('div');
+      newOverlay.className = 'dark-overlay';
+      newOverlay.addEventListener('click', () => {
+        newOverlay.remove();
+      });
+      document.body.prepend(newOverlay);
     },
-    removeDarkOverlay: () => $('.dark-overlay').remove(),
-    showKeyboardShortcuts: () => window.showKeyboardShortcuts(),
+    removeDarkOverlay: () => {
+      const elems = document.querySelectorAll('.dark-overlay');
+
+      for (const elem of elems) {
+        elem.remove();
+      }
+    },
+    showKeyboardShortcuts: () =>
+      window.reduxActions.globalModals.showShortcutGuideModal(),
+
+    cleanupDownloads: async () => {
+      await ipcRenderer.invoke('cleanup-downloads');
+    },
 
     deleteAllData: async () => {
-      await window.Signal.Data.goBackToMainProcess();
-
       renderClearingDataView();
-    },
-
-    closeDB: async () => {
-      await window.Signal.Data.goBackToMainProcess();
     },
 
     showStickerPack: (packId, key) => {
       // We can get these events even if the user has never linked this instance.
-      if (!window.Signal.Util.Registration.everDone()) {
+      if (!Registration.everDone()) {
         log.warn('showStickerPack: Not registered, returning early');
         return;
       }
-      if (window.isShowingModal) {
-        log.warn('showStickerPack: Already showing modal, returning early');
-        return;
-      }
-      try {
-        window.isShowingModal = true;
-
-        // Kick off the download
-        Stickers.downloadEphemeralPack(packId, key);
-
-        const props = {
-          packId,
-          onClose: async () => {
-            window.isShowingModal = false;
-            stickerPreviewModalView.remove();
-            await Stickers.removeEphemeralPack(packId);
-          },
-        };
-
-        const stickerPreviewModalView = new window.Whisper.ReactWrapperView({
-          className: 'sticker-preview-modal-wrapper',
-          JSX: window.Signal.State.Roots.createStickerPreviewModal(
-            window.reduxStore,
-            props
-          ),
-        });
-      } catch (error) {
-        window.isShowingModal = false;
-        log.error(
-          'showStickerPack: Ran into an error!',
-          error && error.stack ? error.stack : error
-        );
-        const errorView = new window.Whisper.ReactWrapperView({
-          className: 'error-modal-wrapper',
-          Component: window.Signal.Components.ErrorModal,
-          props: {
-            onClose: () => {
-              errorView.remove();
-            },
-          },
-        });
-      }
+      window.reduxActions.globalModals.showStickerPackPreview(packId, key);
     },
-    showGroupViaLink: async hash => {
+    showGroupViaLink: async value => {
       // We can get these events even if the user has never linked this instance.
-      if (!window.Signal.Util.Registration.everDone()) {
+      if (!Registration.everDone()) {
         log.warn('showGroupViaLink: Not registered, returning early');
         return;
       }
-      if (window.isShowingModal) {
-        log.warn('showGroupViaLink: Already showing modal, returning early');
-        return;
-      }
       try {
-        await window.Signal.Groups.joinViaLink(hash);
+        await window.Signal.Groups.joinViaLink(value);
       } catch (error) {
         log.error(
           'showGroupViaLink: Ran into an error!',
-          error && error.stack ? error.stack : error
+          Errors.toLogFormat(error)
         );
-        const errorView = new window.Whisper.ReactWrapperView({
-          className: 'error-modal-wrapper',
-          Component: window.Signal.Components.ErrorModal,
-          props: {
-            title: window.i18n('GroupV2--join--general-join-failure--title'),
-            description: window.i18n('GroupV2--join--general-join-failure'),
-            onClose: () => {
-              errorView.remove();
-            },
-          },
+        window.reduxActions.globalModals.showErrorModal({
+          title: window.i18n('icu:GroupV2--join--general-join-failure--title'),
+          description: window.i18n('icu:GroupV2--join--general-join-failure'),
         });
       }
-      window.isShowingModal = false;
     },
-    showConversationViaSignalDotMe(hash: string) {
-      if (!window.Signal.Util.Registration.everDone()) {
+
+    showConversationViaNotification({
+      conversationId,
+      messageId,
+      storyId,
+    }: NotificationClickData) {
+      if (conversationId) {
+        if (storyId) {
+          window.reduxActions.stories.viewStory({
+            storyId,
+            storyViewMode: StoryViewModeType.Single,
+            viewTarget: StoryViewTargetType.Replies,
+          });
+        } else {
+          window.reduxActions.conversations.showConversation({
+            conversationId,
+            messageId: messageId ?? undefined,
+          });
+        }
+      } else {
+        window.reduxActions.app.openInbox();
+      }
+    },
+    async showConversationViaSignalDotMe(kind: string, value: string) {
+      if (!Registration.everDone()) {
         log.info(
           'showConversationViaSignalDotMe: Not registered, returning early'
         );
         return;
       }
 
-      const maybeE164 = parseE164FromSignalDotMeHash(hash);
-      if (maybeE164) {
-        trigger('showConversation', maybeE164);
+      const { showUserNotFoundModal } = window.reduxActions.globalModals;
+
+      let conversationId: string | undefined;
+
+      if (kind === 'phoneNumber') {
+        if (isValidE164(value, true)) {
+          conversationId = await lookupConversationWithoutServiceId({
+            type: 'e164',
+            e164: value,
+            phoneNumber: value,
+            showUserNotFoundModal,
+            setIsFetchingUUID: noop,
+          });
+        }
+      } else if (kind === 'encryptedUsername') {
+        const usernameBase64 = fromWebSafeBase64(value);
+        const username = await resolveUsernameByLinkBase64(usernameBase64);
+        if (username != null) {
+          conversationId = await lookupConversationWithoutServiceId({
+            type: 'username',
+            username,
+            showUserNotFoundModal,
+            setIsFetchingUUID: noop,
+          });
+        }
+      }
+
+      if (conversationId != null) {
+        window.reduxActions.conversations.showConversation({
+          conversationId,
+        });
         return;
       }
 
       log.info('showConversationViaSignalDotMe: invalid E164');
-      if (window.isShowingModal) {
-        log.info(
-          'showConversationViaSignalDotMe: a modal is already showing. Doing nothing'
+      showUnknownSgnlLinkModal();
+    },
+
+    requestCloseConfirmation: async (): Promise<boolean> => {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          showConfirmationDialog({
+            dialogName: 'closeConfirmation',
+            onTopOfEverything: true,
+            cancelText: window.i18n(
+              'icu:ConfirmationDialog__Title--close-requested-not-now'
+            ),
+            confirmStyle: 'negative',
+            title: window.i18n(
+              'icu:ConfirmationDialog__Title--in-call-close-requested'
+            ),
+            okText: window.i18n('icu:close'),
+            reject: () => reject(),
+            resolve: () => resolve(),
+          });
+        });
+        log.info('requestCloseConfirmation: Close confirmed by user.');
+        window.reduxActions.calling.hangUpActiveCall(
+          'User confirmed in-call close.'
         );
-      } else {
-        showUnknownSgnlLinkModal();
+
+        return true;
+      } catch {
+        log.info('requestCloseConfirmation: Close cancelled by user.');
+        return false;
       }
+    },
+
+    getIsInCall: (): boolean => {
+      return isInCall(window.reduxStore.getState());
     },
 
     unknownSignalLink: () => {
@@ -491,7 +678,7 @@ export function createIPCEvents(
     },
 
     installStickerPack: async (packId, key) => {
-      Stickers.downloadStickerPack(packId, key, {
+      void Stickers.downloadStickerPack(packId, key, {
         finalStatus: 'installed',
       });
     },
@@ -502,25 +689,50 @@ export function createIPCEvents(
       showWhatsNewModal();
     },
 
-    getMediaPermissions: window.getMediaPermissions,
-    getMediaCameraPermissions: window.getMediaCameraPermissions,
+    getMediaAccessStatus: async (
+      mediaType: 'screen' | 'microphone' | 'camera'
+    ) => {
+      return window.IPC.getMediaAccessStatus(mediaType);
+    },
+    getMediaPermissions: window.IPC.getMediaPermissions,
+    getMediaCameraPermissions: window.IPC.getMediaCameraPermissions,
 
-    persistZoomFactor: zoomFactor =>
-      window.storage.put('zoomFactor', zoomFactor),
+    setMediaPlaybackDisabled: (playbackDisabled: boolean) => {
+      window.reduxActions?.lightbox.setPlaybackDisabled(playbackDisabled);
+      if (playbackDisabled) {
+        window.reduxActions?.audioPlayer.pauseVoiceNotePlayer();
+      }
+    },
+
+    uploadStickerPack: (
+      manifest: Uint8Array,
+      stickers: ReadonlyArray<Uint8Array>
+    ): Promise<string> => {
+      strictAssert(window.textsecure.server, 'WebAPI must be available');
+      return window.textsecure.server.putStickers(manifest, stickers, () =>
+        ipcRenderer.send('art-creator:onUploadProgress')
+      );
+    },
 
     ...overrideEvents,
   };
 }
 
 function showUnknownSgnlLinkModal(): void {
-  const errorView = new window.Whisper.ReactWrapperView({
-    className: 'error-modal-wrapper',
-    Component: window.Signal.Components.ErrorModal,
-    props: {
-      description: window.i18n('unknown-sgnl-link'),
-      onClose: () => {
-        errorView.remove();
-      },
-    },
+  window.reduxActions.globalModals.showErrorModal({
+    description: window.i18n('icu:unknown-sgnl-link'),
   });
+}
+
+function getEphemeralSetting<Name extends keyof EphemeralSettings>(
+  name: Name
+): Promise<EphemeralSettings[Name]> {
+  return ipcRenderer.invoke(`settings:get:${name}`);
+}
+
+function setEphemeralSetting<Name extends keyof EphemeralSettings>(
+  name: Name,
+  value: EphemeralSettings[Name]
+): Promise<void> {
+  return ipcRenderer.invoke(`settings:set:${name}`, value);
 }

@@ -1,14 +1,15 @@
-// Copyright 2016-2020 Signal Messenger, LLC
+// Copyright 2016 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { requestMicrophonePermissions } from '../util/requestMicrophonePermissions';
 import * as log from '../logging/log';
-import type { WebAudioRecorderClass } from '../window.d';
+import * as Errors from '../types/errors';
+import { requestMicrophonePermissions } from '../util/requestMicrophonePermissions';
+import { WebAudioRecorder } from '../WebAudioRecorder';
 
 export class RecorderClass {
   private context?: AudioContext;
   private input?: GainNode;
-  private recorder?: WebAudioRecorderClass;
+  private recorder?: WebAudioRecorder;
   private source?: MediaStreamAudioSourceNode;
   private stream?: MediaStream;
   private blob?: Blob;
@@ -30,7 +31,7 @@ export class RecorderClass {
 
       // Reach in and terminate the web worker used by WebAudioRecorder, otherwise
       // it gets leaked due to a reference cycle with its onmessage listener
-      this.recorder.worker.terminate();
+      this.recorder.worker?.terminate();
       this.recorder = undefined;
     }
 
@@ -38,13 +39,13 @@ export class RecorderClass {
     this.stream = undefined;
 
     if (this.context) {
-      this.context.close();
+      void this.context.close();
       this.context = undefined;
     }
   }
 
   async start(): Promise<boolean> {
-    const hasMicrophonePermission = await requestMicrophonePermissions();
+    const hasMicrophonePermission = await requestMicrophonePermissions(false);
     if (!hasMicrophonePermission) {
       log.info(
         'Recorder/start: Microphone permission was denied, new audio recording not allowed.'
@@ -57,15 +58,16 @@ export class RecorderClass {
     this.context = new AudioContext();
     this.input = this.context.createGain();
 
-    this.recorder = new window.WebAudioRecorder(this.input, {
-      encoding: 'mp3',
-      workerDir: 'js/', // must end with slash
-      options: {
+    this.recorder = new WebAudioRecorder(
+      this.input,
+      {
         timeLimit: 60 + 3600, // one minute more than our UI-imposed limit
       },
-    });
-    this.recorder.onComplete = this.onComplete.bind(this);
-    this.recorder.onError = this.onError.bind(this);
+      {
+        onComplete: this.onComplete.bind(this),
+        onError: this.onError.bind(this),
+      }
+    );
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -73,21 +75,19 @@ export class RecorderClass {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         audio: { mandatory: { googAutoGainControl: false } } as any,
       });
+
       if (!this.context || !this.input) {
         const err = new Error(
           'Recorder/getUserMedia/stream: Missing context or input!'
         );
-        this.onError(this.recorder, err);
+        this.onError(this.recorder, String(err));
         throw err;
       }
       this.source = this.context.createMediaStreamSource(stream);
       this.source.connect(this.input);
       this.stream = stream;
     } catch (err) {
-      log.error(
-        'Recorder.onGetUserMediaError:',
-        err && err.stack ? err.stack : err
-      );
+      log.error('Recorder.onGetUserMediaError:', Errors.toLogFormat(err));
       this.clear();
       throw err;
     }
@@ -122,12 +122,12 @@ export class RecorderClass {
     return promise;
   }
 
-  onComplete(_recorder: WebAudioRecorderClass, blob: Blob): void {
+  onComplete(_recorder: WebAudioRecorder, blob: Blob): void {
     this.blob = blob;
     this.resolve?.(blob);
   }
 
-  onError(_recorder: WebAudioRecorderClass, error: Error): void {
+  onError(_recorder: WebAudioRecorder, error: string): void {
     if (!this.recorder) {
       log.warn('Recorder/onError: Called with no recorder');
       return;
@@ -135,7 +135,7 @@ export class RecorderClass {
 
     this.clear();
 
-    log.error('Recorder/onError:', error && error.stack ? error.stack : error);
+    log.error('Recorder/onError:', Errors.toLogFormat(error));
   }
 
   getBlob(): Blob {

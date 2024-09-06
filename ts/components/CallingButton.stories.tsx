@@ -1,11 +1,9 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import { storiesOf } from '@storybook/react';
-import { select } from '@storybook/addon-knobs';
 import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
 import type { PropsType } from './CallingButton';
 import { CallingButton, CallingButtonType } from './CallingButton';
 import { TooltipPlacement } from './Tooltip';
@@ -14,95 +12,79 @@ import enMessages from '../../_locales/en/messages.json';
 
 const i18n = setupI18n('en', enMessages);
 
-const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
-  buttonType:
-    overrideProps.buttonType ||
-    select('buttonType', CallingButtonType, CallingButtonType.HANG_UP),
-  i18n,
-  onClick: action('on-click'),
-  onMouseEnter: action('on-mouse-enter'),
-  onMouseLeave: action('on-mouse-leave'),
-  tooltipDirection: select(
-    'tooltipDirection',
-    TooltipPlacement,
-    overrideProps.tooltipDirection || TooltipPlacement.Bottom
-  ),
-});
+export default {
+  title: 'Components/CallingButton',
+  component: CallingButton,
+  argTypes: {
+    buttonType: {
+      control: { type: 'select' },
+      options: Object.values(CallingButtonType),
+    },
+    tooltipDirection: {
+      control: { type: 'select' },
+      options: Object.values(TooltipPlacement),
+    },
+  },
+  args: {
+    buttonType: CallingButtonType.RING_ON,
+    i18n,
+    onClick: action('on-click'),
+    onMouseEnter: action('on-mouse-enter'),
+    onMouseLeave: action('on-mouse-leave'),
+    tooltipDirection: TooltipPlacement.Bottom,
+  },
+} satisfies Meta<PropsType>;
 
-const story = storiesOf('Components/CallingButton', module);
-
-story.add('Kitchen Sink', () => {
+export function KitchenSink(args: PropsType): JSX.Element {
   return (
     <>
-      {Object.keys(CallingButtonType).map(buttonType => (
-        <CallingButton
-          key={buttonType}
-          {...createProps({ buttonType: buttonType as CallingButtonType })}
-        />
+      {Object.values(CallingButtonType).map(buttonType => (
+        <CallingButton key={buttonType} {...args} buttonType={buttonType} />
       ))}
     </>
   );
-});
+}
 
-story.add('Audio On', () => {
-  const props = createProps({
-    buttonType: CallingButtonType.AUDIO_ON,
-  });
-  return <CallingButton {...props} />;
-});
+export function AudioOn(args: PropsType): JSX.Element {
+  return <CallingButton {...args} buttonType={CallingButtonType.AUDIO_ON} />;
+}
 
-story.add('Audio Off', () => {
-  const props = createProps({
-    buttonType: CallingButtonType.AUDIO_OFF,
-  });
-  return <CallingButton {...props} />;
-});
+export function AudioOff(args: PropsType): JSX.Element {
+  return <CallingButton {...args} buttonType={CallingButtonType.AUDIO_OFF} />;
+}
 
-story.add('Audio Disabled', () => {
-  const props = createProps({
-    buttonType: CallingButtonType.AUDIO_DISABLED,
-  });
-  return <CallingButton {...props} />;
-});
+export function AudioDisabled(args: PropsType): JSX.Element {
+  return (
+    <CallingButton {...args} buttonType={CallingButtonType.AUDIO_DISABLED} />
+  );
+}
 
-story.add('Video On', () => {
-  const props = createProps({
-    buttonType: CallingButtonType.VIDEO_ON,
-  });
-  return <CallingButton {...props} />;
-});
+export function VideoOn(args: PropsType): JSX.Element {
+  return <CallingButton {...args} buttonType={CallingButtonType.VIDEO_ON} />;
+}
 
-story.add('Video Off', () => {
-  const props = createProps({
-    buttonType: CallingButtonType.VIDEO_OFF,
-  });
-  return <CallingButton {...props} />;
-});
+export function VideoOff(args: PropsType): JSX.Element {
+  return <CallingButton {...args} buttonType={CallingButtonType.VIDEO_OFF} />;
+}
 
-story.add('Video Disabled', () => {
-  const props = createProps({
-    buttonType: CallingButtonType.VIDEO_DISABLED,
-  });
-  return <CallingButton {...props} />;
-});
+export function VideoDisabled(args: PropsType): JSX.Element {
+  return (
+    <CallingButton {...args} buttonType={CallingButtonType.VIDEO_DISABLED} />
+  );
+}
 
-story.add('Tooltip right', () => {
-  const props = createProps({
-    tooltipDirection: TooltipPlacement.Right,
-  });
-  return <CallingButton {...props} />;
-});
+export function TooltipRight(args: PropsType): JSX.Element {
+  return <CallingButton {...args} tooltipDirection={TooltipPlacement.Right} />;
+}
 
-story.add('Presenting On', () => {
-  const props = createProps({
-    buttonType: CallingButtonType.PRESENTING_ON,
-  });
-  return <CallingButton {...props} />;
-});
+export function PresentingOn(args: PropsType): JSX.Element {
+  return (
+    <CallingButton {...args} buttonType={CallingButtonType.PRESENTING_ON} />
+  );
+}
 
-story.add('Presenting Off', () => {
-  const props = createProps({
-    buttonType: CallingButtonType.PRESENTING_OFF,
-  });
-  return <CallingButton {...props} />;
-});
+export function PresentingOff(args: PropsType): JSX.Element {
+  return (
+    <CallingButton {...args} buttonType={CallingButtonType.PRESENTING_OFF} />
+  );
+}

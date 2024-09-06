@@ -9,21 +9,19 @@ import type { LocalizerType } from '../../types/Util';
 import { Button, ButtonSize, ButtonVariant } from '../Button';
 import { SystemMessage } from './SystemMessage';
 import { ChatSessionRefreshedDialog } from './ChatSessionRefreshedDialog';
+import { openLinkInWebBrowser } from '../../util/openLinkInWebBrowser';
+import { mapToSupportLocale } from '../../util/mapToSupportLocale';
 
 type PropsHousekeepingType = {
   i18n: LocalizerType;
 };
 
-export type PropsActionsType = {
-  contactSupport: () => unknown;
-};
-
-export type PropsType = PropsHousekeepingType & PropsActionsType;
+export type PropsType = PropsHousekeepingType;
 
 export function ChatSessionRefreshedNotification(
   props: PropsType
 ): ReactElement {
-  const { contactSupport, i18n } = props;
+  const { i18n } = props;
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 
   const openDialog = useCallback(() => {
@@ -35,20 +33,27 @@ export function ChatSessionRefreshedNotification(
 
   const wrappedContactSupport = useCallback(() => {
     setIsDialogOpen(false);
-    contactSupport();
-  }, [contactSupport, setIsDialogOpen]);
+
+    const baseUrl =
+      'https://support.signal.org/hc/LOCALE/requests/new?desktop&chat_refreshed';
+    const locale = window.SignalContext.getResolvedMessagesLocale();
+    const supportLocale = mapToSupportLocale(locale);
+    const url = baseUrl.replace('LOCALE', supportLocale);
+
+    openLinkInWebBrowser(url);
+  }, [setIsDialogOpen]);
 
   return (
     <>
       <SystemMessage
-        contents={i18n('ChatRefresh--notification')}
+        contents={i18n('icu:ChatRefresh--notification')}
         button={
           <Button
             onClick={openDialog}
             size={ButtonSize.Small}
             variant={ButtonVariant.SystemMessage}
           >
-            {i18n('ChatRefresh--learnMore')}
+            {i18n('icu:ChatRefresh--learnMore')}
           </Button>
         }
         icon="session-refresh"

@@ -4,11 +4,14 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 import { assert } from 'chai';
+import { v4 as generateUuid } from 'uuid';
 import sinon from 'sinon';
+import { DataWriter } from '../sql/Client';
 import { ConversationModel } from '../models/conversations';
 import type { ConversationAttributesType } from '../model-types.d';
-import type SendMessage from '../textsecure/SendMessage';
-import { UUID } from '../types/UUID';
+import type { WebAPIType } from '../textsecure/WebAPI';
+import { generateAci, normalizeServiceId } from '../types/ServiceId';
+import { normalizeAci } from '../util/normalizeAci';
 
 import { updateConversationsWithUuidLookup } from '../updateConversationsWithUuidLookup';
 
@@ -23,35 +26,83 @@ describe('updateConversationsWithUuidLookup', () => {
         conversation =>
           conversation.id === id ||
           conversation.get('e164') === id ||
-          conversation.get('uuid') === id
+          conversation.getServiceId() === id
       );
     }
 
-    ensureContactIds({
+    maybeMergeContacts({
       e164,
-      uuid: uuidFromServer,
-      highTrust,
+      aci: aciFromServer,
+      reason,
     }: {
       e164?: string | null;
-      uuid?: string | null;
-      highTrust?: boolean;
+      aci?: string | null;
+      reason?: string;
+    }): {
+      conversation: ConversationModel;
+      mergePromises: Array<Promise<void>>;
+    } {
+      assert(
+        e164,
+        'FakeConversationController is not set up for this case (E164 must be provided)'
+      );
+      assert(
+        aciFromServer,
+        'FakeConversationController is not set up for this case (UUID must be provided)'
+      );
+      assert(
+        reason,
+        'FakeConversationController must be provided a reason when merging'
+      );
+      const normalizedAci = normalizeAci(aciFromServer!, 'test');
+
+      const convoE164 = this.get(e164);
+      const convoUuid = this.get(normalizedAci);
+      assert(
+        convoE164 || convoUuid,
+        'FakeConversationController is not set up for this case (at least one conversation should be found)'
+      );
+
+      if (convoE164 && convoUuid) {
+        if (convoE164 === convoUuid) {
+          return { conversation: convoUuid, mergePromises: [] };
+        }
+
+        convoE164.unset('e164');
+        convoUuid.updateE164(e164);
+        return { conversation: convoUuid, mergePromises: [] };
+      }
+
+      if (convoE164 && !convoUuid) {
+        convoE164.updateServiceId(normalizedAci);
+        return { conversation: convoE164, mergePromises: [] };
+      }
+
+      throw new Error('FakeConversationController should never get here');
+    }
+
+    lookupOrCreate({
+      e164,
+      serviceId: serviceIdFromServer,
+    }: {
+      e164?: string | null;
+      serviceId?: string | null;
     }): string | undefined {
       assert(
         e164,
         'FakeConversationController is not set up for this case (E164 must be provided)'
       );
       assert(
-        uuidFromServer,
+        serviceIdFromServer,
         'FakeConversationController is not set up for this case (UUID must be provided)'
       );
-      assert(
-        highTrust,
-        'FakeConversationController is not set up for this case (must be "high trust")'
+      const normalizedServiceId = normalizeServiceId(
+        serviceIdFromServer!,
+        'test'
       );
-      const normalizedUuid = uuidFromServer!.toLowerCase();
 
       const convoE164 = this.get(e164);
-      const convoUuid = this.get(normalizedUuid);
+      const convoUuid = this.get(normalizedServiceId);
       assert(
         convoE164 || convoUuid,
         'FakeConversationController is not set up for this case (at least one conversation should be found)'
@@ -62,13 +113,10 @@ describe('updateConversationsWithUuidLookup', () => {
           return convoUuid.get('id');
         }
 
-        convoE164.unset('e164');
-        convoUuid.updateE164(e164);
         return convoUuid.get('id');
       }
 
       if (convoE164 && !convoUuid) {
-        convoE164.updateUuid(normalizedUuid);
         return convoE164.get('id');
       }
 
@@ -81,7 +129,7 @@ describe('updateConversationsWithUuidLookup', () => {
     attributes: Readonly<Partial<ConversationAttributesType>> = {}
   ): ConversationModel {
     return new ConversationModel({
-      id: UUID.generate().toString(),
+      id: generateUuid(),
       inbox_position: 0,
       isPinned: false,
       lastMessageDeletedForEveryone: false,
@@ -91,28 +139,28 @@ describe('updateConversationsWithUuidLookup', () => {
       sentMessageCount: 0,
       type: 'private' as const,
       version: 0,
+      expireTimerVersion: 2,
       ...attributes,
     });
   }
 
   let sinonSandbox: sinon.SinonSandbox;
 
-  let fakeGetUuidsForE164s: sinon.SinonStub;
+  let fakeCdsLookup: sinon.SinonStub;
   let fakeCheckAccountExistence: sinon.SinonStub;
-  let fakeMessaging: Pick<
-    SendMessage,
-    'getUuidsForE164s' | 'checkAccountExistence'
-  >;
+  let fakeServer: Pick<WebAPIType, 'cdsLookup' | 'checkAccountExistence'>;
 
   beforeEach(() => {
     sinonSandbox = sinon.createSandbox();
 
-    sinonSandbox.stub(window.Signal.Data, 'updateConversation');
+    sinonSandbox.stub(DataWriter, 'updateConversation');
 
-    fakeGetUuidsForE164s = sinonSandbox.stub().resolves({});
+    fakeCdsLookup = sinonSandbox.stub().resolves({
+      entries: new Map(),
+    });
     fakeCheckAccountExistence = sinonSandbox.stub().resolves(false);
-    fakeMessaging = {
-      getUuidsForE164s: fakeGetUuidsForE164s,
+    fakeServer = {
+      cdsLookup: fakeCdsLookup,
       checkAccountExistence: fakeCheckAccountExistence,
     };
   });
@@ -125,10 +173,10 @@ describe('updateConversationsWithUuidLookup', () => {
     await updateConversationsWithUuidLookup({
       conversationController: new FakeConversationController(),
       conversations: [],
-      messaging: fakeMessaging,
+      server: fakeServer,
     });
 
-    sinon.assert.notCalled(fakeMessaging.getUuidsForE164s as sinon.SinonStub);
+    sinon.assert.notCalled(fakeServer.cdsLookup as sinon.SinonStub);
   });
 
   it('does nothing when called with an array of conversations that lack E164s', async () => {
@@ -136,27 +184,29 @@ describe('updateConversationsWithUuidLookup', () => {
       conversationController: new FakeConversationController(),
       conversations: [
         createConversation(),
-        createConversation({ uuid: UUID.generate().toString() }),
+        createConversation({ serviceId: generateAci() }),
       ],
-      messaging: fakeMessaging,
+      server: fakeServer,
     });
 
-    sinon.assert.notCalled(fakeMessaging.getUuidsForE164s as sinon.SinonStub);
+    sinon.assert.notCalled(fakeServer.cdsLookup as sinon.SinonStub);
   });
 
   it('updates conversations with their UUID', async () => {
     const conversation1 = createConversation({ e164: '+13215559876' });
     const conversation2 = createConversation({
       e164: '+16545559876',
-      uuid: UUID.generate().toString(), // should be overwritten
+      serviceId: generateAci(), // should be overwritten
     });
 
-    const uuid1 = UUID.generate().toString();
-    const uuid2 = UUID.generate().toString();
+    const aci1 = generateAci();
+    const aci2 = generateAci();
 
-    fakeGetUuidsForE164s.resolves({
-      '+13215559876': uuid1,
-      '+16545559876': uuid2,
+    fakeCdsLookup.resolves({
+      entries: new Map([
+        ['+13215559876', { aci: aci1, pni: undefined }],
+        ['+16545559876', { aci: aci2, pni: undefined }],
+      ]),
     });
 
     await updateConversationsWithUuidLookup({
@@ -165,11 +215,11 @@ describe('updateConversationsWithUuidLookup', () => {
         conversation2,
       ]),
       conversations: [conversation1, conversation2],
-      messaging: fakeMessaging,
+      server: fakeServer,
     });
 
-    assert.strictEqual(conversation1.get('uuid'), uuid1);
-    assert.strictEqual(conversation2.get('uuid'), uuid2);
+    assert.strictEqual(conversation1.getServiceId(), aci1);
+    assert.strictEqual(conversation2.getServiceId(), aci2);
   });
 
   it("marks conversations unregistered if we didn't have a UUID for them and the server also doesn't have one", async () => {
@@ -179,12 +229,10 @@ describe('updateConversationsWithUuidLookup', () => {
       'Test was not set up correctly'
     );
 
-    fakeGetUuidsForE164s.resolves({ '+13215559876': null });
-
     await updateConversationsWithUuidLookup({
       conversationController: new FakeConversationController([conversation]),
       conversations: [conversation],
-      messaging: fakeMessaging,
+      server: fakeServer,
     });
 
     assert.approximately(
@@ -195,50 +243,48 @@ describe('updateConversationsWithUuidLookup', () => {
   });
 
   it("doesn't mark conversations unregistered if we already had a UUID for them, even if the account exists on server", async () => {
-    const existingUuid = UUID.generate().toString();
+    const existingServiceId = generateAci();
     const conversation = createConversation({
       e164: '+13215559876',
-      uuid: existingUuid,
+      serviceId: existingServiceId,
     });
     assert.isUndefined(
       conversation.get('discoveredUnregisteredAt'),
       'Test was not set up correctly'
     );
 
-    fakeGetUuidsForE164s.resolves({ '+13215559876': null });
     fakeCheckAccountExistence.resolves(true);
 
     await updateConversationsWithUuidLookup({
       conversationController: new FakeConversationController([conversation]),
       conversations: [conversation],
-      messaging: fakeMessaging,
+      server: fakeServer,
     });
 
-    assert.strictEqual(conversation.get('uuid'), existingUuid);
+    assert.strictEqual(conversation.getServiceId(), existingServiceId);
     assert.isUndefined(conversation.get('discoveredUnregisteredAt'));
   });
 
-  it('marks conversations unregistered if we already had a UUID for them, even if the account does not exist on server', async () => {
-    const existingUuid = UUID.generate().toString();
+  it('marks conversations unregistered and removes UUID if the account does not exist on server', async () => {
+    const existingServiceId = generateAci();
     const conversation = createConversation({
       e164: '+13215559876',
-      uuid: existingUuid,
+      serviceId: existingServiceId,
     });
     assert.isUndefined(
       conversation.get('discoveredUnregisteredAt'),
       'Test was not set up correctly'
     );
 
-    fakeGetUuidsForE164s.resolves({ '+13215559876': null });
     fakeCheckAccountExistence.resolves(false);
 
     await updateConversationsWithUuidLookup({
       conversationController: new FakeConversationController([conversation]),
       conversations: [conversation],
-      messaging: fakeMessaging,
+      server: fakeServer,
     });
 
-    assert.strictEqual(conversation.get('uuid'), existingUuid);
+    assert.isUndefined(conversation.getServiceId());
     assert.isNumber(conversation.get('discoveredUnregisteredAt'));
   });
 });

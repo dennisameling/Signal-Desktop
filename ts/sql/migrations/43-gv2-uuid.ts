@@ -1,13 +1,13 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from 'better-sqlite3';
 import { omit } from 'lodash';
 
 import type { LoggerType } from '../../types/Logging';
-import type { UUIDStringType } from '../../types/UUID';
+import type { AciString, ServiceIdString } from '../../types/ServiceId';
+import { normalizeAci } from '../../util/normalizeAci';
 import { isNotNil } from '../../util/isNotNil';
-import { assert } from '../../util/assert';
+import { assertDev } from '../../util/assert';
 import {
   TableIterator,
   getCountFromTable,
@@ -15,11 +15,27 @@ import {
   objectToJSON,
 } from '../util';
 import type { EmptyQuery, Query } from '../util';
-import type { MessageType, ConversationType } from '../Interface';
+import type { WritableDB } from '../Interface';
+
+type MessageType = Readonly<{
+  id: string;
+  sourceUuid: string;
+  groupV2Change?: {
+    from?: string;
+    details: Array<{ type: string }>;
+  };
+  invitedGV2Members?: Array<{ uuid: string }>;
+}>;
+
+type ConversationType = Readonly<{
+  id: string;
+  members: Array<string>;
+  membersV2: Array<{ uuid: string }>;
+}>;
 
 export default function updateToSchemaVersion43(
   currentVersion: number,
-  db: Database,
+  db: WritableDB,
   logger: LoggerType
 ): void {
   if (currentVersion >= 43) {
@@ -96,7 +112,7 @@ export default function updateToSchemaVersion43(
 
       const newValue = oldValue
         .map(member => {
-          const uuid: UUIDStringType = getConversationUuid.get({
+          const uuid: ServiceIdString = getConversationUuid.get({
             conversationId: member.conversationId,
           });
           if (!uuid) {
@@ -117,7 +133,7 @@ export default function updateToSchemaVersion43(
             return updated;
           }
 
-          const addedByUserId: UUIDStringType | undefined =
+          const addedByUserId: ServiceIdString | undefined =
             getConversationUuid.get({
               conversationId: member.addedByUserId,
             });
@@ -225,9 +241,9 @@ export default function updateToSchemaVersion43(
     let result = message;
 
     if (groupV2Change) {
-      assert(result.groupV2Change, 'Pacify typescript');
+      assertDev(result.groupV2Change, 'Pacify typescript');
 
-      const from: UUIDStringType | undefined = getConversationUuid.get({
+      const from: AciString | undefined = getConversationUuid.get({
         conversationId: groupV2Change.from,
       });
 
@@ -250,7 +266,7 @@ export default function updateToSchemaVersion43(
       const details = groupV2Change.details
         .map((legacyDetail, i) => {
           const oldDetail = result.groupV2Change?.details[i];
-          assert(oldDetail, 'Pacify typescript');
+          assertDev(oldDetail, 'Pacify typescript');
           let newDetail = oldDetail;
 
           for (const key of ['conversationId' as const, 'inviter' as const]) {
@@ -262,7 +278,7 @@ export default function updateToSchemaVersion43(
             }
             changedDetails = true;
 
-            const newValue: UUIDStringType | null = getConversationUuid.get({
+            const newValue: ServiceIdString | null = getConversationUuid.get({
               conversationId: oldValue,
             });
             if (key === 'inviter' && !newValue) {
@@ -276,7 +292,10 @@ export default function updateToSchemaVersion43(
               return undefined;
             }
 
-            assert(newDetail.type === legacyDetail.type, 'Pacify typescript');
+            assertDev(
+              newDetail.type === legacyDetail.type,
+              'Pacify typescript'
+            );
             newDetail = {
               ...omit(newDetail, key),
               [newKey]: newValue,
@@ -299,7 +318,7 @@ export default function updateToSchemaVersion43(
     }
 
     if (sourceUuid) {
-      const newValue: UUIDStringType | null = getConversationUuid.get({
+      const newValue: ServiceIdString | null = getConversationUuid.get({
         conversationId: sourceUuid,
       });
 
@@ -314,12 +333,12 @@ export default function updateToSchemaVersion43(
     if (invitedGV2Members) {
       const newMembers = invitedGV2Members
         .map(({ addedByUserId, conversationId }, i) => {
-          const uuid: UUIDStringType | null = getConversationUuid.get({
+          const uuid: ServiceIdString | null = getConversationUuid.get({
             conversationId,
           });
           const oldMember =
             result.invitedGV2Members && result.invitedGV2Members[i];
-          assert(oldMember !== undefined, 'Pacify typescript');
+          assertDev(oldMember !== undefined, 'Pacify typescript');
 
           if (!uuid) {
             logger.warn(
@@ -338,7 +357,7 @@ export default function updateToSchemaVersion43(
             return newMember;
           }
 
-          const newAddedBy: UUIDStringType | null = getConversationUuid.get({
+          const newAddedBy: ServiceIdString | null = getConversationUuid.get({
             conversationId: addedByUserId,
           });
           if (!newAddedBy) {
@@ -347,7 +366,7 @@ export default function updateToSchemaVersion43(
 
           return {
             ...newMember,
-            addedByUserId: newAddedBy,
+            addedByUserId: normalizeAci(newAddedBy, 'migration-43'),
           };
         })
         .filter(isNotNil);

@@ -16,7 +16,8 @@ const { version } = packageJson;
 //   adding the ${channel} macro to these values, but Electron-Builder didn't like that.
 
 if (!isAlpha(version)) {
-  process.exit();
+  console.error(`Version '${version}' is not an alpha version!`);
+  process.exit(1);
 }
 
 console.log('prepare_alpha_build: updating package.json');

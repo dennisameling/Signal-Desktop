@@ -1,12 +1,17 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { CSSProperties, MouseEventHandler, ReactNode } from 'react';
+import type {
+  CSSProperties,
+  KeyboardEventHandler,
+  MouseEventHandler,
+  ReactNode,
+} from 'react';
 import React from 'react';
 import classNames from 'classnames';
 
 import type { Theme } from '../util/theme';
-import { assert } from '../util/assert';
+import { assertDev } from '../util/assert';
 import { themeClassName } from '../util/theme';
 
 export enum ButtonSize {
@@ -28,29 +33,33 @@ export enum ButtonVariant {
 
 export enum ButtonIconType {
   audio = 'audio',
+  message = 'message',
   muted = 'muted',
-  photo = 'photo',
   search = 'search',
-  text = 'text',
   unmuted = 'unmuted',
   video = 'video',
 }
 
-type PropsType = {
+export type PropsType = {
   className?: string;
   disabled?: boolean;
+  discouraged?: boolean;
   icon?: ButtonIconType;
   size?: ButtonSize;
   style?: CSSProperties;
   tabIndex?: number;
   theme?: Theme;
   variant?: ButtonVariant;
+  'aria-disabled'?: boolean;
 } & (
   | {
       onClick: MouseEventHandler<HTMLButtonElement>;
+      // TODO: DESKTOP-4121
+      onKeyDown?: KeyboardEventHandler<HTMLButtonElement>;
     }
   | {
       type: 'submit';
+      form?: string;
     }
 ) &
   (
@@ -92,11 +101,12 @@ const VARIANT_CLASS_NAMES = new Map<ButtonVariant, string>([
 ]);
 
 export const Button = React.forwardRef<HTMLButtonElement, PropsType>(
-  (props, ref) => {
+  function ButtonInner(props, ref) {
     const {
       children,
       className,
       disabled = false,
+      discouraged = false,
       icon,
       style,
       tabIndex,
@@ -107,35 +117,42 @@ export const Button = React.forwardRef<HTMLButtonElement, PropsType>(
         : ButtonSize.Medium,
     } = props;
     const ariaLabel = props['aria-label'];
+    const ariaDisabled = props['aria-disabled'];
 
     let onClick: undefined | MouseEventHandler<HTMLButtonElement>;
     let type: 'button' | 'submit';
+    let form;
     if ('onClick' in props) {
       ({ onClick } = props);
       type = 'button';
     } else {
       onClick = undefined;
       ({ type } = props);
+      ({ form } = props);
     }
 
     const sizeClassName = SIZE_CLASS_NAMES.get(size);
-    assert(sizeClassName, '<Button> size not found');
+    assertDev(sizeClassName, '<Button> size not found');
 
     const variantClassName = VARIANT_CLASS_NAMES.get(variant);
-    assert(variantClassName, '<Button> variant not found');
+    assertDev(variantClassName, '<Button> variant not found');
 
     const buttonElement = (
       <button
         aria-label={ariaLabel}
+        aria-disabled={ariaDisabled}
         className={classNames(
           'module-Button',
           sizeClassName,
           variantClassName,
+          discouraged ? `${variantClassName}--discouraged` : undefined,
           icon && `module-Button--icon--${icon}`,
-          className
+          className,
+          className && discouraged ? `${className}--discouraged` : undefined
         )}
         disabled={disabled}
         onClick={onClick}
+        form={form}
         ref={ref}
         style={style}
         tabIndex={tabIndex}

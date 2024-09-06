@@ -10,11 +10,16 @@ import type {
   ShallowChallengeError,
 } from '../../../model-types.d';
 import type { ConversationType } from '../../../state/ducks/conversations';
+import {
+  getDefaultConversation,
+  getDefaultGroup,
+} from '../../../test-both/helpers/getDefaultConversation';
 
 import {
   canDeleteForEveryone,
   canReact,
   canReply,
+  cleanBodyForDirectionCheck,
   getMessagePropStatus,
   isEndSession,
   isGroupUpdate,
@@ -29,14 +34,48 @@ describe('state/selectors/messages', () => {
     ourConversationId = uuid();
   });
 
+  describe('cleanBodyForDirectionCheck', () => {
+    it('drops emoji', () => {
+      const body = "😮😮😮😮 that's wild!";
+      const expected = " that's wild!";
+      const actual = cleanBodyForDirectionCheck(body);
+      assert.strictEqual(actual, expected);
+    });
+
+    it('drops mentions', () => {
+      const body = "heyo, how's it going \uFFFC? And \uFFFC too!";
+      const expected = "heyo, how's it going ? And  too!";
+      const actual = cleanBodyForDirectionCheck(body);
+      assert.strictEqual(actual, expected);
+    });
+
+    it('drops links', () => {
+      const body =
+        'You should download it from https://signal.org/download. Then read something on https://signal.org/blog. Then donate at https://signal.org/donate.';
+      const expected =
+        'You should download it from . Then read something on . Then donate at .';
+      const actual = cleanBodyForDirectionCheck(body);
+      assert.strictEqual(actual, expected);
+    });
+
+    it('drops all of them at the same time', () => {
+      const body =
+        'https://signal.org/download 😮 \uFFFC Did you really join Signal?';
+      const expected = '   Did you really join Signal?';
+      const actual = cleanBodyForDirectionCheck(body);
+      assert.strictEqual(actual, expected);
+    });
+  });
+
   describe('canDeleteForEveryone', () => {
     it('returns false for incoming messages', () => {
       const message = {
         type: 'incoming' as const,
         sent_at: Date.now() - 1000,
       };
+      const isMe = false;
 
-      assert.isFalse(canDeleteForEveryone(message));
+      assert.isFalse(canDeleteForEveryone(message, isMe));
     });
 
     it('returns false for messages that were already deleted for everyone', () => {
@@ -55,14 +94,15 @@ describe('state/selectors/messages', () => {
           },
         },
       };
+      const isMe = false;
 
-      assert.isFalse(canDeleteForEveryone(message));
+      assert.isFalse(canDeleteForEveryone(message, isMe));
     });
 
     it('returns false for messages that were are too old to delete', () => {
       const message = {
         type: 'outgoing' as const,
-        sent_at: Date.now() - moment.duration(4, 'hours').asMilliseconds(),
+        sent_at: Date.now() - moment.duration(25, 'hours').asMilliseconds(),
         sendStateByConversationId: {
           [ourConversationId]: {
             status: SendStatus.Read,
@@ -74,8 +114,9 @@ describe('state/selectors/messages', () => {
           },
         },
       };
+      const isMe = false;
 
-      assert.isFalse(canDeleteForEveryone(message));
+      assert.isFalse(canDeleteForEveryone(message, isMe));
     });
 
     it("returns false for messages that haven't been sent to anyone", () => {
@@ -93,8 +134,9 @@ describe('state/selectors/messages', () => {
           },
         },
       };
+      const isMe = false;
 
-      assert.isFalse(canDeleteForEveryone(message));
+      assert.isFalse(canDeleteForEveryone(message, isMe));
     });
 
     it('returns true for messages that meet all criteria for deletion', () => {
@@ -116,21 +158,14 @@ describe('state/selectors/messages', () => {
           },
         },
       };
+      const isMe = false;
 
-      assert.isTrue(canDeleteForEveryone(message));
+      assert.isTrue(canDeleteForEveryone(message, isMe));
     });
   });
 
   describe('canReact', () => {
-    const defaultConversation: ConversationType = {
-      id: uuid(),
-      type: 'direct',
-      title: 'Test conversation',
-      isMe: false,
-      sharedGroupNames: [],
-      acceptedMessageRequest: true,
-      badges: [],
-    };
+    const defaultConversation = getDefaultConversation();
 
     it('returns false for disabled v1 groups', () => {
       const message = {
@@ -138,8 +173,7 @@ describe('state/selectors/messages', () => {
         type: 'incoming' as const,
       };
       const getConversationById = () => ({
-        ...defaultConversation,
-        type: 'group' as const,
+        ...getDefaultGroup(),
         isGroupV1AndDisabled: true,
       });
 
@@ -215,8 +249,7 @@ describe('state/selectors/messages', () => {
         },
       };
       const getConversationById = () => ({
-        ...defaultConversation,
-        type: 'group' as const,
+        ...getDefaultGroup(),
       });
 
       assert.isTrue(canReact(message, ourConversationId, getConversationById));
@@ -250,8 +283,7 @@ describe('state/selectors/messages', () => {
         type: 'incoming' as const,
       };
       const getConversationById = () => ({
-        ...defaultConversation,
-        type: 'group' as const,
+        ...getDefaultGroup(),
         isGroupV1AndDisabled: true,
       });
 
@@ -326,10 +358,7 @@ describe('state/selectors/messages', () => {
           },
         },
       };
-      const getConversationById = () => ({
-        ...defaultConversation,
-        type: 'group' as const,
-      });
+      const getConversationById = () => getDefaultGroup();
 
       assert.isTrue(canReply(message, ourConversationId, getConversationById));
     });
@@ -351,10 +380,22 @@ describe('state/selectors/messages', () => {
       ...overrides,
     });
 
-    it('returns undefined for incoming messages', () => {
+    it('returns undefined for incoming messages with no errors', () => {
       const message = createMessage({ type: 'incoming' });
 
       assert.isUndefined(getMessagePropStatus(message, ourConversationId));
+    });
+
+    it('returns "error" for incoming messages with errors', () => {
+      const message = createMessage({
+        type: 'incoming',
+        errors: [new Error('something went wrong')],
+      });
+
+      assert.strictEqual(
+        getMessagePropStatus(message, ourConversationId),
+        'error'
+      );
     });
 
     it('returns "paused" for messages with challenges', () => {

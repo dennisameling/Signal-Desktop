@@ -1,9 +1,9 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { isRecord } from '../../util/isRecord';
 import { HTTPError } from '../../textsecure/Errors';
-import { parseRetryAfter } from '../../util/parseRetryAfter';
+import { parseRetryAfterWithDefault } from '../../util/parseRetryAfter';
 
 export function findRetryAfterTimeFromError(err: unknown): number {
   let rawValue: unknown;
@@ -16,5 +16,9 @@ export function findRetryAfterTimeFromError(err: unknown): number {
     }
   }
 
-  return parseRetryAfter(rawValue);
+  if (Array.isArray(rawValue)) {
+    return parseRetryAfterWithDefault(rawValue[0]);
+  }
+
+  return parseRetryAfterWithDefault(rawValue);
 }

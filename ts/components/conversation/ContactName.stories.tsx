@@ -1,28 +1,38 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-
-import { storiesOf } from '@storybook/react';
-
+import type { Meta } from '@storybook/react';
+import type { PropsType } from './ContactName';
 import { ContactName } from './ContactName';
 import { ContactNameColors } from '../../types/Colors';
 
-storiesOf('Components/Conversation/ContactName', module)
-  .add('First name and title; title preferred', () => (
-    <ContactName firstName="Ignored" title="Someone 🔥 Somewhere" />
-  ))
-  .add('First name and title; first name preferred', () => (
+export default {
+  title: 'Components/Conversation/ContactName',
+} satisfies Meta<PropsType>;
+
+export function FirstNameAndTitleTitlePreferred(): JSX.Element {
+  return <ContactName firstName="Ignored" title="Someone 🔥 Somewhere" />;
+}
+
+export function FirstNameAndTitleFirstNamePreferred(): JSX.Element {
+  return (
     <ContactName
       firstName="Someone 🔥 Somewhere"
       title="Ignored"
       preferFirstName
     />
-  ))
-  .add('Colors', () => {
-    return ContactNameColors.map(color => (
-      <div key={color}>
-        <ContactName title={`Hello ${color}`} contactNameColor={color} />
-      </div>
-    ));
-  });
+  );
+}
+
+export function Colors(): JSX.Element {
+  return (
+    <>
+      {ContactNameColors.map(color => (
+        <div key={color}>
+          <ContactName title={`Hello ${color}`} contactNameColor={color} />
+        </div>
+      ))}
+    </>
+  );
+}

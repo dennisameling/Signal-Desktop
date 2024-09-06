@@ -1,17 +1,15 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-/* eslint-disable more/no-then */
-/* eslint-disable @typescript-eslint/ban-types */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable max-classes-per-file */
 
 import type { EventHandler } from './EventTarget';
 import EventTarget from './EventTarget';
 import MessageReceiver from './MessageReceiver';
-import type { ContactSyncEvent, GroupSyncEvent } from './messageReceiverEvents';
+import type { ContactSyncEvent } from './messageReceiverEvents';
 import MessageSender from './SendMessage';
-import { assert } from '../util/assert';
+import { assertDev } from '../util/assert';
 import * as log from '../logging/log';
 import { singleProtoJobQueue } from '../jobs/singleProtoJobQueue';
 import * as Errors from '../types/errors';
@@ -21,49 +19,39 @@ class SyncRequestInner extends EventTarget {
 
   contactSync?: boolean;
 
-  groupSync?: boolean;
-
   timeout: any;
 
   oncontact: (event: ContactSyncEvent) => void;
 
-  ongroup: (event: GroupSyncEvent) => void;
-
   timeoutMillis: number;
 
   constructor(
-    private sender: MessageSender,
     private receiver: MessageReceiver,
     timeoutMillis?: number
   ) {
     super();
 
-    if (
-      !(sender instanceof MessageSender) ||
-      !(receiver instanceof MessageReceiver)
-    ) {
+    if (!(receiver instanceof MessageReceiver)) {
       throw new Error(
-        'Tried to construct a SyncRequest without MessageSender and MessageReceiver'
+        'Tried to construct a SyncRequest without MessageReceiver'
       );
     }
 
     this.oncontact = this.onContactSyncComplete.bind(this);
     receiver.addEventListener('contactSync', this.oncontact);
 
-    this.ongroup = this.onGroupSyncComplete.bind(this);
-    receiver.addEventListener('groupSync', this.ongroup);
-
     this.timeoutMillis = timeoutMillis || 60000;
   }
 
   async start(): Promise<void> {
     if (this.started) {
-      assert(false, 'SyncRequestInner: started more than once. Doing nothing');
+      assertDev(
+        false,
+        'SyncRequestInner: started more than once. Doing nothing'
+      );
       return;
     }
     this.started = true;
-
-    const { sender } = this;
 
     if (window.ConversationController.areWePrimaryDevice()) {
       log.warn('SyncRequest.start: We are primary device; returning early');
@@ -75,10 +63,11 @@ class SyncRequestInner extends EventTarget {
     );
     try {
       await Promise.all([
-        singleProtoJobQueue.add(sender.getRequestConfigurationSyncMessage()),
-        singleProtoJobQueue.add(sender.getRequestBlockSyncMessage()),
-        singleProtoJobQueue.add(sender.getRequestContactSyncMessage()),
-        singleProtoJobQueue.add(sender.getRequestGroupSyncMessage()),
+        singleProtoJobQueue.add(
+          MessageSender.getRequestConfigurationSyncMessage()
+        ),
+        singleProtoJobQueue.add(MessageSender.getRequestBlockSyncMessage()),
+        singleProtoJobQueue.add(MessageSender.getRequestContactSyncMessage()),
       ]);
     } catch (error: unknown) {
       log.error(
@@ -95,20 +84,15 @@ class SyncRequestInner extends EventTarget {
     this.update();
   }
 
-  onGroupSyncComplete() {
-    this.groupSync = true;
-    this.update();
-  }
-
   update() {
-    if (this.contactSync && this.groupSync) {
+    if (this.contactSync) {
       this.dispatchEvent(new Event('success'));
       this.cleanup();
     }
   }
 
   onTimeout() {
-    if (this.contactSync || this.groupSync) {
+    if (this.contactSync) {
       this.dispatchEvent(new Event('success'));
     } else {
       this.dispatchEvent(new Event('timeout'));
@@ -119,7 +103,6 @@ class SyncRequestInner extends EventTarget {
   cleanup() {
     clearTimeout(this.timeout);
     this.receiver.removeEventListener('contactsync', this.oncontact);
-    this.receiver.removeEventListener('groupSync', this.ongroup);
     delete this.listeners;
   }
 }
@@ -137,18 +120,14 @@ export default class SyncRequest {
     handler: EventHandler
   ) => void;
 
-  constructor(
-    sender: MessageSender,
-    receiver: MessageReceiver,
-    timeoutMillis?: number
-  ) {
-    const inner = new SyncRequestInner(sender, receiver, timeoutMillis);
+  constructor(receiver: MessageReceiver, timeoutMillis?: number) {
+    const inner = new SyncRequestInner(receiver, timeoutMillis);
     this.inner = inner;
     this.addEventListener = inner.addEventListener.bind(inner);
     this.removeEventListener = inner.removeEventListener.bind(inner);
   }
 
   start(): void {
-    this.inner.start();
+    void this.inner.start();
   }
 }

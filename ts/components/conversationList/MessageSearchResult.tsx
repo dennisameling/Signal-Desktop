@@ -1,22 +1,28 @@
-// Copyright 2019-2021 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { FunctionComponent, ReactNode } from 'react';
 import React, { useCallback } from 'react';
-import { escapeRegExp } from 'lodash';
+import { noop } from 'lodash';
 
-import { MessageBodyHighlight } from './MessageBodyHighlight';
 import { ContactName } from '../conversation/ContactName';
 
-import { assert } from '../../util/assert';
-import type {
-  BodyRangesType,
-  LocalizerType,
-  ThemeType,
-} from '../../types/Util';
+import type { BodyRangesForDisplayType } from '../../types/BodyRange';
+import { processBodyRangesForSearchResult } from '../../types/BodyRange';
+import type { LocalizerType, ThemeType } from '../../types/Util';
 import { BaseConversationListItem } from './BaseConversationListItem';
-import type { ConversationType } from '../../state/ducks/conversations';
+import type {
+  ConversationType,
+  ShowConversationType,
+} from '../../state/ducks/conversations';
 import type { PreferredBadgeSelectorType } from '../../state/selectors/badges';
+import { I18n } from '../I18n';
+import {
+  MessageTextRenderer,
+  RenderLocation,
+} from '../conversation/MessageTextRenderer';
+
+const EMPTY_OBJECT = Object.freeze(Object.create(null));
 
 export type PropsDataType = {
   isSelected?: boolean;
@@ -28,40 +34,33 @@ export type PropsDataType = {
 
   snippet: string;
   body: string;
-  bodyRanges: BodyRangesType;
+  bodyRanges: BodyRangesForDisplayType;
 
   from: Pick<
     ConversationType,
     | 'acceptedMessageRequest'
-    | 'avatarPath'
+    | 'avatarUrl'
     | 'badges'
     | 'color'
     | 'isMe'
-    | 'name'
     | 'phoneNumber'
     | 'profileName'
     | 'sharedGroupNames'
     | 'title'
-    | 'unblurredAvatarPath'
+    | 'type'
+    | 'unblurredAvatarUrl'
   >;
 
-  to: {
-    groupName?: string;
-    phoneNumber?: string;
-    title: string;
-    isMe?: boolean;
-    name?: string;
-    profileName?: string;
-  };
+  to: Pick<
+    ConversationType,
+    'isMe' | 'phoneNumber' | 'profileName' | 'title' | 'type'
+  >;
 };
 
 type PropsHousekeepingType = {
   getPreferredBadge: PreferredBadgeSelectorType;
   i18n: LocalizerType;
-  openConversationInternal: (_: {
-    conversationId: string;
-    messageId?: string;
-  }) => void;
+  showConversation: ShowConversationType;
   theme: ThemeType;
 };
 
@@ -73,70 +72,12 @@ const renderPerson = (
     isMe?: boolean;
     title: string;
   }>
-): ReactNode =>
-  person.isMe ? i18n('you') : <ContactName title={person.title} />;
-
-// This function exists because bodyRanges tells us the character position
-// where the at-mention starts at according to the full body text. The snippet
-// we get back is a portion of the text and we don't know where it starts. This
-// function will find the relevant bodyRanges that apply to the snippet and
-// then update the proper start position of each body range.
-function getFilteredBodyRanges(
-  snippet: string,
-  body: string,
-  bodyRanges: BodyRangesType
-): BodyRangesType {
-  if (!bodyRanges.length) {
-    return [];
-  }
-
-  // Find where the snippet starts in the full text
-  const stripped = snippet
-    .replace(/<<left>>/g, '')
-    .replace(/<<right>>/g, '')
-    .replace(/^.../, '')
-    .replace(/...$/, '');
-  const rx = new RegExp(escapeRegExp(stripped));
-  const match = rx.exec(body);
-
-  assert(Boolean(match), `No match found for "${snippet}" inside "${body}"`);
-
-  const delta = match ? match.index + snippet.length : 0;
-
-  // Filters out the @mentions that are present inside the snippet
-  const filteredBodyRanges = bodyRanges.filter(bodyRange => {
-    return bodyRange.start < delta;
-  });
-
-  const snippetBodyRanges = [];
-  const MENTIONS_REGEX = /\uFFFC/g;
-
-  let bodyRangeMatch = MENTIONS_REGEX.exec(snippet);
-  let i = 0;
-
-  // Find the start position within the snippet so these can later be
-  // encoded and rendered correctly.
-  while (bodyRangeMatch) {
-    const bodyRange = filteredBodyRanges[i];
-
-    if (bodyRange) {
-      snippetBodyRanges.push({
-        ...bodyRange,
-        start: bodyRangeMatch.index,
-      });
-    } else {
-      assert(
-        false,
-        `Body range does not exist? Count: ${i}, Length: ${filteredBodyRanges.length}`
-      );
-    }
-
-    bodyRangeMatch = MENTIONS_REGEX.exec(snippet);
-    i += 1;
-  }
-
-  return snippetBodyRanges;
-}
+): JSX.Element =>
+  person.isMe ? (
+    <I18n i18n={i18n} id="icu:you" />
+  ) : (
+    <ContactName title={person.title} />
+  );
 
 export const MessageSearchResult: FunctionComponent<PropsType> = React.memo(
   function MessageSearchResult({
@@ -147,17 +88,18 @@ export const MessageSearchResult: FunctionComponent<PropsType> = React.memo(
     getPreferredBadge,
     i18n,
     id,
-    openConversationInternal,
     sentAt,
+    showConversation,
     snippet,
     theme,
     to,
   }) {
     const onClickItem = useCallback(() => {
-      openConversationInternal({ conversationId, messageId: id });
-    }, [openConversationInternal, conversationId, id]);
+      showConversation({ conversationId, messageId: id });
+    }, [showConversation, conversationId, id]);
 
     if (!from || !to) {
+      // Note: mapStateToProps() may return null if the message is not found.
       return <div />;
     }
 
@@ -165,30 +107,84 @@ export const MessageSearchResult: FunctionComponent<PropsType> = React.memo(
 
     let headerName: ReactNode;
     if (isNoteToSelf) {
-      headerName = i18n('noteToSelf');
+      headerName = i18n('icu:noteToSelf');
+    } else if (from.isMe) {
+      if (to.type === 'group') {
+        headerName = (
+          <span>
+            <I18n
+              i18n={i18n}
+              id="icu:searchResultHeader--you-to-group"
+              components={{
+                receiverGroup: renderPerson(i18n, to),
+              }}
+            />
+          </span>
+        );
+      } else {
+        headerName = (
+          <span>
+            <I18n
+              i18n={i18n}
+              id="icu:searchResultHeader--you-to-receiver"
+              components={{
+                receiverContact: renderPerson(i18n, to),
+              }}
+            />
+          </span>
+        );
+      }
     } else {
-      // This isn't perfect because (1) it doesn't work with RTL languages (2)
-      //   capitalization may be incorrect for some languages, like English.
-      headerName = (
-        <span>
-          {renderPerson(i18n, from)} {i18n('toJoiner')} {renderPerson(i18n, to)}
-        </span>
-      );
+      // eslint-disable-next-line no-lonely-if
+      if (to.type === 'group') {
+        headerName = (
+          <span>
+            <I18n
+              i18n={i18n}
+              id="icu:searchResultHeader--sender-to-group"
+              components={{
+                sender: renderPerson(i18n, from),
+                receiverGroup: renderPerson(i18n, to),
+              }}
+            />
+          </span>
+        );
+      } else {
+        headerName = (
+          <span>
+            <I18n
+              i18n={i18n}
+              id="icu:searchResultHeader--sender-to-you"
+              components={{
+                sender: renderPerson(i18n, from),
+              }}
+            />
+          </span>
+        );
+      }
     }
 
-    const snippetBodyRanges = getFilteredBodyRanges(snippet, body, bodyRanges);
+    const { cleanedSnippet, bodyRanges: displayBodyRanges } =
+      processBodyRangesForSearchResult({ snippet, body, bodyRanges });
     const messageText = (
-      <MessageBodyHighlight
-        text={snippet}
-        bodyRanges={snippetBodyRanges}
+      <MessageTextRenderer
+        messageText={cleanedSnippet}
+        bodyRanges={displayBodyRanges}
+        direction={undefined}
+        disableLinks
+        emojiSizeClass={undefined}
         i18n={i18n}
+        isSpoilerExpanded={EMPTY_OBJECT}
+        onMentionTrigger={noop}
+        renderLocation={RenderLocation.SearchResult}
+        textLength={cleanedSnippet.length}
       />
     );
 
     return (
       <BaseConversationListItem
         acceptedMessageRequest={from.acceptedMessageRequest}
-        avatarPath={from.avatarPath}
+        avatarUrl={from.avatarUrl}
         badge={getPreferredBadge(from.badges)}
         color={from.color}
         conversationType="direct"
@@ -200,14 +196,13 @@ export const MessageSearchResult: FunctionComponent<PropsType> = React.memo(
         isMe={from.isMe}
         isSelected={false}
         messageText={messageText}
-        name={from.name}
         onClick={onClickItem}
         phoneNumber={from.phoneNumber}
         profileName={from.profileName}
         sharedGroupNames={from.sharedGroupNames}
         theme={theme}
         title={from.title}
-        unblurredAvatarPath={from.unblurredAvatarPath}
+        unblurredAvatarUrl={from.unblurredAvatarUrl}
       />
     );
   }

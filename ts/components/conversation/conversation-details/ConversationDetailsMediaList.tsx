@@ -3,6 +3,7 @@
 
 import React from 'react';
 
+import type { ReadonlyDeep } from 'type-fest';
 import type { LocalizerType } from '../../../types/Util';
 
 import type { MediaItemType } from '../../../types/MediaItem';
@@ -15,11 +16,11 @@ import { MediaGridItem } from '../media-gallery/MediaGridItem';
 export type Props = {
   conversation: ConversationType;
   i18n: LocalizerType;
-  loadRecentMediaItems: (limit: number) => void;
+  loadRecentMediaItems: (id: string, limit: number) => void;
   showAllMedia: () => void;
-  showLightboxForMedia: (
-    selectedMediaItem: MediaItemType,
-    media: Array<MediaItemType>
+  showLightboxWithMedia: (
+    selectedIndex: number,
+    media: ReadonlyArray<ReadonlyDeep<MediaItemType>>
   ) => void;
 };
 
@@ -27,20 +28,20 @@ const MEDIA_ITEM_LIMIT = 6;
 
 const bem = bemGenerator('ConversationDetails-media-list');
 
-export const ConversationDetailsMediaList: React.ComponentType<Props> = ({
+export function ConversationDetailsMediaList({
   conversation,
   i18n,
   loadRecentMediaItems,
   showAllMedia,
-  showLightboxForMedia,
-}) => {
+  showLightboxWithMedia,
+}: Props): JSX.Element | null {
   const mediaItems = conversation.recentMediaItems || [];
 
   const mediaItemsLength = mediaItems.length;
 
   React.useEffect(() => {
-    loadRecentMediaItems(MEDIA_ITEM_LIMIT);
-  }, [loadRecentMediaItems, mediaItemsLength]);
+    loadRecentMediaItems(conversation.id, MEDIA_ITEM_LIMIT);
+  }, [conversation.id, loadRecentMediaItems, mediaItemsLength]);
 
   if (mediaItemsLength === 0) {
     return null;
@@ -54,10 +55,10 @@ export const ConversationDetailsMediaList: React.ComponentType<Props> = ({
           onClick={showAllMedia}
           type="button"
         >
-          {i18n('ConversationDetailsMediaList--show-all')}
+          {i18n('icu:ConversationDetailsMediaList--show-all')}
         </button>
       }
-      title={i18n('ConversationDetailsMediaList--shared-media')}
+      title={i18n('icu:ConversationDetailsMediaList--shared-media')}
     >
       <div className={bem('root')}>
         {mediaItems.slice(0, MEDIA_ITEM_LIMIT).map(mediaItem => (
@@ -65,10 +66,10 @@ export const ConversationDetailsMediaList: React.ComponentType<Props> = ({
             key={`${mediaItem.message.id}-${mediaItem.index}`}
             mediaItem={mediaItem}
             i18n={i18n}
-            onClick={() => showLightboxForMedia(mediaItem, mediaItems)}
+            onClick={() => showLightboxWithMedia(mediaItem.index, mediaItems)}
           />
         ))}
       </div>
     </PanelSection>
   );
-};
+}

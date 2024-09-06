@@ -1,21 +1,28 @@
-// Copyright 2019-2022 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { RefObject } from 'react';
-import React from 'react';
-import { connect } from 'react-redux';
-
-import { mapDispatchToProps } from '../actions';
-import type { StateType } from '../reducer';
+import React, { useCallback, memo } from 'react';
+import { useSelector } from 'react-redux';
 
 import { TimelineItem } from '../../components/conversation/TimelineItem';
+import type { WidthBreakpoint } from '../../components/_util';
+import { useConversationsActions } from '../ducks/conversations';
+import { useComposerActions } from '../ducks/composer';
+import { useGlobalModalActions } from '../ducks/globalModals';
+import { useAccountsActions } from '../ducks/accounts';
+import { useLightboxActions } from '../ducks/lightbox';
+import { useStoriesActions } from '../ducks/stories';
+import { useCallingActions } from '../ducks/calling';
 import { getPreferredBadgeSelector } from '../selectors/badges';
-import { getIntl, getInteractionMode, getTheme } from '../selectors/user';
 import {
-  getConversationSelector,
-  getMessageSelector,
-  getSelectedMessage,
-} from '../selectors/conversations';
+  getIntl,
+  getInteractionMode,
+  getTheme,
+  getPlatform,
+} from '../selectors/user';
+import { getTargetedMessage } from '../selectors/conversations';
+import { useTimelineItem } from '../selectors/timeline';
 import {
   areMessagesInSameGroup,
   shouldCurrentMessageHideMetadata,
@@ -25,10 +32,17 @@ import {
 import { SmartContactName } from './ContactName';
 import { SmartUniversalTimerNotification } from './UniversalTimerNotification';
 import { isSameDay } from '../../util/timestamp';
+import { renderAudioAttachment } from './renderAudioAttachment';
+import { renderEmojiPicker } from './renderEmojiPicker';
+import { renderReactionPicker } from './renderReactionPicker';
+import type { MessageRequestState } from '../../components/conversation/MessageRequestActionsConfirmation';
 
-type ExternalProps = {
+export type SmartTimelineItemProps = {
   containerElementRef: RefObject<HTMLElement>;
+  containerWidthBreakpoint: WidthBreakpoint;
   conversationId: string;
+  isBlocked: boolean;
+  isGroup: boolean;
   isOldestTimelineItem: boolean;
   messageId: string;
   nextMessageId: undefined | string;
@@ -36,18 +50,22 @@ type ExternalProps = {
   unreadIndicatorPlacement: undefined | UnreadIndicatorPlacement;
 };
 
-function renderContact(conversationId: string): JSX.Element {
-  return <SmartContactName conversationId={conversationId} />;
+function renderContact(contactId: string): JSX.Element {
+  return <SmartContactName contactId={contactId} />;
 }
 
 function renderUniversalTimerNotification(): JSX.Element {
   return <SmartUniversalTimerNotification />;
 }
-
-const mapStateToProps = (state: StateType, props: ExternalProps) => {
+export const SmartTimelineItem = memo(function SmartTimelineItem(
+  props: SmartTimelineItemProps
+): JSX.Element {
   const {
     containerElementRef,
+    containerWidthBreakpoint,
     conversationId,
+    isBlocked,
+    isGroup,
     isOldestTimelineItem,
     messageId,
     nextMessageId,
@@ -55,21 +73,19 @@ const mapStateToProps = (state: StateType, props: ExternalProps) => {
     unreadIndicatorPlacement,
   } = props;
 
-  const messageSelector = getMessageSelector(state);
+  const i18n = useSelector(getIntl);
+  const getPreferredBadge = useSelector(getPreferredBadgeSelector);
+  const interactionMode = useSelector(getInteractionMode);
+  const theme = useSelector(getTheme);
+  const platform = useSelector(getPlatform);
 
-  const item = messageSelector(messageId);
-  const previousItem = previousMessageId
-    ? messageSelector(previousMessageId)
-    : undefined;
-  const nextItem = nextMessageId ? messageSelector(nextMessageId) : undefined;
-
-  const selectedMessage = getSelectedMessage(state);
-  const isSelected = Boolean(
-    selectedMessage && messageId === selectedMessage.id
+  const item = useTimelineItem(messageId, conversationId);
+  const previousItem = useTimelineItem(previousMessageId, conversationId);
+  const nextItem = useTimelineItem(nextMessageId, conversationId);
+  const targetedMessage = useSelector(getTargetedMessage);
+  const isTargeted = Boolean(
+    targetedMessage && messageId === targetedMessage.id
   );
-
-  const conversation = getConversationSelector(state)(conversationId);
-
   const isNextItemCallingNotification = nextItem?.type === 'callHistory';
 
   const shouldCollapseAbove = areMessagesInSameGroup(
@@ -97,28 +113,128 @@ const mapStateToProps = (state: StateType, props: ExternalProps) => {
         !isSameDay(previousItem.timestamp, item.timestamp)
     );
 
-  return {
-    item,
-    id: messageId,
-    containerElementRef,
-    conversationId,
-    conversationColor: conversation?.conversationColor,
-    customColor: conversation?.customColor,
-    getPreferredBadge: getPreferredBadgeSelector(state),
-    isNextItemCallingNotification,
-    isSelected,
-    renderContact,
-    renderUniversalTimerNotification,
-    shouldCollapseAbove,
-    shouldCollapseBelow,
-    shouldHideMetadata,
-    shouldRenderDateHeader,
-    i18n: getIntl(state),
-    interactionMode: getInteractionMode(state),
-    theme: getTheme(state),
-  };
-};
+  const {
+    blockGroupLinkRequests,
+    clearTargetedMessage: clearSelectedMessage,
+    doubleCheckMissingQuoteReference,
+    kickOffAttachmentDownload,
+    markAttachmentAsCorrupted,
+    messageExpanded,
+    openGiftBadge,
+    pushPanelForConversation,
+    copyMessageText,
+    retryDeleteForEveryone,
+    retryMessageSend,
+    saveAttachment,
+    targetMessage,
+    toggleSelectMessage,
+    setMessageToEdit,
+    showConversation,
+    showExpiredIncomingTapToViewToast,
+    showExpiredOutgoingTapToViewToast,
+    showSpoiler,
+    startConversation,
+  } = useConversationsActions();
 
-const smart = connect(mapStateToProps, mapDispatchToProps);
+  const { reactToMessage, scrollToQuotedMessage, setQuoteByMessageId } =
+    useComposerActions();
 
-export const SmartTimelineItem = smart(TimelineItem);
+  const {
+    showContactModal,
+    showEditHistoryModal,
+    toggleMessageRequestActionsConfirmation,
+    toggleDeleteMessagesModal,
+    toggleEditNicknameAndNoteModal,
+    toggleForwardMessagesModal,
+    toggleSafetyNumberModal,
+  } = useGlobalModalActions();
+  const { checkForAccount } = useAccountsActions();
+  const { showLightbox, showLightboxForViewOnceMedia } = useLightboxActions();
+  const { viewStory } = useStoriesActions();
+  const {
+    onOutgoingAudioCallInConversation,
+    onOutgoingVideoCallInConversation,
+    returnToActiveCall,
+  } = useCallingActions();
+
+  const onOpenEditNicknameAndNoteModal = useCallback(
+    (contactId: string) => {
+      toggleEditNicknameAndNoteModal({ conversationId: contactId });
+    },
+    [toggleEditNicknameAndNoteModal]
+  );
+
+  const onOpenMessageRequestActionsConfirmation = useCallback(
+    (state: MessageRequestState) => {
+      toggleMessageRequestActionsConfirmation({ conversationId, state });
+    },
+    [conversationId, toggleMessageRequestActionsConfirmation]
+  );
+
+  return (
+    <TimelineItem
+      item={item}
+      id={messageId}
+      containerElementRef={containerElementRef}
+      containerWidthBreakpoint={containerWidthBreakpoint}
+      conversationId={conversationId}
+      getPreferredBadge={getPreferredBadge}
+      isNextItemCallingNotification={isNextItemCallingNotification}
+      isTargeted={isTargeted}
+      renderAudioAttachment={renderAudioAttachment}
+      renderContact={renderContact}
+      renderEmojiPicker={renderEmojiPicker}
+      renderReactionPicker={renderReactionPicker}
+      renderUniversalTimerNotification={renderUniversalTimerNotification}
+      shouldCollapseAbove={shouldCollapseAbove}
+      shouldCollapseBelow={shouldCollapseBelow}
+      shouldHideMetadata={shouldHideMetadata}
+      shouldRenderDateHeader={shouldRenderDateHeader}
+      showEditHistoryModal={showEditHistoryModal}
+      i18n={i18n}
+      interactionMode={interactionMode}
+      isBlocked={isBlocked}
+      isGroup={isGroup}
+      theme={theme}
+      platform={platform}
+      blockGroupLinkRequests={blockGroupLinkRequests}
+      checkForAccount={checkForAccount}
+      clearTargetedMessage={clearSelectedMessage}
+      doubleCheckMissingQuoteReference={doubleCheckMissingQuoteReference}
+      kickOffAttachmentDownload={kickOffAttachmentDownload}
+      markAttachmentAsCorrupted={markAttachmentAsCorrupted}
+      messageExpanded={messageExpanded}
+      openGiftBadge={openGiftBadge}
+      pushPanelForConversation={pushPanelForConversation}
+      reactToMessage={reactToMessage}
+      copyMessageText={copyMessageText}
+      onOpenEditNicknameAndNoteModal={onOpenEditNicknameAndNoteModal}
+      onOpenMessageRequestActionsConfirmation={
+        onOpenMessageRequestActionsConfirmation
+      }
+      onOutgoingAudioCallInConversation={onOutgoingAudioCallInConversation}
+      onOutgoingVideoCallInConversation={onOutgoingVideoCallInConversation}
+      retryDeleteForEveryone={retryDeleteForEveryone}
+      retryMessageSend={retryMessageSend}
+      returnToActiveCall={returnToActiveCall}
+      saveAttachment={saveAttachment}
+      scrollToQuotedMessage={scrollToQuotedMessage}
+      targetMessage={targetMessage}
+      setQuoteByMessageId={setQuoteByMessageId}
+      setMessageToEdit={setMessageToEdit}
+      showContactModal={showContactModal}
+      showConversation={showConversation}
+      showExpiredIncomingTapToViewToast={showExpiredIncomingTapToViewToast}
+      showExpiredOutgoingTapToViewToast={showExpiredOutgoingTapToViewToast}
+      showLightbox={showLightbox}
+      showLightboxForViewOnceMedia={showLightboxForViewOnceMedia}
+      showSpoiler={showSpoiler}
+      startConversation={startConversation}
+      toggleDeleteMessagesModal={toggleDeleteMessagesModal}
+      toggleForwardMessagesModal={toggleForwardMessagesModal}
+      toggleSafetyNumberModal={toggleSafetyNumberModal}
+      viewStory={viewStory}
+      toggleSelectMessage={toggleSelectMessage}
+    />
+  );
+});

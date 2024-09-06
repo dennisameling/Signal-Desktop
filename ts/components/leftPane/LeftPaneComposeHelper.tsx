@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ReactChild, ChangeEvent } from 'react';
@@ -8,42 +8,38 @@ import { LeftPaneHelper } from './LeftPaneHelper';
 import type { Row } from '../ConversationList';
 import { RowType } from '../ConversationList';
 import type { ContactListItemConversationType } from '../conversationList/ContactListItem';
-import type { PropsData as ConversationListItemPropsType } from '../conversationList/ConversationListItem';
 import { SearchInput } from '../SearchInput';
 import type { LocalizerType } from '../../types/Util';
 import type { ParsedE164Type } from '../../util/libphonenumberInstance';
 import { parseAndFormatPhoneNumber } from '../../util/libphonenumberInstance';
-import { missingCaseError } from '../../util/missingCaseError';
-import { getUsernameFromSearch } from '../../types/Username';
 import type { UUIDFetchStateType } from '../../util/uuidFetchState';
 import {
   isFetchingByUsername,
   isFetchingByE164,
 } from '../../util/uuidFetchState';
+import type { GroupListItemConversationType } from '../conversationList/GroupListItem';
 
 export type LeftPaneComposePropsType = {
   composeContacts: ReadonlyArray<ContactListItemConversationType>;
-  composeGroups: ReadonlyArray<ConversationListItemPropsType>;
+  composeGroups: ReadonlyArray<GroupListItemConversationType>;
 
   regionCode: string | undefined;
   searchTerm: string;
   uuidFetchState: UUIDFetchStateType;
-  isUsernamesEnabled: boolean;
+  username: string | undefined;
 };
 
-enum TopButton {
-  None,
-  CreateNewGroup,
+enum TopButtons {
+  None = 'None',
+  Visible = 'Visible',
 }
 
 export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsType> {
   private readonly composeContacts: ReadonlyArray<ContactListItemConversationType>;
 
-  private readonly composeGroups: ReadonlyArray<ConversationListItemPropsType>;
+  private readonly composeGroups: ReadonlyArray<GroupListItemConversationType>;
 
   private readonly uuidFetchState: UUIDFetchStateType;
-
-  private readonly isUsernamesEnabled: boolean;
 
   private readonly searchTerm: string;
 
@@ -51,30 +47,39 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
 
   private readonly isPhoneNumberVisible: boolean;
 
+  private readonly username: string | undefined;
+
+  private readonly isUsernameVisible: boolean;
+
   constructor({
     composeContacts,
     composeGroups,
     regionCode,
     searchTerm,
-    isUsernamesEnabled,
     uuidFetchState,
+    username,
   }: Readonly<LeftPaneComposePropsType>) {
     super();
 
     this.composeContacts = composeContacts;
     this.composeGroups = composeGroups;
     this.searchTerm = searchTerm;
-    this.phoneNumber = parseAndFormatPhoneNumber(searchTerm, regionCode);
-    if (this.phoneNumber) {
-      const { phoneNumber } = this;
+    this.uuidFetchState = uuidFetchState;
+
+    this.username = username;
+    this.isUsernameVisible =
+      Boolean(username) &&
+      this.composeContacts.every(contact => contact.username !== username);
+
+    const phoneNumber = parseAndFormatPhoneNumber(searchTerm, regionCode);
+    if (!username && phoneNumber) {
+      this.phoneNumber = phoneNumber;
       this.isPhoneNumberVisible = this.composeContacts.every(
         contact => contact.e164 !== phoneNumber.e164
       );
     } else {
       this.isPhoneNumberVisible = false;
     }
-    this.uuidFetchState = uuidFetchState;
-    this.isUsernamesEnabled = isUsernamesEnabled;
   }
 
   override getHeaderContents({
@@ -89,12 +94,12 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
         <button
           onClick={this.getBackAction({ showInbox })}
           className="module-left-pane__header__contents__back-button"
-          title={i18n('backToInbox')}
-          aria-label={i18n('backToInbox')}
+          title={i18n('icu:backToInbox')}
+          aria-label={i18n('icu:backToInbox')}
           type="button"
         />
         <div className="module-left-pane__header__contents__text">
-          {i18n('newConversation')}
+          {i18n('icu:newConversation')}
         </div>
       </div>
     );
@@ -118,7 +123,7 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
         i18n={i18n}
         moduleClassName="module-left-pane__compose-search-form"
         onChange={onChangeComposeSearchTerm}
-        placeholder={i18n('contactSearchPlaceholder')}
+        placeholder={i18n('icu:contactSearchPlaceholder')}
         ref={focusRef}
         value={this.searchTerm}
       />
@@ -132,15 +137,15 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
   }>): ReactChild | null {
     return this.getRowCount() ? null : (
       <div className="module-left-pane__compose-no-contacts">
-        {i18n('noConversationsFound')}
+        {i18n('icu:noConversationsFound')}
       </div>
     );
   }
 
   getRowCount(): number {
     let result = this.composeContacts.length + this.composeGroups.length;
-    if (this.hasTopButton()) {
-      result += 1;
+    if (this.hasTopButtons()) {
+      result += 3;
     }
     if (this.hasContactsHeader()) {
       result += 1;
@@ -148,7 +153,7 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
     if (this.hasGroupsHeader()) {
       result += 1;
     }
-    if (this.getUsernameFromSearch()) {
+    if (this.isUsernameVisible) {
       result += 2;
     }
     if (this.isPhoneNumberVisible) {
@@ -160,27 +165,25 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
 
   getRow(actualRowIndex: number): undefined | Row {
     let virtualRowIndex = actualRowIndex;
-    if (this.hasTopButton()) {
+    if (this.hasTopButtons()) {
       if (virtualRowIndex === 0) {
-        const topButton = this.getTopButton();
-        switch (topButton) {
-          case TopButton.None:
-            break;
-          case TopButton.CreateNewGroup:
-            return { type: RowType.CreateNewGroup };
-          default:
-            throw missingCaseError(topButton);
-        }
+        return { type: RowType.CreateNewGroup };
+      }
+      if (virtualRowIndex === 1) {
+        return { type: RowType.FindByUsername };
+      }
+      if (virtualRowIndex === 2) {
+        return { type: RowType.FindByPhoneNumber };
       }
 
-      virtualRowIndex -= 1;
+      virtualRowIndex -= 3;
     }
 
     if (this.hasContactsHeader()) {
       if (virtualRowIndex === 0) {
         return {
           type: RowType.Header,
-          i18nKey: 'contactsHeader',
+          getHeaderText: i18n => i18n('icu:contactsHeader'),
         };
       }
 
@@ -191,6 +194,7 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
         return {
           type: RowType.Contact,
           contact,
+          hasContextMenu: true,
         };
       }
 
@@ -201,7 +205,7 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
       if (virtualRowIndex === 0) {
         return {
           type: RowType.Header,
-          i18nKey: 'groupsHeader',
+          getHeaderText: i18n => i18n('icu:groupsHeader'),
         };
       }
 
@@ -210,20 +214,19 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
       const group = this.composeGroups[virtualRowIndex];
       if (group) {
         return {
-          type: RowType.Conversation,
-          conversation: group,
+          type: RowType.SelectSingleGroup,
+          group,
         };
       }
 
       virtualRowIndex -= this.composeGroups.length;
     }
 
-    const username = this.getUsernameFromSearch();
-    if (username) {
+    if (this.username && this.isUsernameVisible) {
       if (virtualRowIndex === 0) {
         return {
           type: RowType.Header,
-          i18nKey: 'findByUsernameHeader',
+          getHeaderText: i18n => i18n('icu:findByUsernameHeader'),
         };
       }
 
@@ -232,14 +235,12 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
       if (virtualRowIndex === 0) {
         return {
           type: RowType.UsernameSearchResult,
-          username,
+          username: this.username,
           isFetchingUsername: isFetchingByUsername(
             this.uuidFetchState,
-            username
+            this.username
           ),
         };
-
-        virtualRowIndex -= 1;
       }
     }
 
@@ -247,7 +248,7 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
       if (virtualRowIndex === 0) {
         return {
           type: RowType.Header,
-          i18nKey: 'findByPhoneNumberHeader',
+          getHeaderText: i18n => i18n('icu:findByPhoneNumberHeader'),
         };
       }
 
@@ -262,8 +263,6 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
             this.phoneNumber.e164
           ),
         };
-
-        virtualRowIndex -= 1;
       }
     }
 
@@ -295,19 +294,20 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
       currHeaderIndices.top !== prevHeaderIndices.top ||
       currHeaderIndices.contact !== prevHeaderIndices.contact ||
       currHeaderIndices.group !== prevHeaderIndices.group ||
-      currHeaderIndices.username !== prevHeaderIndices.username
+      currHeaderIndices.username !== prevHeaderIndices.username ||
+      currHeaderIndices.phoneNumber !== prevHeaderIndices.phoneNumber
     );
   }
 
-  private getTopButton(): TopButton {
+  private getTopButtons(): TopButtons {
     if (this.searchTerm) {
-      return TopButton.None;
+      return TopButtons.None;
     }
-    return TopButton.CreateNewGroup;
+    return TopButtons.Visible;
   }
 
-  private hasTopButton(): boolean {
-    return this.getTopButton() !== TopButton.None;
+  private hasTopButtons(): boolean {
+    return this.getTopButtons() !== TopButtons.None;
   }
 
   private hasContactsHeader(): boolean {
@@ -318,38 +318,24 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
     return Boolean(this.composeGroups.length);
   }
 
-  private getUsernameFromSearch(): string | undefined {
-    if (!this.isUsernamesEnabled) {
-      return undefined;
-    }
-
-    if (this.phoneNumber) {
-      return undefined;
-    }
-
-    if (this.searchTerm) {
-      return getUsernameFromSearch(this.searchTerm);
-    }
-
-    return undefined;
-  }
-
   private getHeaderIndices(): {
     top?: number;
     contact?: number;
     group?: number;
+    phoneNumber?: number;
     username?: number;
   } {
     let top: number | undefined;
     let contact: number | undefined;
     let group: number | undefined;
+    let phoneNumber: number | undefined;
     let username: number | undefined;
 
     let rowCount = 0;
 
-    if (this.hasTopButton()) {
+    if (this.hasTopButtons()) {
       top = 0;
-      rowCount += 1;
+      rowCount += 3;
     }
     if (this.hasContactsHeader()) {
       contact = rowCount;
@@ -359,7 +345,10 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
       group = rowCount;
       rowCount += this.composeContacts.length;
     }
-    if (this.getUsernameFromSearch()) {
+    if (this.phoneNumber) {
+      phoneNumber = rowCount;
+    }
+    if (this.username) {
       username = rowCount;
     }
 
@@ -367,6 +356,7 @@ export class LeftPaneComposeHelper extends LeftPaneHelper<LeftPaneComposePropsTy
       top,
       contact,
       group,
+      phoneNumber,
       username,
     };
   }

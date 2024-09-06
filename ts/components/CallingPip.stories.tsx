@@ -1,23 +1,22 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
 import { times } from 'lodash';
-import { storiesOf } from '@storybook/react';
-import { boolean } from '@storybook/addon-knobs';
 import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
 import { AvatarColors } from '../types/Colors';
 import type { ConversationType } from '../state/ducks/conversations';
 import type { PropsType } from './CallingPip';
 import { CallingPip } from './CallingPip';
-import type { ActiveCallType } from '../types/Calling';
+import type { ActiveDirectCallType } from '../types/Calling';
 import {
-  CallMode,
+  CallViewMode,
   CallState,
   GroupCallConnectionState,
   GroupCallJoinState,
 } from '../types/Calling';
+import { CallMode } from '../types/CallDisposition';
 import { getDefaultConversation } from '../test-both/helpers/getDefaultConversation';
 import { fakeGetGroupCallVideoFrameSource } from '../test-both/helpers/fakeGetGroupCallVideoFrameSource';
 import { setupI18n } from '../util/setupI18n';
@@ -27,7 +26,7 @@ const i18n = setupI18n('en', enMessages);
 
 const conversation: ConversationType = getDefaultConversation({
   id: '3051234567',
-  avatarPath: undefined,
+  avatarUrl: undefined,
   color: AvatarColors[0],
   title: 'Rick Sanchez',
   name: 'Rick Sanchez',
@@ -35,12 +34,19 @@ const conversation: ConversationType = getDefaultConversation({
   profileName: 'Rick Sanchez',
 });
 
-const getCommonActiveCallData = () => ({
+type Overrides = {
+  hasLocalAudio?: boolean;
+  hasLocalVideo?: boolean;
+  localAudioLevel?: number;
+  viewMode?: CallViewMode;
+};
+
+const getCommonActiveCallData = (overrides: Overrides) => ({
   conversation,
-  hasLocalAudio: boolean('hasLocalAudio', true),
-  hasLocalVideo: boolean('hasLocalVideo', false),
-  amISpeaking: boolean('amISpeaking', false),
-  isInSpeakerView: boolean('isInSpeakerView', false),
+  hasLocalAudio: overrides.hasLocalAudio ?? true,
+  hasLocalVideo: overrides.hasLocalVideo ?? false,
+  localAudioLevel: overrides.localAudioLevel ?? 0,
+  viewMode: overrides.viewMode ?? CallViewMode.Paginated,
   joinedAt: Date.now(),
   outgoingRing: true,
   pip: true,
@@ -48,80 +54,96 @@ const getCommonActiveCallData = () => ({
   showParticipantsList: false,
 });
 
-const defaultCall: ActiveCallType = {
-  ...getCommonActiveCallData(),
-  callMode: CallMode.Direct as CallMode.Direct,
-  callState: CallState.Accepted,
-  peekedParticipants: [],
-  remoteParticipants: [
-    { hasRemoteVideo: true, presenting: false, title: 'Arsene' },
-  ],
+const getDefaultCall = (overrides: Overrides): ActiveDirectCallType => {
+  return {
+    ...getCommonActiveCallData(overrides),
+    callMode: CallMode.Direct as CallMode.Direct,
+    callState: CallState.Accepted,
+    peekedParticipants: [],
+    remoteParticipants: [
+      { hasRemoteVideo: true, presenting: false, title: 'Arsene' },
+    ],
+  };
 };
 
-const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
-  activeCall: overrideProps.activeCall || defaultCall,
-  getGroupCallVideoFrameSource: fakeGetGroupCallVideoFrameSource,
-  hangUpActiveCall: action('hang-up-active-call'),
-  hasLocalVideo: boolean('hasLocalVideo', overrideProps.hasLocalVideo || false),
-  i18n,
-  setGroupCallVideoRequest: action('set-group-call-video-request'),
-  setLocalPreview: action('set-local-preview'),
-  setRendererCanvas: action('set-renderer-canvas'),
-  togglePip: action('toggle-pip'),
-  toggleSpeakerView: action('toggleSpeakerView'),
-});
+export default {
+  title: 'Components/CallingPip',
+  argTypes: {
+    hasLocalVideo: { control: { type: 'boolean' } },
+  },
+  args: {
+    activeCall: getDefaultCall({}),
+    getGroupCallVideoFrameSource: fakeGetGroupCallVideoFrameSource,
+    hangUpActiveCall: action('hang-up-active-call'),
+    hasLocalVideo: false,
+    i18n,
+    setGroupCallVideoRequest: action('set-group-call-video-request'),
+    setLocalPreview: action('set-local-preview'),
+    setRendererCanvas: action('set-renderer-canvas'),
+    switchFromPresentationView: action('switch-to-presentation-view'),
+    switchToPresentationView: action('switch-to-presentation-view'),
+    togglePip: action('toggle-pip'),
+  },
+} satisfies Meta<PropsType>;
 
-const story = storiesOf('Components/CallingPip', module);
+export function Default(args: PropsType): JSX.Element {
+  return <CallingPip {...args} />;
+}
 
-story.add('Default', () => {
-  const props = createProps({});
-  return <CallingPip {...props} />;
-});
+export function ContactWithAvatarAndNoVideo(args: PropsType): JSX.Element {
+  return (
+    <CallingPip
+      {...args}
+      activeCall={{
+        ...getDefaultCall({}),
+        conversation: {
+          ...conversation,
+          avatarUrl: 'https://www.fillmurray.com/64/64',
+        },
+        remoteParticipants: [
+          { hasRemoteVideo: false, presenting: false, title: 'Julian' },
+        ],
+      }}
+    />
+  );
+}
 
-story.add('Contact (with avatar and no video)', () => {
-  const props = createProps({
-    activeCall: {
-      ...defaultCall,
-      conversation: {
-        ...conversation,
-        avatarPath: 'https://www.fillmurray.com/64/64',
-      },
-      remoteParticipants: [
-        { hasRemoteVideo: false, presenting: false, title: 'Julian' },
-      ],
-    },
-  });
-  return <CallingPip {...props} />;
-});
+export function ContactNoColor(args: PropsType): JSX.Element {
+  return (
+    <CallingPip
+      {...args}
+      activeCall={{
+        ...getDefaultCall({}),
+        conversation: {
+          ...conversation,
+          color: undefined,
+        },
+      }}
+    />
+  );
+}
 
-story.add('Contact (no color)', () => {
-  const props = createProps({
-    activeCall: {
-      ...defaultCall,
-      conversation: {
-        ...conversation,
-        color: undefined,
-      },
-    },
-  });
-  return <CallingPip {...props} />;
-});
-
-story.add('Group Call', () => {
-  const props = createProps({
-    activeCall: {
-      ...getCommonActiveCallData(),
-      callMode: CallMode.Group as CallMode.Group,
-      connectionState: GroupCallConnectionState.Connected,
-      conversationsWithSafetyNumberChanges: [],
-      groupMembers: times(3, () => getDefaultConversation()),
-      joinState: GroupCallJoinState.Joined,
-      maxDevices: 5,
-      deviceCount: 0,
-      peekedParticipants: [],
-      remoteParticipants: [],
-      speakingDemuxIds: new Set<number>(),
-    },
-  });
-  return <CallingPip {...props} />;
-});
+export function GroupCall(args: PropsType): JSX.Element {
+  return (
+    <CallingPip
+      {...args}
+      activeCall={{
+        ...getCommonActiveCallData({}),
+        callMode: CallMode.Group as CallMode.Group,
+        connectionState: GroupCallConnectionState.Connected,
+        conversationsByDemuxId: new Map<number, ConversationType>(),
+        groupMembers: times(3, () => getDefaultConversation()),
+        isConversationTooBigToRing: false,
+        joinState: GroupCallJoinState.Joined,
+        localDemuxId: 1,
+        maxDevices: 5,
+        deviceCount: 0,
+        peekedParticipants: [],
+        pendingParticipants: [],
+        raisedHands: new Set<number>(),
+        remoteParticipants: [],
+        remoteAudioLevels: new Map<number, number>(),
+      }}
+    />
+  );
+}

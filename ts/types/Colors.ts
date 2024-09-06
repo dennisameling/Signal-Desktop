@@ -1,4 +1,4 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 export const AvatarColorMap = new Map([
@@ -90,6 +90,8 @@ export const AvatarColorMap = new Map([
 
 export const AvatarColors = Array.from(AvatarColorMap.keys());
 
+export const AVATAR_COLOR_COUNT = AvatarColors.length;
+
 export const ConversationColors = [
   'ultramarine',
   'crimson',
@@ -154,26 +156,28 @@ export const ContactNameColors = [
   '110',
 ];
 
-export type ContactNameColorType = typeof ContactNameColors[number];
+export type ContactNameColorType = (typeof ContactNameColors)[number];
 
 export type CustomColorType = {
-  start: { hue: number; saturation: number };
-  end?: { hue: number; saturation: number };
+  start: { hue: number; saturation: number; luminance?: number };
+  end?: { hue: number; saturation: number; luminance?: number };
   deg?: number;
 };
 
-export type AvatarColorType = typeof AvatarColors[number];
+export type AvatarColorType = (typeof AvatarColors)[number];
 
 export type ConversationColorType =
-  | typeof ConversationColors[number]
+  | (typeof ConversationColors)[number]
   | 'custom';
+
+export type CustomColorDataType = {
+  id: string;
+  value: CustomColorType;
+};
 
 export type DefaultConversationColorType = {
   color: ConversationColorType;
-  customColorData?: {
-    id: string;
-    value: CustomColorType;
-  };
+  customColorData?: CustomColorDataType;
 };
 
 export const DEFAULT_CONVERSATION_COLOR: DefaultConversationColorType = {

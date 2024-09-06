@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as durations from '../util/durations';
@@ -13,6 +13,7 @@ import {
 import { strictAssert } from '../util/assert';
 import { isRecord } from '../util/isRecord';
 
+import type { JOB_STATUS } from './JobQueue';
 import { JobQueue } from './JobQueue';
 import { jobQueueDatabaseStore } from './JobQueueDatabaseStore';
 
@@ -31,7 +32,7 @@ export class ViewSyncJobQueue extends JobQueue<ViewSyncJobData> {
   protected async run(
     { data, timestamp }: Readonly<{ data: ViewSyncJobData; timestamp: number }>,
     { attempt, log }: Readonly<{ attempt: number; log: LoggerType }>
-  ): Promise<void> {
+  ): Promise<typeof JOB_STATUS.NEEDS_RETRY | undefined> {
     await runSyncJob({
       attempt,
       log,
@@ -40,6 +41,8 @@ export class ViewSyncJobQueue extends JobQueue<ViewSyncJobData> {
       timestamp,
       type: SyncTypeList.View,
     });
+
+    return undefined;
   }
 }
 

@@ -14,11 +14,11 @@ export type PropsType = {
   onChange: (avatar: Uint8Array) => unknown;
 };
 
-export const AvatarUploadButton = ({
+export function AvatarUploadButton({
   className,
   i18n,
   onChange,
-}: PropsType): JSX.Element => {
+}: PropsType): JSX.Element {
   const fileInputRef = useRef<null | HTMLInputElement>(null);
 
   const [processingFile, setProcessingFile] = useState<File | undefined>();
@@ -30,7 +30,7 @@ export const AvatarUploadButton = ({
 
     let shouldCancel = false;
 
-    (async () => {
+    void (async () => {
       let newAvatar: Uint8Array;
       try {
         newAvatar = await processImageFile(processingFile);
@@ -73,7 +73,7 @@ export const AvatarUploadButton = ({
         }}
         type="button"
       >
-        {i18n('photo')}
+        {i18n('icu:photo')}
       </button>
       <input
         accept=".gif,.jpg,.jpeg,.png,.webp,image/gif,image/jpeg,image/png,image/webp"
@@ -84,4 +84,4 @@ export const AvatarUploadButton = ({
       />
     </>
   );
-};
+}

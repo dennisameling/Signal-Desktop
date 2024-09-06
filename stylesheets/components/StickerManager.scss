@@ -1,0 +1,323 @@
+// Copyright 2021 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+.module-sticker-manager {
+  padding-block: 0;
+  padding-inline: 16px;
+  outline: none;
+}
+
+.module-sticker-manager__text {
+  height: 18px;
+
+  letter-spacing: 0px;
+  line-height: 18px;
+  padding-inline-start: 8px;
+
+  @include light-theme() {
+    color: $color-gray-60;
+  }
+
+  @include dark-theme() {
+    color: $color-gray-25;
+  }
+
+  &--heading {
+    @include font-body-1-bold;
+
+    @include light-theme() {
+      color: $color-gray-90;
+    }
+
+    @include dark-theme() {
+      color: $color-gray-05;
+    }
+  }
+}
+
+.module-sticker-manager__empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 64px;
+  border-radius: 8px;
+
+  @include light-theme {
+    background: $color-gray-02;
+    color: $color-gray-60;
+  }
+
+  @include dark-theme {
+    background: $color-gray-90;
+    color: $color-gray-25;
+  }
+}
+
+%blessed-sticker-pack-icon {
+  height: 14px;
+  width: 14px;
+  border-radius: 8px;
+  background-color: $color-white;
+  display: inline-block;
+  vertical-align: middle;
+  margin-inline-start: 5px;
+  margin-bottom: 2px;
+  position: relative;
+
+  &::before {
+    content: '';
+    display: block;
+    width: 16px;
+    height: 16px;
+    position: absolute;
+    top: -1px;
+    inset-inline-start: -1px;
+
+    @include light-theme {
+      @include color-svg(
+        '../images/icons/v3/check/check-circle-fill.svg',
+        $color-accent-blue
+      );
+    }
+
+    @include dark-theme {
+      @include color-svg(
+        '../images/icons/v3/check/check-circle-fill.svg',
+        $color-accent-blue
+      );
+    }
+  }
+}
+
+.module-sticker-manager__pack-row {
+  @include button-reset;
+
+  display: flex;
+  flex-direction: row;
+  padding: 16px;
+  padding-inline-start: 8px;
+
+  @include keyboard-mode {
+    &:focus {
+      box-shadow: 0px 0px 0px 2px $color-ultramarine;
+    }
+  }
+
+  &__cover {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+  }
+  &__cover-placeholder {
+    width: 48px;
+    height: 48px;
+    background: $color-gray-05;
+  }
+
+  &__meta {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+
+    &:not(:first-child) {
+      padding-block: 0;
+      padding-inline: 12px;
+    }
+
+    &__title {
+      flex: 1;
+    }
+
+    &__author {
+      flex: 1;
+
+      @include light-theme() {
+        color: $color-gray-45;
+      }
+
+      @include dark-theme() {
+        color: $color-gray-25;
+      }
+    }
+
+    &__blessed-icon {
+      @extend %blessed-sticker-pack-icon;
+    }
+  }
+
+  &__controls {
+    flex-shrink: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    &__button {
+      background: none;
+      border: 0;
+      &--menu {
+        &::after {
+          content: '';
+          display: block;
+          min-width: 24px;
+          min-height: 24px;
+          @include light-theme {
+            @include color-svg(
+              '../images/icons/v3/more/more.svg',
+              $color-gray-60
+            );
+          }
+          @include dark-theme {
+            @include color-svg(
+              '../images/icons/v3/more/more.svg',
+              $color-gray-25
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
+.module-sticker-manager__install-button {
+  background: none;
+  border: 0;
+  color: $color-gray-90;
+
+  @include font-body-1-bold;
+
+  height: 24px;
+  background: $color-gray-05;
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-block: 0;
+  padding-inline: 12px;
+
+  @include dark-theme {
+    color: $color-gray-05;
+    background: $color-gray-75;
+  }
+
+  @include mouse-mode {
+    outline: none;
+  }
+
+  &--blue {
+    @include light-theme {
+      background: $color-ultramarine;
+      color: $color-white;
+    }
+    @include dark-theme {
+      background: $color-ultramarine-light;
+      color: $color-white;
+    }
+  }
+}
+
+.module-sticker-manager__preview-modal {
+  &__modal.module-Modal {
+    width: fit-content;
+  }
+  &__error {
+    color: $color-accent-red;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    height: 100%;
+    padding-block: 0 30px;
+    padding-inline: 80px;
+
+    @include font-body-1-bold;
+  }
+
+  &__sticker-grid {
+    width: 100%;
+    display: grid;
+    grid-gap: 8px;
+    grid-template-columns: repeat(4, 1fr);
+
+    &__cell {
+      width: 96px;
+      height: 96px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+
+      &__image {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      &--placeholder {
+        border-radius: 4px;
+
+        @include light-theme() {
+          background: $color-gray-05;
+        }
+
+        @include dark-theme() {
+          background: $color-gray-60;
+        }
+      }
+    }
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+
+    &--info {
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+      flex-shrink: 1;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    &--title {
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+
+      @include font-body-1-bold;
+
+      @include light-theme {
+        color: $color-gray-90;
+      }
+
+      @include dark-theme {
+        color: $color-gray-05;
+      }
+    }
+
+    &--author {
+      margin: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+
+      @include light-theme {
+        color: $color-gray-45;
+      }
+
+      @include dark-theme {
+        color: $color-gray-25;
+      }
+    }
+
+    &--blessed-icon {
+      @extend %blessed-sticker-pack-icon;
+    }
+
+    &--install {
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+  }
+}

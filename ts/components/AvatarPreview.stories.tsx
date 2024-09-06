@@ -5,8 +5,8 @@ import React from 'react';
 import { chunk } from 'lodash';
 
 import { action } from '@storybook/addon-actions';
-import { storiesOf } from '@storybook/react';
 
+import type { Meta } from '@storybook/react';
 import type { PropsType } from './AvatarPreview';
 import { AvatarPreview } from './AvatarPreview';
 import { AvatarColors } from '../types/Colors';
@@ -24,7 +24,7 @@ const TEST_IMAGE = new Uint8Array(
 
 const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   avatarColor: overrideProps.avatarColor,
-  avatarPath: overrideProps.avatarPath,
+  avatarUrl: overrideProps.avatarUrl,
   avatarValue: overrideProps.avatarValue,
   conversationTitle: overrideProps.conversationTitle,
   i18n,
@@ -36,60 +36,74 @@ const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   style: overrideProps.style,
 });
 
-const story = storiesOf('Components/AvatarPreview', module);
+export default {
+  title: 'Components/AvatarPreview',
+} satisfies Meta<PropsType>;
 
-story.add('No state (personal)', () => (
-  <AvatarPreview
-    {...createProps({
-      avatarColor: AvatarColors[0],
-      conversationTitle: 'Just Testing',
-    })}
-  />
-));
+export function NoStatePersonal(): JSX.Element {
+  return (
+    <AvatarPreview
+      {...createProps({
+        avatarColor: AvatarColors[0],
+        conversationTitle: 'Just Testing',
+      })}
+    />
+  );
+}
 
-story.add('No state (group)', () => (
-  <AvatarPreview
-    {...createProps({
-      avatarColor: AvatarColors[1],
-      isGroup: true,
-    })}
-  />
-));
+export function NoStateGroup(): JSX.Element {
+  return (
+    <AvatarPreview
+      {...createProps({
+        avatarColor: AvatarColors[1],
+        isGroup: true,
+      })}
+    />
+  );
+}
 
-story.add('No state (group) + upload me', () => (
-  <AvatarPreview
-    {...createProps({
-      avatarColor: AvatarColors[1],
-      isEditable: true,
-      isGroup: true,
-    })}
-  />
-));
+export function NoStateGroupUploadMe(): JSX.Element {
+  return (
+    <AvatarPreview
+      {...createProps({
+        avatarColor: AvatarColors[1],
+        isEditable: true,
+        isGroup: true,
+      })}
+    />
+  );
+}
 
-story.add('value', () => (
-  <AvatarPreview {...createProps({ avatarValue: TEST_IMAGE })} />
-));
+export function Value(): JSX.Element {
+  return <AvatarPreview {...createProps({ avatarValue: TEST_IMAGE })} />;
+}
 
-story.add('path', () => (
-  <AvatarPreview
-    {...createProps({ avatarPath: '/fixtures/kitten-3-64-64.jpg' })}
-  />
-));
+export function Path(): JSX.Element {
+  return (
+    <AvatarPreview
+      {...createProps({ avatarUrl: '/fixtures/kitten-3-64-64.jpg' })}
+    />
+  );
+}
 
-story.add('value & path', () => (
-  <AvatarPreview
-    {...createProps({
-      avatarPath: '/fixtures/kitten-3-64-64.jpg',
-      avatarValue: TEST_IMAGE,
-    })}
-  />
-));
+export function ValueAndPath(): JSX.Element {
+  return (
+    <AvatarPreview
+      {...createProps({
+        avatarUrl: '/fixtures/kitten-3-64-64.jpg',
+        avatarValue: TEST_IMAGE,
+      })}
+    />
+  );
+}
 
-story.add('style', () => (
-  <AvatarPreview
-    {...createProps({
-      avatarValue: TEST_IMAGE,
-      style: { height: 100, width: 100 },
-    })}
-  />
-));
+export function Style(): JSX.Element {
+  return (
+    <AvatarPreview
+      {...createProps({
+        avatarValue: TEST_IMAGE,
+        style: { height: 100, width: 100 },
+      })}
+    />
+  );
+}

@@ -1,9 +1,13 @@
-// Copyright 2014-2021 Signal Messenger, LLC
+// Copyright 2014 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
+import { v4 as generateUuid } from 'uuid';
+
+import { DataWriter } from '../../sql/Client';
 import { SendStatus } from '../../messages/MessageSendState';
-import { UUID } from '../../types/UUID';
+import { IMAGE_PNG } from '../../types/MIME';
+import { generateAci, generatePni } from '../../types/ServiceId';
 
 describe('Conversations', () => {
   async function resetConversationController(): Promise<void> {
@@ -17,15 +21,15 @@ describe('Conversations', () => {
 
   it('updates lastMessage even in race conditions with db', async () => {
     const ourNumber = '+15550000000';
-    const ourUuid = UUID.generate().toString();
-    const ourPni = UUID.generate().toString();
+    const ourAci = generateAci();
+    const ourPni = generatePni();
 
     // Creating a fake conversation
     const conversation = new window.Whisper.Conversation({
       avatars: [],
-      id: UUID.generate().toString(),
+      id: generateUuid(),
       e164: '+15551234567',
-      uuid: UUID.generate().toString(),
+      serviceId: generateAci(),
       type: 'private',
       inbox_position: 0,
       isPinned: false,
@@ -35,19 +39,23 @@ describe('Conversations', () => {
       sentMessageCount: 0,
       profileSharing: true,
       version: 0,
+      expireTimerVersion: 1,
     });
 
     await window.textsecure.storage.user.setCredentials({
       number: ourNumber,
-      uuid: ourUuid,
+      aci: ourAci,
       pni: ourPni,
       deviceId: 2,
       deviceName: 'my device',
       password: 'password',
     });
     await window.ConversationController.load();
-
-    await window.Signal.Data.saveConversation(conversation.attributes);
+    await window.ConversationController.getOrCreateAndWait(
+      conversation.attributes.e164 ?? null,
+      conversation.attributes.type,
+      conversation.attributes
+    );
 
     // Creating a fake message
     const now = Date.now();
@@ -59,7 +67,7 @@ describe('Conversations', () => {
       hasAttachments: false,
       hasFileAttachments: false,
       hasVisualMediaAttachments: false,
-      id: UUID.generate().toString(),
+      id: generateUuid(),
       received_at: now,
       sent_at: now,
       timestamp: now,
@@ -73,12 +81,16 @@ describe('Conversations', () => {
     });
 
     // Saving to db and updating the convo's last message
-    await window.Signal.Data.saveMessage(message.attributes, {
+    await DataWriter.saveMessage(message.attributes, {
       forceSave: true,
-      ourUuid,
+      ourAci,
     });
-    message = window.MessageController.register(message.id, message);
-    await window.Signal.Data.updateConversation(conversation.attributes);
+    message = window.MessageCache.__DEPRECATED$register(
+      message.id,
+      message,
+      'test'
+    );
+    await DataWriter.updateConversation(conversation.attributes);
     await conversation.updateLastMessage();
 
     // Should be set to bananas because that's the last message sent.
@@ -103,5 +115,55 @@ describe('Conversations', () => {
     await conversation.updateLastMessage();
 
     assert.strictEqual(conversation.get('lastMessage'), '');
+  });
+
+  it('only produces attachments on a quote with an image', async () => {
+    // Creating a fake conversation
+    const conversation = new window.Whisper.Conversation({
+      avatars: [],
+      id: generateUuid(),
+      e164: '+15551234567',
+      serviceId: generateAci(),
+      type: 'private',
+      inbox_position: 0,
+      isPinned: false,
+      markedUnread: false,
+      lastMessageDeletedForEveryone: false,
+      messageCount: 0,
+      sentMessageCount: 0,
+      profileSharing: true,
+      version: 0,
+      expireTimerVersion: 1,
+    });
+
+    const resultNoImage = await conversation.getQuoteAttachment(
+      [],
+      [
+        {
+          url: 'https://sometest.signal.org/',
+          isCallLink: false,
+        },
+      ]
+    );
+
+    assert.deepEqual(resultNoImage, []);
+
+    const [resultWithImage] = await conversation.getQuoteAttachment(
+      [],
+      [
+        {
+          url: 'https://sometest.signal.org/',
+          image: {
+            contentType: IMAGE_PNG,
+            size: 100,
+            data: new Uint8Array(),
+          },
+          isCallLink: false,
+        },
+      ]
+    );
+
+    assert.equal(resultWithImage.contentType, 'image/png');
+    assert.equal(resultWithImage.fileName, null);
   });
 });

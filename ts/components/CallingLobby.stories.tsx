@@ -1,23 +1,26 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
 import { times } from 'lodash';
-import { storiesOf } from '@storybook/react';
-import { boolean } from '@storybook/addon-knobs';
 import { action } from '@storybook/addon-actions';
+import { v4 as generateUuid } from 'uuid';
 
+import type { Meta } from '@storybook/react';
 import { AvatarColors } from '../types/Colors';
 import type { ConversationType } from '../state/ducks/conversations';
 import type { PropsType } from './CallingLobby';
-import { CallingLobby } from './CallingLobby';
+import { CallingLobby as UnwrappedCallingLobby } from './CallingLobby';
 import { setupI18n } from '../util/setupI18n';
-import { UUID } from '../types/UUID';
+import { generateAci } from '../types/ServiceId';
 import enMessages from '../../_locales/en/messages.json';
 import {
   getDefaultConversation,
-  getDefaultConversationWithUuid,
+  getDefaultConversationWithServiceId,
 } from '../test-both/helpers/getDefaultConversation';
+import { CallingToastProvider } from './CallingToast';
+import { CallMode } from '../types/CallDisposition';
+import { getDefaultCallLinkConversation } from '../test-both/helpers/fakeCallLink';
 
 const i18n = setupI18n('en', enMessages);
 
@@ -31,168 +34,215 @@ const camera = {
   },
 };
 
+const getConversation = (callMode: CallMode) => {
+  if (callMode === CallMode.Group) {
+    return getDefaultConversation({
+      title: 'Tahoe Trip',
+      type: 'group',
+    });
+  }
+
+  if (callMode === CallMode.Adhoc) {
+    return getDefaultCallLinkConversation();
+  }
+
+  return getDefaultConversation();
+};
+
 const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => {
-  const isGroupCall = boolean(
-    'isGroupCall',
-    overrideProps.isGroupCall || false
-  );
-  const conversation = isGroupCall
-    ? getDefaultConversation({
-        title: 'Tahoe Trip',
-        type: 'group',
-      })
-    : getDefaultConversation();
+  const callMode = overrideProps.callMode ?? CallMode.Direct;
+  const conversation = getConversation(callMode);
 
   return {
     availableCameras: overrideProps.availableCameras || [camera],
+    callMode,
     conversation,
     groupMembers:
       overrideProps.groupMembers ||
-      (isGroupCall ? times(3, () => getDefaultConversation()) : undefined),
-    hasLocalAudio: boolean(
-      'hasLocalAudio',
-      overrideProps.hasLocalAudio ?? true
-    ),
-    hasLocalVideo: boolean(
-      'hasLocalVideo',
-      overrideProps.hasLocalVideo ?? false
-    ),
+      (callMode === CallMode.Group
+        ? times(3, () => getDefaultConversation())
+        : undefined),
+    hasLocalAudio: overrideProps.hasLocalAudio ?? true,
+    hasLocalVideo: overrideProps.hasLocalVideo ?? false,
     i18n,
-    isGroupCall,
-    isGroupCallOutboundRingEnabled: true,
-    isCallFull: boolean('isCallFull', overrideProps.isCallFull || false),
+    isAdhocAdminApprovalRequired:
+      overrideProps.isAdhocAdminApprovalRequired ?? false,
+    isAdhocJoinRequestPending: overrideProps.isAdhocJoinRequestPending ?? false,
+    isConversationTooBigToRing: false,
+    isCallFull: overrideProps.isCallFull ?? false,
+    getIsSharingPhoneNumberWithEverybody:
+      overrideProps.getIsSharingPhoneNumberWithEverybody ?? (() => false),
     me:
       overrideProps.me ||
       getDefaultConversation({
         color: AvatarColors[0],
-        id: UUID.generate().toString(),
-        uuid: UUID.generate().toString(),
+        id: generateUuid(),
+        serviceId: generateAci(),
       }),
     onCallCanceled: action('on-call-canceled'),
     onJoinCall: action('on-join-call'),
-    outgoingRing: boolean('outgoingRing', Boolean(overrideProps.outgoingRing)),
+    outgoingRing: overrideProps.outgoingRing ?? false,
     peekedParticipants: overrideProps.peekedParticipants || [],
     setLocalAudio: action('set-local-audio'),
     setLocalPreview: action('set-local-preview'),
     setLocalVideo: action('set-local-video'),
     setOutgoingRing: action('set-outgoing-ring'),
-    showParticipantsList: boolean(
-      'showParticipantsList',
-      Boolean(overrideProps.showParticipantsList)
-    ),
+    showParticipantsList: overrideProps.showParticipantsList ?? false,
     toggleParticipants: action('toggle-participants'),
+    togglePip: action('toggle-pip'),
     toggleSettings: action('toggle-settings'),
   };
 };
 
+function CallingLobby(props: ReturnType<typeof createProps>) {
+  return (
+    <CallingToastProvider i18n={i18n}>
+      <UnwrappedCallingLobby {...props} />
+    </CallingToastProvider>
+  );
+}
+
 const fakePeekedParticipant = (conversationProps: Partial<ConversationType>) =>
-  getDefaultConversationWithUuid({
+  getDefaultConversationWithServiceId({
     ...conversationProps,
   });
 
-const story = storiesOf('Components/CallingLobby', module);
+export default {
+  title: 'Components/CallingLobby',
+  argTypes: {},
+  args: {},
+} satisfies Meta<PropsType>;
 
-story.add('Default', () => {
+export function Default(): JSX.Element {
   const props = createProps();
   return <CallingLobby {...props} />;
-});
+}
 
-story.add('No Camera, no avatar', () => {
+export function NoCameraNoAvatar(): JSX.Element {
   const props = createProps({
     availableCameras: [],
   });
   return <CallingLobby {...props} />;
-});
+}
 
-story.add('No Camera, local avatar', () => {
+export function NoCameraLocalAvatar(): JSX.Element {
   const props = createProps({
     availableCameras: [],
     me: getDefaultConversation({
-      avatarPath: '/fixtures/kitten-4-112-112.jpg',
+      avatarUrl: '/fixtures/kitten-4-112-112.jpg',
       color: AvatarColors[0],
-      id: UUID.generate().toString(),
-      uuid: UUID.generate().toString(),
+      id: generateUuid(),
+      serviceId: generateAci(),
     }),
   });
   return <CallingLobby {...props} />;
-});
+}
 
-story.add('Local Video', () => {
+export function LocalVideo(): JSX.Element {
   const props = createProps({
     hasLocalVideo: true,
   });
   return <CallingLobby {...props} />;
-});
+}
 
-story.add('Initially muted', () => {
+export function InitiallyMuted(): JSX.Element {
   const props = createProps({
     hasLocalAudio: false,
   });
   return <CallingLobby {...props} />;
-});
+}
 
-story.add('Group Call - 0 peeked participants', () => {
-  const props = createProps({ isGroupCall: true, peekedParticipants: [] });
-  return <CallingLobby {...props} />;
-});
-
-story.add('Group Call - 1 peeked participant', () => {
+export function GroupCallWithNoPeekedParticipants(): JSX.Element {
   const props = createProps({
-    isGroupCall: true,
+    callMode: CallMode.Group,
+    peekedParticipants: [],
+  });
+  return <CallingLobby {...props} />;
+}
+
+export function GroupCallWith1PeekedParticipant(): JSX.Element {
+  const props = createProps({
+    callMode: CallMode.Group,
     peekedParticipants: [{ title: 'Sam' }].map(fakePeekedParticipant),
   });
   return <CallingLobby {...props} />;
-});
+}
 
-story.add('Group Call - 1 peeked participant (self)', () => {
-  const uuid = UUID.generate().toString();
+export function GroupCallWith1PeekedParticipantSelf(): JSX.Element {
+  const serviceId = generateAci();
   const props = createProps({
-    isGroupCall: true,
+    callMode: CallMode.Group,
     me: getDefaultConversation({
-      id: UUID.generate().toString(),
-      uuid,
+      id: generateUuid(),
+      serviceId,
     }),
-    peekedParticipants: [fakePeekedParticipant({ title: 'Ash', uuid })],
+    peekedParticipants: [fakePeekedParticipant({ title: 'Ash', serviceId })],
   });
   return <CallingLobby {...props} />;
-});
+}
 
-story.add('Group Call - 4 peeked participants', () => {
+export function GroupCallWith4PeekedParticipants(): JSX.Element {
   const props = createProps({
-    isGroupCall: true,
+    callMode: CallMode.Group,
     peekedParticipants: ['Sam', 'Cayce', 'April', 'Logan', 'Carl'].map(title =>
       fakePeekedParticipant({ title })
     ),
   });
   return <CallingLobby {...props} />;
-});
+}
 
-story.add('Group Call - 4 peeked participants (participants list)', () => {
+export function GroupCallWith4PeekedParticipantsParticipantsList(): JSX.Element {
   const props = createProps({
-    isGroupCall: true,
+    callMode: CallMode.Group,
     peekedParticipants: ['Sam', 'Cayce', 'April', 'Logan', 'Carl'].map(title =>
       fakePeekedParticipant({ title })
     ),
     showParticipantsList: true,
   });
   return <CallingLobby {...props} />;
-});
+}
 
-story.add('Group Call - call full', () => {
+export function GroupCallWithCallFull(): JSX.Element {
   const props = createProps({
-    isGroupCall: true,
+    callMode: CallMode.Group,
     isCallFull: true,
     peekedParticipants: ['Sam', 'Cayce'].map(title =>
       fakePeekedParticipant({ title })
     ),
   });
   return <CallingLobby {...props} />;
-});
+}
 
-story.add('Group Call - 0 peeked participants, big group', () => {
+export function GroupCallWith0PeekedParticipantsBigGroup(): JSX.Element {
   const props = createProps({
-    isGroupCall: true,
+    callMode: CallMode.Group,
     groupMembers: times(100, () => getDefaultConversation()),
   });
   return <CallingLobby {...props} />;
-});
+}
+
+export function CallLink(): JSX.Element {
+  const props = createProps({
+    callMode: CallMode.Adhoc,
+  });
+  return <CallingLobby {...props} />;
+}
+
+// Due to storybook font loading, if you directly load this story then
+// the button width is not calculated correctly
+export function CallLinkAdminApproval(): JSX.Element {
+  const props = createProps({
+    callMode: CallMode.Adhoc,
+    isAdhocAdminApprovalRequired: true,
+  });
+  return <CallingLobby {...props} />;
+}
+
+export function CallLinkJoinRequestPending(): JSX.Element {
+  const props = createProps({
+    callMode: CallMode.Adhoc,
+    isAdhocAdminApprovalRequired: true,
+    isAdhocJoinRequestPending: true,
+  });
+  return <CallingLobby {...props} />;
+}

@@ -1,17 +1,20 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import React from 'react';
+import React, { useRef } from 'react';
 import classNames from 'classnames';
 import { noop } from 'lodash';
 import { Manager, Reference, Popper } from 'react-popper';
 import type { StrictModifiers } from '@popperjs/core';
+import { createPortal } from 'react-dom';
 import type { Theme } from '../util/theme';
 import { themeClassName } from '../util/theme';
 import { refMerger } from '../util/refMerger';
 import { offsetDistanceModifier } from '../util/popperUtil';
+import { getInteractionMode } from '../services/InteractionMode';
 
 type EventWrapperPropsType = {
+  className?: string;
   children: React.ReactNode;
   onHoverChanged: (_: boolean) => void;
 };
@@ -20,10 +23,13 @@ type EventWrapperPropsType = {
 //   disabled button. This uses native browser events to avoid that.
 //
 // See <https://lecstor.com/react-disabled-button-onmouseleave/>.
-const TooltipEventWrapper = React.forwardRef<
+export const TooltipEventWrapper = React.forwardRef<
   HTMLSpanElement,
   EventWrapperPropsType
->(({ onHoverChanged, children }, ref) => {
+>(function TooltipEvent(
+  { className, onHoverChanged, children },
+  ref
+): JSX.Element {
   const wrapperRef = React.useRef<HTMLSpanElement | null>(null);
 
   const on = React.useCallback(() => {
@@ -35,7 +41,7 @@ const TooltipEventWrapper = React.forwardRef<
   }, [onHoverChanged]);
 
   const onFocus = React.useCallback(() => {
-    if (window.getInteractionMode() === 'keyboard') {
+    if (getInteractionMode() === 'keyboard') {
       on();
     }
   }, [on]);
@@ -58,6 +64,7 @@ const TooltipEventWrapper = React.forwardRef<
 
   return (
     <span
+      className={className}
       onFocus={onFocus}
       onBlur={off}
       ref={refMerger<HTMLSpanElement>(ref, wrapperRef)}
@@ -77,13 +84,20 @@ export enum TooltipPlacement {
 export type PropsType = {
   content: string | JSX.Element;
   className?: string;
+  children?: React.ReactNode;
   direction?: TooltipPlacement;
   popperModifiers?: Array<StrictModifiers>;
   sticky?: boolean;
   theme?: Theme;
+  wrapperClassName?: string;
+  delay?: number;
+  hideArrow?: boolean;
 };
 
-export const Tooltip: React.FC<PropsType> = ({
+let GLOBAL_EXIT_TIMER: NodeJS.Timeout | undefined;
+let GLOBAL_TOOLTIP_DISABLE_DELAY = false;
+
+export function Tooltip({
   children,
   className,
   content,
@@ -91,50 +105,102 @@ export const Tooltip: React.FC<PropsType> = ({
   sticky,
   theme,
   popperModifiers = [],
-}) => {
-  const [isHovering, setIsHovering] = React.useState(false);
+  wrapperClassName,
+  delay,
+  hideArrow,
+}: PropsType): JSX.Element {
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>();
+  const [active, setActive] = React.useState(false);
 
-  const showTooltip = isHovering || Boolean(sticky);
+  const showTooltip = active || Boolean(sticky);
 
   const tooltipThemeClassName = theme
     ? `module-tooltip--${themeClassName(theme)}`
     : undefined;
 
+  function handleHoverChanged(hovering: boolean) {
+    // Don't accept updates that aren't valid anymore
+    clearTimeout(GLOBAL_EXIT_TIMER);
+    clearTimeout(timeoutRef.current);
+
+    // We can skip past all of this if there's no delay
+    if (delay != null) {
+      // If we're now hovering, and delays haven't been disabled globally
+      // we should start the timer to show the tooltip
+      if (hovering && !GLOBAL_TOOLTIP_DISABLE_DELAY) {
+        timeoutRef.current = setTimeout(() => {
+          setActive(true);
+          // Since we have shown a tooltip we can now disable these delays
+          // globally.
+          GLOBAL_TOOLTIP_DISABLE_DELAY = true;
+        }, delay);
+        return;
+      }
+
+      if (!hovering) {
+        // If we're not hovering, we should hide the tooltip immediately
+        setActive(false);
+
+        // If we've disabled delays globally, we need to start a timer to undo
+        // that after some time has passed.
+        if (GLOBAL_TOOLTIP_DISABLE_DELAY) {
+          GLOBAL_EXIT_TIMER = setTimeout(() => {
+            GLOBAL_TOOLTIP_DISABLE_DELAY = false;
+
+            // We're always going to use 300 here so that a tooltip with a really
+            // long delay doesn't affect all of the others
+          }, 300);
+        }
+        return;
+      }
+    }
+    setActive(hovering);
+  }
+
   return (
     <Manager>
       <Reference>
         {({ ref }) => (
-          <TooltipEventWrapper ref={ref} onHoverChanged={setIsHovering}>
+          <TooltipEventWrapper
+            className={wrapperClassName}
+            ref={ref}
+            onHoverChanged={handleHoverChanged}
+          >
             {children}
           </TooltipEventWrapper>
         )}
       </Reference>
-      <Popper
-        placement={direction}
-        modifiers={[offsetDistanceModifier(12), ...popperModifiers]}
-      >
-        {({ arrowProps, placement, ref, style }) =>
-          showTooltip && (
-            <div
-              className={classNames(
-                'module-tooltip',
-                tooltipThemeClassName,
-                className
-              )}
-              ref={ref}
-              style={style}
-              data-placement={placement}
-            >
-              {content}
+      {createPortal(
+        <Popper
+          placement={direction}
+          modifiers={[offsetDistanceModifier(12), ...popperModifiers]}
+        >
+          {({ arrowProps, placement, ref, style }) =>
+            showTooltip && (
               <div
-                className="module-tooltip-arrow"
-                ref={arrowProps.ref}
-                style={arrowProps.style}
-              />
-            </div>
-          )
-        }
-      </Popper>
+                className={classNames(
+                  'module-tooltip',
+                  tooltipThemeClassName,
+                  className
+                )}
+                ref={ref}
+                style={style}
+                data-placement={placement}
+              >
+                {content}
+                {!hideArrow ? (
+                  <div
+                    className="module-tooltip-arrow"
+                    ref={arrowProps.ref}
+                    style={arrowProps.style}
+                  />
+                ) : null}
+              </div>
+            )
+          }
+        </Popper>,
+        document.body
+      )}
     </Manager>
   );
-};
+}

@@ -8,17 +8,20 @@ import { Button, ButtonVariant } from './Button';
 import { Modal } from './Modal';
 import { Spinner } from './Spinner';
 
-type PropsType = {
+export type PropsType = Readonly<{
   i18n: LocalizerType;
   isPending: boolean;
 
   onContinue: () => void;
   onSkip: () => void;
-};
+}>;
 
-export function CaptchaDialog(props: Readonly<PropsType>): JSX.Element {
-  const { i18n, isPending, onSkip, onContinue } = props;
-
+export function CaptchaDialog({
+  i18n,
+  isPending,
+  onSkip,
+  onContinue,
+}: PropsType): JSX.Element {
   const [isClosing, setIsClosing] = useState(false);
 
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -34,25 +37,29 @@ export function CaptchaDialog(props: Readonly<PropsType>): JSX.Element {
   };
 
   if (isClosing && !isPending) {
+    const footer = (
+      <>
+        <Button onClick={onCancelClick} variant={ButtonVariant.Secondary}>
+          {i18n('icu:cancel')}
+        </Button>
+        <Button onClick={onSkipClick} variant={ButtonVariant.Destructive}>
+          {i18n('icu:CaptchaDialog--can_close__skip-verification')}
+        </Button>
+      </>
+    );
     return (
       <Modal
+        modalName="CaptchaDialog"
         moduleClassName="module-Modal"
         i18n={i18n}
-        title={i18n('CaptchaDialog--can-close__title')}
+        title={i18n('icu:CaptchaDialog--can-close__title')}
         onClose={() => setIsClosing(false)}
         key="skip"
+        modalFooter={footer}
       >
         <section>
-          <p>{i18n('CaptchaDialog--can-close__body')}</p>
+          <p>{i18n('icu:CaptchaDialog--can-close__body')}</p>
         </section>
-        <Modal.ButtonFooter>
-          <Button onClick={onCancelClick} variant={ButtonVariant.Secondary}>
-            {i18n('cancel')}
-          </Button>
-          <Button onClick={onSkipClick} variant={ButtonVariant.Destructive}>
-            {i18n('CaptchaDialog--can_close__skip-verification')}
-          </Button>
-        </Modal.ButtonFooter>
       </Modal>
     );
   }
@@ -70,33 +77,36 @@ export function CaptchaDialog(props: Readonly<PropsType>): JSX.Element {
     }
   };
 
+  const footer = (
+    <Button
+      disabled={isPending}
+      onClick={onContinueClick}
+      ref={updateButtonRef}
+      variant={ButtonVariant.Primary}
+    >
+      {isPending ? (
+        <Spinner size="22px" svgSize="small" direction="on-primary-button" />
+      ) : (
+        'Continue'
+      )}
+    </Button>
+  );
+
   return (
     <Modal
+      modalName="CaptchaDialog.pending"
       moduleClassName="module-Modal--important"
       i18n={i18n}
-      title={i18n('CaptchaDialog__title')}
+      title={i18n('icu:CaptchaDialog__title')}
       hasXButton
       onClose={() => setIsClosing(true)}
       key="primary"
+      modalFooter={footer}
     >
       <section>
-        <p>{i18n('CaptchaDialog__first-paragraph')}</p>
-        <p>{i18n('CaptchaDialog__second-paragraph')}</p>
+        <p>{i18n('icu:CaptchaDialog__first-paragraph')}</p>
+        <p>{i18n('icu:CaptchaDialog__second-paragraph')}</p>
       </section>
-      <Modal.ButtonFooter>
-        <Button
-          disabled={isPending}
-          onClick={onContinueClick}
-          ref={updateButtonRef}
-          variant={ButtonVariant.Primary}
-        >
-          {isPending ? (
-            <Spinner size="22px" svgSize="small" direction="on-captcha" />
-          ) : (
-            'Continue'
-          )}
-        </Button>
-      </Modal.ButtonFooter>
     </Modal>
   );
 }

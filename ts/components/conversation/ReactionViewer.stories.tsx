@@ -1,11 +1,9 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-
 import { action } from '@storybook/addon-actions';
-import { storiesOf } from '@storybook/react';
-
+import type { Meta } from '@storybook/react';
 import type { Props } from './ReactionViewer';
 import { ReactionViewer } from './ReactionViewer';
 import { setupI18n } from '../../util/setupI18n';
@@ -15,7 +13,9 @@ import { ThemeType } from '../../types/Util';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf('Components/Conversation/ReactionViewer', module);
+export default {
+  title: 'Components/Conversation/ReactionViewer',
+} satisfies Meta<Props>;
 
 const createProps = (overrideProps: Partial<Props> = {}): Props => ({
   getPreferredBadge: () => undefined,
@@ -27,7 +27,7 @@ const createProps = (overrideProps: Partial<Props> = {}): Props => ({
   theme: ThemeType.light,
 });
 
-story.add('All Reactions', () => {
+export function AllReactions(): JSX.Element {
   const props = createProps({
     reactions: [
       {
@@ -125,9 +125,9 @@ story.add('All Reactions', () => {
     ],
   });
   return <ReactionViewer {...props} />;
-});
+}
 
-story.add('Picked Reaction', () => {
+export function PickedReaction(): JSX.Element {
   const props = createProps({
     pickedReaction: '❤️',
     reactions: [
@@ -154,9 +154,9 @@ story.add('Picked Reaction', () => {
     ],
   });
   return <ReactionViewer {...props} />;
-});
+}
 
-story.add('Picked Missing Reaction', () => {
+export function PickedMissingReaction(): JSX.Element {
   const props = createProps({
     pickedReaction: '😡',
     reactions: [
@@ -183,7 +183,7 @@ story.add('Picked Missing Reaction', () => {
     ],
   });
   return <ReactionViewer {...props} />;
-});
+}
 
 const skinTones = [
   '\u{1F3FB}',
@@ -209,7 +209,7 @@ const createReaction = (
   timestamp,
 });
 
-story.add('Reaction Skin Tones', () => {
+export function ReactionSkinTones(): JSX.Element {
   const props = createProps({
     pickedReaction: '😡',
     reactions: [
@@ -222,4 +222,4 @@ story.add('Reaction Skin Tones', () => {
     ],
   });
   return <ReactionViewer {...props} />;
-});
+}

@@ -1,4 +1,4 @@
-// Copyright 2019-2021 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
@@ -7,17 +7,17 @@ import classNames from 'classnames';
 import { getClassNamesFor } from '../util/getClassNamesFor';
 
 export const SpinnerSvgSizes = ['small', 'normal'] as const;
-export type SpinnerSvgSize = typeof SpinnerSvgSizes[number];
+export type SpinnerSvgSize = (typeof SpinnerSvgSizes)[number];
 
 export const SpinnerDirections = [
   'outgoing',
   'incoming',
   'on-background',
-  'on-captcha',
+  'on-primary-button',
   'on-progress-dialog',
   'on-avatar',
 ] as const;
-export type SpinnerDirection = typeof SpinnerDirections[number];
+export type SpinnerDirection = (typeof SpinnerDirections)[number];
 
 export type Props = {
   ariaLabel?: string;
@@ -28,14 +28,14 @@ export type Props = {
   svgSize: SpinnerSvgSize;
 };
 
-export const Spinner = ({
+export function Spinner({
   ariaLabel,
   direction,
   moduleClassName,
   role,
   size,
   svgSize,
-}: Props): JSX.Element => {
+}: Props): JSX.Element {
   const getClassName = getClassNamesFor('module-spinner', moduleClassName);
 
   return (
@@ -71,4 +71,4 @@ export const Spinner = ({
       />
     </div>
   );
-};
+}

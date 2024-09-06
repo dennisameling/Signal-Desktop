@@ -1,50 +1,87 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { partition } from 'lodash';
-import type { AttachmentType } from '../types/Attachment';
-import type { EmbeddedContactType } from '../types/EmbeddedContact';
-import type {
-  MessageAttributesType,
-  PreviewMessageType,
-  QuotedMessageType,
-  StickerMessageType,
-} from '../model-types.d';
-import * as AttachmentDownloads from '../messageModifiers/AttachmentDownloads';
 import * as log from '../logging/log';
 import { isLongMessage } from '../types/MIME';
-import { getMessageIdForLogging } from './getMessageIdForLogging';
+import { getMessageIdForLogging } from './idForLogging';
 import {
   copyStickerToAttachments,
   savePackMetadata,
   getStickerPackStatus,
 } from '../types/Stickers';
-import dataInterface from '../sql/Client';
+import { DataWriter } from '../sql/Client';
 
-type ReturnType = {
-  bodyPending?: boolean;
+import type { AttachmentType, ThumbnailType } from '../types/Attachment';
+import type { EmbeddedContactType } from '../types/EmbeddedContact';
+import type {
+  EditHistoryType,
+  MessageAttributesType,
+  QuotedMessageType,
+} from '../model-types.d';
+import * as Errors from '../types/errors';
+import {
+  getAttachmentSignature,
+  isDownloading,
+  isDownloaded,
+} from '../types/Attachment';
+import type { StickerType } from '../types/Stickers';
+import type { LinkPreviewType } from '../types/message/LinkPreviews';
+import { isNotNil } from './isNotNil';
+import {
+  AttachmentDownloadManager,
+  AttachmentDownloadUrgency,
+} from '../jobs/AttachmentDownloadManager';
+import { AttachmentDownloadSource } from '../sql/Interface';
+
+export type MessageAttachmentsDownloadedType = {
+  bodyAttachment?: AttachmentType;
   attachments: Array<AttachmentType>;
-  preview: PreviewMessageType;
+  editHistory?: Array<EditHistoryType>;
+  preview: Array<LinkPreviewType>;
   contact: Array<EmbeddedContactType>;
   quote?: QuotedMessageType;
-  sticker?: StickerMessageType;
+  sticker?: StickerType;
 };
+
+function getAttachmentSignatureSafe(
+  attachment: AttachmentType
+): string | undefined {
+  try {
+    return getAttachmentSignature(attachment);
+  } catch {
+    log.warn(
+      'queueAttachmentDownloads: attachment was missing digest',
+      attachment.blurHash
+    );
+    return undefined;
+  }
+}
 
 // Receive logic
 // NOTE: If you're changing any logic in this function that deals with the
 // count then you'll also have to modify ./hasAttachmentsDownloads
 export async function queueAttachmentDownloads(
-  message: MessageAttributesType
-): Promise<ReturnType | undefined> {
+  message: MessageAttributesType,
+  {
+    urgency = AttachmentDownloadUrgency.STANDARD,
+    source = AttachmentDownloadSource.STANDARD,
+  }: {
+    urgency?: AttachmentDownloadUrgency;
+    source?: AttachmentDownloadSource;
+  } = {}
+): Promise<MessageAttachmentsDownloadedType | undefined> {
   const attachmentsToQueue = message.attachments || [];
   const messageId = message.id;
   const idForLogging = getMessageIdForLogging(message);
 
   let count = 0;
-  let bodyPending;
+  let bodyAttachment;
+
+  const idLog = `queueAttachmentDownloads(${idForLogging}})`;
 
   log.info(
-    `Queueing ${attachmentsToQueue.length} attachment downloads for message ${idForLogging}`
+    `${idLog}: Queueing ${attachmentsToQueue.length} attachment downloads`
   );
 
   const [longMessageAttachments, normalAttachments] = partition(
@@ -53,94 +90,106 @@ export async function queueAttachmentDownloads(
   );
 
   if (longMessageAttachments.length > 1) {
-    log.error(
-      `Received more than one long message attachment in message ${idForLogging}`
+    log.error(`${idLog}: Received more than one long message attachment`);
+  }
+
+  if (longMessageAttachments.length > 0) {
+    log.info(
+      `${idLog}: Queueing ${longMessageAttachments.length} long message attachment downloads`
     );
   }
 
-  log.info(
-    `Queueing ${longMessageAttachments.length} long message attachment downloads for message ${idForLogging}`
-  );
-
   if (longMessageAttachments.length > 0) {
     count += 1;
-    bodyPending = true;
-    await AttachmentDownloads.addJob(longMessageAttachments[0], {
+    [bodyAttachment] = longMessageAttachments;
+  }
+  if (!bodyAttachment && message.bodyAttachment) {
+    count += 1;
+    bodyAttachment = message.bodyAttachment;
+  }
+
+  if (bodyAttachment) {
+    await AttachmentDownloadManager.addJob({
+      attachment: bodyAttachment,
       messageId,
-      type: 'long-message',
-      index: 0,
+      attachmentType: 'long-message',
+      receivedAt: message.received_at,
+      sentAt: message.sent_at,
+      urgency,
+      source,
     });
   }
 
-  log.info(
-    `Queueing ${normalAttachments.length} normal attachment downloads for message ${idForLogging}`
+  if (normalAttachments.length > 0) {
+    log.info(
+      `${idLog}: Queueing ${normalAttachments.length} normal attachment downloads`
+    );
+  }
+  const { attachments, count: attachmentsCount } = await queueNormalAttachments(
+    {
+      idLog,
+      messageId,
+      attachments: normalAttachments,
+      otherAttachments: message.editHistory?.flatMap(x => x.attachments ?? []),
+      receivedAt: message.received_at,
+      sentAt: message.sent_at,
+      urgency,
+      source,
+    }
   );
-  const attachments = await Promise.all(
-    normalAttachments.map((attachment, index) => {
-      if (!attachment) {
-        return attachment;
-      }
-      // We've already downloaded this!
-      if (attachment.path) {
-        log.info(
-          `Normal attachment already downloaded for message ${idForLogging}`
-        );
-        return attachment;
-      }
-
-      count += 1;
-
-      return AttachmentDownloads.addJob(attachment, {
-        messageId,
-        type: 'attachment',
-        index,
-      });
-    })
-  );
+  count += attachmentsCount;
 
   const previewsToQueue = message.preview || [];
-  log.info(
-    `Queueing ${previewsToQueue.length} preview attachment downloads for message ${idForLogging}`
-  );
-  const preview = await Promise.all(
-    previewsToQueue.map(async (item, index) => {
-      if (!item.image) {
-        return item;
-      }
-      // We've already downloaded this!
-      if (item.image.path) {
-        log.info(
-          `Preview attachment already downloaded for message ${idForLogging}`
-        );
-        return item;
-      }
+  if (previewsToQueue.length > 0) {
+    log.info(
+      `${idLog}: Queueing ${previewsToQueue.length} preview attachment downloads`
+    );
+  }
+  const { preview, count: previewCount } = await queuePreviews({
+    idLog,
+    messageId,
+    previews: previewsToQueue,
+    otherPreviews: message.editHistory?.flatMap(x => x.preview ?? []),
+    receivedAt: message.received_at,
+    sentAt: message.sent_at,
+    urgency,
+    source,
+  });
+  count += previewCount;
 
-      count += 1;
-      return {
-        ...item,
-        image: await AttachmentDownloads.addJob(item.image, {
-          messageId,
-          type: 'preview',
-          index,
-        }),
-      };
-    })
-  );
+  const numQuoteAttachments = message.quote?.attachments?.length ?? 0;
+  if (numQuoteAttachments > 0) {
+    log.info(
+      `${idLog}: Queueing ${numQuoteAttachments} ` +
+        'quote attachment downloads'
+    );
+  }
+  const { quote, count: thumbnailCount } = await queueQuoteAttachments({
+    idLog,
+    messageId,
+    quote: message.quote,
+    otherQuotes: message.editHistory?.map(x => x.quote).filter(isNotNil) ?? [],
+    receivedAt: message.received_at,
+    sentAt: message.sent_at,
+    urgency,
+    source,
+  });
+  count += thumbnailCount;
 
   const contactsToQueue = message.contact || [];
-  log.info(
-    `Queueing ${contactsToQueue.length} contact attachment downloads for message ${idForLogging}`
-  );
+  if (contactsToQueue.length > 0) {
+    log.info(
+      `${idLog}: Queueing ${contactsToQueue.length} contact attachment downloads`
+    );
+  }
   const contact = await Promise.all(
-    contactsToQueue.map(async (item, index) => {
+    contactsToQueue.map(async item => {
       if (!item.avatar || !item.avatar.avatar) {
         return item;
       }
       // We've already downloaded this!
       if (item.avatar.avatar.path) {
-        log.info(
-          `Contact attachment already downloaded for message ${idForLogging}`
-        );
+        log.info(`${idLog}: Contact attachment already downloaded`);
         return item;
       }
 
@@ -149,59 +198,25 @@ export async function queueAttachmentDownloads(
         ...item,
         avatar: {
           ...item.avatar,
-          avatar: await AttachmentDownloads.addJob(item.avatar.avatar, {
+          avatar: await AttachmentDownloadManager.addJob({
+            attachment: item.avatar.avatar,
             messageId,
-            type: 'contact',
-            index,
+            attachmentType: 'contact',
+            receivedAt: message.received_at,
+            sentAt: message.sent_at,
+            urgency,
+            source,
           }),
         },
       };
     })
   );
 
-  let { quote } = message;
-  const quoteAttachmentsToQueue =
-    quote && quote.attachments ? quote.attachments : [];
-  log.info(
-    `Queueing ${quoteAttachmentsToQueue.length} quote attachment downloads for message ${idForLogging}`
-  );
-  if (quote && quoteAttachmentsToQueue.length > 0) {
-    quote = {
-      ...quote,
-      attachments: await Promise.all(
-        (quote?.attachments || []).map(async (item, index) => {
-          if (!item.thumbnail) {
-            return item;
-          }
-          // We've already downloaded this!
-          if (item.thumbnail.path) {
-            log.info(
-              `Quote attachment already downloaded for message ${idForLogging}`
-            );
-            return item;
-          }
-
-          count += 1;
-          return {
-            ...item,
-            thumbnail: await AttachmentDownloads.addJob(item.thumbnail, {
-              messageId,
-              type: 'quote',
-              index,
-            }),
-          };
-        })
-      ),
-    };
-  }
-
   let { sticker } = message;
   if (sticker && sticker.data && sticker.data.path) {
-    log.info(
-      `Sticker attachment already downloaded for message ${idForLogging}`
-    );
+    log.info(`${idLog}: Sticker attachment already downloaded`);
   } else if (sticker) {
-    log.info(`Queueing sticker download for message ${idForLogging}`);
+    log.info(`${idLog}: Queueing sticker download`);
     count += 1;
     const { packId, stickerId, packKey } = sticker;
 
@@ -213,23 +228,31 @@ export async function queueAttachmentDownloads(
         data = await copyStickerToAttachments(packId, stickerId);
       } catch (error) {
         log.error(
-          `Problem copying sticker (${packId}, ${stickerId}) to attachments:`,
-          error && error.stack ? error.stack : error
+          `${idLog}: Problem copying sticker (${packId}, ${stickerId}) to attachments:`,
+          Errors.toLogFormat(error)
         );
       }
     }
-    if (!data && sticker.data) {
-      data = await AttachmentDownloads.addJob(sticker.data, {
-        messageId,
-        type: 'sticker',
-        index: 0,
-      });
+    if (!data) {
+      if (sticker.data) {
+        data = await AttachmentDownloadManager.addJob({
+          attachment: sticker.data,
+          messageId,
+          attachmentType: 'sticker',
+          receivedAt: message.received_at,
+          sentAt: message.sent_at,
+          urgency,
+          source,
+        });
+      } else {
+        log.error(`${idLog}: Sticker data was missing`);
+      }
     }
     if (!status) {
       // Save the packId/packKey for future download/install
-      savePackMetadata(packId, packKey, { messageId });
+      void savePackMetadata(packId, packKey, { messageId });
     } else {
-      await dataInterface.addStickerPackReference(messageId, packId);
+      await DataWriter.addStickerPackReference(messageId, packId);
     }
 
     if (!data) {
@@ -243,20 +266,369 @@ export async function queueAttachmentDownloads(
     };
   }
 
-  log.info(
-    `Queued ${count} total attachment downloads for message ${idForLogging}`
-  );
+  let { editHistory } = message;
+  if (editHistory) {
+    log.info(`${idLog}: Looping through ${editHistory.length} edits`);
+    editHistory = await Promise.all(
+      editHistory.map(async edit => {
+        const { attachments: editAttachments, count: editAttachmentsCount } =
+          await queueNormalAttachments({
+            idLog,
+            messageId,
+            attachments: edit.attachments,
+            otherAttachments: attachments,
+            receivedAt: message.received_at,
+            sentAt: message.sent_at,
+            urgency,
+            source,
+          });
+        count += editAttachmentsCount;
+        if (editAttachmentsCount !== 0) {
+          log.info(
+            `${idLog}: Queueing ${editAttachmentsCount} normal attachment ` +
+              `downloads (edited:${edit.timestamp})`
+          );
+        }
+
+        const { preview: editPreview, count: editPreviewCount } =
+          await queuePreviews({
+            idLog,
+            messageId,
+            previews: edit.preview,
+            otherPreviews: preview,
+            receivedAt: message.received_at,
+            sentAt: message.sent_at,
+            urgency,
+            source,
+          });
+        count += editPreviewCount;
+        if (editPreviewCount !== 0) {
+          log.info(
+            `${idLog}: Queueing ${editPreviewCount} preview attachment ` +
+              `downloads (edited:${edit.timestamp})`
+          );
+        }
+
+        return {
+          ...edit,
+          attachments: editAttachments,
+          preview: editPreview,
+        };
+      })
+    );
+  }
+
+  log.info(`${idLog}: Queued ${count} total attachment downloads`);
 
   if (count <= 0) {
     return;
   }
 
   return {
-    bodyPending,
     attachments,
-    preview,
+    bodyAttachment,
     contact,
+    editHistory,
+    preview,
     quote,
     sticker,
+  };
+}
+
+async function queueNormalAttachments({
+  idLog,
+  messageId,
+  attachments = [],
+  otherAttachments,
+  receivedAt,
+  sentAt,
+  urgency,
+  source,
+}: {
+  idLog: string;
+  messageId: string;
+  attachments: MessageAttributesType['attachments'];
+  otherAttachments: MessageAttributesType['attachments'];
+  receivedAt: number;
+  sentAt: number;
+  urgency: AttachmentDownloadUrgency;
+  source: AttachmentDownloadSource;
+}): Promise<{
+  attachments: Array<AttachmentType>;
+  count: number;
+}> {
+  // Look through "otherAttachments" which can either be attachments in the
+  // edit history or the message's attachments and see if any of the attachments
+  // are the same. If they are let's replace it so that we don't download more
+  // than once.
+  // We don't also register the signatures for "attachments" because they would
+  // then not be added to the AttachmentDownloads job.
+  const attachmentSignatures: Map<string, AttachmentType> = new Map();
+  otherAttachments?.forEach(attachment => {
+    const signature = getAttachmentSignatureSafe(attachment);
+    if (signature) {
+      attachmentSignatures.set(signature, attachment);
+    }
+  });
+
+  let count = 0;
+  const nextAttachments = await Promise.all(
+    attachments.map(attachment => {
+      if (!attachment) {
+        return attachment;
+      }
+      // We've already downloaded this!
+      if (isDownloaded(attachment)) {
+        log.info(`${idLog}: Normal attachment already downloaded`);
+        return attachment;
+      }
+
+      const signature = getAttachmentSignatureSafe(attachment);
+      const existingAttachment = signature
+        ? attachmentSignatures.get(signature)
+        : undefined;
+
+      // We've already downloaded this elsewhere!
+      if (
+        existingAttachment &&
+        (isDownloading(existingAttachment) || isDownloaded(existingAttachment))
+      ) {
+        log.info(
+          `${idLog}: Normal attachment already downloaded in other attachments. Replacing`
+        );
+        // Incrementing count so that we update the message's fields downstream
+        count += 1;
+        return existingAttachment;
+      }
+
+      count += 1;
+
+      return AttachmentDownloadManager.addJob({
+        attachment,
+        messageId,
+        attachmentType: 'attachment',
+        receivedAt,
+        sentAt,
+        urgency,
+        source,
+      });
+    })
+  );
+
+  return {
+    attachments: nextAttachments,
+    count,
+  };
+}
+
+function getLinkPreviewSignature(preview: LinkPreviewType): string | undefined {
+  const { image, url } = preview;
+
+  if (!image) {
+    return;
+  }
+
+  const signature = getAttachmentSignatureSafe(image);
+  if (!signature) {
+    return;
+  }
+
+  return `<${url}>${signature}`;
+}
+
+async function queuePreviews({
+  idLog,
+  messageId,
+  previews = [],
+  otherPreviews,
+  receivedAt,
+  sentAt,
+  urgency,
+  source,
+}: {
+  idLog: string;
+  messageId: string;
+  previews: MessageAttributesType['preview'];
+  otherPreviews: MessageAttributesType['preview'];
+  receivedAt: number;
+  sentAt: number;
+  urgency: AttachmentDownloadUrgency;
+  source: AttachmentDownloadSource;
+}): Promise<{ preview: Array<LinkPreviewType>; count: number }> {
+  // Similar to queueNormalAttachments' logic for detecting same attachments
+  // except here we also pick by link preview URL.
+  const previewSignatures: Map<string, LinkPreviewType> = new Map();
+  otherPreviews?.forEach(preview => {
+    const signature = getLinkPreviewSignature(preview);
+    if (!signature) {
+      return;
+    }
+    previewSignatures.set(signature, preview);
+  });
+
+  let count = 0;
+
+  const preview = await Promise.all(
+    previews.map(async item => {
+      if (!item.image) {
+        return item;
+      }
+      // We've already downloaded this!
+      if (isDownloaded(item.image)) {
+        log.info(`${idLog}: Preview attachment already downloaded`);
+        return item;
+      }
+      const signature = getLinkPreviewSignature(item);
+      const existingPreview = signature
+        ? previewSignatures.get(signature)
+        : undefined;
+
+      // We've already downloaded this elsewhere!
+      if (
+        existingPreview &&
+        (isDownloading(existingPreview.image) ||
+          isDownloaded(existingPreview.image))
+      ) {
+        log.info(`${idLog}: Preview already downloaded elsewhere. Replacing`);
+        // Incrementing count so that we update the message's fields downstream
+        count += 1;
+        return existingPreview;
+      }
+
+      count += 1;
+      return {
+        ...item,
+        image: await AttachmentDownloadManager.addJob({
+          attachment: item.image,
+          messageId,
+          attachmentType: 'preview',
+          receivedAt,
+          sentAt,
+          urgency,
+          source,
+        }),
+      };
+    })
+  );
+
+  return {
+    preview,
+    count,
+  };
+}
+
+function getQuoteThumbnailSignature(
+  quote: QuotedMessageType,
+  thumbnail?: AttachmentType
+): string | undefined {
+  if (!thumbnail) {
+    return undefined;
+  }
+  const signature = getAttachmentSignatureSafe(thumbnail);
+  if (!signature) {
+    return;
+  }
+  return `<${quote.id}>${signature}`;
+}
+
+async function queueQuoteAttachments({
+  idLog,
+  messageId,
+  quote,
+  otherQuotes,
+  receivedAt,
+  sentAt,
+  urgency,
+  source,
+}: {
+  idLog: string;
+  messageId: string;
+  quote: QuotedMessageType | undefined;
+  otherQuotes: ReadonlyArray<QuotedMessageType>;
+  receivedAt: number;
+  sentAt: number;
+  urgency: AttachmentDownloadUrgency;
+  source: AttachmentDownloadSource;
+}): Promise<{ quote?: QuotedMessageType; count: number }> {
+  let count = 0;
+  if (!quote) {
+    return { quote, count };
+  }
+
+  const quoteAttachmentsToQueue =
+    quote && quote.attachments ? quote.attachments : [];
+  if (quoteAttachmentsToQueue.length === 0) {
+    return { quote, count };
+  }
+
+  // Similar to queueNormalAttachments' logic for detecting same attachments
+  // except here we also pick by quote sent timestamp.
+  const thumbnailSignatures: Map<string, ThumbnailType> = new Map();
+  otherQuotes.forEach(otherQuote => {
+    for (const attachment of otherQuote.attachments) {
+      const signature = getQuoteThumbnailSignature(
+        otherQuote,
+        attachment.thumbnail
+      );
+      if (!signature || !attachment.thumbnail) {
+        continue;
+      }
+      thumbnailSignatures.set(signature, attachment.thumbnail);
+    }
+  });
+
+  return {
+    quote: {
+      ...quote,
+      attachments: await Promise.all(
+        quote.attachments.map(async item => {
+          if (!item.thumbnail) {
+            return item;
+          }
+          // We've already downloaded this!
+          if (isDownloaded(item.thumbnail)) {
+            log.info(`${idLog}: Quote attachment already downloaded`);
+            return item;
+          }
+
+          const signature = getQuoteThumbnailSignature(quote, item.thumbnail);
+          const existingThumbnail = signature
+            ? thumbnailSignatures.get(signature)
+            : undefined;
+
+          // We've already downloaded this elsewhere!
+          if (
+            existingThumbnail &&
+            (isDownloading(existingThumbnail) ||
+              isDownloaded(existingThumbnail))
+          ) {
+            log.info(
+              `${idLog}: Preview already downloaded elsewhere. Replacing`
+            );
+            // Incrementing count so that we update the message's fields downstream
+            count += 1;
+            return {
+              ...item,
+              thumbnail: existingThumbnail,
+            };
+          }
+
+          count += 1;
+          return {
+            ...item,
+            thumbnail: await AttachmentDownloadManager.addJob({
+              attachment: item.thumbnail,
+              messageId,
+              attachmentType: 'quote',
+              receivedAt,
+              sentAt,
+              urgency,
+              source,
+            }),
+          };
+        })
+      ),
+    },
+    count,
   };
 }

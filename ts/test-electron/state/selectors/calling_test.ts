@@ -1,15 +1,18 @@
-// Copyright 2019-2022 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
 import { reducer as rootReducer } from '../../../state/reducer';
 import { noopAction } from '../../../state/ducks/noop';
+import { actions as userActions } from '../../../state/ducks/user';
 import {
-  CallMode,
   CallState,
+  CallViewMode,
   GroupCallConnectionState,
   GroupCallJoinState,
 } from '../../../types/Calling';
+import { CallMode } from '../../../types/CallDisposition';
+import { generateAci } from '../../../types/ServiceId';
 import {
   getCallsByConversation,
   getCallSelector,
@@ -23,8 +26,19 @@ import type {
 } from '../../../state/ducks/calling';
 import { getEmptyState } from '../../../state/ducks/calling';
 
+const OUR_ACI = generateAci();
+const ACI_1 = generateAci();
+
 describe('state/selectors/calling', () => {
-  const getEmptyRootState = () => rootReducer(undefined, noopAction());
+  const getEmptyRootState = () => {
+    const initial = rootReducer(undefined, noopAction());
+    return rootReducer(
+      initial,
+      userActions.userChanged({
+        ourAci: OUR_ACI,
+      })
+    );
+  };
 
   const getCallingState = (calling: CallingStateType) => ({
     ...getEmptyRootState(),
@@ -48,16 +62,17 @@ describe('state/selectors/calling', () => {
   const stateWithActiveDirectCall: CallingStateType = {
     ...stateWithDirectCall,
     activeCallState: {
+      callMode: CallMode.Direct,
       conversationId: 'fake-direct-call-conversation-id',
       hasLocalAudio: true,
       hasLocalVideo: false,
-      amISpeaking: false,
-      isInSpeakerView: false,
+      localAudioLevel: 0,
+      viewMode: CallViewMode.Paginated,
       showParticipantsList: false,
-      safetyNumberChangedUuids: [],
       outgoingRing: true,
       pip: false,
       settingsDialogOpen: false,
+      joinedAt: null,
     },
   };
 
@@ -82,15 +97,17 @@ describe('state/selectors/calling', () => {
     conversationId: 'fake-group-call-conversation-id',
     connectionState: GroupCallConnectionState.NotConnected,
     joinState: GroupCallJoinState.NotJoined,
+    localDemuxId: undefined,
     peekInfo: {
-      uuids: ['c75b51da-d484-4674-9b2c-cc11de00e227'],
-      creatorUuid: 'c75b51da-d484-4674-9b2c-cc11de00e227',
+      acis: [ACI_1],
+      pendingAcis: [],
+      creatorAci: ACI_1,
       maxDevices: Infinity,
       deviceCount: 1,
     },
     remoteParticipants: [],
     ringId: BigInt(123),
-    ringerUuid: 'c75b51da-d484-4674-9b2c-cc11de00e227',
+    ringerAci: ACI_1,
   };
 
   const stateWithIncomingGroupCall: CallingStateType = {
@@ -163,7 +180,8 @@ describe('state/selectors/calling', () => {
           'fake-group-call-conversation-id': {
             ...incomingGroupCall,
             peekInfo: {
-              uuids: [],
+              acis: [],
+              pendingAcis: [],
               maxDevices: Infinity,
               deviceCount: 1,
             },

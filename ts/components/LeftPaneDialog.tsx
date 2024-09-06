@@ -12,7 +12,7 @@ const TOOLTIP_CLASS_NAME = `${BASE_CLASS_NAME}__tooltip`;
 
 export type PropsType = {
   type?: 'warning' | 'error';
-  icon?: 'update' | 'relink' | 'network' | 'warning' | ReactChild;
+  icon?: 'update' | 'relink' | 'network' | 'warning' | 'error' | ReactChild;
   title?: string;
   subtitle?: string;
   children?: ReactNode;
@@ -43,7 +43,7 @@ export type PropsType = {
       }
   );
 
-export const LeftPaneDialog: React.FC<PropsType> = ({
+export function LeftPaneDialog({
   icon = 'warning',
   type,
   onClick,
@@ -58,7 +58,7 @@ export const LeftPaneDialog: React.FC<PropsType> = ({
   hasXButton,
   onClose,
   closeLabel,
-}) => {
+}: PropsType): JSX.Element {
   const onClickWrap = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -109,7 +109,7 @@ export const LeftPaneDialog: React.FC<PropsType> = ({
   }
 
   let xButton: ReactNode;
-  if (hasXButton) {
+  if (hasXButton && containerWidthBreakpoint !== WidthBreakpoint.Narrow) {
     xButton = (
       <div className={`${BASE_CLASS_NAME}__container-close`}>
         <button
@@ -124,11 +124,12 @@ export const LeftPaneDialog: React.FC<PropsType> = ({
     );
   }
 
-  const className = classNames([
-    BASE_CLASS_NAME,
-    type === undefined ? undefined : `${BASE_CLASS_NAME}--${type}`,
-    onClick === undefined ? undefined : `${BASE_CLASS_NAME}--clickable`,
-  ]);
+  const className = classNames(BASE_CLASS_NAME, {
+    [`${BASE_CLASS_NAME}--width-narrow`]:
+      containerWidthBreakpoint === WidthBreakpoint.Narrow,
+    [`${BASE_CLASS_NAME}--${type}`]: type != null,
+    [`${BASE_CLASS_NAME}--clickable`]: onClick != null,
+  });
 
   const message = (
     <>
@@ -143,7 +144,9 @@ export const LeftPaneDialog: React.FC<PropsType> = ({
     <>
       <div className={`${BASE_CLASS_NAME}__container`}>
         {typeof icon === 'string' ? <div className={iconClassName} /> : icon}
-        <div className={`${BASE_CLASS_NAME}__message`}>{message}</div>
+        {containerWidthBreakpoint !== WidthBreakpoint.Narrow && (
+          <div className={`${BASE_CLASS_NAME}__message`}>{message}</div>
+        )}
       </div>
       {xButton}
     </>
@@ -188,4 +191,4 @@ export const LeftPaneDialog: React.FC<PropsType> = ({
   }
 
   return dialogNode;
-};
+}

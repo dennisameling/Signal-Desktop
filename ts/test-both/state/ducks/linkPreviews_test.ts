@@ -17,6 +17,7 @@ describe('both/state/ducks/linkPreviews', () => {
       domain: 'signal.org',
       url: 'https://www.signal.org',
       isStickerPack: false,
+      isCallLink: false,
     };
   }
 
@@ -26,7 +27,7 @@ describe('both/state/ducks/linkPreviews', () => {
     it('updates linkPreview', () => {
       const state = getEmptyState();
       const linkPreview = getMockLinkPreview();
-      const nextState = reducer(state, addLinkPreview(linkPreview));
+      const nextState = reducer(state, addLinkPreview(linkPreview, 1));
 
       assert.strictEqual(nextState.linkPreview, linkPreview);
     });

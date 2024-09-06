@@ -1,4 +1,4 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
@@ -6,7 +6,6 @@ import { Response } from 'node-fetch';
 import * as sinon from 'sinon';
 import * as fs from 'fs';
 import * as path from 'path';
-import AbortController from 'abort-controller';
 import { IMAGE_JPEG, stringToMIMEType } from '../../types/MIME';
 import type { LoggerType } from '../../types/Logging';
 
@@ -76,7 +75,7 @@ describe('link preview fetching', () => {
       const headersObj = new Headers();
       Object.entries({
         'Content-Type': 'text/html; charset=utf-8',
-        'Content-Length': bodyLength === null ? null : String(bodyLength),
+        'Content-Length': bodyLength == null ? null : String(bodyLength),
         ...headers,
       }).forEach(([headerName, headerValue]) => {
         if (headerValue) {
@@ -815,7 +814,7 @@ describe('link preview fetching', () => {
       );
     });
 
-    it('stops reading the body after cancelation', async () => {
+    it('stops reading the body after cancellation', async () => {
       const shouldNeverBeCalled = sinon.stub();
 
       const abortController = new AbortController();
@@ -842,12 +841,12 @@ describe('link preview fetching', () => {
       sinon.assert.notCalled(shouldNeverBeCalled);
     });
 
-    it('stops reading bodies after 1000 kilobytes', async function test() {
+    it('stops reading bodies after 1000 kilobytes', async () => {
       const shouldNeverBeCalled = sinon.stub();
 
       const fakeFetch = stub().resolves(
         makeResponse({
-          body: (async function* body() {
+          body: (async function* () {
             yield new TextEncoder().encode(
               '<!doctype html><head><title>foo bar</title>'
             );
@@ -1151,15 +1150,14 @@ describe('link preview fetching', () => {
         );
 
         assert.deepEqual(
-          await fetchLinkPreviewImage(
-            fakeFetch,
-            'https://example.com/img',
-            new AbortController().signal
-          ),
-          {
-            data: fixture,
-            contentType: stringToMIMEType(contentType),
-          }
+          (
+            await fetchLinkPreviewImage(
+              fakeFetch,
+              'https://example.com/img',
+              new AbortController().signal
+            )
+          )?.contentType,
+          stringToMIMEType(contentType)
         );
       });
     });
@@ -1238,15 +1236,14 @@ describe('link preview fetching', () => {
       );
 
       assert.deepEqual(
-        await fetchLinkPreviewImage(
-          fakeFetch,
-          'https://example.com/img',
-          new AbortController().signal
-        ),
-        {
-          data: fixture,
-          contentType: IMAGE_JPEG,
-        }
+        (
+          await fetchLinkPreviewImage(
+            fakeFetch,
+            'https://example.com/img',
+            new AbortController().signal
+          )
+        )?.contentType,
+        IMAGE_JPEG
       );
 
       sinon.assert.calledTwice(fakeFetch);

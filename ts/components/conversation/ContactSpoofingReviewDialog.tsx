@@ -1,9 +1,8 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { FunctionComponent, ReactChild, ReactNode } from 'react';
+import type { ReactChild, ReactNode } from 'react';
 import React, { useState } from 'react';
-import { concat, orderBy } from 'lodash';
 
 import type { LocalizerType, ThemeType } from '../../types/Util';
 import type { ConversationType } from '../../state/ducks/conversations';
@@ -18,28 +17,21 @@ import { Modal } from '../Modal';
 import { RemoveGroupMemberConfirmationDialog } from './RemoveGroupMemberConfirmationDialog';
 import { ContactSpoofingReviewDialogPerson } from './ContactSpoofingReviewDialogPerson';
 import { Button, ButtonVariant } from '../Button';
-import { Intl } from '../Intl';
-import { Emojify } from './Emojify';
-import { assert } from '../../util/assert';
+import { assertDev } from '../../util/assert';
 import { missingCaseError } from '../../util/missingCaseError';
 import { isInSystemContacts } from '../../util/isInSystemContacts';
 
-export type PropsType = {
-  getPreferredBadge: PreferredBadgeSelectorType;
-  i18n: LocalizerType;
-  onBlock: (conversationId: string) => unknown;
-  onBlockAndReportSpam: (conversationId: string) => unknown;
-  onClose: () => void;
-  onDelete: (conversationId: string) => unknown;
-  onShowContactModal: (contactId: string, conversationId?: string) => unknown;
-  onUnblock: (conversationId: string) => unknown;
-  removeMember: (conversationId: string) => unknown;
-  theme: ThemeType;
-} & (
+export type ReviewPropsType = Readonly<
   | {
       type: ContactSpoofingType.DirectConversationWithSameTitle;
-      possiblyUnsafeConversation: ConversationType;
-      safeConversation: ConversationType;
+      possiblyUnsafe: {
+        conversation: ConversationType;
+        isSignalConnection: boolean;
+      };
+      safe: {
+        conversation: ConversationType;
+        isSignalConnection: boolean;
+      };
     }
   | {
       type: ContactSpoofingType.MultipleGroupMembersWithSameTitle;
@@ -48,11 +40,32 @@ export type PropsType = {
         string,
         Array<{
           oldName?: string;
+          isSignalConnection: boolean;
           conversation: ConversationType;
         }>
       >;
     }
-);
+>;
+
+export type PropsType = {
+  conversationId: string;
+  acceptConversation: (conversationId: string) => unknown;
+  reportSpam: (conversationId: string) => unknown;
+  blockAndReportSpam: (conversationId: string) => unknown;
+  blockConversation: (conversationId: string) => unknown;
+  deleteConversation: (conversationId: string) => unknown;
+  toggleSignalConnectionsModal: () => void;
+  updateSharedGroups: (conversationId: string) => void;
+  getPreferredBadge: PreferredBadgeSelectorType;
+  i18n: LocalizerType;
+  onClose: () => void;
+  showContactModal: (contactId: string, conversationId?: string) => unknown;
+  removeMember: (
+    conversationId: string,
+    memberConversationId: string
+  ) => unknown;
+  theme: ThemeType;
+} & ReviewPropsType;
 
 enum ConfirmationStateType {
   ConfirmingDelete,
@@ -60,18 +73,20 @@ enum ConfirmationStateType {
   ConfirmingGroupRemoval,
 }
 
-export const ContactSpoofingReviewDialog: FunctionComponent<
-  PropsType
-> = props => {
+export function ContactSpoofingReviewDialog(props: PropsType): JSX.Element {
   const {
+    acceptConversation,
+    reportSpam,
+    blockAndReportSpam,
+    blockConversation,
+    conversationId,
+    deleteConversation,
+    toggleSignalConnectionsModal,
+    updateSharedGroups,
     getPreferredBadge,
     i18n,
-    onBlock,
-    onBlockAndReportSpam,
     onClose,
-    onDelete,
-    onShowContactModal,
-    onUnblock,
+    showContactModal,
     removeMember,
     theme,
   } = props;
@@ -98,26 +113,23 @@ export const ContactSpoofingReviewDialog: FunctionComponent<
       case ConfirmationStateType.ConfirmingBlock:
         return (
           <MessageRequestActionsConfirmation
+            addedByName={affectedConversation}
+            conversationId={affectedConversation.id}
+            conversationType={affectedConversation.type}
+            conversationName={affectedConversation}
             i18n={i18n}
-            onBlock={() => {
-              onBlock(affectedConversation.id);
-            }}
-            onBlockAndReportSpam={() => {
-              onBlockAndReportSpam(affectedConversation.id);
-            }}
-            onUnblock={() => {
-              onUnblock(affectedConversation.id);
-            }}
-            onDelete={() => {
-              onDelete(affectedConversation.id);
-            }}
-            title={affectedConversation.title}
-            conversationType="direct"
+            isBlocked={affectedConversation.isBlocked ?? false}
+            isReported={affectedConversation.isReported ?? false}
             state={
               type === ConfirmationStateType.ConfirmingDelete
                 ? MessageRequestState.deleting
                 : MessageRequestState.blocking
             }
+            acceptConversation={acceptConversation}
+            reportSpam={reportSpam}
+            blockAndReportSpam={blockAndReportSpam}
+            blockConversation={blockConversation}
+            deleteConversation={deleteConversation}
             onChangeState={messageRequestState => {
               switch (messageRequestState) {
                 case MessageRequestState.blocking:
@@ -132,10 +144,12 @@ export const ContactSpoofingReviewDialog: FunctionComponent<
                     affectedConversation,
                   });
                   break;
+                case MessageRequestState.reportingAndMaybeBlocking:
+                case MessageRequestState.acceptedOptions:
                 case MessageRequestState.unblocking:
-                  assert(
+                  assertDev(
                     false,
-                    'Got unexpected MessageRequestState.unblocking state. Clearing confiration state'
+                    `Got unexpected MessageRequestState.${MessageRequestState[messageRequestState]} state. Clearing confiration state`
                   );
                   setConfirmationState(undefined);
                   break;
@@ -159,7 +173,7 @@ export const ContactSpoofingReviewDialog: FunctionComponent<
               setConfirmationState(undefined);
             }}
             onRemove={() => {
-              removeMember(affectedConversation.id);
+              removeMember(conversationId, affectedConversation.id);
             }}
           />
         );
@@ -174,26 +188,32 @@ export const ContactSpoofingReviewDialog: FunctionComponent<
 
   switch (props.type) {
     case ContactSpoofingType.DirectConversationWithSameTitle: {
-      const { possiblyUnsafeConversation, safeConversation } = props;
-      assert(
-        possiblyUnsafeConversation.type === 'direct',
+      const { possiblyUnsafe, safe } = props;
+      assertDev(
+        possiblyUnsafe.conversation.type === 'direct',
         '<ContactSpoofingReviewDialog> expected a direct conversation for the "possibly unsafe" conversation'
       );
-      assert(
-        safeConversation.type === 'direct',
+      assertDev(
+        safe.conversation.type === 'direct',
         '<ContactSpoofingReviewDialog> expected a direct conversation for the "safe" conversation'
       );
 
-      title = i18n('ContactSpoofingReviewDialog__title');
+      title = i18n('icu:ContactSpoofingReviewDialog__title');
       contents = (
         <>
-          <p>{i18n('ContactSpoofingReviewDialog__description')}</p>
-          <h2>{i18n('ContactSpoofingReviewDialog__possibly-unsafe-title')}</h2>
+          <p>{i18n('icu:ContactSpoofingReviewDialog__description')}</p>
+          <h2>
+            {i18n('icu:ContactSpoofingReviewDialog__possibly-unsafe-title')}
+          </h2>
           <ContactSpoofingReviewDialogPerson
-            conversation={possiblyUnsafeConversation}
+            conversation={possiblyUnsafe.conversation}
             getPreferredBadge={getPreferredBadge}
+            toggleSignalConnectionsModal={toggleSignalConnectionsModal}
+            updateSharedGroups={updateSharedGroups}
             i18n={i18n}
             theme={theme}
+            isSignalConnection={possiblyUnsafe.isSignalConnection}
+            oldName={undefined}
           >
             <div className="module-ContactSpoofingReviewDialog__buttons">
               <Button
@@ -201,35 +221,39 @@ export const ContactSpoofingReviewDialog: FunctionComponent<
                 onClick={() => {
                   setConfirmationState({
                     type: ConfirmationStateType.ConfirmingDelete,
-                    affectedConversation: possiblyUnsafeConversation,
+                    affectedConversation: possiblyUnsafe.conversation,
                   });
                 }}
               >
-                {i18n('MessageRequests--delete')}
+                {i18n('icu:MessageRequests--delete')}
               </Button>
               <Button
                 variant={ButtonVariant.SecondaryDestructive}
                 onClick={() => {
                   setConfirmationState({
                     type: ConfirmationStateType.ConfirmingBlock,
-                    affectedConversation: possiblyUnsafeConversation,
+                    affectedConversation: possiblyUnsafe.conversation,
                   });
                 }}
               >
-                {i18n('MessageRequests--block')}
+                {i18n('icu:MessageRequests--block')}
               </Button>
             </div>
           </ContactSpoofingReviewDialogPerson>
           <hr />
-          <h2>{i18n('ContactSpoofingReviewDialog__safe-title')}</h2>
+          <h2>{i18n('icu:ContactSpoofingReviewDialog__safe-title')}</h2>
           <ContactSpoofingReviewDialogPerson
-            conversation={safeConversation}
+            conversation={safe.conversation}
             getPreferredBadge={getPreferredBadge}
+            toggleSignalConnectionsModal={toggleSignalConnectionsModal}
+            updateSharedGroups={updateSharedGroups}
             i18n={i18n}
             onClick={() => {
-              onShowContactModal(safeConversation.id);
+              showContactModal(safe.conversation.id);
             }}
             theme={theme}
+            isSignalConnection={safe.isSignalConnection}
+            oldName={undefined}
           />
         </>
       );
@@ -237,108 +261,107 @@ export const ContactSpoofingReviewDialog: FunctionComponent<
     }
     case ContactSpoofingType.MultipleGroupMembersWithSameTitle: {
       const { group, collisionInfoByTitle } = props;
-
-      const unsortedConversationInfos = concat(
-        // This empty array exists to appease Lodash's type definitions.
-        [],
-        ...Object.values(collisionInfoByTitle)
+      const sharedTitles = Object.keys(collisionInfoByTitle);
+      const numSharedTitles = sharedTitles.length;
+      const totalConversations = Object.values(collisionInfoByTitle).reduce(
+        (sum, conversationInfos) => sum + conversationInfos.length,
+        0
       );
-      const conversationInfos = orderBy(unsortedConversationInfos, [
-        // We normally use an `Intl.Collator` to sort by title. We do this instead, as
-        //   we only really care about stability (not perfect ordering).
-        'title',
-        'id',
-      ]);
 
-      title = i18n('ContactSpoofingReviewDialog__group__title');
+      title = i18n('icu:ContactSpoofingReviewDialog__group__title');
       contents = (
         <>
-          <p>
-            {i18n('ContactSpoofingReviewDialog__group__description', [
-              conversationInfos.length.toString(),
-            ])}
+          <p className="module-ContactSpoofingReviewDialog__description">
+            {numSharedTitles > 1
+              ? i18n(
+                  'icu:ContactSpoofingReviewDialog__group__multiple-conflicts__description',
+                  {
+                    count: numSharedTitles,
+                  }
+                )
+              : i18n('icu:ContactSpoofingReviewDialog__group__description', {
+                  count: totalConversations,
+                })}
           </p>
-          <h2>{i18n('ContactSpoofingReviewDialog__group__members-header')}</h2>
-          {conversationInfos.map((conversationInfo, index) => {
-            let button: ReactNode;
-            if (group.areWeAdmin) {
-              button = (
-                <Button
-                  variant={ButtonVariant.SecondaryAffirmative}
-                  onClick={() => {
-                    setConfirmationState({
-                      type: ConfirmationStateType.ConfirmingGroupRemoval,
-                      affectedConversation: conversationInfo.conversation,
-                      group,
-                    });
-                  }}
-                >
-                  {i18n('RemoveGroupMemberConfirmation__remove-button')}
-                </Button>
-              );
-            } else if (conversationInfo.conversation.isBlocked) {
-              button = (
-                <Button
-                  variant={ButtonVariant.SecondaryAffirmative}
-                  onClick={() => {
-                    onUnblock(conversationInfo.conversation.id);
-                  }}
-                >
-                  {i18n('MessageRequests--unblock')}
-                </Button>
-              );
-            } else if (!isInSystemContacts(conversationInfo.conversation)) {
-              button = (
-                <Button
-                  variant={ButtonVariant.SecondaryDestructive}
-                  onClick={() => {
-                    setConfirmationState({
-                      type: ConfirmationStateType.ConfirmingBlock,
-                      affectedConversation: conversationInfo.conversation,
-                    });
-                  }}
-                >
-                  {i18n('MessageRequests--block')}
-                </Button>
-              );
-            }
 
-            const { oldName } = conversationInfo;
-            const newName =
-              conversationInfo.conversation.profileName ||
-              conversationInfo.conversation.title;
+          {Object.values(collisionInfoByTitle)
+            .map((conversationInfos, titleIdx) =>
+              conversationInfos.map((conversationInfo, conversationIdx) => {
+                let button: ReactNode;
+                if (group.areWeAdmin) {
+                  button = (
+                    <Button
+                      variant={ButtonVariant.SecondaryAffirmative}
+                      onClick={() => {
+                        setConfirmationState({
+                          type: ConfirmationStateType.ConfirmingGroupRemoval,
+                          affectedConversation: conversationInfo.conversation,
+                          group,
+                        });
+                      }}
+                    >
+                      {i18n('icu:RemoveGroupMemberConfirmation__remove-button')}
+                    </Button>
+                  );
+                } else if (conversationInfo.conversation.isBlocked) {
+                  button = (
+                    <Button
+                      variant={ButtonVariant.SecondaryAffirmative}
+                      onClick={() => {
+                        acceptConversation(conversationInfo.conversation.id);
+                      }}
+                    >
+                      {i18n('icu:MessageRequests--unblock')}
+                    </Button>
+                  );
+                } else if (!isInSystemContacts(conversationInfo.conversation)) {
+                  button = (
+                    <Button
+                      variant={ButtonVariant.SecondaryDestructive}
+                      onClick={() => {
+                        setConfirmationState({
+                          type: ConfirmationStateType.ConfirmingBlock,
+                          affectedConversation: conversationInfo.conversation,
+                        });
+                      }}
+                    >
+                      {i18n('icu:MessageRequests--block')}
+                    </Button>
+                  );
+                }
 
-            return (
-              <>
-                {index !== 0 && <hr />}
-                <ContactSpoofingReviewDialogPerson
-                  key={conversationInfo.conversation.id}
-                  conversation={conversationInfo.conversation}
-                  getPreferredBadge={getPreferredBadge}
-                  i18n={i18n}
-                  theme={theme}
-                >
-                  {Boolean(oldName) && oldName !== newName && (
-                    <div className="module-ContactSpoofingReviewDialogPerson__info__property module-ContactSpoofingReviewDialogPerson__info__property--callout">
-                      <Intl
-                        i18n={i18n}
-                        id="ContactSpoofingReviewDialog__group__name-change-info"
-                        components={{
-                          oldName: <Emojify text={oldName} />,
-                          newName: <Emojify text={newName} />,
-                        }}
-                      />
-                    </div>
-                  )}
-                  {button && (
-                    <div className="module-ContactSpoofingReviewDialog__buttons">
-                      {button}
-                    </div>
-                  )}
-                </ContactSpoofingReviewDialogPerson>
-              </>
-            );
-          })}
+                const { oldName, isSignalConnection } = conversationInfo;
+
+                return (
+                  <>
+                    <ContactSpoofingReviewDialogPerson
+                      key={conversationInfo.conversation.id}
+                      conversation={conversationInfo.conversation}
+                      toggleSignalConnectionsModal={
+                        toggleSignalConnectionsModal
+                      }
+                      updateSharedGroups={updateSharedGroups}
+                      getPreferredBadge={getPreferredBadge}
+                      i18n={i18n}
+                      theme={theme}
+                      oldName={oldName}
+                      isSignalConnection={isSignalConnection}
+                    >
+                      {button && (
+                        <div className="module-ContactSpoofingReviewDialog__buttons">
+                          {button}
+                        </div>
+                      )}
+                    </ContactSpoofingReviewDialogPerson>
+                    {titleIdx < sharedTitles.length - 1 ||
+                    conversationIdx < conversationInfos.length - 1 ? (
+                      <hr />
+                    ) : null}
+                  </>
+                );
+              })
+            )
+            .flat()}
         </>
       );
       break;
@@ -349,6 +372,7 @@ export const ContactSpoofingReviewDialog: FunctionComponent<
 
   return (
     <Modal
+      modalName="ContactSpoofingReviewDialog"
       hasXButton
       i18n={i18n}
       moduleClassName="module-ContactSpoofingReviewDialog"
@@ -358,4 +382,4 @@ export const ContactSpoofingReviewDialog: FunctionComponent<
       {contents}
     </Modal>
   );
-};
+}

@@ -1,25 +1,21 @@
-// Copyright 2019-2020 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import config from 'config';
-import type { BrowserWindow } from 'electron';
 
-import type { Updater } from './common';
+import type { Updater, UpdaterOptionsType } from './common';
 import { MacOSUpdater } from './macos';
 import { WindowsUpdater } from './windows';
-import type { LoggerType } from '../types/Logging';
-import type { SettingsChannel } from '../main/settingsChannel';
+import { isLinuxVersionSupported } from './linux';
+import { DialogType } from '../types/Dialogs';
 
 let initialized = false;
 
 let updater: Updater | undefined;
 
-export async function start(
-  settingsChannel: SettingsChannel,
-  logger: LoggerType,
-  getMainWindow: () => BrowserWindow | undefined
-): Promise<void> {
+export async function start(options: UpdaterOptionsType): Promise<void> {
   const { platform } = process;
+  const { logger, getMainWindow } = options;
 
   if (initialized) {
     throw new Error('updater/start: Updates have already been initialized!');
@@ -28,6 +24,15 @@ export async function start(
 
   if (!logger) {
     throw new Error('updater/start: Must provide logger!');
+  }
+
+  if (platform === 'linux') {
+    if (!isLinuxVersionSupported(logger)) {
+      getMainWindow()?.webContents.send(
+        'show-update-dialog',
+        DialogType.UnsupportedOS
+      );
+    }
   }
 
   if (autoUpdateDisabled()) {
@@ -39,14 +44,14 @@ export async function start(
   }
 
   if (platform === 'win32') {
-    updater = new WindowsUpdater(logger, settingsChannel, getMainWindow);
+    updater = new WindowsUpdater(options);
   } else if (platform === 'darwin') {
-    updater = new MacOSUpdater(logger, settingsChannel, getMainWindow);
+    updater = new MacOSUpdater(options);
   } else {
     throw new Error('updater/start: Unsupported platform');
   }
 
-  await updater.start();
+  await updater?.start();
 }
 
 export async function force(): Promise<void> {
@@ -56,6 +61,12 @@ export async function force(): Promise<void> {
 
   if (updater) {
     await updater.force();
+  }
+}
+
+export function onRestartCancelled(): void {
+  if (updater) {
+    updater.onRestartCancelled();
   }
 }
 

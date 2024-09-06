@@ -1,21 +1,25 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ReactChild } from 'react';
-import React, { useEffect, useRef } from 'react';
-import { Avatar } from './Avatar';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { Avatar, AvatarSize } from './Avatar';
 import { Tooltip } from './Tooltip';
-import { Intl } from './Intl';
+import { I18n } from './I18n';
 import { Theme } from '../util/theme';
 import { getParticipantName } from '../util/callingGetParticipantName';
 import { ContactName } from './conversation/ContactName';
-import { Emojify } from './conversation/Emojify';
 import type { LocalizerType } from '../types/Util';
 import { AvatarColors } from '../types/Colors';
-import { CallMode } from '../types/Calling';
+import { CallMode } from '../types/CallDisposition';
 import type { ConversationType } from '../state/ducks/conversations';
 import type { AcceptCallType, DeclineCallType } from '../state/ducks/calling';
 import { missingCaseError } from '../util/missingCaseError';
+import {
+  useIncomingCallShortcuts,
+  useKeyboardShortcuts,
+} from '../hooks/useKeyboardShortcuts';
+import { UserText } from './UserText';
 
 export type PropsType = {
   acceptCall: (_: AcceptCallType) => void;
@@ -24,7 +28,7 @@ export type PropsType = {
   conversation: Pick<
     ConversationType,
     | 'acceptedMessageRequest'
-    | 'avatarPath'
+    | 'avatarUrl'
     | 'color'
     | 'id'
     | 'isMe'
@@ -37,7 +41,11 @@ export type PropsType = {
   >;
   bounceAppIconStart(): unknown;
   bounceAppIconStop(): unknown;
-  notifyForCall(conversationTitle: string, isVideoCall: boolean): unknown;
+  notifyForCall(
+    conversationId: string,
+    conversationTitle: string,
+    isVideoCall: boolean
+  ): unknown;
 } & (
   | {
       callMode: CallMode.Direct;
@@ -45,8 +53,16 @@ export type PropsType = {
     }
   | {
       callMode: CallMode.Group;
-      otherMembersRung: Array<Pick<ConversationType, 'firstName' | 'title'>>;
-      ringer: Pick<ConversationType, 'firstName' | 'title'>;
+      otherMembersRung: Array<
+        Pick<
+          ConversationType,
+          'firstName' | 'systemGivenName' | 'systemNickname' | 'title'
+        >
+      >;
+      ringer: Pick<
+        ConversationType,
+        'firstName' | 'systemGivenName' | 'systemNickname' | 'title'
+      >;
     }
 );
 
@@ -57,14 +73,18 @@ type CallButtonProps = {
   onClick: () => void;
 };
 
-const CallButton = ({
+function CallButton({
   classSuffix,
   onClick,
   tabIndex,
   tooltipContent,
-}: CallButtonProps): JSX.Element => {
+}: CallButtonProps): JSX.Element {
   return (
-    <Tooltip content={tooltipContent} theme={Theme.Dark}>
+    <Tooltip
+      content={tooltipContent}
+      theme={Theme.Dark}
+      wrapperClassName="IncomingCallBar__button__container"
+    >
       <button
         aria-label={tooltipContent}
         className={`IncomingCallBar__button IncomingCallBar__button--${classSuffix}`}
@@ -76,36 +96,44 @@ const CallButton = ({
       </button>
     </Tooltip>
   );
-};
+}
 
-const GroupCallMessage = ({
+function GroupCallMessage({
   i18n,
   otherMembersRung,
   ringer,
 }: Readonly<{
   i18n: LocalizerType;
-  otherMembersRung: Array<Pick<ConversationType, 'firstName' | 'title'>>;
-  ringer: Pick<ConversationType, 'firstName' | 'title'>;
-}>): JSX.Element => {
+  otherMembersRung: Array<
+    Pick<
+      ConversationType,
+      'firstName' | 'systemGivenName' | 'systemNickname' | 'title'
+    >
+  >;
+  ringer: Pick<
+    ConversationType,
+    'firstName' | 'systemGivenName' | 'systemNickname' | 'title'
+  >;
+}>): JSX.Element {
   // As an optimization, we only process the first two names.
   const [first, second] = otherMembersRung
     .slice(0, 2)
-    .map(member => <Emojify text={getParticipantName(member)} />);
-  const ringerNode = <Emojify text={getParticipantName(ringer)} />;
+    .map(member => <UserText text={getParticipantName(member)} />);
+  const ringerNode = <UserText text={getParticipantName(ringer)} />;
 
   switch (otherMembersRung.length) {
     case 0:
       return (
-        <Intl
-          id="incomingGroupCall__ringing-you"
+        <I18n
+          id="icu:incomingGroupCall__ringing-you"
           i18n={i18n}
           components={{ ringer: ringerNode }}
         />
       );
     case 1:
       return (
-        <Intl
-          id="incomingGroupCall__ringing-1-other"
+        <I18n
+          id="icu:incomingGroupCall__ringing-1-other"
           i18n={i18n}
           components={{
             ringer: ringerNode,
@@ -115,8 +143,8 @@ const GroupCallMessage = ({
       );
     case 2:
       return (
-        <Intl
-          id="incomingGroupCall__ringing-2-others"
+        <I18n
+          id="icu:incomingGroupCall__ringing-2-others"
           i18n={i18n}
           components={{
             ringer: ringerNode,
@@ -125,11 +153,10 @@ const GroupCallMessage = ({
           }}
         />
       );
-      break;
     case 3:
       return (
-        <Intl
-          id="incomingGroupCall__ringing-3-others"
+        <I18n
+          id="icu:incomingGroupCall__ringing-3-others"
           i18n={i18n}
           components={{
             ringer: ringerNode,
@@ -138,24 +165,23 @@ const GroupCallMessage = ({
           }}
         />
       );
-      break;
     default:
       return (
-        <Intl
-          id="incomingGroupCall__ringing-many"
+        <I18n
+          id="icu:incomingGroupCall__ringing-many"
           i18n={i18n}
           components={{
             ringer: ringerNode,
             first,
             second,
-            remaining: String(otherMembersRung.length - 2),
+            remaining: otherMembersRung.length - 2,
           }}
         />
       );
   }
-};
+}
 
-export const IncomingCallBar = (props: PropsType): JSX.Element | null => {
+export function IncomingCallBar(props: PropsType): JSX.Element | null {
   const {
     acceptCall,
     bounceAppIconStart,
@@ -168,10 +194,9 @@ export const IncomingCallBar = (props: PropsType): JSX.Element | null => {
   const {
     id: conversationId,
     acceptedMessageRequest,
-    avatarPath,
+    avatarUrl,
     color,
     isMe,
-    name,
     phoneNumber,
     profileName,
     sharedGroupNames,
@@ -187,14 +212,14 @@ export const IncomingCallBar = (props: PropsType): JSX.Element | null => {
     case CallMode.Direct:
       ({ isVideoCall } = props);
       headerNode = <ContactName title={title} />;
-      messageNode = i18n(
-        isVideoCall ? 'incomingVideoCall' : 'incomingAudioCall'
-      );
+      messageNode = isVideoCall
+        ? i18n('icu:incomingVideoCall')
+        : i18n('icu:incomingAudioCall');
       break;
     case CallMode.Group: {
       const { otherMembersRung, ringer } = props;
       isVideoCall = true;
-      headerNode = <Emojify text={title} />;
+      headerNode = <UserText text={title} />;
       messageNode = (
         <GroupCallMessage
           i18n={i18n}
@@ -212,8 +237,8 @@ export const IncomingCallBar = (props: PropsType): JSX.Element | null => {
   const initialTitleRef = useRef<string>(title);
   useEffect(() => {
     const initialTitle = initialTitleRef.current;
-    notifyForCall(initialTitle, isVideoCall);
-  }, [isVideoCall, notifyForCall]);
+    notifyForCall(conversationId, initialTitle, isVideoCall);
+  }, [conversationId, isVideoCall, notifyForCall]);
 
   useEffect(() => {
     bounceAppIconStart();
@@ -222,6 +247,27 @@ export const IncomingCallBar = (props: PropsType): JSX.Element | null => {
     };
   }, [bounceAppIconStart, bounceAppIconStop]);
 
+  const acceptVideoCall = useCallback(() => {
+    if (isVideoCall) {
+      acceptCall({ conversationId, asVideoCall: true });
+    }
+  }, [isVideoCall, acceptCall, conversationId]);
+
+  const acceptAudioCall = useCallback(() => {
+    acceptCall({ conversationId, asVideoCall: false });
+  }, [acceptCall, conversationId]);
+
+  const declineIncomingCall = useCallback(() => {
+    declineCall({ conversationId });
+  }, [conversationId, declineCall]);
+
+  const incomingCallShortcuts = useIncomingCallShortcuts(
+    acceptAudioCall,
+    acceptVideoCall,
+    declineIncomingCall
+  );
+  useKeyboardShortcuts(incomingCallShortcuts);
+
   return (
     <div className="IncomingCallBar__container">
       <div className="IncomingCallBar__bar">
@@ -229,19 +275,18 @@ export const IncomingCallBar = (props: PropsType): JSX.Element | null => {
           <div className="IncomingCallBar__conversation--avatar">
             <Avatar
               acceptedMessageRequest={acceptedMessageRequest}
-              avatarPath={avatarPath}
+              avatarUrl={avatarUrl}
               badge={undefined}
               color={color || AvatarColors[0]}
               noteToSelf={false}
               conversationType={conversationType}
               i18n={i18n}
               isMe={isMe}
-              name={name}
               phoneNumber={phoneNumber}
               profileName={profileName}
               title={title}
               sharedGroupNames={sharedGroupNames}
-              size={52}
+              size={AvatarSize.FORTY_EIGHT}
             />
           </div>
           <div className="IncomingCallBar__conversation--name">
@@ -259,43 +304,35 @@ export const IncomingCallBar = (props: PropsType): JSX.Element | null => {
         <div className="IncomingCallBar__actions">
           <CallButton
             classSuffix="decline"
-            onClick={() => {
-              declineCall({ conversationId });
-            }}
+            onClick={declineIncomingCall}
             tabIndex={0}
-            tooltipContent={i18n('declineCall')}
+            tooltipContent={i18n('icu:declineCall')}
           />
           {isVideoCall ? (
             <>
               <CallButton
                 classSuffix="accept-video-as-audio"
-                onClick={() => {
-                  acceptCall({ conversationId, asVideoCall: false });
-                }}
+                onClick={acceptAudioCall}
                 tabIndex={0}
-                tooltipContent={i18n('acceptCallWithoutVideo')}
+                tooltipContent={i18n('icu:acceptCallWithoutVideo')}
               />
               <CallButton
                 classSuffix="accept-video"
-                onClick={() => {
-                  acceptCall({ conversationId, asVideoCall: true });
-                }}
+                onClick={acceptVideoCall}
                 tabIndex={0}
-                tooltipContent={i18n('acceptCall')}
+                tooltipContent={i18n('icu:acceptCall')}
               />
             </>
           ) : (
             <CallButton
               classSuffix="accept-audio"
-              onClick={() => {
-                acceptCall({ conversationId, asVideoCall: false });
-              }}
+              onClick={acceptAudioCall}
               tabIndex={0}
-              tooltipContent={i18n('acceptCall')}
+              tooltipContent={i18n('icu:acceptCall')}
             />
           )}
         </div>
       </div>
     </div>
   );
-};
+}

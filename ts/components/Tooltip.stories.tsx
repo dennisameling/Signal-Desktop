@@ -2,92 +2,107 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import { storiesOf } from '@storybook/react';
-import { select } from '@storybook/addon-knobs';
-
+import type { Meta } from '@storybook/react';
 import type { PropsType } from './Tooltip';
 import { Tooltip, TooltipPlacement } from './Tooltip';
 import { Theme } from '../util/theme';
 
-const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
-  content: overrideProps.content || 'Hello World',
-  direction: select('direction', TooltipPlacement, overrideProps.direction),
-  sticky: overrideProps.sticky,
-  theme: overrideProps.theme,
-});
-
-const story = storiesOf('Components/Tooltip', module);
+export default {
+  title: 'Components/Tooltip',
+  argTypes: {
+    content: { control: { type: 'text' } },
+    direction: {
+      control: { type: 'select' },
+      options: Object.values(TooltipPlacement),
+    },
+    sticky: { control: { type: 'boolean' } },
+    theme: {
+      control: { type: 'select' },
+      options: Object.keys(Theme),
+      mappings: Theme,
+    },
+  },
+  args: {
+    content: 'Hello World',
+    direction: TooltipPlacement.Top,
+    sticky: false,
+  },
+  decorators: [
+    (Story): JSX.Element => {
+      return (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100vh',
+          }}
+        >
+          <Story />
+        </div>
+      );
+    },
+  ],
+} satisfies Meta<PropsType>;
 
 const Trigger = (
   <span
     style={{
       display: 'inline-block',
-      marginTop: 200,
-      marginBottom: 200,
-      marginLeft: 200,
-      marginRight: 200,
+      background: '#eee',
+      padding: 20,
+      borderRadius: 4,
     }}
   >
     Trigger
   </span>
 );
 
-story.add('Top', () => (
-  <Tooltip
-    {...createProps({
-      direction: TooltipPlacement.Top,
-    })}
-  >
-    {Trigger}
-  </Tooltip>
-));
+export function Top(args: PropsType): JSX.Element {
+  return (
+    <Tooltip {...args} direction={TooltipPlacement.Top}>
+      {Trigger}
+    </Tooltip>
+  );
+}
 
-story.add('Right', () => (
-  <Tooltip
-    {...createProps({
-      direction: TooltipPlacement.Right,
-    })}
-  >
-    {Trigger}
-  </Tooltip>
-));
+export function Right(args: PropsType): JSX.Element {
+  return (
+    <Tooltip {...args} direction={TooltipPlacement.Right}>
+      {Trigger}
+    </Tooltip>
+  );
+}
 
-story.add('Bottom', () => (
-  <Tooltip
-    {...createProps({
-      direction: TooltipPlacement.Bottom,
-    })}
-  >
-    {Trigger}
-  </Tooltip>
-));
+export function Bottom(args: PropsType): JSX.Element {
+  return (
+    <Tooltip {...args} direction={TooltipPlacement.Bottom}>
+      {Trigger}
+    </Tooltip>
+  );
+}
 
-story.add('Left', () => (
-  <Tooltip
-    {...createProps({
-      direction: TooltipPlacement.Left,
-    })}
-  >
-    {Trigger}
-  </Tooltip>
-));
+export function Left(args: PropsType): JSX.Element {
+  return (
+    <Tooltip {...args} direction={TooltipPlacement.Left}>
+      {Trigger}
+    </Tooltip>
+  );
+}
 
-story.add('Sticky', () => (
-  <Tooltip
-    {...createProps({
-      sticky: true,
-    })}
-  >
-    {Trigger}
-  </Tooltip>
-));
+export function Sticky(args: PropsType): JSX.Element {
+  return (
+    <Tooltip {...args} sticky>
+      {Trigger}
+    </Tooltip>
+  );
+}
 
-story.add('With Applied Popper Modifiers', () => {
+export function WithAppliedPopperModifiers(args: PropsType): JSX.Element {
   return (
     <Tooltip
-      {...createProps({
-        direction: TooltipPlacement.Bottom,
-      })}
+      {...args}
+      direction={TooltipPlacement.Bottom}
       popperModifiers={[
         {
           name: 'offset',
@@ -100,15 +115,12 @@ story.add('With Applied Popper Modifiers', () => {
       {Trigger}
     </Tooltip>
   );
-});
+}
 
-story.add('Dark Theme', () => (
-  <Tooltip
-    {...createProps({
-      sticky: true,
-      theme: Theme.Dark,
-    })}
-  >
-    {Trigger}
-  </Tooltip>
-));
+export function DarkTheme(args: PropsType): JSX.Element {
+  return (
+    <Tooltip {...args} sticky theme={Theme.Dark}>
+      {Trigger}
+    </Tooltip>
+  );
+}

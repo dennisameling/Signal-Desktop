@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 .module-InstallScreenQrCodeNotScannedStep {
@@ -15,6 +15,7 @@
     flex-direction: row;
     animation: 500ms module-InstallScreenQrCodeNotScannedStep__slide-in;
     position: relative;
+    top: 0;
 
     @include light-theme {
       max-width: $base-max-width;
@@ -32,12 +33,13 @@
     $size: 256px;
 
     align-items: center;
-    border: 2px solid transparent;
+    border: 1.5px solid transparent;
     box-sizing: content-box;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    margin: 8px 38px 8px 8px;
+    margin-block: 8px;
+    margin-inline: 8px 38px;
     min-height: $size;
     min-width: $size;
     width: $size;
@@ -49,8 +51,31 @@
     &--load-failed {
       @include font-subtitle;
       border-color: $color-gray-05;
-      border-radius: 4px;
+      border-radius: 10px;
       color: $color-gray-60;
+    }
+
+    &__link {
+      @include button-reset;
+      @include font-body-2-bold;
+
+      display: flex;
+      gap: 4px;
+      align-items: center;
+
+      color: $color-ultramarine;
+      margin-block-start: 16px;
+
+      &::before {
+        @include color-svg(
+          '../images/icons/v3/refresh/refresh-bold.svg',
+          $color-ultramarine
+        );
+        content: '';
+        display: block;
+        height: 16px;
+        width: 16px;
+      }
     }
 
     &__code {
@@ -62,22 +87,49 @@
 
     &__error-message {
       text-align: center;
+      @include font-body-2;
 
       &::before {
         @include color-svg(
-          '../images/icons/v2/error-outline-24.svg',
+          '../images/icons/v3/error/error-circle.svg',
           $color-accent-red
         );
         content: '';
         display: block;
         height: 22px;
-        margin: 8px auto 0 auto;
+        margin-block: 0 8px;
+        margin-inline: auto;
         width: 22px;
       }
 
-      a {
-        color: $color-ultramarine;
-        text-decoration: none;
+      margin-inline: 24px;
+    }
+
+    &__error-message p {
+      margin-block: 0;
+    }
+
+    &__get-help {
+      @include font-body-2-bold;
+
+      display: flex;
+      gap: 4px;
+      align-items: center;
+
+      margin-block-start: 16px;
+
+      color: $color-ultramarine;
+      text-decoration: none;
+
+      &::before {
+        @include color-svg(
+          '../images/icons/v3/open/open-compact-bold.svg',
+          $color-ultramarine
+        );
+        content: '';
+        display: block;
+        height: 16px;
+        width: 16px;
       }
     }
   }
@@ -93,32 +145,16 @@
     // We want the right link color in dark mode. This is a no-op in light mode.
     color: $color-ultramarine;
   }
-
-  &__android-plus {
-    background: $color-gray-25;
-    border-radius: 100%;
-    display: inline-block;
-    padding: 5px;
-    vertical-align: middle;
-
-    &::before {
-      @include color-svg('../images/icons/v2/plus-24.svg', $color-white);
-      content: '';
-      display: block;
-      height: 12px;
-      width: 12px;
-    }
-  }
 }
 
 @keyframes module-InstallScreenQrCodeNotScannedStep__slide-in {
   from {
-    top: -8px;
+    transform: translateY(-8px);
     opacity: 0;
   }
 
   to {
-    top: 0;
+    transform: translateY(0px);
     opacity: 1;
   }
 }

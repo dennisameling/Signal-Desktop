@@ -1,14 +1,13 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
 
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
 import { times } from 'lodash';
 
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../../../util/setupI18n';
-import { CapabilityError } from '../../../types/errors';
 import enMessages from '../../../../_locales/en/messages.json';
 import type { Props } from './ConversationDetails';
 import { ConversationDetails } from './ConversationDetails';
@@ -16,15 +15,17 @@ import { ChooseGroupMembersModal } from './AddGroupMembersModal/ChooseGroupMembe
 import { ConfirmAdditionsModal } from './AddGroupMembersModal/ConfirmAdditionsModal';
 import type { ConversationType } from '../../../state/ducks/conversations';
 import { getDefaultConversation } from '../../../test-both/helpers/getDefaultConversation';
-import { makeFakeLookupConversationWithoutUuid } from '../../../test-both/helpers/fakeLookupConversationWithoutUuid';
+import { makeFakeLookupConversationWithoutServiceId } from '../../../test-both/helpers/fakeLookupConversationWithoutServiceId';
 import { ThemeType } from '../../../types/Util';
+import { DurationInSeconds } from '../../../util/durations';
+import { NavTab } from '../../../state/ducks/nav';
+import { getFakeCallHistoryGroup } from '../../../test-both/helpers/getFakeCallHistoryGroup';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf(
-  'Components/Conversation/ConversationDetails/ConversationDetails',
-  module
-);
+export default {
+  title: 'Components/Conversation/ConversationDetails/ConversationDetails',
+} satisfies Meta<Props>;
 
 const conversation: ConversationType = getDefaultConversation({
   id: '',
@@ -38,12 +39,18 @@ const conversation: ConversationType = getDefaultConversation({
 
 const allCandidateContacts = times(10, () => getDefaultConversation());
 
-const createProps = (hasGroupLink = false, expireTimer?: number): Props => ({
-  addMembers: async () => {
-    action('addMembers');
+const createProps = (
+  hasGroupLink = false,
+  expireTimer?: DurationInSeconds
+): Props => ({
+  acceptConversation: action('acceptConversation'),
+  addMembersToGroup: async () => {
+    action('addMembersToGroup');
   },
   areWeASubscriber: false,
+  blockConversation: action('blockConversation'),
   canEditGroupInfo: false,
+  canAddNewMembers: false,
   conversation: expireTimer
     ? {
         ...conversation,
@@ -53,9 +60,12 @@ const createProps = (hasGroupLink = false, expireTimer?: number): Props => ({
   hasActiveCall: false,
   hasGroupLink,
   getPreferredBadge: () => undefined,
+  getProfilesForConversation: action('getProfilesForConversation'),
+  groupsInCommon: [],
   i18n,
   isAdmin: false,
   isGroup: true,
+  leaveGroup: action('leaveGroup'),
   loadRecentMediaItems: action('loadRecentMediaItems'),
   memberships: times(32, i => ({
     isAdmin: i === 1,
@@ -63,6 +73,8 @@ const createProps = (hasGroupLink = false, expireTimer?: number): Props => ({
       isMe: i === 2,
     }),
   })),
+  maxGroupSize: 1001,
+  maxRecommendedGroupSize: 151,
   pendingApprovalMemberships: times(8, () => ({
     member: getDefaultConversation(),
   })),
@@ -70,29 +82,25 @@ const createProps = (hasGroupLink = false, expireTimer?: number): Props => ({
     metadata: {},
     member: getDefaultConversation(),
   })),
+  selectedNavTab: NavTab.Chats,
   setDisappearingMessages: action('setDisappearingMessages'),
-  showAllMedia: action('showAllMedia'),
   showContactModal: action('showContactModal'),
-  showChatColorEditor: action('showChatColorEditor'),
-  showGroupLinkManagement: action('showGroupLinkManagement'),
-  showGroupV2Permissions: action('showGroupV2Permissions'),
-  showConversationNotificationsSettings: action(
-    'showConversationNotificationsSettings'
-  ),
-  showPendingInvites: action('showPendingInvites'),
-  showLightboxForMedia: action('showLightboxForMedia'),
+  pushPanelForConversation: action('pushPanelForConversation'),
+  showConversation: action('showConversation'),
+  showLightboxWithMedia: action('showLightboxWithMedia'),
   updateGroupAttributes: async () => {
     action('updateGroupAttributes')();
   },
-  onBlock: action('onBlock'),
-  onLeave: action('onLeave'),
-  onUnblock: action('onUnblock'),
   deleteAvatarFromDisk: action('deleteAvatarFromDisk'),
   replaceAvatar: action('replaceAvatar'),
   saveAvatarToDisk: action('saveAvatarToDisk'),
   setMuteExpiration: action('setMuteExpiration'),
   userAvatarData: [],
   toggleSafetyNumberModal: action('toggleSafetyNumberModal'),
+  toggleAboutContactModal: action('toggleAboutContactModal'),
+  toggleAddUserToAnotherGroupModal: action('toggleAddUserToAnotherGroup'),
+  onDeleteNicknameAndNote: action('onDeleteNicknameAndNote'),
+  onOpenEditNicknameAndNoteModal: action('onOpenEditNicknameAndNoteModal'),
   onOutgoingAudioCallInConversation: action(
     'onOutgoingAudioCallInConversation'
   ),
@@ -108,11 +116,13 @@ const createProps = (hasGroupLink = false, expireTimer?: number): Props => ({
         candidateContacts={allCandidateContacts}
         selectedContacts={[]}
         regionCode="US"
-        getPreferredBadge={() => undefined}
         theme={ThemeType.light}
         i18n={i18n}
-        lookupConversationWithoutUuid={makeFakeLookupConversationWithoutUuid()}
+        lookupConversationWithoutServiceId={makeFakeLookupConversationWithoutServiceId()}
+        ourE164={undefined}
+        ourUsername={undefined}
         showUserNotFoundModal={action('showUserNotFoundModal')}
+        username={undefined}
       />
     );
   },
@@ -123,19 +133,35 @@ const createProps = (hasGroupLink = false, expireTimer?: number): Props => ({
   },
 });
 
-story.add('Basic', () => {
+export function Basic(): JSX.Element {
   const props = createProps();
 
   return <ConversationDetails {...props} />;
-});
+}
 
-story.add('as Admin', () => {
+export function SystemContact(): JSX.Element {
+  const props = createProps();
+  const contact = getDefaultConversation();
+
+  return (
+    <ConversationDetails
+      {...props}
+      isGroup={false}
+      conversation={{
+        ...contact,
+        systemGivenName: contact.title,
+      }}
+    />
+  );
+}
+
+export function AsAdmin(): JSX.Element {
   const props = createProps();
 
   return <ConversationDetails {...props} isAdmin />;
-});
+}
 
-story.add('as last admin', () => {
+export function AsLastAdmin(): JSX.Element {
   const props = createProps();
 
   return (
@@ -150,9 +176,9 @@ story.add('as last admin', () => {
       }))}
     />
   );
-});
+}
 
-story.add('as only admin', () => {
+export function AsOnlyAdmin(): JSX.Element {
   const props = createProps();
 
   return (
@@ -169,36 +195,52 @@ story.add('as only admin', () => {
       ]}
     />
   );
-});
+}
 
-story.add('Group Editable', () => {
+export function GroupEditable(): JSX.Element {
   const props = createProps();
 
   return <ConversationDetails {...props} canEditGroupInfo />;
-});
+}
 
-story.add('Group Editable with custom disappearing timeout', () => {
-  const props = createProps(false, 3 * 24 * 60 * 60);
+export function GroupEditableWithCustomDisappearingTimeout(): JSX.Element {
+  const props = createProps(false, DurationInSeconds.fromDays(3));
 
   return <ConversationDetails {...props} canEditGroupInfo />;
-});
+}
 
-story.add('Group Links On', () => {
+export function GroupLinksOn(): JSX.Element {
   const props = createProps(true);
 
   return <ConversationDetails {...props} isAdmin />;
-});
+}
 
-story.add('Group add with missing capabilities', () => (
-  <ConversationDetails
-    {...createProps()}
-    canEditGroupInfo
-    addMembers={async () => {
-      throw new CapabilityError('stories');
-    }}
-  />
-));
-
-story.add('1:1', () => (
+export const _11 = (): JSX.Element => (
   <ConversationDetails {...createProps()} isGroup={false} />
-));
+);
+
+export function WithCallHistoryGroup(): JSX.Element {
+  const props = createProps();
+
+  return (
+    <ConversationDetails
+      {...props}
+      callHistoryGroup={getFakeCallHistoryGroup({
+        peerId: props.conversation?.serviceId,
+      })}
+      selectedNavTab={NavTab.Calls}
+    />
+  );
+}
+
+export function InAnotherCallGroup(): JSX.Element {
+  const props = createProps();
+
+  return <ConversationDetails {...props} hasActiveCall />;
+}
+
+export function InAnotherCallIndividual(): JSX.Element {
+  const props = createProps();
+
+  return <ConversationDetails {...props} hasActiveCall isGroup={false} />;
+}

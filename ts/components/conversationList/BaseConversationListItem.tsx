@@ -1,11 +1,11 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ReactNode, FunctionComponent } from 'react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import classNames from 'classnames';
 import { isBoolean, isNumber } from 'lodash';
-import { v4 as uuid } from 'uuid';
+import { v4 as generateUuid } from 'uuid';
 
 import { Avatar, AvatarSize } from '../Avatar';
 import type { BadgeType } from '../../badges/types';
@@ -28,10 +28,12 @@ export const HEADER_CONTACT_NAME_CLASS_NAME = `${HEADER_NAME_CLASS_NAME}__contac
 export const DATE_CLASS_NAME = `${HEADER_CLASS_NAME}__date`;
 const MESSAGE_CLASS_NAME = `${CONTENT_CLASS_NAME}__message`;
 export const MESSAGE_TEXT_CLASS_NAME = `${MESSAGE_CLASS_NAME}__text`;
+const CHECKBOX_CONTAINER_CLASS_NAME = `${BASE_CLASS_NAME}__checkbox--container`;
 const CHECKBOX_CLASS_NAME = `${BASE_CLASS_NAME}__checkbox`;
-const SPINNER_CLASS_NAME = `${BASE_CLASS_NAME}__spinner`;
+export const SPINNER_CLASS_NAME = `${BASE_CLASS_NAME}__spinner`;
 
 type PropsType = {
+  buttonAriaLabel?: string;
   checked?: boolean;
   conversationType: 'group' | 'direct';
   disabled?: boolean;
@@ -48,21 +50,26 @@ type PropsType = {
   messageText?: ReactNode;
   messageTextIsAlwaysFullSize?: boolean;
   onClick?: () => void;
+  onMouseDown?: () => void;
   shouldShowSpinner?: boolean;
   unreadCount?: number;
+  unreadMentionsCount?: number;
+  avatarSize?: AvatarSize;
+  testId?: string;
 } & Pick<
   ConversationType,
   | 'acceptedMessageRequest'
-  | 'avatarPath'
+  | 'avatarUrl'
   | 'color'
+  | 'groupId'
   | 'isMe'
   | 'markedUnread'
-  | 'name'
   | 'phoneNumber'
   | 'profileName'
   | 'sharedGroupNames'
   | 'title'
-  | 'unblurredAvatarPath'
+  | 'unblurredAvatarUrl'
+  | 'serviceId'
 > &
   (
     | { badge?: undefined; theme?: ThemeType }
@@ -73,11 +80,14 @@ export const BaseConversationListItem: FunctionComponent<PropsType> =
   React.memo(function BaseConversationListItem(props) {
     const {
       acceptedMessageRequest,
-      avatarPath,
+      avatarUrl,
+      avatarSize,
+      buttonAriaLabel,
       checked,
       color,
       conversationType,
       disabled,
+      groupId,
       headerDate,
       headerName,
       i18n,
@@ -90,19 +100,23 @@ export const BaseConversationListItem: FunctionComponent<PropsType> =
       messageStatusIcon,
       messageText,
       messageTextIsAlwaysFullSize,
-      name,
       onClick,
+      onMouseDown,
       phoneNumber,
       profileName,
       sharedGroupNames,
       shouldShowSpinner,
+      testId: overrideTestId,
       title,
-      unblurredAvatarPath,
+      unblurredAvatarUrl,
       unreadCount,
+      unreadMentionsCount,
+      serviceId,
     } = props;
 
     const identifier = id ? cleanId(id) : undefined;
-    const htmlId = useMemo(() => uuid(), []);
+    const htmlId = useMemo(() => generateUuid(), []);
+    const testId = overrideTestId || groupId || serviceId;
     const isUnread = isConversationUnread({ markedUnread, unreadCount });
 
     const isAvatarNoteToSelf = isBoolean(isNoteToSelf)
@@ -124,55 +138,83 @@ export const BaseConversationListItem: FunctionComponent<PropsType> =
     } else if (isCheckbox) {
       let ariaLabel: string;
       if (disabled) {
-        ariaLabel = i18n('cannotSelectContact', [title]);
+        ariaLabel = i18n('icu:cannotSelectContact', {
+          name: title,
+        });
       } else if (checked) {
-        ariaLabel = i18n('deselectContact', [title]);
+        ariaLabel = i18n('icu:deselectContact', {
+          name: title,
+        });
       } else {
-        ariaLabel = i18n('selectContact', [title]);
+        ariaLabel = i18n('icu:selectContact', {
+          name: title,
+        });
       }
       actionNode = (
-        <input
-          aria-label={ariaLabel}
-          checked={checked}
-          className={CHECKBOX_CLASS_NAME}
-          disabled={disabled}
-          id={htmlId}
-          onChange={onClick}
-          onKeyDown={event => {
-            if (onClick && !disabled && event.key === 'Enter') {
-              onClick();
-            }
-          }}
-          type="checkbox"
-        />
+        <div className={CHECKBOX_CONTAINER_CLASS_NAME}>
+          <input
+            aria-label={ariaLabel}
+            checked={checked}
+            className={CHECKBOX_CLASS_NAME}
+            disabled={disabled}
+            id={htmlId}
+            onChange={onClick}
+            onKeyDown={event => {
+              if (onClick && !disabled && event.key === 'Enter') {
+                onClick();
+              }
+            }}
+            type="checkbox"
+          />
+        </div>
       );
     }
+
+    const unreadIndicators = (() => {
+      if (!isUnread) {
+        return null;
+      }
+      return (
+        <div className={`${CONTENT_CLASS_NAME}__unread-indicators`}>
+          {unreadMentionsCount ? (
+            <UnreadIndicator variant={UnreadIndicatorVariant.UNREAD_MENTIONS} />
+          ) : null}
+          {unreadCount ? (
+            <UnreadIndicator
+              variant={UnreadIndicatorVariant.UNREAD_MESSAGES}
+              count={unreadCount}
+            />
+          ) : (
+            <UnreadIndicator variant={UnreadIndicatorVariant.MARKED_UNREAD} />
+          )}
+        </div>
+      );
+    })();
 
     const contents = (
       <>
         <div className={AVATAR_CONTAINER_CLASS_NAME}>
           <Avatar
             acceptedMessageRequest={acceptedMessageRequest}
-            avatarPath={avatarPath}
+            avatarUrl={avatarUrl}
             color={color}
             conversationType={conversationType}
             noteToSelf={isAvatarNoteToSelf}
             searchResult={isUsernameSearchResult}
             i18n={i18n}
             isMe={isMe}
-            name={name}
             phoneNumber={phoneNumber}
             profileName={profileName}
             title={title}
             sharedGroupNames={sharedGroupNames}
-            size={AvatarSize.FORTY_EIGHT}
-            unblurredAvatarPath={unblurredAvatarPath}
+            size={avatarSize ?? AvatarSize.FORTY_EIGHT}
+            unblurredAvatarUrl={unblurredAvatarUrl}
             // This is here to appease the type checker.
             {...(props.badge
               ? { badge: props.badge, theme: props.theme }
               : { badge: undefined })}
           />
-          <UnreadIndicator count={unreadCount} isUnread={isUnread} />
+          {unreadIndicators}
         </div>
         <div
           className={classNames(
@@ -199,7 +241,7 @@ export const BaseConversationListItem: FunctionComponent<PropsType> =
                 </div>
               )}
               {messageStatusIcon}
-              <UnreadIndicator count={unreadCount} isUnread={isUnread} />
+              {unreadIndicators}
             </div>
           ) : null}
         </div>
@@ -217,9 +259,10 @@ export const BaseConversationListItem: FunctionComponent<PropsType> =
           className={classNames(
             commonClassNames,
             `${BASE_CLASS_NAME}--is-checkbox`,
-            { [`${BASE_CLASS_NAME}--is-checkbox--disabled`]: disabled }
+            { [`${BASE_CLASS_NAME}--disabled`]: disabled }
           )}
           data-id={identifier}
+          data-testid={testId}
           htmlFor={htmlId}
           // `onClick` is will double-fire if we're enabled. We want it to fire when we're
           //   disabled so we can show any "can't add contact" modals, etc. This won't
@@ -234,14 +277,21 @@ export const BaseConversationListItem: FunctionComponent<PropsType> =
     if (onClick) {
       return (
         <button
-          aria-label={i18n('BaseConversationListItem__aria-label', { title })}
+          aria-label={
+            buttonAriaLabel ||
+            i18n('icu:BaseConversationListItem__aria-label', {
+              title,
+            })
+          }
           className={classNames(
             commonClassNames,
             `${BASE_CLASS_NAME}--is-button`
           )}
           data-id={identifier}
+          data-testid={testId}
           disabled={disabled}
           onClick={onClick}
+          onMouseDown={onMouseDown}
           type="button"
         >
           {contents}
@@ -250,7 +300,11 @@ export const BaseConversationListItem: FunctionComponent<PropsType> =
     }
 
     return (
-      <div className={commonClassNames} data-id={identifier}>
+      <div
+        className={commonClassNames}
+        data-id={identifier}
+        data-testid={testId}
+      >
         {contents}
       </div>
     );
@@ -287,30 +341,53 @@ function Timestamp({
   );
 }
 
-function UnreadIndicator({
-  count = 0,
-  isUnread,
-}: Readonly<{ count?: number; isUnread: boolean }>) {
-  if (!isUnread) {
-    return null;
-  }
+enum UnreadIndicatorVariant {
+  MARKED_UNREAD = 'marked-unread',
+  UNREAD_MESSAGES = 'unread-messages',
+  UNREAD_MENTIONS = 'unread-mentions',
+}
 
-  let classModifier: undefined | string;
-  if (count > 99) {
-    classModifier = 'many';
-  } else if (count > 9) {
-    classModifier = 'two-digits';
+type UnreadIndicatorPropsType =
+  | {
+      variant: UnreadIndicatorVariant.MARKED_UNREAD;
+    }
+  | {
+      variant: UnreadIndicatorVariant.UNREAD_MESSAGES;
+      count: number;
+    }
+  | { variant: UnreadIndicatorVariant.UNREAD_MENTIONS };
+
+function UnreadIndicator(props: UnreadIndicatorPropsType) {
+  let content: React.ReactNode;
+
+  switch (props.variant) {
+    case UnreadIndicatorVariant.MARKED_UNREAD:
+      content = null;
+      break;
+    case UnreadIndicatorVariant.UNREAD_MESSAGES:
+      content = props.count > 0 && props.count;
+      break;
+    case UnreadIndicatorVariant.UNREAD_MENTIONS:
+      content = (
+        <div
+          className={classNames(
+            `${BASE_CLASS_NAME}__unread-indicator--${props.variant}__icon`
+          )}
+        />
+      );
+      break;
+    default:
+      throw new Error('Unexpected variant');
   }
 
   return (
     <div
       className={classNames(
         `${BASE_CLASS_NAME}__unread-indicator`,
-        classModifier &&
-          `${BASE_CLASS_NAME}__unread-indicator--${classModifier}`
+        `${BASE_CLASS_NAME}__unread-indicator--${props.variant}`
       )}
     >
-      {Boolean(count) && Math.min(count, 99)}
+      {content}
     </div>
   );
 }

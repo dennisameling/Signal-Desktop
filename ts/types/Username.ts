@@ -1,23 +1,54 @@
-// Copyright 2021 Signal Messenger, LLC
+// Copyright 2022 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-export const MAX_USERNAME = 26;
-export const MIN_USERNAME = 4;
+export type UsernameReservationType = Readonly<{
+  username: string;
+  previousUsername: string | undefined;
+  hash: Uint8Array;
+}>;
 
-export function isValidUsername(searchTerm: string): boolean {
-  return /^[a-z_][0-9a-z_]{3,25}$/.test(searchTerm);
+export enum ReserveUsernameError {
+  Unprocessable = 'Unprocessable',
+  Conflict = 'Conflict',
+
+  // Maps to UsernameReservationError in state/ducks/usernameEnums.ts
+  NotEnoughCharacters = 'NotEnoughCharacters',
+  TooManyCharacters = 'TooManyCharacters',
+  CheckStartingCharacter = 'CheckStartingCharacter',
+  CheckCharacters = 'CheckCharacters',
+  NotEnoughDiscriminator = 'NotEnoughDiscriminator',
+  AllZeroDiscriminator = 'AllZeroDiscriminator',
+  LeadingZeroDiscriminator = 'LeadingZeroDiscriminator',
+  TooManyAttempts = 'TooManyAttempts',
 }
 
-export function getUsernameFromSearch(searchTerm: string): string | undefined {
-  if (/^[+0-9]+$/.test(searchTerm)) {
+export enum ConfirmUsernameResult {
+  Ok = 'Ok',
+  OkRecovered = 'OkRecovered',
+  ConflictOrGone = 'ConflictOrGone',
+}
+
+export function getNickname(username: string): string | undefined {
+  const match = username.match(/^(.*?)(?:\.|$)/);
+  if (!match) {
     return undefined;
   }
 
-  const match = /^@?(.*?)@?$/.exec(searchTerm);
+  return match[1];
+}
 
-  if (match && match[1]) {
-    return match[1];
+export function getDiscriminator(username: string): string | undefined {
+  const match = username.match(/\.([0-9]*)$/);
+  if (!match) {
+    return undefined;
   }
 
-  return undefined;
+  return match[1];
+}
+
+export function isCaseChange({
+  previousUsername,
+  username,
+}: UsernameReservationType): boolean {
+  return previousUsername?.toLowerCase() === username.toLowerCase();
 }

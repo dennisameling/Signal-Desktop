@@ -3,13 +3,15 @@
 
 import React, { useState } from 'react';
 import { action } from '@storybook/addon-actions';
-import { storiesOf } from '@storybook/react';
-
+import type { Meta } from '@storybook/react';
+import type { PropsType } from './Select';
 import { Select } from './Select';
 
-const story = storiesOf('Components/Select', module);
+export default {
+  title: 'Components/Select',
+} satisfies Meta<PropsType>;
 
-story.add('Normal', () => {
+export function Normal(): JSX.Element {
   const [value, setValue] = useState(0);
 
   const onChange = action('onChange');
@@ -28,17 +30,19 @@ story.add('Normal', () => {
       }}
     />
   );
-});
+}
 
-story.add('With disabled options', () => (
-  <Select
-    options={[
-      { value: 'a', text: 'Apples' },
-      { value: 'b', text: 'Bananas', disabled: true },
-      { value: 'c', text: 'Cabbage' },
-      { value: 'd', text: 'Durian', disabled: true },
-    ]}
-    onChange={action('onChange')}
-    value="c"
-  />
-));
+export function WithDisabledOptions(): JSX.Element {
+  return (
+    <Select
+      options={[
+        { value: 'a', text: 'Apples' },
+        { value: 'b', text: 'Bananas', disabled: true },
+        { value: 'c', text: 'Cabbage' },
+        { value: 'd', text: 'Durian', disabled: true },
+      ]}
+      onChange={action('onChange')}
+      value="c"
+    />
+  );
+}

@@ -1,37 +1,38 @@
 // Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
-
-import { connect } from 'react-redux';
-
-import type { StateType } from '../reducer';
-import type { PropsType } from '../../components/conversation/conversation-details/GroupLinkManagement';
+import React, { memo } from 'react';
+import { useSelector } from 'react-redux';
 import { GroupLinkManagement } from '../../components/conversation/conversation-details/GroupLinkManagement';
 import { getConversationSelector } from '../selectors/conversations';
 import { getIntl } from '../selectors/user';
+import { useConversationsActions } from '../ducks/conversations';
 
-export type SmartGroupLinkManagementProps = {
-  changeHasGroupLink: (value: boolean) => void;
+export type SmartGroupLinkManagementProps = Readonly<{
   conversationId: string;
-  copyGroupLink: (groupLink: string) => void;
-  generateNewGroupLink: () => void;
-  setAccessControlAddFromInviteLinkSetting: (value: boolean) => void;
-};
+}>;
 
-const mapStateToProps = (
-  state: StateType,
-  props: SmartGroupLinkManagementProps
-): PropsType => {
-  const conversation = getConversationSelector(state)(props.conversationId);
-  const isAdmin = Boolean(conversation?.areWeAdmin);
-
-  return {
-    ...props,
-    conversation,
-    i18n: getIntl(state),
-    isAdmin,
-  };
-};
-
-const smart = connect(mapStateToProps);
-
-export const SmartGroupLinkManagement = smart(GroupLinkManagement);
+export const SmartGroupLinkManagement = memo(function SmartGroupLinkManagement({
+  conversationId,
+}: SmartGroupLinkManagementProps) {
+  const i18n = useSelector(getIntl);
+  const conversationSelector = useSelector(getConversationSelector);
+  const conversation = conversationSelector(conversationId);
+  const isAdmin = conversation?.areWeAdmin ?? false;
+  const {
+    changeHasGroupLink,
+    generateNewGroupLink,
+    setAccessControlAddFromInviteLinkSetting,
+  } = useConversationsActions();
+  return (
+    <GroupLinkManagement
+      i18n={i18n}
+      changeHasGroupLink={changeHasGroupLink}
+      conversation={conversation}
+      generateNewGroupLink={generateNewGroupLink}
+      isAdmin={isAdmin}
+      setAccessControlAddFromInviteLinkSetting={
+        setAccessControlAddFromInviteLinkSetting
+      }
+    />
+  );
+});

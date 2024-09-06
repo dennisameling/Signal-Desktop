@@ -1,115 +1,166 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import type { PropsType as ContactNameProps } from './ContactName';
 import { ContactName } from './ContactName';
 import { Button, ButtonVariant } from '../Button';
-import type { Props as MessageRequestActionsConfirmationProps } from './MessageRequestActionsConfirmation';
+import type { MessageRequestActionsConfirmationProps } from './MessageRequestActionsConfirmation';
 import {
   MessageRequestActionsConfirmation,
   MessageRequestState,
 } from './MessageRequestActionsConfirmation';
-import { Intl } from '../Intl';
+import { I18n } from '../I18n';
 import type { LocalizerType } from '../../types/Util';
+import { strictAssert } from '../../util/assert';
 
 export type Props = {
   i18n: LocalizerType;
-  onAccept(): unknown;
-} & Omit<ContactNameProps, 'module'> &
-  Omit<
-    MessageRequestActionsConfirmationProps,
-    'i18n' | 'state' | 'onChangeState'
-  >;
+  isHidden: boolean | null;
+} & Omit<
+  MessageRequestActionsConfirmationProps,
+  'i18n' | 'state' | 'onChangeState'
+>;
 
-export const MessageRequestActions = ({
+export function MessageRequestActions({
+  addedByName,
+  conversationId,
   conversationType,
-  firstName,
+  conversationName,
   i18n,
   isBlocked,
-  onAccept,
-  onBlock,
-  onBlockAndReportSpam,
-  onDelete,
-  onUnblock,
-  title,
-}: Props): JSX.Element => {
+  isHidden,
+  isReported,
+  acceptConversation,
+  blockAndReportSpam,
+  blockConversation,
+  reportSpam,
+  deleteConversation,
+}: Props): JSX.Element {
   const [mrState, setMrState] = React.useState(MessageRequestState.default);
+
+  const nameValue =
+    conversationType === 'direct' ? conversationName : addedByName;
+
+  let message: JSX.Element | undefined;
+  if (conversationType === 'direct') {
+    strictAssert(nameValue != null, 'nameValue is null');
+    const name = (
+      <strong
+        key="name"
+        className="module-message-request-actions__message__name"
+      >
+        <ContactName {...nameValue} preferFirstName />
+      </strong>
+    );
+
+    if (isBlocked) {
+      message = (
+        <I18n
+          i18n={i18n}
+          id="icu:MessageRequests--message-direct-blocked"
+          components={{ name }}
+        />
+      );
+    } else if (isHidden) {
+      message = (
+        <I18n
+          i18n={i18n}
+          id="icu:MessageRequests--message-direct-hidden"
+          components={{ name }}
+        />
+      );
+    } else {
+      message = (
+        <I18n
+          i18n={i18n}
+          id="icu:MessageRequests--message-direct"
+          components={{ name }}
+        />
+      );
+    }
+  } else if (conversationType === 'group') {
+    if (isBlocked) {
+      message = (
+        <I18n i18n={i18n} id="icu:MessageRequests--message-group-blocked" />
+      );
+    } else {
+      message = <I18n i18n={i18n} id="icu:MessageRequests--message-group" />;
+    }
+  }
 
   return (
     <>
       {mrState !== MessageRequestState.default ? (
         <MessageRequestActionsConfirmation
-          i18n={i18n}
-          onBlock={onBlock}
-          onBlockAndReportSpam={onBlockAndReportSpam}
-          onUnblock={onUnblock}
-          onDelete={onDelete}
-          title={title}
+          addedByName={addedByName}
+          conversationId={conversationId}
           conversationType={conversationType}
+          conversationName={conversationName}
+          i18n={i18n}
+          isBlocked={isBlocked}
+          isReported={isReported}
           state={mrState}
+          acceptConversation={acceptConversation}
+          blockAndReportSpam={blockAndReportSpam}
+          blockConversation={blockConversation}
+          reportSpam={reportSpam}
+          deleteConversation={deleteConversation}
           onChangeState={setMrState}
         />
       ) : null}
       <div className="module-message-request-actions">
-        <p className="module-message-request-actions__message">
-          <Intl
-            i18n={i18n}
-            id={`MessageRequests--message-${conversationType}${
-              isBlocked ? '-blocked' : ''
-            }`}
-            components={[
-              <strong
-                key="name"
-                className="module-message-request-actions__message__name"
-              >
-                <ContactName
-                  firstName={firstName}
-                  title={title}
-                  preferFirstName
-                />
-              </strong>,
-            ]}
-          />
-        </p>
+        <p className="module-message-request-actions__message">{message}</p>
         <div className="module-message-request-actions__buttons">
-          <Button
-            onClick={() => {
-              setMrState(MessageRequestState.deleting);
-            }}
-            variant={ButtonVariant.SecondaryDestructive}
-          >
-            {i18n('MessageRequests--delete')}
-          </Button>
-          {isBlocked ? (
-            <Button
-              onClick={() => {
-                setMrState(MessageRequestState.unblocking);
-              }}
-              variant={ButtonVariant.SecondaryAffirmative}
-            >
-              {i18n('MessageRequests--unblock')}
-            </Button>
-          ) : (
+          {!isBlocked && (
             <Button
               onClick={() => {
                 setMrState(MessageRequestState.blocking);
               }}
               variant={ButtonVariant.SecondaryDestructive}
             >
-              {i18n('MessageRequests--block')}
+              {i18n('icu:MessageRequests--block')}
+            </Button>
+          )}
+          {(isReported || isBlocked) && (
+            <Button
+              onClick={() => {
+                setMrState(MessageRequestState.deleting);
+              }}
+              variant={ButtonVariant.SecondaryDestructive}
+            >
+              {i18n('icu:MessageRequests--delete')}
+            </Button>
+          )}
+          {!isReported && (
+            <Button
+              onClick={() => {
+                setMrState(MessageRequestState.reportingAndMaybeBlocking);
+              }}
+              variant={ButtonVariant.SecondaryDestructive}
+            >
+              {i18n('icu:MessageRequests--reportAndMaybeBlock')}
+            </Button>
+          )}
+          {isBlocked && (
+            <Button
+              onClick={() => {
+                setMrState(MessageRequestState.unblocking);
+              }}
+              variant={ButtonVariant.SecondaryAffirmative}
+            >
+              {i18n('icu:MessageRequests--unblock')}
             </Button>
           )}
           {!isBlocked ? (
             <Button
-              onClick={onAccept}
+              onClick={() => acceptConversation(conversationId)}
               variant={ButtonVariant.SecondaryAffirmative}
             >
-              {i18n('MessageRequests--accept')}
+              {i18n('icu:MessageRequests--accept')}
             </Button>
           ) : null}
         </div>
       </div>
     </>
   );
-};
+}

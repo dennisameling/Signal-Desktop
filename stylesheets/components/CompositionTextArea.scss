@@ -1,0 +1,66 @@
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+.CompositionTextArea {
+  position: relative;
+
+  &__input {
+    &__input {
+      background: inherit;
+      border: none;
+      border-radius: 0;
+      height: 100%;
+
+      &:focus-within {
+        border: none;
+      }
+
+      @include dark-theme() {
+        border: none;
+
+        &:focus-within {
+          border: none;
+        }
+      }
+
+      @include keyboard-mode {
+        &:focus-within {
+          border: solid 1px $color-ultramarine;
+        }
+      }
+    }
+
+    &__input__scroller {
+      max-height: 300px;
+      min-height: 300px;
+      padding: 16px;
+      // Need more padding on the right to make room for floating emoji button
+      padding-inline-end: 36px;
+    }
+  }
+
+  &__emoji {
+    position: absolute;
+    inset-inline-end: 8px;
+    top: 8px;
+
+    button::after {
+      background-color: $color-black;
+    }
+  }
+
+  &__remaining-character-count {
+    @include font-subtitle;
+    color: $color-gray-45;
+    position: absolute;
+    bottom: 0;
+    inset-inline-start: 0;
+    padding-block: 12px;
+    padding-inline: 24px 12px;
+  }
+
+  // remove background, should be seamless with modal
+  .module-composition-input__input {
+    background: transparent;
+  }
+}

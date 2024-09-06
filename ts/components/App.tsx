@@ -1,88 +1,97 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ComponentProps } from 'react';
 import React, { useEffect } from 'react';
-import { Globals } from '@react-spring/web';
 import classNames from 'classnames';
 
-import { AppViewType } from '../state/ducks/app';
-import { Inbox } from './Inbox';
+import type { ViewStoryActionCreatorType } from '../state/ducks/stories';
+import type { VerificationTransport } from '../types/VerificationTransport';
+import { ThemeType } from '../types/Util';
+import { missingCaseError } from '../util/missingCaseError';
+import { type AppStateType, AppViewType } from '../state/ducks/app';
 import { SmartInstallScreen } from '../state/smart/InstallScreen';
 import { StandaloneRegistration } from './StandaloneRegistration';
-import { ThemeType } from '../types/Util';
 import { usePageVisibility } from '../hooks/usePageVisibility';
-import { useReducedMotion } from '../hooks/useReducedMotion';
 
 type PropsType = {
-  appView: AppViewType;
+  state: AppStateType;
   openInbox: () => void;
-  registerSingleDevice: (number: string, code: string) => Promise<void>;
+  getCaptchaToken: () => Promise<string>;
+  registerSingleDevice: (
+    number: string,
+    code: string,
+    sessionId: string
+  ) => Promise<void>;
+  uploadProfile: (opts: {
+    firstName: string;
+    lastName: string;
+  }) => Promise<void>;
   renderCallManager: () => JSX.Element;
   renderGlobalModalContainer: () => JSX.Element;
-  isShowingStoriesView: boolean;
-  renderStories: () => JSX.Element;
+  hasSelectedStoryData: boolean;
+  readyForUpdates: () => void;
+  renderStoryViewer: (closeView: () => unknown) => JSX.Element;
+  renderLightbox: () => JSX.Element | null;
   requestVerification: (
-    type: 'sms' | 'voice',
     number: string,
-    token: string
-  ) => Promise<void>;
+    captcha: string,
+    transport: VerificationTransport
+  ) => Promise<{ sessionId: string }>;
   theme: ThemeType;
-} & ComponentProps<typeof Inbox>;
+  isMaximized: boolean;
+  isFullScreen: boolean;
+  osClassName: string;
 
-export const App = ({
-  appView,
-  cancelConversationVerification,
-  conversationsStoppingSend,
-  hasInitialLoadCompleted,
-  getPreferredBadge,
-  i18n,
-  isCustomizingPreferredReactions,
-  isShowingStoriesView,
-  renderCallManager,
-  renderCustomizingPreferredReactionsModal,
-  renderGlobalModalContainer,
-  renderSafetyNumber,
+  scrollToMessage: (conversationId: string, messageId: string) => unknown;
+  viewStory: ViewStoryActionCreatorType;
+  renderInbox: () => JSX.Element;
+};
+
+export function App({
+  state,
+  getCaptchaToken,
+  hasSelectedStoryData,
+  isFullScreen,
+  isMaximized,
   openInbox,
-  renderStories,
-  requestVerification,
+  osClassName,
+  readyForUpdates,
   registerSingleDevice,
+  renderCallManager,
+  renderGlobalModalContainer,
+  renderInbox,
+  renderLightbox,
+  renderStoryViewer,
+  requestVerification,
   theme,
-  verifyConversationsStoppingSend,
-}: PropsType): JSX.Element => {
+  uploadProfile,
+  viewStory,
+}: PropsType): JSX.Element {
   let contents;
 
-  if (appView === AppViewType.Installer) {
+  if (state.appView === AppViewType.Installer) {
     contents = <SmartInstallScreen />;
-  } else if (appView === AppViewType.Standalone) {
+  } else if (state.appView === AppViewType.Standalone) {
     const onComplete = () => {
-      window.removeSetupMenuItems();
+      window.IPC.removeSetupMenuItems();
       openInbox();
     };
     contents = (
       <StandaloneRegistration
         onComplete={onComplete}
+        getCaptchaToken={getCaptchaToken}
+        readyForUpdates={readyForUpdates}
         requestVerification={requestVerification}
         registerSingleDevice={registerSingleDevice}
+        uploadProfile={uploadProfile}
       />
     );
-  } else if (appView === AppViewType.Inbox) {
-    contents = (
-      <Inbox
-        cancelConversationVerification={cancelConversationVerification}
-        conversationsStoppingSend={conversationsStoppingSend}
-        hasInitialLoadCompleted={hasInitialLoadCompleted}
-        getPreferredBadge={getPreferredBadge}
-        i18n={i18n}
-        isCustomizingPreferredReactions={isCustomizingPreferredReactions}
-        renderCustomizingPreferredReactionsModal={
-          renderCustomizingPreferredReactionsModal
-        }
-        renderSafetyNumber={renderSafetyNumber}
-        theme={theme}
-        verifyConversationsStoppingSend={verifyConversationsStoppingSend}
-      />
-    );
+  } else if (state.appView === AppViewType.Inbox) {
+    contents = renderInbox();
+  } else if (state.appView === AppViewType.Blank) {
+    contents = undefined;
+  } else {
+    throw missingCaseError(state.appView);
   }
 
   // This are here so that themes are properly applied to anything that is
@@ -99,18 +108,19 @@ export const App = ({
     }
   }, [theme]);
 
+  useEffect(() => {
+    document.body.classList.add(osClassName);
+  }, [osClassName]);
+
+  useEffect(() => {
+    document.body.classList.toggle('full-screen', isFullScreen);
+    document.body.classList.toggle('maximized', isMaximized);
+  }, [isFullScreen, isMaximized]);
+
   const isPageVisible = usePageVisibility();
   useEffect(() => {
     document.body.classList.toggle('page-is-visible', isPageVisible);
   }, [isPageVisible]);
-
-  // A11y settings for react-spring
-  const prefersReducedMotion = useReducedMotion();
-  useEffect(() => {
-    Globals.assign({
-      skipAnimation: prefersReducedMotion,
-    });
-  }, [prefersReducedMotion]);
 
   return (
     <div
@@ -120,10 +130,12 @@ export const App = ({
         'dark-theme': theme === ThemeType.dark,
       })}
     >
+      {contents}
       {renderGlobalModalContainer()}
       {renderCallManager()}
-      {isShowingStoriesView && renderStories()}
-      {contents}
+      {renderLightbox()}
+      {hasSelectedStoryData &&
+        renderStoryViewer(() => viewStory({ closeViewer: true }))}
     </div>
   );
-};
+}

@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import path from 'path';
@@ -22,7 +22,7 @@ export async function handleImageAttachment(
     const uuid = genUuid();
     const bytes = new Uint8Array(await file.arrayBuffer());
 
-    const convertedFile = await new Promise<File>((resolve, reject) => {
+    const convertedData = await new Promise<Uint8Array>((resolve, reject) => {
       ipcRenderer.once(`convert-image:${uuid}`, (_, { error, response }) => {
         if (response) {
           resolve(response);
@@ -33,7 +33,7 @@ export async function handleImageAttachment(
       ipcRenderer.send('convert-image', uuid, bytes);
     });
 
-    processedFile = new Blob([convertedFile]);
+    processedFile = new Blob([convertedData]);
   }
 
   const {
@@ -46,6 +46,8 @@ export async function handleImageAttachment(
       : stringToMIMEType(file.type),
     fileName: file.name,
     file: processedFile,
+    // We always store draft attachments as HQ
+    highQuality: true,
   });
 
   const data = await blobToArrayBuffer(resizedBlob);
@@ -53,6 +55,7 @@ export async function handleImageAttachment(
 
   return {
     blurHash,
+    clientUuid: genUuid(),
     contentType,
     data: new Uint8Array(data),
     fileName: fileName || file.name,
@@ -66,10 +69,12 @@ export async function autoScale({
   contentType,
   file,
   fileName,
+  highQuality,
 }: {
   contentType: MIMEType;
   file: File | Blob;
   fileName: string;
+  highQuality: boolean;
 }): Promise<{
   contentType: MIMEType;
   file: Blob;
@@ -79,11 +84,12 @@ export async function autoScale({
     return { contentType, file, fileName };
   }
 
-  const { blob, contentType: newContentType } = await scaleImageToLevel(
-    file,
+  const { blob, contentType: newContentType } = await scaleImageToLevel({
+    fileOrBlobOrURL: file,
     contentType,
-    true
-  );
+    size: file.size,
+    highQuality,
+  });
 
   if (newContentType !== IMAGE_JPEG) {
     return {

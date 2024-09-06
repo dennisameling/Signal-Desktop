@@ -2,95 +2,89 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
+import { v4 as generateUuid } from 'uuid';
 
-import dataInterface from '../../sql/Client';
-import { UUID } from '../../types/UUID';
-import type { UUIDStringType } from '../../types/UUID';
+import { DataReader, DataWriter } from '../../sql/Client';
+import { generateAci } from '../../types/ServiceId';
 
 import type { MessageAttributesType } from '../../model-types.d';
 
-const { removeAll, _getAllMessages, saveMessages, getOlderStories } =
-  dataInterface;
-
-function getUuid(): UUIDStringType {
-  return UUID.generate().toString();
-}
+const { _getAllMessages, getAllStories } = DataReader;
+const { removeAll, saveMessages } = DataWriter;
 
 describe('sql/stories', () => {
   beforeEach(async () => {
     await removeAll();
   });
 
-  describe('getOlderStories', () => {
+  describe('getAllStories', () => {
     it('returns N most recent stories overall, or in converation, or by author', async () => {
       assert.lengthOf(await _getAllMessages(), 0);
 
       const now = Date.now();
-      const conversationId = getUuid();
-      const sourceUuid = getUuid();
-      const ourUuid = getUuid();
+      const conversationId = generateUuid();
+      const sourceServiceId = generateAci();
+      const ourAci = generateAci();
 
       const story1: MessageAttributesType = {
-        id: getUuid(),
+        id: generateUuid(),
         body: 'story 1',
         type: 'story',
         conversationId,
         sent_at: now - 20,
         received_at: now - 20,
         timestamp: now - 20,
-        sourceUuid: getUuid(),
+        sourceServiceId: generateAci(),
       };
       const story2: MessageAttributesType = {
-        id: getUuid(),
+        id: generateUuid(),
         body: 'story 2',
         type: 'story',
-        conversationId: getUuid(),
+        conversationId: generateUuid(),
         sent_at: now - 10,
         received_at: now - 10,
         timestamp: now - 10,
-        sourceUuid,
+        sourceServiceId,
       };
       const story3: MessageAttributesType = {
-        id: getUuid(),
+        id: generateUuid(),
         body: 'message 3',
         type: 'incoming',
-        conversationId: getUuid(),
+        conversationId: generateUuid(),
         sent_at: now,
         received_at: now,
         timestamp: now,
-        sourceUuid,
+        sourceServiceId,
       };
       const story4: MessageAttributesType = {
-        id: getUuid(),
+        id: generateUuid(),
         body: 'story 4',
         type: 'story',
         conversationId,
         sent_at: now,
         received_at: now,
         timestamp: now,
-        sourceUuid: getUuid(),
+        sourceServiceId: generateAci(),
       };
       const story5: MessageAttributesType = {
-        id: getUuid(),
+        id: generateUuid(),
         body: 'story 5',
         type: 'story',
-        conversationId: getUuid(),
+        conversationId: generateUuid(),
         sent_at: now,
         received_at: now,
         timestamp: now,
-        sourceUuid,
+        sourceServiceId,
       };
 
       await saveMessages([story1, story2, story3, story4, story5], {
         forceSave: true,
-        ourUuid,
+        ourAci,
       });
 
       assert.lengthOf(await _getAllMessages(), 5);
 
-      const stories = await getOlderStories({
-        limit: 5,
-      });
+      const stories = await getAllStories({});
       assert.lengthOf(stories, 4, 'expect four total stories');
 
       // They are in ASC order
@@ -105,9 +99,8 @@ describe('sql/stories', () => {
         'stories last should be story1'
       );
 
-      const storiesInConversation = await getOlderStories({
+      const storiesInConversation = await getAllStories({
         conversationId,
-        limit: 5,
       });
       assert.lengthOf(
         storiesInConversation,
@@ -127,9 +120,8 @@ describe('sql/stories', () => {
         'storiesInConversation last should be story1'
       );
 
-      const storiesByAuthor = await getOlderStories({
-        sourceUuid,
-        limit: 5,
+      const storiesByAuthor = await getAllStories({
+        sourceServiceId,
       });
       assert.lengthOf(storiesByAuthor, 2, 'expect two stories by author');
 
@@ -146,84 +138,113 @@ describe('sql/stories', () => {
       );
     });
 
-    it('returns N stories older than provided receivedAt/sentAt', async () => {
+    it('populates hasReplies and hasRepliesFromSelf', async () => {
       assert.lengthOf(await _getAllMessages(), 0);
 
-      const start = Date.now();
-      const conversationId = getUuid();
-      const ourUuid = getUuid();
+      const now = Date.now();
+      const conversationId = generateUuid();
+      const sourceServiceId = generateAci();
+      const ourAci = generateAci();
+      const storyId1 = generateUuid();
+      const storyId2 = generateUuid();
 
       const story1: MessageAttributesType = {
-        id: getUuid(),
-        body: 'message 1',
-        type: 'incoming',
+        id: storyId1,
+        body: 'story 1',
+        type: 'story',
         conversationId,
-        sent_at: start - 2,
-        received_at: start - 2,
-        timestamp: start - 2,
+        sent_at: now - 20,
+        received_at: now - 20,
+        timestamp: now - 20,
+        sourceServiceId: generateAci(),
       };
       const story2: MessageAttributesType = {
-        id: getUuid(),
+        id: storyId2,
         body: 'story 2',
         type: 'story',
-        conversationId,
-        sent_at: start - 1,
-        received_at: start - 1,
-        timestamp: start - 1,
+        conversationId: generateUuid(),
+        sent_at: now - 10,
+        received_at: now - 10,
+        timestamp: now - 10,
+        sourceServiceId,
       };
       const story3: MessageAttributesType = {
-        id: getUuid(),
+        id: generateUuid(),
         body: 'story 3',
         type: 'story',
-        conversationId,
-        sent_at: start - 1,
-        received_at: start,
-        timestamp: start,
+        conversationId: generateUuid(),
+        sent_at: now,
+        received_at: now,
+        timestamp: now,
+        sourceServiceId,
       };
-      const story4: MessageAttributesType = {
-        id: getUuid(),
+      const replyTo1: MessageAttributesType = {
+        id: generateUuid(),
+        body: 'message 3',
+        type: 'incoming',
+        storyId: storyId1,
+        conversationId: generateUuid(),
+        sent_at: now,
+        received_at: now,
+        timestamp: now,
+        sourceServiceId,
+      };
+      const replyFromSelfTo1: MessageAttributesType = {
+        id: generateUuid(),
         body: 'story 4',
-        type: 'story',
+        type: 'outgoing',
+        storyId: storyId1,
         conversationId,
-        sent_at: start,
-        received_at: start,
-        timestamp: start,
+        sent_at: now,
+        received_at: now,
+        timestamp: now,
+        sourceServiceId: generateAci(),
       };
-      const story5: MessageAttributesType = {
-        id: getUuid(),
+      const replyTo2: MessageAttributesType = {
+        id: generateUuid(),
         body: 'story 5',
-        type: 'story',
-        conversationId,
-        sent_at: start + 1,
-        received_at: start + 1,
-        timestamp: start + 1,
+        type: 'incoming',
+        storyId: storyId2,
+        conversationId: generateUuid(),
+        sent_at: now,
+        received_at: now,
+        timestamp: now,
+        sourceServiceId,
       };
 
-      await saveMessages([story1, story2, story3, story4, story5], {
-        forceSave: true,
-        ourUuid,
-      });
+      await saveMessages(
+        [story1, story2, story3, replyTo1, replyFromSelfTo1, replyTo2],
+        {
+          forceSave: true,
+          ourAci,
+        }
+      );
 
-      assert.lengthOf(await _getAllMessages(), 5);
+      assert.lengthOf(await _getAllMessages(), 6);
 
-      const stories = await getOlderStories({
-        receivedAt: story4.received_at,
-        sentAt: story4.sent_at,
-        limit: 5,
-      });
-      assert.lengthOf(stories, 2, 'expect two stories');
+      const stories = await getAllStories({});
+      assert.lengthOf(stories, 3, 'expect three total stories');
 
       // They are in ASC order
       assert.strictEqual(
         stories[0].id,
-        story2.id,
-        'stories first should be story3'
+        story1.id,
+        'stories first should be story1'
       );
       assert.strictEqual(
-        stories[1].id,
+        stories[2].id,
         story3.id,
-        'stories last should be story2'
+        'stories last should be story3'
       );
+
+      assert.strictEqual(stories[0].hasReplies, true);
+      assert.strictEqual(stories[0].hasRepliesFromSelf, true);
+
+      assert.strictEqual(stories[1].hasReplies, true);
+      assert.strictEqual(stories[1].hasRepliesFromSelf, false);
+
+      assert.strictEqual(stories[2].hasReplies, false);
+      assert.strictEqual(stories[2].hasRepliesFromSelf, false);
     });
   });
 });

@@ -3,23 +3,29 @@
 
 import React from 'react';
 import { sortBy } from 'lodash';
-import { Emojify } from './Emojify';
-import type { BodyRangesType } from '../../types/Util';
+import type {
+  HydratedBodyRangeMention,
+  BodyRange,
+} from '../../types/BodyRange';
+import { AtMention } from './AtMention';
 
 export type Props = {
-  bodyRanges?: BodyRangesType;
+  mentions?: ReadonlyArray<HydratedBodyRangeMention>;
   direction?: 'incoming' | 'outgoing';
-  openConversation?: (conversationId: string, messageId?: string) => void;
+  showConversation?: (options: {
+    conversationId: string;
+    messageId?: string;
+  }) => unknown;
   text: string;
 };
 
-export const AtMentionify = ({
-  bodyRanges,
+export function AtMentionify({
+  mentions,
   direction,
-  openConversation,
+  showConversation,
   text,
-}: Props): JSX.Element => {
-  if (!bodyRanges) {
+}: Props): JSX.Element {
+  if (!mentions) {
     return <>{text}</>;
   }
 
@@ -28,8 +34,8 @@ export const AtMentionify = ({
   let match = MENTIONS_REGEX.exec(text);
   let last = 0;
 
-  const rangeStarts = new Map();
-  bodyRanges.forEach(range => {
+  const rangeStarts = new Map<number, HydratedBodyRangeMention>();
+  mentions.forEach(range => {
     rangeStarts.set(range.start, range);
   });
 
@@ -45,34 +51,27 @@ export const AtMentionify = ({
 
     if (range) {
       results.push(
-        <span
-          className={`MessageBody__at-mention MessageBody__at-mention--${direction}`}
+        <AtMention
           key={range.start}
+          direction={direction}
+          isInvisible={false}
           onClick={() => {
-            if (openConversation && range.conversationID) {
-              openConversation(range.conversationID);
+            if (showConversation) {
+              showConversation({ conversationId: range.conversationID });
             }
           }}
           onKeyUp={e => {
             if (
               e.target === e.currentTarget &&
               e.keyCode === 13 &&
-              openConversation &&
-              range.conversationID
+              showConversation
             ) {
-              openConversation(range.conversationID);
+              showConversation({ conversationId: range.conversationID });
             }
           }}
-          tabIndex={0}
-          role="link"
-          data-id={range.conversationID}
-          data-title={range.replacementText}
-        >
-          <bdi>
-            @
-            <Emojify text={range.replacementText} />
-          </bdi>
-        </span>
+          id={range.conversationID}
+          name={range.replacementText}
+        />
       );
     }
 
@@ -85,7 +84,7 @@ export const AtMentionify = ({
   }
 
   return <>{results}</>;
-};
+}
 
 // At-mentions need to be pre-processed before being pushed through the
 // AtMentionify component, this is due to bodyRanges containing start+length
@@ -95,16 +94,16 @@ export const AtMentionify = ({
 // string, therefore we're unable to mark it up with DOM nodes prior to handing
 // it off to them. This function will encode the "start" position into the text
 // string so we can later pull it off when rendering the @mention.
-AtMentionify.preprocessMentions = (
+AtMentionify.preprocessMentions = <T extends BodyRange.Mention>(
   text: string,
-  bodyRanges?: BodyRangesType
+  mentions?: ReadonlyArray<BodyRange<T>>
 ): string => {
-  if (!bodyRanges || !bodyRanges.length) {
+  if (!mentions || !mentions.length) {
     return text;
   }
 
   // Sorting by the start index to ensure that we always replace last -> first.
-  return sortBy(bodyRanges, 'start').reduceRight((str, range) => {
+  return sortBy(mentions, 'start').reduceRight((str, range) => {
     const textBegin = str.substr(0, range.start);
     const encodedMention = `\uFFFC@${range.start}`;
     const textEnd = str.substr(range.start + range.length, str.length);

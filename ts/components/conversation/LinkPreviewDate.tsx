@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
@@ -11,10 +11,10 @@ type Props = {
   className?: string;
 };
 
-export const LinkPreviewDate: React.FC<Props> = ({
+export function LinkPreviewDate({
   date,
   className = '',
-}: Props) => {
+}: Props): JSX.Element | null {
   const dateMoment: Moment | null = isLinkPreviewDateValid(date)
     ? moment(date)
     : null;
@@ -24,4 +24,4 @@ export const LinkPreviewDate: React.FC<Props> = ({
       {dateMoment.format('ll')}
     </time>
   ) : null;
-};
+}

@@ -21,14 +21,14 @@ export type PropsType = {
   size?: AvatarSize;
 };
 
-export const BetterAvatar = ({
+export function BetterAvatar({
   avatarData,
   i18n,
   isSelected,
   onClick,
   onDelete,
   size = 48,
-}: PropsType): JSX.Element => {
+}: PropsType): JSX.Element {
   const [avatarBuffer, setAvatarBuffer] = useState<Uint8Array | undefined>(
     avatarData.buffer
   );
@@ -50,7 +50,7 @@ export const BetterAvatar = ({
       return noop;
     }
 
-    makeAvatar();
+    void makeAvatar();
 
     return () => {
       shouldCancel = true;
@@ -115,4 +115,4 @@ export const BetterAvatar = ({
       )}
     </BetterAvatarBubble>
   );
-};
+}

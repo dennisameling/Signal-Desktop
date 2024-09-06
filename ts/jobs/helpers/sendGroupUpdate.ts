@@ -19,7 +19,9 @@ import type {
   GroupUpdateJobData,
   ConversationQueueJobBundle,
 } from '../conversationJobQueue';
-import { getUntrustedConversationIds } from './getUntrustedConversationIds';
+import { getUntrustedConversationServiceIds } from './getUntrustedConversationServiceIds';
+import { sendToGroup } from '../../util/sendToGroup';
+import { getValidRecipients } from './getValidRecipients';
 
 // Note: because we don't have a recipient map, if some sends fail, we will resend this
 //   message to folks that got it on the first go-round. This is okay, because receivers
@@ -35,32 +37,34 @@ export async function sendGroupUpdate(
   }: ConversationQueueJobBundle,
   data: GroupUpdateJobData
 ): Promise<void> {
+  const logId = `sendGroupUpdate/${conversation.idForLogging()}`;
+
   if (!shouldContinue) {
-    log.info('Ran out of time. Giving up on sending group update');
+    log.info(`${logId}: Ran out of time. Giving up on sending group update`);
     return;
   }
 
   if (!isGroupV2(conversation.attributes)) {
     log.error(
-      `Conversation ${conversation.idForLogging()} is not GroupV2, cannot send group update!`
+      `${logId}: Conversation is not GroupV2, cannot send group update!`
     );
     return;
   }
 
-  log.info(
-    `Starting group update for ${conversation.idForLogging()} with timestamp ${timestamp}`
-  );
+  log.info(`${logId}: starting with timestamp ${timestamp}`);
 
-  const { groupChangeBase64, recipients, revision } = data;
+  const { groupChangeBase64, recipients: jobRecipients, revision } = data;
 
-  const untrustedConversationIds = getUntrustedConversationIds(recipients);
-  if (untrustedConversationIds.length) {
+  const recipients = getValidRecipients(jobRecipients, { log, logId });
+
+  const untrustedServiceIds = getUntrustedConversationServiceIds(recipients);
+  if (untrustedServiceIds.length) {
     window.reduxActions.conversations.conversationStoppedByMissingVerification({
       conversationId: conversation.id,
-      untrustedConversationIds,
+      untrustedServiceIds,
     });
     throw new Error(
-      `Group update blocked because ${untrustedConversationIds.length} conversation(s) were untrusted. Failing this attempt.`
+      `Group update blocked because ${untrustedServiceIds.length} conversation(s) were untrusted. Failing this attempt.`
     );
   }
 
@@ -69,7 +73,6 @@ export async function sendGroupUpdate(
   const { ContentHint } = Proto.UnidentifiedSenderMessage.Message;
   const contentHint = ContentHint.RESENDABLE;
   const sendType = 'groupChange';
-  const logId = `sendGroupUpdate/${conversation.idForLogging()}`;
 
   const groupChange = groupChangeBase64
     ? Bytes.fromBase64(groupChangeBase64)
@@ -90,27 +93,31 @@ export async function sendGroupUpdate(
   };
 
   try {
-    await conversation.queueJob('conversationQueue/sendGroupUpdate', async () =>
-      wrapWithSyncMessageSend({
-        conversation,
-        logId,
-        messageIds: [],
-        send: async () =>
-          window.Signal.Util.sendToGroup({
-            groupSendOptions: {
-              groupV2,
-              timestamp,
-              profileKey,
-            },
-            contentHint,
-            messageId: undefined,
-            sendOptions,
-            sendTarget: conversation.toSenderKeyTarget(),
-            sendType,
-          }),
-        sendType,
-        timestamp,
-      })
+    await conversation.queueJob(
+      'conversationQueue/sendGroupUpdate',
+      async abortSignal =>
+        wrapWithSyncMessageSend({
+          conversation,
+          logId,
+          messageIds: [],
+          send: async () =>
+            sendToGroup({
+              abortSignal,
+              groupSendOptions: {
+                groupV2,
+                timestamp,
+                profileKey,
+              },
+              contentHint,
+              messageId: undefined,
+              sendOptions,
+              sendTarget: conversation.toSenderKeyTarget(),
+              sendType,
+              urgent: false,
+            }),
+          sendType,
+          timestamp,
+        })
     );
   } catch (error: unknown) {
     await handleMultipleSendErrors({

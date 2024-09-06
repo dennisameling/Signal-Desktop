@@ -32,7 +32,7 @@ const isOutgoingReactionCompletelyUnsent = ({
 export function addOutgoingReaction(
   oldReactions: ReadonlyArray<MessageReactionType>,
   newReaction: Readonly<MessageReactionType>
-): Array<MessageReactionType> {
+): ReadonlyArray<MessageReactionType> {
   const pendingOutgoingReactions = new Set(
     oldReactions.filter(isOutgoingReactionPending)
   );
@@ -101,8 +101,18 @@ export function* getUnsentConversationIds({
   }
 }
 
+// This function is used when filtering reactions so that we can limit normal
+// messages to a single reactions but allow multiple reactions from the same
+// sender for stories.
+export function isNewReactionReplacingPrevious(
+  reaction: MessageReactionType,
+  newReaction: MessageReactionType
+): boolean {
+  return reaction.fromId === newReaction.fromId;
+}
+
 export const markOutgoingReactionFailed = (
-  reactions: Array<MessageReactionType>,
+  reactions: ReadonlyArray<MessageReactionType>,
   reaction: Readonly<MessageReactionType>
 ): Array<MessageReactionType> =>
   isOutgoingReactionCompletelyUnsent(reaction) || !reaction.emoji
@@ -133,9 +143,14 @@ export const markOutgoingReactionSent = (
 
   for (const re of reactions) {
     if (!isReactionEqual(re, reaction)) {
-      const shouldKeep = !isFullySent
-        ? true
-        : re.fromId !== reaction.fromId || re.timestamp > reaction.timestamp;
+      let shouldKeep = true;
+      if (
+        isFullySent &&
+        isNewReactionReplacingPrevious(re, reaction) &&
+        re.timestamp <= reaction.timestamp
+      ) {
+        shouldKeep = false;
+      }
       if (shouldKeep) {
         result.push(re);
       }

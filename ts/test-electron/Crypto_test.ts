@@ -1,8 +1,12 @@
-// Copyright 2015-2021 Signal Messenger, LLC
+// Copyright 2015 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
+import { readFileSync, unlinkSync, writeFileSync } from 'fs';
+import { join } from 'path';
 
+import { createCipheriv } from 'crypto';
+import * as log from '../logging/log';
 import * as Bytes from '../Bytes';
 import * as Curve from '../Curve';
 import {
@@ -23,11 +27,30 @@ import {
   deriveMasterKeyFromGroupV1,
   encryptSymmetric,
   decryptSymmetric,
+  sha256,
   hmacSha256,
   verifyHmacSha256,
-  uuidToBytes,
-  bytesToUuid,
+  randomInt,
+  encryptAttachment,
+  decryptAttachmentV1,
+  padAndEncryptAttachment,
+  CipherType,
 } from '../Crypto';
+import {
+  type HardcodedIVForEncryptionType,
+  _generateAttachmentIv,
+  decryptAttachmentV2,
+  encryptAttachmentV2ToDisk,
+  getAesCbcCiphertextLength,
+  getAttachmentCiphertextLength,
+  splitKeys,
+  generateAttachmentKeys,
+} from '../AttachmentCrypto';
+import { createTempDir, deleteTempDir } from '../updater/common';
+import { uuidToBytes, bytesToUuid } from '../util/uuidToBytes';
+
+const GHOST_KITTY_HASH =
+  '7bc77f27d92d00b4a1d57c480ca86dacc43d57bc318339c92119d1fbf6b557a5';
 
 describe('Crypto', () => {
   describe('encrypting and decrypting profile data', () => {
@@ -164,11 +187,11 @@ describe('Crypto', () => {
   });
 
   describe('generateRegistrationId', () => {
-    it('generates an integer between 0 and 16383 (inclusive)', () => {
-      let max = 0;
+    it('generates an integer between 1 and 16383 (inclusive)', () => {
+      let max = -1;
       for (let i = 0; i < 100; i += 1) {
         const id = generateRegistrationId();
-        assert.isAtLeast(id, 0);
+        assert.isAtLeast(id, 1);
         assert.isAtMost(id, 16383);
         assert(Number.isInteger(id));
 
@@ -441,6 +464,17 @@ describe('Crypto', () => {
     });
   });
 
+  describe('randomInt', () => {
+    it('returns random integers in a range (inclusive)', () => {
+      const seen = new Set<number>();
+      for (let i = 0; i < 1_000_000 || seen.size < 3; i += 1) {
+        seen.add(randomInt(1, 3));
+      }
+
+      assert.deepStrictEqual(seen, new Set([1, 2, 3]));
+    });
+  });
+
   describe('uuidToBytes', () => {
     it('converts valid UUIDs to Uint8Arrays', () => {
       const expectedResult = new Uint8Array([
@@ -493,6 +527,559 @@ describe('Crypto', () => {
       assert.isUndefined(bytesToUuid(new Uint8Array(0)));
       assert.isUndefined(bytesToUuid(new Uint8Array([0x22])));
       assert.isUndefined(bytesToUuid(new Uint8Array(Array(17).fill(0x22))));
+    });
+  });
+
+  describe('attachments', () => {
+    const FILE_PATH = join(__dirname, '../../fixtures/ghost-kitty.mp4');
+    const FILE_CONTENTS = readFileSync(FILE_PATH);
+    const FILE_HASH = sha256(FILE_CONTENTS);
+    let tempDir: string;
+
+    beforeEach(async () => {
+      tempDir = await createTempDir();
+    });
+    afterEach(async () => {
+      if (tempDir) {
+        await deleteTempDir(log, tempDir);
+      }
+    });
+
+    it('v1 roundtrips (memory only)', () => {
+      const keys = generateAttachmentKeys();
+
+      // Note: support for padding is not in decryptAttachmentV1, so we don't pad here
+      const encryptedAttachment = encryptAttachment({
+        plaintext: FILE_CONTENTS,
+        keys,
+      });
+      const plaintext = decryptAttachmentV1(
+        encryptedAttachment.ciphertext,
+        keys,
+        encryptedAttachment.digest
+      );
+
+      assert.isTrue(constantTimeEqual(FILE_CONTENTS, plaintext));
+    });
+
+    it('v1 -> v2 (memory -> disk)', async () => {
+      const keys = generateAttachmentKeys();
+      const ciphertextPath = join(tempDir, 'file');
+      let plaintextPath;
+
+      try {
+        const encryptedAttachment = padAndEncryptAttachment({
+          plaintext: FILE_CONTENTS,
+          keys,
+        });
+        assert.strictEqual(encryptedAttachment.plaintextHash, GHOST_KITTY_HASH);
+
+        writeFileSync(ciphertextPath, encryptedAttachment.ciphertext);
+
+        const decryptedAttachment = await decryptAttachmentV2({
+          type: 'standard',
+          ciphertextPath,
+          idForLogging: 'test',
+          ...splitKeys(keys),
+          size: FILE_CONTENTS.byteLength,
+          theirDigest: encryptedAttachment.digest,
+          getAbsoluteAttachmentPath:
+            window.Signal.Migrations.getAbsoluteAttachmentPath,
+        });
+        plaintextPath = window.Signal.Migrations.getAbsoluteAttachmentPath(
+          decryptedAttachment.path
+        );
+        const plaintext = readFileSync(plaintextPath);
+
+        assert.isTrue(constantTimeEqual(FILE_CONTENTS, plaintext));
+        assert.strictEqual(
+          encryptedAttachment.plaintextHash,
+          decryptedAttachment.plaintextHash
+        );
+      } finally {
+        if (plaintextPath) {
+          unlinkSync(plaintextPath);
+        }
+      }
+    });
+
+    describe('v2 roundtrips', () => {
+      async function testV2RoundTripData({
+        path,
+        data,
+        plaintextHash,
+        encryptionKeys,
+        dangerousIv,
+      }: {
+        path?: string;
+        data: Uint8Array;
+        plaintextHash: Uint8Array;
+        encryptionKeys?: Uint8Array;
+        dangerousIv?: HardcodedIVForEncryptionType;
+      }): Promise<void> {
+        let plaintextPath;
+        let ciphertextPath;
+        const keys = encryptionKeys ?? generateAttachmentKeys();
+
+        try {
+          const encryptedAttachment = await encryptAttachmentV2ToDisk({
+            keys,
+            plaintext: path ? { absolutePath: path } : { data },
+            dangerousIv,
+            getAbsoluteAttachmentPath:
+              window.Signal.Migrations.getAbsoluteAttachmentPath,
+          });
+
+          ciphertextPath = window.Signal.Migrations.getAbsoluteAttachmentPath(
+            encryptedAttachment.path
+          );
+
+          const decryptedAttachment = await decryptAttachmentV2({
+            type: 'standard',
+            ciphertextPath,
+            idForLogging: 'test',
+            ...splitKeys(keys),
+            size: data.byteLength,
+            theirDigest: encryptedAttachment.digest,
+            getAbsoluteAttachmentPath:
+              window.Signal.Migrations.getAbsoluteAttachmentPath,
+          });
+          plaintextPath = window.Signal.Migrations.getAbsoluteAttachmentPath(
+            decryptedAttachment.path
+          );
+
+          const plaintext = readFileSync(plaintextPath);
+
+          assert.deepStrictEqual(
+            encryptedAttachment.iv,
+            decryptedAttachment.iv
+          );
+          if (dangerousIv) {
+            assert.deepStrictEqual(encryptedAttachment.iv, dangerousIv.iv);
+            if (dangerousIv.reason === 'reencrypting-for-backup') {
+              assert.deepStrictEqual(
+                encryptedAttachment.digest,
+                dangerousIv.digestToMatch
+              );
+            }
+          }
+
+          assert.isTrue(constantTimeEqual(data, plaintext));
+          assert.strictEqual(
+            encryptedAttachment.ciphertextSize,
+            getAttachmentCiphertextLength(data.byteLength)
+          );
+          assert.strictEqual(
+            encryptedAttachment.plaintextHash,
+            Bytes.toHex(plaintextHash)
+          );
+          assert.strictEqual(
+            decryptedAttachment.plaintextHash,
+            encryptedAttachment.plaintextHash
+          );
+        } finally {
+          if (plaintextPath) {
+            unlinkSync(plaintextPath);
+          }
+          if (ciphertextPath) {
+            unlinkSync(ciphertextPath);
+          }
+        }
+      }
+
+      it('v2 roundtrips smaller file from disk', async () => {
+        await testV2RoundTripData({
+          path: FILE_PATH,
+          data: FILE_CONTENTS,
+          plaintextHash: FILE_HASH,
+        });
+      });
+
+      it('v2 roundtrips smaller file from memory', async () => {
+        await testV2RoundTripData({
+          data: FILE_CONTENTS,
+          plaintextHash: FILE_HASH,
+        });
+
+        // also works if data is raw Uint8Array rather than a buffer
+        await testV2RoundTripData({
+          data: new Uint8Array(FILE_CONTENTS),
+          plaintextHash: FILE_HASH,
+        });
+      });
+
+      it('v2 roundtrips large file from disk', async () => {
+        const sourcePath = join(tempDir, 'random');
+        // Get sufficient large file to have more than 64kb of padding and
+        // trigger push back on the streams.
+        const data = getRandomBytes(5 * 1024 * 1024);
+        const plaintextHash = sha256(data);
+        writeFileSync(sourcePath, data);
+        try {
+          await testV2RoundTripData({
+            path: sourcePath,
+            data,
+            plaintextHash,
+          });
+        } finally {
+          unlinkSync(sourcePath);
+        }
+      });
+
+      it('v2 roundtrips large file from memory', async () => {
+        // Get sufficient large data to have more than 64kb of padding and
+        // trigger push back on the streams.
+        const data = getRandomBytes(5 * 1024 * 1024);
+        const plaintextHash = sha256(data);
+        await testV2RoundTripData({
+          data,
+          plaintextHash,
+        });
+      });
+      describe('dangerousIv', () => {
+        it('uses hardcodedIv in tests', async () => {
+          await testV2RoundTripData({
+            data: FILE_CONTENTS,
+            plaintextHash: FILE_HASH,
+            dangerousIv: {
+              reason: 'test',
+              iv: _generateAttachmentIv(),
+            },
+          });
+        });
+
+        it('uses hardcodedIv when re-encrypting for backup', async () => {
+          const keys = generateAttachmentKeys();
+          const previouslyEncrypted = await encryptAttachmentV2ToDisk({
+            keys,
+            plaintext: { data: FILE_CONTENTS },
+            getAbsoluteAttachmentPath:
+              window.Signal.Migrations.getAbsoluteAttachmentPath,
+          });
+
+          await testV2RoundTripData({
+            data: FILE_CONTENTS,
+            plaintextHash: FILE_HASH,
+            encryptionKeys: keys,
+            dangerousIv: {
+              reason: 'reencrypting-for-backup',
+              iv: previouslyEncrypted.iv,
+              digestToMatch: previouslyEncrypted.digest,
+            },
+          });
+
+          // If the digest is wrong, it should throw
+          await assert.isRejected(
+            testV2RoundTripData({
+              data: FILE_CONTENTS,
+              plaintextHash: FILE_HASH,
+              encryptionKeys: keys,
+              dangerousIv: {
+                reason: 'reencrypting-for-backup',
+                iv: previouslyEncrypted.iv,
+                digestToMatch: getRandomBytes(32),
+              },
+            }),
+            'iv was hardcoded for backup re-encryption, but digest does not match'
+          );
+        });
+      });
+    });
+
+    it('v2 -> v1 (disk -> memory)', async () => {
+      const keys = generateAttachmentKeys();
+      let ciphertextPath;
+
+      try {
+        const encryptedAttachment = await encryptAttachmentV2ToDisk({
+          keys,
+          plaintext: { absolutePath: FILE_PATH },
+          getAbsoluteAttachmentPath:
+            window.Signal.Migrations.getAbsoluteAttachmentPath,
+        });
+        ciphertextPath = window.Signal.Migrations.getAbsoluteAttachmentPath(
+          encryptedAttachment.path
+        );
+
+        const ciphertext = readFileSync(ciphertextPath);
+
+        const plaintext = decryptAttachmentV1(
+          ciphertext,
+          keys,
+          encryptedAttachment.digest
+        );
+
+        const IV = 16;
+        const MAC = 32;
+        const PADDING_FOR_GHOST_KITTY = 126_066; // delta between file size and next bucket
+        assert.strictEqual(
+          plaintext.byteLength,
+          FILE_CONTENTS.byteLength + IV + MAC + PADDING_FOR_GHOST_KITTY,
+          'verify padding'
+        );
+
+        // Note: support for padding is not in decryptAttachmentV1, so we manually unpad
+        const plaintextWithoutPadding = plaintext.subarray(
+          0,
+          FILE_CONTENTS.byteLength
+        );
+        assert.isTrue(
+          constantTimeEqual(FILE_CONTENTS, plaintextWithoutPadding)
+        );
+      } finally {
+        if (ciphertextPath) {
+          unlinkSync(ciphertextPath);
+        }
+      }
+    });
+
+    it('v1 and v2 produce the same ciphertext, given same iv', async () => {
+      const keys = generateAttachmentKeys();
+      const dangerousTestOnlyIv = _generateAttachmentIv();
+
+      let ciphertextPath;
+      try {
+        const encryptedAttachmentV1 = padAndEncryptAttachment({
+          plaintext: FILE_CONTENTS,
+          keys,
+          dangerousTestOnlyIv,
+        });
+        const ciphertextV1 = encryptedAttachmentV1.ciphertext;
+
+        const encryptedAttachmentV2 = await encryptAttachmentV2ToDisk({
+          keys,
+          plaintext: { absolutePath: FILE_PATH },
+          dangerousIv: { iv: dangerousTestOnlyIv, reason: 'test' },
+          getAbsoluteAttachmentPath:
+            window.Signal.Migrations.getAbsoluteAttachmentPath,
+        });
+        ciphertextPath = window.Signal.Migrations.getAbsoluteAttachmentPath(
+          encryptedAttachmentV2.path
+        );
+
+        const ciphertextV2 = readFileSync(ciphertextPath);
+
+        assert.strictEqual(ciphertextV1.byteLength, ciphertextV2.byteLength);
+
+        assert.isTrue(constantTimeEqual(ciphertextV1, ciphertextV2));
+      } finally {
+        if (ciphertextPath) {
+          unlinkSync(ciphertextPath);
+        }
+      }
+    });
+
+    describe('decryptAttachmentV2 with outer layer of encryption', () => {
+      async function doubleEncrypt({
+        plaintextAbsolutePath,
+        innerKeys,
+        outerKeys,
+      }: {
+        plaintextAbsolutePath: string;
+        innerKeys: Uint8Array;
+        outerKeys: Uint8Array;
+      }) {
+        let innerCiphertextPath;
+        let outerCiphertextPath;
+        let innerEncryptedAttachment;
+        try {
+          innerEncryptedAttachment = await encryptAttachmentV2ToDisk({
+            keys: innerKeys,
+            plaintext: { absolutePath: plaintextAbsolutePath },
+            getAbsoluteAttachmentPath:
+              window.Signal.Migrations.getAbsoluteAttachmentPath,
+          });
+          innerCiphertextPath =
+            window.Signal.Migrations.getAbsoluteAttachmentPath(
+              innerEncryptedAttachment.path
+            );
+
+          const outerEncryptedAttachment = await encryptAttachmentV2ToDisk({
+            keys: outerKeys,
+            plaintext: { absolutePath: innerCiphertextPath },
+            // We (and the server!) don't pad the second layer
+            dangerousTestOnlySkipPadding: true,
+            getAbsoluteAttachmentPath:
+              window.Signal.Migrations.getAbsoluteAttachmentPath,
+          });
+
+          outerCiphertextPath =
+            window.Signal.Migrations.getAbsoluteAttachmentPath(
+              outerEncryptedAttachment.path
+            );
+        } finally {
+          if (innerCiphertextPath) {
+            unlinkSync(innerCiphertextPath);
+          }
+        }
+        return {
+          outerCiphertextPath,
+          innerEncryptedAttachment,
+        };
+      }
+
+      it('v2 roundtrips smaller file (all on disk)', async () => {
+        const outerKeys = generateAttachmentKeys();
+        const innerKeys = generateAttachmentKeys();
+        let plaintextPath;
+        let outerCiphertextPath;
+
+        try {
+          const encryptResult = await doubleEncrypt({
+            plaintextAbsolutePath: FILE_PATH,
+            innerKeys,
+            outerKeys,
+          });
+          outerCiphertextPath = encryptResult.outerCiphertextPath;
+
+          const decryptedAttachment = await decryptAttachmentV2({
+            type: 'standard',
+            ciphertextPath: outerCiphertextPath,
+            idForLogging: 'test',
+            ...splitKeys(innerKeys),
+            size: FILE_CONTENTS.byteLength,
+            theirDigest: encryptResult.innerEncryptedAttachment.digest,
+            outerEncryption: splitKeys(outerKeys),
+            getAbsoluteAttachmentPath:
+              window.Signal.Migrations.getAbsoluteAttachmentPath,
+          });
+
+          plaintextPath = window.Signal.Migrations.getAbsoluteAttachmentPath(
+            decryptedAttachment.path
+          );
+          const plaintext = readFileSync(plaintextPath);
+          assert.isTrue(constantTimeEqual(FILE_CONTENTS, plaintext));
+          assert.strictEqual(
+            encryptResult.innerEncryptedAttachment.plaintextHash,
+            GHOST_KITTY_HASH
+          );
+          assert.strictEqual(
+            decryptedAttachment.plaintextHash,
+            encryptResult.innerEncryptedAttachment.plaintextHash
+          );
+        } finally {
+          if (plaintextPath) {
+            unlinkSync(plaintextPath);
+          }
+          if (outerCiphertextPath) {
+            unlinkSync(outerCiphertextPath);
+          }
+        }
+      });
+
+      it('v2 roundtrips random data (all on disk)', async () => {
+        const sourcePath = join(tempDir, 'random');
+        // Get sufficient large file to have more than 64kb of padding and
+        // trigger push back on the streams.
+        const data = getRandomBytes(5 * 1024 * 1024);
+
+        writeFileSync(sourcePath, data);
+
+        const outerKeys = generateAttachmentKeys();
+        const innerKeys = generateAttachmentKeys();
+        let plaintextPath;
+        let outerCiphertextPath;
+
+        try {
+          const encryptResult = await doubleEncrypt({
+            plaintextAbsolutePath: sourcePath,
+            innerKeys,
+            outerKeys,
+          });
+          outerCiphertextPath = encryptResult.outerCiphertextPath;
+
+          const decryptedAttachment = await decryptAttachmentV2({
+            type: 'standard',
+            ciphertextPath: outerCiphertextPath,
+            idForLogging: 'test',
+            ...splitKeys(innerKeys),
+            size: data.byteLength,
+            theirDigest: encryptResult.innerEncryptedAttachment.digest,
+            outerEncryption: splitKeys(outerKeys),
+            getAbsoluteAttachmentPath:
+              window.Signal.Migrations.getAbsoluteAttachmentPath,
+          });
+          plaintextPath = window.Signal.Migrations.getAbsoluteAttachmentPath(
+            decryptedAttachment.path
+          );
+          const plaintext = readFileSync(plaintextPath);
+          assert.isTrue(constantTimeEqual(data, plaintext));
+        } finally {
+          if (sourcePath) {
+            unlinkSync(sourcePath);
+          }
+          if (plaintextPath) {
+            unlinkSync(plaintextPath);
+          }
+          if (outerCiphertextPath) {
+            unlinkSync(outerCiphertextPath);
+          }
+        }
+      });
+
+      it('v2 fails if outer encryption mac is wrong', async () => {
+        const sourcePath = join(tempDir, 'random');
+        // Get sufficient large file to have more than 64kb of padding and
+        // trigger push back on the streams.
+        const data = getRandomBytes(5 * 1024 * 1024);
+
+        writeFileSync(sourcePath, data);
+
+        const outerKeys = generateAttachmentKeys();
+        const innerKeys = generateAttachmentKeys();
+        let outerCiphertextPath;
+
+        try {
+          const encryptResult = await doubleEncrypt({
+            plaintextAbsolutePath: sourcePath,
+            innerKeys,
+            outerKeys,
+          });
+          outerCiphertextPath = encryptResult.outerCiphertextPath;
+
+          await assert.isRejected(
+            decryptAttachmentV2({
+              type: 'standard',
+              ciphertextPath: outerCiphertextPath,
+              idForLogging: 'test',
+              ...splitKeys(innerKeys),
+              size: data.byteLength,
+              theirDigest: encryptResult.innerEncryptedAttachment.digest,
+              outerEncryption: {
+                aesKey: splitKeys(outerKeys).aesKey,
+                macKey: splitKeys(innerKeys).macKey, // wrong mac!
+              },
+              getAbsoluteAttachmentPath:
+                window.Signal.Migrations.getAbsoluteAttachmentPath,
+            }),
+            /Bad outer encryption MAC/
+          );
+        } finally {
+          if (sourcePath) {
+            unlinkSync(sourcePath);
+          }
+          if (outerCiphertextPath) {
+            unlinkSync(outerCiphertextPath);
+          }
+        }
+      });
+    });
+  });
+
+  describe('getAesCbcCiphertextLength', () => {
+    function encrypt(length: number) {
+      const cipher = createCipheriv(
+        CipherType.AES256CBC,
+        getRandomBytes(32),
+        getRandomBytes(16)
+      );
+      const encrypted = cipher.update(Buffer.alloc(length));
+      return Buffer.concat([encrypted, cipher.final()]);
+    }
+    it('calculates cipherTextLength correctly', () => {
+      for (let i = 0; i < 128; i += 1) {
+        assert.strictEqual(getAesCbcCiphertextLength(i), encrypt(i).length);
+      }
     });
   });
 });

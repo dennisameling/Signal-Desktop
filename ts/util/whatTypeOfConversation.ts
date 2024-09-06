@@ -23,11 +23,15 @@ export function isDirectConversation(
   );
 }
 
-export function isMe(conversationAttrs: ConversationAttributesType): boolean {
-  const { e164, uuid } = conversationAttrs;
+export function isMe(
+  conversationAttrs: Pick<ConversationAttributesType, 'e164' | 'serviceId'>
+): boolean {
+  const { e164, serviceId } = conversationAttrs;
   const ourNumber = window.textsecure.storage.user.getNumber();
-  const ourUuid = window.textsecure.storage.user.getUuid()?.toString();
-  return Boolean((e164 && e164 === ourNumber) || (uuid && uuid === ourUuid));
+  const ourAci = window.textsecure.storage.user.getAci();
+  return Boolean(
+    (e164 && e164 === ourNumber) || (serviceId && serviceId === ourAci)
+  );
 }
 
 export function isGroup(
@@ -74,7 +78,10 @@ export function isGroupV2(
 }
 
 export function typeofConversation(
-  conversationAttrs: ConversationAttributesType
+  conversationAttrs: Pick<
+    ConversationAttributesType,
+    'type' | 'e164' | 'serviceId' | 'groupId' | 'groupVersion'
+  >
 ): ConversationTypes | undefined {
   if (isMe(conversationAttrs)) {
     return ConversationTypes.Me;

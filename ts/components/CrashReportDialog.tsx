@@ -9,18 +9,21 @@ import { Modal } from './Modal';
 import { Spinner } from './Spinner';
 
 type PropsActionsType = {
-  uploadCrashReports: () => void;
+  writeCrashReportsToLog: () => void;
   eraseCrashReports: () => void;
 };
 
-type PropsType = {
+export type PropsType = {
   i18n: LocalizerType;
   isPending: boolean;
 } & PropsActionsType;
 
-export function CrashReportDialog(props: Readonly<PropsType>): JSX.Element {
-  const { i18n, isPending, uploadCrashReports, eraseCrashReports } = props;
-
+export function CrashReportDialog({
+  i18n,
+  isPending,
+  writeCrashReportsToLog,
+  eraseCrashReports,
+}: Readonly<PropsType>): JSX.Element {
   const onEraseClick = (event: React.MouseEvent) => {
     event.preventDefault();
 
@@ -30,39 +33,44 @@ export function CrashReportDialog(props: Readonly<PropsType>): JSX.Element {
   const onSubmitClick = (event: React.MouseEvent) => {
     event.preventDefault();
 
-    uploadCrashReports();
+    writeCrashReportsToLog();
   };
+
+  const footer = (
+    <>
+      <Button
+        disabled={isPending}
+        onClick={onEraseClick}
+        variant={ButtonVariant.Secondary}
+      >
+        {i18n('icu:CrashReportDialog__erase')}
+      </Button>
+      <Button
+        disabled={isPending}
+        onClick={onSubmitClick}
+        ref={button => button?.focus()}
+        variant={ButtonVariant.Primary}
+      >
+        {isPending ? (
+          <Spinner size="22px" svgSize="small" />
+        ) : (
+          i18n('icu:CrashReportDialog__submit')
+        )}
+      </Button>
+    </>
+  );
 
   return (
     <Modal
+      modalName="CrashReportDialog"
       moduleClassName="module-Modal--important"
       i18n={i18n}
-      title={i18n('CrashReportDialog__title')}
+      title={i18n('icu:CrashReportDialog__title')}
       hasXButton
       onClose={eraseCrashReports}
+      modalFooter={footer}
     >
-      <section>{i18n('CrashReportDialog__body')}</section>
-      <Modal.ButtonFooter>
-        <Button
-          disabled={isPending}
-          onClick={onEraseClick}
-          variant={ButtonVariant.Secondary}
-        >
-          {i18n('CrashReportDialog__erase')}
-        </Button>
-        <Button
-          disabled={isPending}
-          onClick={onSubmitClick}
-          ref={button => button?.focus()}
-          variant={ButtonVariant.Primary}
-        >
-          {isPending ? (
-            <Spinner size="22px" svgSize="small" />
-          ) : (
-            i18n('CrashReportDialog__submit')
-          )}
-        </Button>
-      </Modal.ButtonFooter>
+      <section>{i18n('icu:CrashReportDialog__body')}</section>
     </Modal>
   );
 }

@@ -1,10 +1,10 @@
-// Copyright 2018-2020 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The list of permissions is here:
 //   https://electronjs.org/docs/api/session#sessetpermissionrequesthandlerhandler
 
-import type { session as ElectronSession } from 'electron';
+import type { session as ElectronSession, Session } from 'electron';
 
 import type { ConfigType } from './base_config';
 
@@ -12,6 +12,7 @@ const PERMISSIONS: Record<string, boolean> = {
   // Allowed
   fullscreen: true, // required to show videos in full-screen
   notifications: true, // required to show OS notifications for new messages
+  'clipboard-sanitized-write': true, // required to copy text into clipboard
 
   // Off by default, can be enabled by user
   media: false, // required for access to microphone and camera, used for voice notes and calling
@@ -30,6 +31,12 @@ function _createPermissionHandler(
     // We default 'media' permission to false, but the user can override that for
     // the microphone and camera.
     if (permission === 'media') {
+      // Pacifying typescript because it is always there for 'media' permission
+      if (!('mediaTypes' in details)) {
+        callback(false);
+        return;
+      }
+
       if (
         details.mediaTypes?.includes('audio') ||
         details.mediaTypes?.includes('video')
@@ -74,15 +81,13 @@ export function installPermissionsHandler({
   session,
   userConfig,
 }: {
-  session: typeof ElectronSession;
+  session: Session;
   userConfig: Pick<ConfigType, 'get'>;
 }): void {
   // Setting the permission request handler to null first forces any permissions to be
   //   requested again. Without this, revoked permissions might still be available if
   //   they've already been used successfully.
-  session.defaultSession.setPermissionRequestHandler(null);
+  session.setPermissionRequestHandler(null);
 
-  session.defaultSession.setPermissionRequestHandler(
-    _createPermissionHandler(userConfig)
-  );
+  session.setPermissionRequestHandler(_createPermissionHandler(userConfig));
 }

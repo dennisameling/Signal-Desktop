@@ -7,7 +7,7 @@ import * as durations from '../../util/durations';
 import type { App, Bootstrap } from './fixtures';
 import { initStorage, debug } from './fixtures';
 
-describe('storage service', function needsName() {
+describe('storage service', function (this: Mocha.Suite) {
   this.timeout(durations.MINUTE);
 
   let bootstrap: Bootstrap;
@@ -17,7 +17,12 @@ describe('storage service', function needsName() {
     ({ bootstrap, app } = await initStorage());
   });
 
-  afterEach(async () => {
+  afterEach(async function (this: Mocha.Context) {
+    if (!bootstrap) {
+      return;
+    }
+
+    await bootstrap.maybeSaveLogs(this.currentTest, app);
     await app.close();
     await bootstrap.teardown();
   });
@@ -28,56 +33,55 @@ describe('storage service', function needsName() {
 
     const window = await app.getWindow();
 
-    const leftPane = window.locator('.left-pane-wrapper');
-    const conversationStack = window.locator('.conversation-stack');
+    const leftPane = window.locator('#LeftPane');
+    const conversationStack = window.locator('.Inbox__conversation-stack');
 
     debug('archiving contact');
     {
       const state = await phone.expectStorageState('consistency check');
+      const newState = state
+        .updateContact(firstContact, { archived: true })
+        .unpin(firstContact);
 
-      await phone.setStorageState(
-        state
-          .updateContact(firstContact, { archived: true })
-          .unpin(firstContact)
-      );
+      await phone.setStorageState(newState);
       await phone.sendFetchStorage({
         timestamp: bootstrap.getTimestamp(),
       });
 
       await leftPane
-        .locator(
-          '_react=ConversationListItem' +
-            `[title = ${JSON.stringify(firstContact.profileName)}]`
-        )
+        .locator(`[data-testid="${firstContact.toContact().aci}"]`)
         .waitFor({ state: 'hidden' });
 
       await leftPane
         .locator('button.module-conversation-list__item--archive-button')
         .waitFor();
+
+      await app.waitForManifestVersion(newState.version);
     }
 
     debug('unarchiving pinned contact');
     {
       const state = await phone.expectStorageState('consistency check');
+      const newState = state
+        .updateContact(firstContact, {
+          archived: false,
+        })
+        .pin(firstContact);
 
-      await phone.setStorageState(
-        state.updateContact(firstContact, { archived: false }).pin(firstContact)
-      );
+      await phone.setStorageState(newState);
       await phone.sendFetchStorage({
         timestamp: bootstrap.getTimestamp(),
       });
 
       await leftPane
-        .locator(
-          '_react=ConversationListItem' +
-            '[isPinned = true]' +
-            `[title = ${JSON.stringify(firstContact.profileName)}]`
-        )
+        .locator(`[data-testid="${firstContact.toContact().aci}"]`)
         .waitFor();
 
       await leftPane
         .locator('button.module-conversation-list__item--archive-button')
         .waitFor({ state: 'hidden' });
+
+      await app.waitForManifestVersion(newState.version);
     }
 
     debug('archive pinned contact in the app');
@@ -85,10 +89,7 @@ describe('storage service', function needsName() {
       const state = await phone.expectStorageState('consistency check');
 
       await leftPane
-        .locator(
-          '_react=ConversationListItem' +
-            `[title = ${JSON.stringify(firstContact.profileName)}]`
-        )
+        .locator(`[data-testid="${firstContact.toContact().aci}"]`)
         .click();
 
       const moreButton = conversationStack.locator(
@@ -96,7 +97,7 @@ describe('storage service', function needsName() {
       );
       await moreButton.click();
 
-      const archiveButton = conversationStack.locator(
+      const archiveButton = window.locator(
         '.react-contextmenu-item >> "Archive"'
       );
       await archiveButton.click();

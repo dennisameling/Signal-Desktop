@@ -1,14 +1,61 @@
-// Copyright 2018-2020 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { ipcMain } from 'electron';
+import { ipcMain, protocol } from 'electron';
+import { createReadStream } from 'node:fs';
+import { join, normalize } from 'node:path';
+import { PassThrough, type Writable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { randomBytes } from 'node:crypto';
+import { once } from 'node:events';
+import z from 'zod';
 import * as rimraf from 'rimraf';
+import LRU from 'lru-cache';
 import {
+  inferChunkSize,
+  DigestingWritable,
+} from '@signalapp/libsignal-client/dist/incremental_mac';
+import { RangeFinder, DefaultStorage } from '@indutny/range-finder';
+import {
+  getAllAttachments,
+  getAllDownloads,
+  getAvatarsPath,
   getPath,
   getStickersPath,
   getTempPath,
   getDraftPath,
-} from '../ts/util/attachments';
+  getDownloadsPath,
+  deleteAll as deleteAllAttachments,
+  deleteAllBadges,
+  deleteAllDownloads,
+  deleteStaleDownloads,
+  getAllStickers,
+  deleteAllStickers,
+  getAllDraftAttachments,
+  deleteAllDraftAttachments,
+} from './attachments';
+import type { MainSQL } from '../ts/sql/main';
+import type { MessageAttachmentsCursorType } from '../ts/sql/Interface';
+import * as Errors from '../ts/types/errors';
+import {
+  APPLICATION_OCTET_STREAM,
+  MIMETypeToString,
+  stringToMIMEType,
+} from '../ts/types/MIME';
+import { sleep } from '../ts/util/sleep';
+import { isPathInside } from '../ts/util/isPathInside';
+import { missingCaseError } from '../ts/util/missingCaseError';
+import { safeParseInteger } from '../ts/util/numbers';
+import { SECOND } from '../ts/util/durations';
+import { drop } from '../ts/util/drop';
+import { strictAssert } from '../ts/util/assert';
+import { ValidatingPassThrough } from '../ts/util/ValidatingPassThrough';
+import { toWebStream } from '../ts/util/toWebStream';
+import {
+  isImageTypeSupported,
+  isVideoTypeSupported,
+} from '../ts/util/GoogleChrome';
+import { decryptAttachmentV2ToSink } from '../ts/AttachmentCrypto';
 
 let initialized = false;
 
@@ -16,77 +63,573 @@ const ERASE_ATTACHMENTS_KEY = 'erase-attachments';
 const ERASE_STICKERS_KEY = 'erase-stickers';
 const ERASE_TEMP_KEY = 'erase-temp';
 const ERASE_DRAFTS_KEY = 'erase-drafts';
+const ERASE_DOWNLOADS_KEY = 'erase-downloads';
+const CLEANUP_DOWNLOADS_KEY = 'cleanup-downloads';
 const CLEANUP_ORPHANED_ATTACHMENTS_KEY = 'cleanup-orphaned-attachments';
+
+const INTERACTIVITY_DELAY = 50;
+
+type RangeFinderContextType = Readonly<
+  (
+    | {
+        type: 'ciphertext';
+        keysBase64: string;
+        size: number;
+      }
+    | {
+        type: 'plaintext';
+      }
+  ) & {
+    path: string;
+  }
+>;
+
+type DigestLRUEntryType = Readonly<{
+  key: Buffer;
+  digest: Buffer;
+}>;
+
+const digestLRU = new LRU<string, DigestLRUEntryType>({
+  // The size of each entry is roughgly 8kb per digest + 32 bytes per key. We
+  // mostly need this cache for range requests, so keep it low.
+  max: 100,
+});
+
+async function safeDecryptToSink(
+  ctx: RangeFinderContextType,
+  sink: Writable
+): Promise<void> {
+  strictAssert(ctx.type === 'ciphertext', 'Cannot decrypt plaintext');
+
+  const options = {
+    ciphertextPath: ctx.path,
+    idForLogging: 'attachment_channel',
+    keysBase64: ctx.keysBase64,
+    type: 'local' as const,
+    size: ctx.size,
+  };
+
+  try {
+    const chunkSize = inferChunkSize(ctx.size);
+    let entry = digestLRU.get(ctx.path);
+    if (!entry) {
+      const key = randomBytes(32);
+      const writable = new DigestingWritable(key, chunkSize);
+
+      const controller = new AbortController();
+
+      await Promise.race([
+        // Just use a non-existing event name to wait for an 'error'. We want
+        // to handle errors on `sink` while generating digest in case whole
+        // request get cancelled early.
+        once(sink, 'non-error-event', { signal: controller.signal }),
+        decryptAttachmentV2ToSink(options, writable),
+      ]);
+
+      // Stop handling errors on sink
+      controller.abort();
+
+      entry = {
+        key,
+        digest: writable.getFinalDigest(),
+      };
+      digestLRU.set(ctx.path, entry);
+    }
+
+    const validator = new ValidatingPassThrough(
+      entry.key,
+      chunkSize,
+      entry.digest
+    );
+    await Promise.all([
+      decryptAttachmentV2ToSink(options, validator),
+      pipeline(validator, sink),
+    ]);
+  } catch (error) {
+    // These errors happen when canceling fetch from `attachment://` urls,
+    // ignore them to avoid noise in the logs.
+    if (
+      error.name === 'AbortError' ||
+      error.code === 'ERR_STREAM_PREMATURE_CLOSE'
+    ) {
+      return;
+    }
+
+    console.error(
+      'handleAttachmentRequest: decryption error',
+      Errors.toLogFormat(error)
+    );
+  }
+}
+
+const storage = new DefaultStorage<RangeFinderContextType>(
+  ctx => {
+    if (ctx.type === 'plaintext') {
+      return createReadStream(ctx.path);
+    }
+
+    if (ctx.type === 'ciphertext') {
+      const plaintext = new PassThrough();
+      drop(safeDecryptToSink(ctx, plaintext));
+      return plaintext;
+    }
+
+    throw missingCaseError(ctx);
+  },
+  {
+    maxSize: 10,
+    ttl: SECOND,
+    cacheKey: ctx => {
+      if (ctx.type === 'ciphertext') {
+        return `${ctx.type}:${ctx.path}:${ctx.size}:${ctx.keysBase64}`;
+      }
+      if (ctx.type === 'plaintext') {
+        return `${ctx.type}:${ctx.path}`;
+      }
+      throw missingCaseError(ctx);
+    },
+  }
+);
+const rangeFinder = new RangeFinder<RangeFinderContextType>(storage, {
+  noActiveReuse: true,
+});
+
+const dispositionSchema = z.enum([
+  'attachment',
+  'temporary',
+  'draft',
+  'sticker',
+  'avatarData',
+]);
+
+type DeleteOrphanedAttachmentsOptionsType = Readonly<{
+  orphanedAttachments: Set<string>;
+  orphanedDownloads: Set<string>;
+  sql: MainSQL;
+  userDataPath: string;
+}>;
+
+type CleanupOrphanedAttachmentsOptionsType = Readonly<{
+  sql: MainSQL;
+  userDataPath: string;
+}>;
+
+async function cleanupOrphanedAttachments({
+  sql,
+  userDataPath,
+}: CleanupOrphanedAttachmentsOptionsType): Promise<void> {
+  await deleteAllBadges({
+    userDataPath,
+    pathsToKeep: await sql.sqlRead('getAllBadgeImageFileLocalPaths'),
+  });
+
+  const allStickers = await getAllStickers(userDataPath);
+  const orphanedStickers = await sql.sqlWrite(
+    'removeKnownStickers',
+    allStickers
+  );
+  await deleteAllStickers({
+    userDataPath,
+    stickers: orphanedStickers,
+  });
+
+  const allDraftAttachments = await getAllDraftAttachments(userDataPath);
+  const orphanedDraftAttachments = await sql.sqlWrite(
+    'removeKnownDraftAttachments',
+    allDraftAttachments
+  );
+  await deleteAllDraftAttachments({
+    userDataPath,
+    attachments: orphanedDraftAttachments,
+  });
+
+  // Delete orphaned attachments from conversations and messages.
+
+  const orphanedAttachments = new Set(await getAllAttachments(userDataPath));
+  console.log(
+    'cleanupOrphanedAttachments: found ' +
+      `${orphanedAttachments.size} attachments on disk`
+  );
+
+  const orphanedDownloads = new Set(await getAllDownloads(userDataPath));
+  console.log(
+    'cleanupOrphanedAttachments: found ' +
+      `${orphanedDownloads.size} downloads on disk`
+  );
+
+  {
+    const attachments: Array<string> = await sql.sqlRead(
+      'getKnownConversationAttachments'
+    );
+
+    let missing = 0;
+    for (const known of attachments) {
+      if (!orphanedAttachments.delete(known)) {
+        missing += 1;
+      }
+    }
+
+    console.log(
+      `cleanupOrphanedAttachments: found ${attachments.length} conversation ` +
+        `attachments (${missing} missing), ${orphanedAttachments.size} remain`
+    );
+  }
+
+  {
+    const downloads: Array<string> = await sql.sqlRead('getKnownDownloads');
+
+    let missing = 0;
+    for (const known of downloads) {
+      if (!orphanedDownloads.delete(known)) {
+        missing += 1;
+      }
+    }
+
+    console.log(
+      `cleanupOrphanedAttachments: found ${downloads.length} downloads ` +
+        `(${missing} missing), ${orphanedDownloads.size} remain`
+    );
+  }
+
+  // This call is intentionally not awaited. We block the app while running
+  // all fetches above to ensure that there are no in-flight attachments that
+  // are saved to disk, but not put into any message or conversation model yet.
+  deleteOrphanedAttachments({
+    orphanedAttachments,
+    orphanedDownloads,
+    sql,
+    userDataPath,
+  });
+}
+
+function deleteOrphanedAttachments({
+  orphanedAttachments,
+  orphanedDownloads,
+  sql,
+  userDataPath,
+}: DeleteOrphanedAttachmentsOptionsType): void {
+  // This function *can* throw.
+  async function runWithPossibleException(): Promise<void> {
+    let cursor: MessageAttachmentsCursorType | undefined;
+    let totalFound = 0;
+    let totalMissing = 0;
+    let totalDownloadsFound = 0;
+    let totalDownloadsMissing = 0;
+    try {
+      do {
+        let attachments: ReadonlyArray<string>;
+        let downloads: ReadonlyArray<string>;
+
+        // eslint-disable-next-line no-await-in-loop
+        ({ attachments, downloads, cursor } = await sql.sqlRead(
+          'getKnownMessageAttachments',
+          cursor
+        ));
+
+        totalFound += attachments.length;
+        totalDownloadsFound += downloads.length;
+
+        for (const known of attachments) {
+          if (!orphanedAttachments.delete(known)) {
+            totalMissing += 1;
+          }
+        }
+
+        for (const known of downloads) {
+          if (!orphanedDownloads.delete(known)) {
+            totalDownloadsMissing += 1;
+          }
+        }
+
+        if (cursor === undefined) {
+          break;
+        }
+
+        // Let other SQL calls come through. There are hundreds of thousands of
+        // messages in the database and it might take time to go through them all.
+        // eslint-disable-next-line no-await-in-loop
+        await sleep(INTERACTIVITY_DELAY);
+      } while (cursor !== undefined && !cursor.done);
+    } finally {
+      if (cursor !== undefined) {
+        await sql.sqlRead('finishGetKnownMessageAttachments', cursor);
+      }
+    }
+
+    console.log(
+      `cleanupOrphanedAttachments: found ${totalFound} message ` +
+        `attachments, (${totalMissing} missing) ` +
+        `${orphanedAttachments.size} remain`
+    );
+
+    await deleteAllAttachments({
+      userDataPath,
+      attachments: Array.from(orphanedAttachments),
+    });
+
+    console.log(
+      `cleanupOrphanedAttachments: found ${totalDownloadsFound} downloads ` +
+        `(${totalDownloadsMissing} missing) ` +
+        `${orphanedDownloads.size} remain`
+    );
+    await deleteAllDownloads({
+      userDataPath,
+      downloads: Array.from(orphanedDownloads),
+    });
+  }
+
+  async function runSafe() {
+    const start = Date.now();
+    try {
+      await runWithPossibleException();
+    } catch (error) {
+      console.error(
+        'deleteOrphanedAttachments: error',
+        Errors.toLogFormat(error)
+      );
+    } finally {
+      const duration = Date.now() - start;
+      console.log(`deleteOrphanedAttachments: took ${duration}ms`);
+    }
+  }
+
+  // Intentionally not awaiting
+  void runSafe();
+}
+
+let attachmentsDir: string | undefined;
+let stickersDir: string | undefined;
+let tempDir: string | undefined;
+let draftDir: string | undefined;
+let downloadsDir: string | undefined;
+let avatarDataDir: string | undefined;
 
 export function initialize({
   configDir,
-  cleanupOrphanedAttachments,
+  sql,
 }: {
   configDir: string;
-  cleanupOrphanedAttachments: () => Promise<void>;
+  sql: MainSQL;
 }): void {
   if (initialized) {
-    throw new Error('initialze: Already initialized!');
+    throw new Error('initialize: Already initialized!');
   }
   initialized = true;
 
-  const attachmentsDir = getPath(configDir);
-  const stickersDir = getStickersPath(configDir);
-  const tempDir = getTempPath(configDir);
-  const draftDir = getDraftPath(configDir);
+  attachmentsDir = getPath(configDir);
+  stickersDir = getStickersPath(configDir);
+  tempDir = getTempPath(configDir);
+  draftDir = getDraftPath(configDir);
+  downloadsDir = getDownloadsPath(configDir);
+  avatarDataDir = getAvatarsPath(configDir);
 
-  ipcMain.on(ERASE_TEMP_KEY, event => {
-    try {
-      rimraf.sync(tempDir);
-      event.sender.send(`${ERASE_TEMP_KEY}-done`);
-    } catch (error) {
-      const errorForDisplay = error && error.stack ? error.stack : error;
-      console.log(`erase temp error: ${errorForDisplay}`);
-      event.sender.send(`${ERASE_TEMP_KEY}-done`, error);
-    }
+  ipcMain.handle(ERASE_TEMP_KEY, () => {
+    strictAssert(tempDir != null, 'not initialized');
+    rimraf.sync(tempDir);
+  });
+  ipcMain.handle(ERASE_ATTACHMENTS_KEY, () => {
+    strictAssert(attachmentsDir != null, 'not initialized');
+    rimraf.sync(attachmentsDir);
+  });
+  ipcMain.handle(ERASE_STICKERS_KEY, () => {
+    strictAssert(stickersDir != null, 'not initialized');
+    rimraf.sync(stickersDir);
+  });
+  ipcMain.handle(ERASE_DRAFTS_KEY, () => {
+    strictAssert(draftDir != null, 'not initialized');
+    rimraf.sync(draftDir);
+  });
+  ipcMain.handle(ERASE_DOWNLOADS_KEY, () => {
+    strictAssert(downloadsDir != null, 'not initialized');
+    rimraf.sync(downloadsDir);
   });
 
-  ipcMain.on(ERASE_ATTACHMENTS_KEY, event => {
-    try {
-      rimraf.sync(attachmentsDir);
-      event.sender.send(`${ERASE_ATTACHMENTS_KEY}-done`);
-    } catch (error) {
-      const errorForDisplay = error && error.stack ? error.stack : error;
-      console.log(`erase attachments error: ${errorForDisplay}`);
-      event.sender.send(`${ERASE_ATTACHMENTS_KEY}-done`, error);
-    }
+  ipcMain.handle(CLEANUP_ORPHANED_ATTACHMENTS_KEY, async () => {
+    const start = Date.now();
+    await cleanupOrphanedAttachments({ sql, userDataPath: configDir });
+    const duration = Date.now() - start;
+    console.log(`cleanupOrphanedAttachments: took ${duration}ms`);
   });
 
-  ipcMain.on(ERASE_STICKERS_KEY, event => {
-    try {
-      rimraf.sync(stickersDir);
-      event.sender.send(`${ERASE_STICKERS_KEY}-done`);
-    } catch (error) {
-      const errorForDisplay = error && error.stack ? error.stack : error;
-      console.log(`erase stickers error: ${errorForDisplay}`);
-      event.sender.send(`${ERASE_STICKERS_KEY}-done`, error);
-    }
+  ipcMain.handle(CLEANUP_DOWNLOADS_KEY, async () => {
+    const start = Date.now();
+    await deleteStaleDownloads(configDir);
+    const duration = Date.now() - start;
+    console.log(`cleanupDownloads: took ${duration}ms`);
   });
 
-  ipcMain.on(ERASE_DRAFTS_KEY, event => {
-    try {
-      rimraf.sync(draftDir);
-      event.sender.send(`${ERASE_DRAFTS_KEY}-done`);
-    } catch (error) {
-      const errorForDisplay = error && error.stack ? error.stack : error;
-      console.log(`erase drafts error: ${errorForDisplay}`);
-      event.sender.send(`${ERASE_DRAFTS_KEY}-done`, error);
-    }
-  });
+  protocol.handle('attachment', handleAttachmentRequest);
+}
 
-  ipcMain.on(CLEANUP_ORPHANED_ATTACHMENTS_KEY, async event => {
-    try {
-      await cleanupOrphanedAttachments();
-      event.sender.send(`${CLEANUP_ORPHANED_ATTACHMENTS_KEY}-done`);
-    } catch (error) {
-      const errorForDisplay = error && error.stack ? error.stack : error;
-      console.log(`cleanup orphaned attachments error: ${errorForDisplay}`);
-      event.sender.send(`${CLEANUP_ORPHANED_ATTACHMENTS_KEY}-done`, error);
+export async function handleAttachmentRequest(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  if (url.host !== 'v1' && url.host !== 'v2') {
+    return new Response('Unknown host', { status: 404 });
+  }
+
+  // Disposition
+  let disposition: z.infer<typeof dispositionSchema> = 'attachment';
+  const dispositionParam = url.searchParams.get('disposition');
+  if (dispositionParam != null) {
+    disposition = dispositionSchema.parse(dispositionParam);
+  }
+
+  strictAssert(attachmentsDir != null, 'not initialized');
+  strictAssert(tempDir != null, 'not initialized');
+  strictAssert(draftDir != null, 'not initialized');
+  strictAssert(stickersDir != null, 'not initialized');
+  strictAssert(avatarDataDir != null, 'not initialized');
+
+  let parentDir: string;
+  switch (disposition) {
+    case 'attachment':
+      parentDir = attachmentsDir;
+      break;
+    case 'temporary':
+      parentDir = tempDir;
+      break;
+    case 'draft':
+      parentDir = draftDir;
+      break;
+    case 'sticker':
+      parentDir = stickersDir;
+      break;
+    case 'avatarData':
+      parentDir = avatarDataDir;
+      break;
+    default:
+      throw missingCaseError(disposition);
+  }
+
+  // Remove first slash
+  const path = normalize(
+    join(parentDir, ...url.pathname.slice(1).split(/\//g))
+  );
+  if (!isPathInside(path, parentDir)) {
+    return new Response('Access denied', { status: 401 });
+  }
+
+  // Get attachment size to trim the padding
+  const sizeParam = url.searchParams.get('size');
+  let maybeSize: number | undefined;
+  if (sizeParam != null) {
+    const intValue = safeParseInteger(sizeParam);
+    if (intValue != null) {
+      maybeSize = intValue;
     }
+  }
+
+  let context: RangeFinderContextType;
+
+  // Legacy plaintext attachments
+  if (url.host === 'v1') {
+    context = {
+      type: 'plaintext',
+      path,
+    };
+  } else {
+    // Encrypted attachments
+
+    // Get AES+MAC key
+    const maybeKeysBase64 = url.searchParams.get('key');
+    if (maybeKeysBase64 == null) {
+      return new Response('Missing key', { status: 400 });
+    }
+
+    // Size is required for trimming padding
+    if (maybeSize == null) {
+      return new Response('Missing size', { status: 400 });
+    }
+
+    context = {
+      type: 'ciphertext',
+      path,
+      keysBase64: maybeKeysBase64,
+      size: maybeSize,
+    };
+  }
+
+  try {
+    return handleRangeRequest({
+      request: req,
+      size: maybeSize,
+      context,
+    });
+  } catch (error) {
+    console.error('handleAttachmentRequest: error', Errors.toLogFormat(error));
+    throw error;
+  }
+}
+
+type HandleRangeRequestOptionsType = Readonly<{
+  request: Request;
+  size: number | undefined;
+  context: RangeFinderContextType;
+}>;
+
+function handleRangeRequest({
+  request,
+  size,
+  context,
+}: HandleRangeRequestOptionsType): Response {
+  const url = new URL(request.url);
+
+  // Get content-type
+  const contentTypeParam = url.searchParams.get('contentType');
+  let contentType = MIMETypeToString(APPLICATION_OCTET_STREAM);
+  if (contentTypeParam) {
+    const mime = stringToMIMEType(contentTypeParam);
+    if (isImageTypeSupported(mime) || isVideoTypeSupported(mime)) {
+      contentType = MIMETypeToString(mime);
+    }
+  }
+
+  const headers: HeadersInit = {
+    'cache-control': 'no-cache, no-store',
+    'content-type': contentType,
+  };
+
+  if (size != null) {
+    headers['content-length'] = size.toString();
+  }
+
+  const create200Response = (): Response => {
+    const plaintext = rangeFinder.get(0, context);
+    return new Response(toWebStream(plaintext), {
+      status: 200,
+      headers,
+    });
+  };
+
+  const range = request.headers.get('range');
+  if (range == null) {
+    return create200Response();
+  }
+
+  // Chromium only sends open-ended ranges: "start-"
+  const match = range.match(/^bytes=(\d+)-$/);
+  if (match == null) {
+    console.error(`attachment_channel: invalid range header: ${range}`);
+    return create200Response();
+  }
+
+  const startParam = safeParseInteger(match[1]);
+  if (startParam == null) {
+    console.error(`attachment_channel: invalid range header: ${range}`);
+    return create200Response();
+  }
+
+  const start = Math.min(startParam, size || Infinity);
+
+  headers['content-range'] = `bytes ${start}-/${size ?? '*'}`;
+
+  if (size !== undefined) {
+    headers['content-length'] = (size - start).toString();
+  }
+
+  const stream = rangeFinder.get(start, context);
+  return new Response(toWebStream(stream), {
+    status: 206,
+    headers,
   });
 }

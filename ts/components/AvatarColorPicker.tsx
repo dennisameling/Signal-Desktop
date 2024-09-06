@@ -13,15 +13,15 @@ export type PropsType = {
   selectedColor?: AvatarColorType;
 };
 
-export const AvatarColorPicker = ({
+export function AvatarColorPicker({
   i18n,
   onColorSelected,
   selectedColor,
-}: PropsType): JSX.Element => {
+}: PropsType): JSX.Element {
   return (
     <>
       <div className="AvatarEditor__avatar-selector-title">
-        {i18n('AvatarColorPicker--choose')}
+        {i18n('icu:AvatarColorPicker--choose')}
       </div>
       <div className="AvatarEditor__avatars">
         {AvatarColors.map(color => (
@@ -38,4 +38,4 @@ export const AvatarColorPicker = ({
       </div>
     </>
   );
-};
+}

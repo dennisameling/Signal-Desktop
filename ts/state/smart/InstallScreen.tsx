@@ -1,251 +1,77 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ComponentProps, ReactElement } from 'react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { ComponentProps } from 'react';
+import React, { memo, useCallback, useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 
 import { getIntl } from '../selectors/user';
-
-import * as log from '../../logging/log';
-import type { Loadable } from '../../util/loadable';
-import { LoadingState } from '../../util/loadable';
-import { assert } from '../../util/assert';
-import { explodePromise } from '../../util/explodePromise';
+import { getUpdatesState } from '../selectors/updates';
+import { getInstallerState } from '../selectors/installer';
+import { useInstallerActions } from '../ducks/installer';
+import { useUpdatesActions } from '../ducks/updates';
+import { hasExpired as hasExpiredSelector } from '../selectors/expiration';
 import { missingCaseError } from '../../util/missingCaseError';
-import {
-  InstallScreen,
-  InstallScreenStep,
-} from '../../components/InstallScreen';
-import { InstallError } from '../../components/installScreen/InstallScreenErrorStep';
-import { MAX_DEVICE_NAME_LENGTH } from '../../components/installScreen/InstallScreenChoosingDeviceNameStep';
-import { HTTPError } from '../../textsecure/Errors';
-import { isRecord } from '../../util/isRecord';
-import * as Errors from '../../types/errors';
-import { normalizeDeviceName } from '../../util/normalizeDeviceName';
+import { InstallScreen } from '../../components/InstallScreen';
+import { WidthBreakpoint } from '../../components/_util';
+import { InstallScreenStep } from '../../types/InstallScreen';
+import OS from '../../util/os/osMain';
+import { fileToBytes } from '../../util/fileToBytes';
+import { isStagingServer } from '../../util/isStagingServer';
+import * as log from '../../logging/log';
+import { SmartToastManager } from './ToastManager';
 
 type PropsType = ComponentProps<typeof InstallScreen>;
 
-type StateType =
-  | {
-      step: InstallScreenStep.Error;
-      error: InstallError;
-    }
-  | {
-      step: InstallScreenStep.QrCodeNotScanned;
-      provisioningUrl: Loadable<string>;
-    }
-  | {
-      step: InstallScreenStep.ChoosingDeviceName;
-      deviceName: string;
-    }
-  | {
-      step: InstallScreenStep.LinkInProgress;
-    };
-
-const INITIAL_STATE: StateType = {
-  step: InstallScreenStep.QrCodeNotScanned,
-  provisioningUrl: { loadingState: LoadingState.Loading },
-};
-
-function getInstallError(err: unknown): InstallError {
-  if (err instanceof HTTPError) {
-    switch (err.code) {
-      case -1:
-        return InstallError.ConnectionFailed;
-      case 409:
-        return InstallError.TooOld;
-      case 411:
-        return InstallError.TooManyDevices;
-      default:
-        return InstallError.UnknownError;
-    }
-  }
-  // AccountManager.registerSecondDevice uses this specific "websocket closed" error
-  //   message.
-  if (isRecord(err) && err.message === 'websocket closed') {
-    return InstallError.ConnectionFailed;
-  }
-  return InstallError.UnknownError;
-}
-
-export function SmartInstallScreen(): ReactElement {
+export const SmartInstallScreen = memo(function SmartInstallScreen() {
   const i18n = useSelector(getIntl);
+  const installerState = useSelector(getInstallerState);
+  const updates = useSelector(getUpdatesState);
+  const { startInstaller, finishInstall } = useInstallerActions();
+  const { startUpdate } = useUpdatesActions();
+  const hasExpired = useSelector(hasExpiredSelector);
 
-  const chooseDeviceNamePromiseWrapperRef = useRef(explodePromise<string>());
+  const [deviceName, setDeviceName] = useState<string>('');
+  const [backupFile, setBackupFile] = useState<File | undefined>();
 
-  const [state, setState] = useState<StateType>(INITIAL_STATE);
-
-  const setProvisioningUrl = useCallback(
-    (value: string) => {
-      setState(currentState => {
-        if (currentState.step !== InstallScreenStep.QrCodeNotScanned) {
-          return currentState;
-        }
-        return {
-          ...currentState,
-          provisioningUrl: {
-            loadingState: LoadingState.Loaded,
-            value,
-          },
-        };
-      });
-    },
-    [setState]
-  );
-
-  const onQrCodeScanned = useCallback(() => {
-    setState(currentState => {
-      if (currentState.step !== InstallScreenStep.QrCodeNotScanned) {
-        return currentState;
-      }
-
-      return {
-        step: InstallScreenStep.ChoosingDeviceName,
-        deviceName: normalizeDeviceName(
-          window.textsecure.storage.user.getDeviceName() ||
-            window.getHostName() ||
-            ''
-        ).slice(0, MAX_DEVICE_NAME_LENGTH),
-      };
-    });
-  }, [setState]);
-
-  const setDeviceName = useCallback(
-    (deviceName: string) => {
-      setState(currentState => {
-        if (currentState.step !== InstallScreenStep.ChoosingDeviceName) {
-          return currentState;
-        }
-        return {
-          ...currentState,
-          deviceName,
-        };
-      });
-    },
-    [setState]
-  );
-
-  const onSubmitDeviceName = useCallback(() => {
-    if (state.step !== InstallScreenStep.ChoosingDeviceName) {
-      return;
+  const onSubmitDeviceName = useCallback(async () => {
+    if (backupFile != null) {
+      // This is only for testing so don't bother catching errors
+      finishInstall({ deviceName, backupFile: await fileToBytes(backupFile) });
+    } else {
+      finishInstall({ deviceName, backupFile: undefined });
     }
+  }, [backupFile, deviceName, finishInstall]);
 
-    let deviceName: string = normalizeDeviceName(state.deviceName);
-    if (!deviceName.length) {
-      // This should be impossible, but we have it here just in case.
-      assert(
-        false,
-        'Unexpected empty device name. Falling back to placeholder value'
-      );
-      deviceName = i18n('Install__choose-device-name__placeholder');
-    }
-    chooseDeviceNamePromiseWrapperRef.current.resolve(deviceName);
-
-    setState({ step: InstallScreenStep.LinkInProgress });
-  }, [state, i18n]);
+  const suggestedDeviceName =
+    installerState.step === InstallScreenStep.ChoosingDeviceName
+      ? installerState.deviceName
+      : undefined;
 
   useEffect(() => {
-    let hasCleanedUp = false;
-
-    const accountManager = window.getAccountManager();
-    assert(accountManager, 'Expected an account manager');
-
-    const updateProvisioningUrl = (value: string): void => {
-      if (hasCleanedUp) {
-        return;
-      }
-      setProvisioningUrl(value);
-    };
-
-    const confirmNumber = async (): Promise<string> => {
-      if (hasCleanedUp) {
-        throw new Error('Cannot confirm number; the component was unmounted');
-      }
-      onQrCodeScanned();
-
-      if (window.CI) {
-        chooseDeviceNamePromiseWrapperRef.current.resolve(window.CI.deviceName);
-      }
-
-      const result = await chooseDeviceNamePromiseWrapperRef.current.promise;
-
-      if (hasCleanedUp) {
-        throw new Error('Cannot confirm number; the component was unmounted');
-      }
-
-      // Delete all data from the database unless we're in the middle of a re-link.
-      //   Without this, the app restarts at certain times and can cause weird things to
-      //   happen, like data from a previous light import showing up after a new install.
-      const shouldRetainData = window.Signal.Util.Registration.everDone();
-      if (!shouldRetainData) {
-        try {
-          await window.textsecure.storage.protocol.removeAllData();
-        } catch (error) {
-          log.error(
-            'confirmNumber: error clearing database',
-            Errors.toLogFormat(error)
-          );
-        }
-      }
-
-      if (hasCleanedUp) {
-        throw new Error('Cannot confirm number; the component was unmounted');
-      }
-
-      window.Signal.Util.postLinkExperience.start();
-
-      return result;
-    };
-
-    (async () => {
-      try {
-        await accountManager.registerSecondDevice(
-          updateProvisioningUrl,
-          confirmNumber
-        );
-
-        window.removeSetupMenuItems();
-      } catch (error) {
-        log.error(
-          'account.registerSecondDevice: got an error',
-          Errors.toLogFormat(error)
-        );
-        if (hasCleanedUp) {
-          return;
-        }
-        setState({
-          step: InstallScreenStep.Error,
-          error: getInstallError(error),
-        });
-      }
-    })();
-
-    return () => {
-      hasCleanedUp = true;
-    };
-  }, [setProvisioningUrl, onQrCodeScanned]);
+    setDeviceName(suggestedDeviceName ?? '');
+  }, [suggestedDeviceName]);
 
   let props: PropsType;
 
-  switch (state.step) {
-    case InstallScreenStep.Error:
-      props = {
-        step: InstallScreenStep.Error,
-        screenSpecificProps: {
-          i18n,
-          error: state.error,
-          quit: () => window.shutdown(),
-          tryAgain: () => setState(INITIAL_STATE),
-        },
-      };
-      break;
+  switch (installerState.step) {
+    case InstallScreenStep.NotStarted:
+      log.error('InstallScreen: Installer not started');
+      return null;
+
     case InstallScreenStep.QrCodeNotScanned:
       props = {
         step: InstallScreenStep.QrCodeNotScanned,
         screenSpecificProps: {
           i18n,
-          provisioningUrl: state.provisioningUrl,
+          provisioningUrl: installerState.provisioningUrl,
+          hasExpired,
+          updates,
+          currentVersion: window.getVersion(),
+          startUpdate,
+          retryGetQrCode: startInstaller,
+          OS: OS.getName(),
+          isStaging: isStagingServer(),
         },
       };
       break;
@@ -254,8 +80,9 @@ export function SmartInstallScreen(): ReactElement {
         step: InstallScreenStep.ChoosingDeviceName,
         screenSpecificProps: {
           i18n,
-          deviceName: state.deviceName,
+          deviceName,
           setDeviceName,
+          setBackupFile,
           onSubmit: onSubmitDeviceName,
         },
       };
@@ -266,9 +93,38 @@ export function SmartInstallScreen(): ReactElement {
         screenSpecificProps: { i18n },
       };
       break;
+    case InstallScreenStep.BackupImport:
+      props = {
+        step: InstallScreenStep.BackupImport,
+        screenSpecificProps: {
+          i18n,
+          currentBytes: installerState.currentBytes,
+          totalBytes: installerState.totalBytes,
+        },
+      };
+      break;
+    case InstallScreenStep.Error:
+      props = {
+        step: InstallScreenStep.Error,
+        screenSpecificProps: {
+          i18n,
+          error: installerState.error,
+          quit: () => window.IPC.shutdown(),
+          tryAgain: startInstaller,
+        },
+      };
+      break;
     default:
-      throw missingCaseError(state);
+      throw missingCaseError(installerState);
   }
 
-  return <InstallScreen {...props} />;
-}
+  return (
+    <>
+      <InstallScreen {...props} />
+      <SmartToastManager
+        disableMegaphone
+        containerWidthBreakpoint={WidthBreakpoint.Narrow}
+      />
+    </>
+  );
+});

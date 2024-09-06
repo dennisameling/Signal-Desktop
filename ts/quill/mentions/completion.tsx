@@ -1,4 +1,4 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import _ from 'lodash';
@@ -11,12 +11,15 @@ import { Popper } from 'react-popper';
 import classNames from 'classnames';
 import { createPortal } from 'react-dom';
 import type { ConversationType } from '../../state/ducks/conversations';
-import { Avatar } from '../../components/Avatar';
+import { Avatar, AvatarSize } from '../../components/Avatar';
 import type { LocalizerType, ThemeType } from '../../types/Util';
-import type { MemberRepository } from '../memberRepository';
+import type { MemberType, MemberRepository } from '../memberRepository';
 import type { PreferredBadgeSelectorType } from '../../state/selectors/badges';
 import { matchBlotTextPartitions } from '../util';
+import type { MentionBlotValue } from '../util';
+import { handleOutsideClick } from '../../util/handleOutsideClick';
 import { sameWidthModifier } from '../../util/popperUtil';
+import { UserText } from '../../components/UserText';
 
 export type MentionCompletionOptions = {
   getPreferredBadge: PreferredBadgeSelectorType;
@@ -27,10 +30,10 @@ export type MentionCompletionOptions = {
   theme: ThemeType;
 };
 
-const MENTION_REGEX = /(?:^|\W)@([-+\w]*)$/;
+const MENTION_REGEX = /(?:^|\W)@([-+\p{L}\p{M}\p{N}]*)$/u;
 
 export class MentionCompletion {
-  results: Array<ConversationType>;
+  results: ReadonlyArray<MemberType>;
 
   index: number;
 
@@ -41,6 +44,8 @@ export class MentionCompletion {
   options: MentionCompletionOptions;
 
   suggestionListRef: RefObject<HTMLDivElement>;
+
+  outsideClickDestructor?: () => void;
 
   constructor(quill: Quill, options: MentionCompletionOptions) {
     this.results = [];
@@ -77,6 +82,9 @@ export class MentionCompletion {
   }
 
   destroy(): void {
+    this.outsideClickDestructor?.();
+    this.outsideClickDestructor = undefined;
+
     this.root.remove();
   }
 
@@ -99,7 +107,7 @@ export class MentionCompletion {
     this.clearResults();
   }
 
-  possiblyShowMemberResults(): Array<ConversationType> {
+  possiblyShowMemberResults(): ReadonlyArray<MemberType> {
     const range = this.quill.getSelection();
 
     if (range) {
@@ -114,7 +122,7 @@ export class MentionCompletion {
       if (leftTokenTextMatch) {
         const [, leftTokenText] = leftTokenTextMatch;
 
-        let results: Array<ConversationType> = [];
+        let results: ReadonlyArray<MemberType> = [];
 
         const memberRepository = this.options.memberRepositoryRef.current;
 
@@ -151,7 +159,9 @@ export class MentionCompletion {
 
     const range = this.quill.getSelection();
 
-    if (range === null) return;
+    if (range == null) {
+      return;
+    }
 
     const member = this.results[resultIndex];
 
@@ -175,16 +185,36 @@ export class MentionCompletion {
     }
   }
 
+  getAttributesForInsert(index: number): Record<string, unknown> {
+    const character = index > 0 ? index - 1 : 0;
+    const contents = this.quill.getContents(character, 1);
+    return contents.ops.reduce(
+      (acc, op) => ({ acc, ...op.attributes }),
+      {} as Record<string, unknown>
+    );
+  }
+
   insertMention(
-    mention: ConversationType,
+    member: MemberType,
     index: number,
     range: number,
     withTrailingSpace = false
   ): void {
-    const delta = new Delta().retain(index).delete(range).insert({ mention });
+    // The mention + space we add won't be formatted unless we manually provide attributes
+    const attributes = this.getAttributesForInsert(range - 1);
+
+    const mention: MentionBlotValue = {
+      aci: member.aci,
+      title: member.title,
+    };
+
+    const delta = new Delta()
+      .retain(index)
+      .delete(range)
+      .insert({ mention }, attributes);
 
     if (withTrailingSpace) {
-      this.quill.updateContents(delta.insert(' '), 'user');
+      this.quill.updateContents(delta.insert(' ', attributes), 'user');
       this.quill.setSelection(index + 2, 0, 'user');
     } else {
       this.quill.updateContents(delta, 'user');
@@ -202,7 +232,9 @@ export class MentionCompletion {
   }
 
   onUnmount(): void {
-    document.body.removeChild(this.root);
+    this.outsideClickDestructor?.();
+    this.outsideClickDestructor = undefined;
+    this.options.setMentionPickerElement(null);
   }
 
   render(): void {
@@ -210,7 +242,7 @@ export class MentionCompletion {
     const { getPreferredBadge, theme } = this.options;
 
     if (memberResults.length === 0) {
-      this.options.setMentionPickerElement(null);
+      this.onUnmount();
       return;
     }
 
@@ -235,7 +267,7 @@ export class MentionCompletion {
               {memberResults.map((member, index) => (
                 <button
                   type="button"
-                  key={member.uuid}
+                  key={member.aci}
                   id={`mention-result--${member.name}`}
                   role="option button"
                   aria-selected={memberResultsIndex === index}
@@ -252,19 +284,19 @@ export class MentionCompletion {
                 >
                   <Avatar
                     acceptedMessageRequest={member.acceptedMessageRequest}
-                    avatarPath={member.avatarPath}
+                    avatarUrl={member.avatarUrl}
                     badge={getPreferredBadge(member.badges)}
                     conversationType="direct"
                     i18n={this.options.i18n}
                     isMe={member.isMe}
                     sharedGroupNames={member.sharedGroupNames}
-                    size={28}
+                    size={AvatarSize.TWENTY_EIGHT}
                     theme={theme}
                     title={member.title}
-                    unblurredAvatarPath={member.unblurredAvatarPath}
+                    unblurredAvatarUrl={member.unblurredAvatarUrl}
                   />
                   <div className="module-composition-input__suggestions__title">
-                    {member.title}
+                    <UserText text={member.title} />
                   </div>
                 </button>
               ))}
@@ -273,6 +305,20 @@ export class MentionCompletion {
         )}
       </Popper>,
       this.root
+    );
+
+    // Just to make sure that we don't propagate outside clicks until this
+    // is closed.
+    this.outsideClickDestructor?.();
+    this.outsideClickDestructor = handleOutsideClick(
+      () => {
+        this.onUnmount();
+        return true;
+      },
+      {
+        name: 'quill.mentions.completion',
+        containerElements: [this.root],
+      }
     );
 
     this.options.setMentionPickerElement(element);

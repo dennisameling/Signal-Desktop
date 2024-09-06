@@ -1,12 +1,14 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from 'better-sqlite3';
 import { isNumber, last } from 'lodash';
+import type { ReadableDB, WritableDB } from './Interface';
 
 export type EmptyQuery = [];
-export type ArrayQuery = Array<Array<null | number | bigint | string>>;
-export type Query = { [key: string]: null | number | bigint | string | Buffer };
+export type ArrayQuery = Array<ReadonlyArray<null | number | bigint | string>>;
+export type Query = {
+  [key: string]: null | number | bigint | string | Uint8Array;
+};
 export type JSONRows = Array<{ readonly json: string }>;
 
 export type TableType =
@@ -14,6 +16,7 @@ export type TableType =
   | 'conversations'
   | 'identityKeys'
   | 'items'
+  | 'kyberPreKeys'
   | 'messages'
   | 'preKeys'
   | 'senderKeys'
@@ -33,11 +36,168 @@ export function jsonToObject<T>(json: string): T {
   return JSON.parse(json);
 }
 
+export type QueryTemplateParam =
+  | Uint8Array
+  | string
+  | number
+  | null
+  | undefined;
+export type QueryFragmentValue = QueryFragment | QueryTemplateParam;
+
+export type QueryFragment = [
+  { fragment: string },
+  ReadonlyArray<QueryTemplateParam>,
+];
+
+/**
+ * You can use tagged template literals to build "fragments" of SQL queries
+ *
+ * ```ts
+ * const [query, params] = sql`
+ *   SELECT * FROM examples
+ *   WHERE groupId = ${groupId}
+ *   ORDER BY timestamp ${asc ? sqlFragment`ASC` : sqlFragment`DESC`}
+ * `;
+ * ```
+ *
+ * SQL Fragments can contain other SQL fragments, but must be finalized with
+ * `sql` before being passed to `Database#prepare`.
+ *
+ * The name `sqlFragment` comes from several editors that support SQL syntax
+ * highlighting inside JavaScript template literals.
+ */
+export function sqlFragment(
+  strings: TemplateStringsArray,
+  ...values: ReadonlyArray<QueryFragmentValue>
+): QueryFragment {
+  let query = '';
+  const params: Array<QueryTemplateParam> = [];
+
+  strings.forEach((string, index) => {
+    const value = values[index];
+
+    query += string;
+
+    if (index < values.length) {
+      if (Array.isArray(value)) {
+        const [{ fragment }, fragmentParams] = value;
+        query += fragment;
+        params.push(...fragmentParams);
+      } else {
+        query += '?';
+        params.push(value);
+      }
+    }
+  });
+
+  return [{ fragment: query }, params];
+}
+
+export function sqlConstant(value: QueryTemplateParam): QueryFragment {
+  let fragment;
+  if (value == null) {
+    fragment = 'NULL';
+  } else if (typeof value === 'number') {
+    fragment = `${value}`;
+  } else if (typeof value === 'boolean') {
+    fragment = `${value}`;
+  } else {
+    fragment = `'${value}'`;
+  }
+  return [{ fragment }, []];
+}
+
+/**
+ * Like `Array.prototype.join`, but for SQL fragments.
+ */
+const SQL_JOIN_SEPARATOR = ',';
+export function sqlJoin(
+  items: ReadonlyArray<QueryFragmentValue>
+): QueryFragment {
+  let query = '';
+  const params: Array<QueryTemplateParam> = [];
+
+  items.forEach((item, index) => {
+    const [{ fragment }, fragmentParams] = sqlFragment`${item}`;
+    query += fragment;
+    params.push(...fragmentParams);
+
+    if (index < items.length - 1) {
+      query += SQL_JOIN_SEPARATOR;
+    }
+  });
+
+  return [{ fragment: query }, params];
+}
+
+export type QueryTemplate = [string, ReadonlyArray<QueryTemplateParam>];
+
+/**
+ * You can use tagged template literals to build SQL queries
+ * that can be passed to `Database#prepare`.
+ *
+ * ```ts
+ * const [query, params] = sql`
+ *   SELECT * FROM examples
+ *   WHERE groupId = ${groupId}
+ *   ORDER BY timestamp ASC
+ * `;
+ * db.prepare(query).all(params);
+ * ```
+ *
+ * SQL queries can contain other SQL fragments, but cannot contain other SQL
+ * queries.
+ *
+ * The name `sql` comes from several editors that support SQL syntax
+ * highlighting inside JavaScript template literals.
+ */
+export function sql(
+  strings: TemplateStringsArray,
+  ...values: Array<QueryFragment | QueryTemplateParam>
+): QueryTemplate {
+  const [{ fragment }, params] = sqlFragment(strings, ...values);
+  return [fragment, params];
+}
+
+type QueryPlanRow = Readonly<{
+  id: number;
+  parent: number;
+  details: string;
+}>;
+
+type QueryPlan = Readonly<{
+  query: string;
+  plan: ReadonlyArray<QueryPlanRow>;
+}>;
+
+/**
+ * Returns typed objects of the query plan for the given query.
+ *
+ *
+ * ```ts
+ * const [query, params] = sql`
+ *   SELECT * FROM examples
+ *   WHERE groupId = ${groupId}
+ *   ORDER BY timestamp ASC
+ * `;
+ * log.info('Query plan', explainQueryPlan(db, [query, params]));
+ * db.prepare(query).all(params);
+ * ```
+ */
+export function explainQueryPlan(
+  db: ReadableDB,
+  template: QueryTemplate
+): QueryPlan {
+  const [query, params] = template;
+  const plan = db.prepare(`EXPLAIN QUERY PLAN ${query}`).all(params);
+  return { query, plan };
+}
+
 //
 // Database helpers
 //
 
-export function getSQLiteVersion(db: Database): string {
+export function getSQLiteVersion(db: ReadableDB): string {
   const { sqlite_version: version } = db
     .prepare<EmptyQuery>('select sqlite_version() AS sqlite_version')
     .get();
@@ -45,22 +205,22 @@ export function getSQLiteVersion(db: Database): string {
   return version;
 }
 
-export function getSchemaVersion(db: Database): number {
+export function getSchemaVersion(db: ReadableDB): number {
   return db.pragma('schema_version', { simple: true });
 }
 
-export function setUserVersion(db: Database, version: number): void {
+export function setUserVersion(db: WritableDB, version: number): void {
   if (!isNumber(version)) {
     throw new Error(`setUserVersion: version ${version} is not a number`);
   }
   db.pragma(`user_version = ${version}`);
 }
 
-export function getUserVersion(db: Database): number {
+export function getUserVersion(db: ReadableDB): number {
   return db.pragma('user_version', { simple: true });
 }
 
-export function getSQLCipherVersion(db: Database): string | undefined {
+export function getSQLCipherVersion(db: ReadableDB): string | undefined {
   return db.pragma('cipher_version', { simple: true });
 }
 
@@ -69,22 +229,22 @@ export function getSQLCipherVersion(db: Database): string | undefined {
 //
 
 export function batchMultiVarQuery<ValueT>(
-  db: Database,
-  values: Array<ValueT>,
-  query: (batch: Array<ValueT>) => void
+  db: ReadableDB,
+  values: ReadonlyArray<ValueT>,
+  query: (batch: ReadonlyArray<ValueT>) => void
 ): [];
 export function batchMultiVarQuery<ValueT, ResultT>(
-  db: Database,
-  values: Array<ValueT>,
-  query: (batch: Array<ValueT>) => Array<ResultT>
+  db: ReadableDB,
+  values: ReadonlyArray<ValueT>,
+  query: (batch: ReadonlyArray<ValueT>) => Array<ResultT>
 ): Array<ResultT>;
 
 export function batchMultiVarQuery<ValueT, ResultT>(
-  db: Database,
-  values: Array<ValueT>,
+  db: ReadableDB,
+  values: ReadonlyArray<ValueT>,
   query:
-    | ((batch: Array<ValueT>) => void)
-    | ((batch: Array<ValueT>) => Array<ResultT>)
+    | ((batch: ReadonlyArray<ValueT>) => void)
+    | ((batch: ReadonlyArray<ValueT>) => Array<ResultT>)
 ): Array<ResultT> {
   if (values.length > MAX_VARIABLE_COUNT) {
     const result: Array<ResultT> = [];
@@ -105,7 +265,7 @@ export function batchMultiVarQuery<ValueT, ResultT>(
 }
 
 export function createOrUpdate<Key extends string | number>(
-  db: Database,
+  db: WritableDB,
   table: TableType,
   data: Record<string, unknown> & { id: Key }
 ): void {
@@ -131,7 +291,7 @@ export function createOrUpdate<Key extends string | number>(
 }
 
 export function bulkAdd(
-  db: Database,
+  db: WritableDB,
   table: TableType,
   array: Array<Record<string, unknown> & { id: string | number }>
 ): void {
@@ -143,7 +303,7 @@ export function bulkAdd(
 }
 
 export function getById<Key extends string | number, Result = unknown>(
-  db: Database,
+  db: ReadableDB,
   table: TableType,
   id: Key
 ): Result | undefined {
@@ -167,41 +327,43 @@ export function getById<Key extends string | number, Result = unknown>(
 }
 
 export function removeById<Key extends string | number>(
-  db: Database,
-  table: TableType,
+  db: WritableDB,
+  tableName: TableType,
   id: Key | Array<Key>
-): void {
+): number {
+  const table = sqlConstant(tableName);
   if (!Array.isArray(id)) {
-    db.prepare<Query>(
-      `
+    const [query, params] = sql`
       DELETE FROM ${table}
-      WHERE id = $id;
-      `
-    ).run({ id });
-    return;
+      WHERE id = ${id};
+    `;
+    return db.prepare(query).run(params).changes;
   }
 
   if (!id.length) {
     throw new Error('removeById: No ids to delete!');
   }
 
-  const removeByIdsSync = (ids: Array<string | number>): void => {
-    db.prepare<ArrayQuery>(
-      `
+  let totalChanges = 0;
+
+  const removeByIdsSync = (ids: ReadonlyArray<string | number>): void => {
+    const [query, params] = sql`
       DELETE FROM ${table}
-      WHERE id IN ( ${id.map(() => '?').join(', ')} );
-      `
-    ).run(ids);
+      WHERE id IN (${sqlJoin(ids)});
+    `;
+    totalChanges += db.prepare(query).run(params).changes;
   };
 
   batchMultiVarQuery(db, id, removeByIdsSync);
+
+  return totalChanges;
 }
 
-export function removeAllFromTable(db: Database, table: TableType): void {
-  db.prepare<EmptyQuery>(`DELETE FROM ${table};`).run();
+export function removeAllFromTable(db: WritableDB, table: TableType): number {
+  return db.prepare<EmptyQuery>(`DELETE FROM ${table};`).run().changes;
 }
 
-export function getAllFromTable<T>(db: Database, table: TableType): Array<T> {
+export function getAllFromTable<T>(db: ReadableDB, table: TableType): Array<T> {
   const rows: JSONRows = db
     .prepare<EmptyQuery>(`SELECT json FROM ${table};`)
     .all();
@@ -209,7 +371,7 @@ export function getAllFromTable<T>(db: Database, table: TableType): Array<T> {
   return rows.map(row => jsonToObject(row.json));
 }
 
-export function getCountFromTable(db: Database, table: TableType): number {
+export function getCountFromTable(db: ReadableDB, table: TableType): number {
   const result: null | number = db
     .prepare<EmptyQuery>(`SELECT count(*) from ${table};`)
     .pluck(true)
@@ -222,7 +384,7 @@ export function getCountFromTable(db: Database, table: TableType): number {
 
 export class TableIterator<ObjectType extends { id: string }> {
   constructor(
-    private readonly db: Database,
+    private readonly db: ReadableDB,
     private readonly table: TableType,
     private readonly pageSize = 500
   ) {}

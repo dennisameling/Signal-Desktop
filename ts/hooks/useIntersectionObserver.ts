@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useCallback, useRef, useState } from 'react';
@@ -24,7 +24,7 @@ import * as log from '../logging/log';
  */
 export function useIntersectionObserver(): [
   (el?: Element | null) => void,
-  IntersectionObserverEntry | null
+  IntersectionObserverEntry | null,
 ] {
   const [intersectionObserverEntry, setIntersectionObserverEntry] =
     useState<IntersectionObserverEntry | null>(null);

@@ -1,17 +1,18 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-
-import { storiesOf } from '@storybook/react';
-
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../../util/setupI18n';
 import enMessages from '../../../_locales/en/messages.json';
 import type { Props } from './GroupNotification';
 import { GroupNotification } from './GroupNotification';
 import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
 
-const book = storiesOf('Components/Conversation', module);
+export default {
+  title: 'Components/Conversation',
+} satisfies Meta<Props>;
+
 const i18n = setupI18n('en', enMessages);
 
 type GroupNotificationStory = [string, Array<Props>];
@@ -379,15 +380,17 @@ const stories: Array<GroupNotificationStory> = [
   ],
 ];
 
-book.add('GroupNotification', () =>
-  stories.map(([title, propsArray]) => (
-    <>
-      <h3>{title}</h3>
-      {propsArray.map((props, i) => (
-        <div key={i} className="module-inline-notification-wrapper">
-          <GroupNotification {...props} />
-        </div>
-      ))}
-    </>
-  ))
+export const _GroupNotification = (): JSX.Element => (
+  <>
+    {stories.map(([title, propsArray]) => (
+      <>
+        <h3>{title}</h3>
+        {propsArray.map((props, i) => (
+          <div key={i} className="module-inline-notification-wrapper">
+            <GroupNotification {...props} />
+          </div>
+        ))}
+      </>
+    ))}
+  </>
 );

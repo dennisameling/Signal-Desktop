@@ -1,35 +1,32 @@
-// Copyright 2019-2020 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 /* eslint-disable no-console */
 import { createWriteStream } from 'fs';
 import { pathExists } from 'fs-extra';
-import { readdir, stat, writeFile } from 'fs/promises';
-import { promisify } from 'util';
-import { execFile } from 'child_process';
+import { readdir, stat, writeFile, mkdir } from 'fs/promises';
 import { join, normalize, extname } from 'path';
-import { tmpdir } from 'os';
+import { tmpdir, release as osRelease } from 'os';
 import { throttle } from 'lodash';
 
 import type { ParserConfiguration } from 'dashdash';
 import { createParser } from 'dashdash';
 import { FAILSAFE_SCHEMA, safeLoad } from 'js-yaml';
-import { gt } from 'semver';
+import { gt, lt } from 'semver';
 import config from 'config';
 import got from 'got';
 import { v4 as getGuid } from 'uuid';
-import pify from 'pify';
-import mkdirp from 'mkdirp';
-import rimraf from 'rimraf';
 import type { BrowserWindow } from 'electron';
 import { app, ipcMain } from 'electron';
 
 import * as durations from '../util/durations';
-import { getTempPath, getUpdateCachePath } from '../util/attachments';
+import { getTempPath, getUpdateCachePath } from '../../app/attachments';
+import { markShouldNotQuit, markShouldQuit } from '../../app/window_state';
 import { DialogType } from '../types/Dialogs';
 import * as Errors from '../types/errors';
-import { isAlpha, isBeta } from '../util/version';
+import { isAlpha, isBeta, isStaging } from '../util/version';
 import { strictAssert } from '../util/assert';
+import { drop } from '../util/drop';
 
 import * as packageJson from '../../package.json';
 import {
@@ -42,7 +39,7 @@ import type { SettingsChannel } from '../main/settingsChannel';
 
 import type { LoggerType } from '../types/Logging';
 import { getGotOptions } from './got';
-import { checkIntegrity, gracefulRename } from './util';
+import { checkIntegrity, gracefulRename, gracefulRimraf } from './util';
 import type { PrepareDownloadResultType as DifferentialDownloadDataType } from './differential';
 import {
   prepareDownload as prepareDifferentialDownload,
@@ -51,10 +48,13 @@ import {
   isValidPreparedData as isValidDifferentialData,
 } from './differential';
 
-const mkdirpPromise = pify(mkdirp);
-const rimrafPromise = pify(rimraf);
+const POLL_INTERVAL = 30 * durations.MINUTE;
 
-const INTERVAL = 30 * durations.MINUTE;
+type JSONVendorSchema = {
+  minOSVersion?: string;
+  requireManualUpdate?: 'true' | 'false';
+  requireUserConfirmation?: 'true' | 'false';
+};
 
 type JSONUpdateSchema = {
   version: string;
@@ -67,7 +67,7 @@ type JSONUpdateSchema = {
   path: string;
   sha512: string;
   releaseDate: string;
-  requireManualUpdate?: boolean;
+  vendor?: JSONVendorSchema;
 };
 
 export type UpdateInformationType = {
@@ -76,6 +76,7 @@ export type UpdateInformationType = {
   version: string;
   sha512: string;
   differentialData: DifferentialDownloadDataType | undefined;
+  vendor?: JSONVendorSchema;
 };
 
 enum DownloadMode {
@@ -89,6 +90,13 @@ type DownloadUpdateResultType = Readonly<{
   signature: Buffer;
 }>;
 
+export type UpdaterOptionsType = Readonly<{
+  settingsChannel: SettingsChannel;
+  logger: LoggerType;
+  getMainWindow: () => BrowserWindow | undefined;
+  canRunSilently: () => boolean;
+}>;
+
 export abstract class Updater {
   protected fileName: string | undefined;
 
@@ -96,17 +104,35 @@ export abstract class Updater {
 
   protected cachedDifferentialData: DifferentialDownloadDataType | undefined;
 
-  private throttledSendDownloadingUpdate: (downloadedSize: number) => void;
+  protected readonly logger: LoggerType;
+
+  private readonly settingsChannel: SettingsChannel;
+
+  protected readonly getMainWindow: () => BrowserWindow | undefined;
+
+  private throttledSendDownloadingUpdate: ((downloadedSize: number) => void) & {
+    cancel: () => void;
+  };
 
   private activeDownload: Promise<boolean> | undefined;
 
   private markedCannotUpdate = false;
 
-  constructor(
-    protected readonly logger: LoggerType,
-    private readonly settingsChannel: SettingsChannel,
-    protected readonly getMainWindow: () => BrowserWindow | undefined
-  ) {
+  private restarting = false;
+
+  private readonly canRunSilently: () => boolean;
+
+  constructor({
+    settingsChannel,
+    logger,
+    getMainWindow,
+    canRunSilently,
+  }: UpdaterOptionsType) {
+    this.settingsChannel = settingsChannel;
+    this.logger = logger;
+    this.getMainWindow = getMainWindow;
+    this.canRunSilently = canRunSilently;
+
     this.throttledSendDownloadingUpdate = throttle((downloadedSize: number) => {
       const mainWindow = this.getMainWindow();
       mainWindow?.webContents.send(
@@ -114,7 +140,7 @@ export abstract class Updater {
         DialogType.Downloading,
         { downloadedSize }
       );
-    }, 500);
+    }, 50);
   }
 
   //
@@ -125,16 +151,25 @@ export abstract class Updater {
     return this.checkForUpdatesMaybeInstall(true);
   }
 
+  // If the updater was about to restart the app but the user cancelled it, show dialog
+  // to let them retry the restart
+  public onRestartCancelled(): void {
+    if (!this.restarting) {
+      return;
+    }
+
+    this.logger.info(
+      'updater/onRestartCancelled: restart was cancelled. forcing update to reset updater state'
+    );
+    this.restarting = false;
+    markShouldNotQuit();
+    drop(this.force());
+  }
+
   public async start(): Promise<void> {
     this.logger.info('updater/start: starting checks...');
 
-    setInterval(async () => {
-      try {
-        await this.checkForUpdatesMaybeInstall();
-      } catch (error) {
-        this.logger.error(`updater/start: ${Errors.toLogFormat(error)}`);
-      }
-    }, INTERVAL);
+    this.schedulePoll();
 
     await this.deletePreviousInstallers();
     await this.checkForUpdatesMaybeInstall();
@@ -146,14 +181,17 @@ export abstract class Updater {
 
   protected abstract deletePreviousInstallers(): Promise<void>;
 
-  protected abstract installUpdate(updateFilePath: string): Promise<void>;
+  protected abstract installUpdate(
+    updateFilePath: string,
+    isSilent: boolean
+  ): Promise<void>;
 
   //
   // Protected methods
   //
 
   protected setUpdateListener(
-    performUpdateCallback: () => Promise<void>
+    performUpdateCallback: () => Promise<void> | void
   ): void {
     ipcMain.removeHandler('start-update');
     ipcMain.handleOnce('start-update', performUpdateCallback);
@@ -180,11 +218,50 @@ export abstract class Updater {
 
     const mainWindow = this.getMainWindow();
     mainWindow?.webContents.send('show-update-dialog', dialogType);
+
+    this.setUpdateListener(async () => {
+      this.logger.info('updater/markCannotUpdate: retrying after user action');
+
+      this.markedCannotUpdate = false;
+      await this.checkForUpdatesMaybeInstall();
+    });
+  }
+
+  protected markRestarting(): void {
+    this.restarting = true;
+    markShouldQuit();
   }
 
   //
   // Private methods
   //
+
+  private schedulePoll(): void {
+    const now = Date.now();
+
+    const earliestPollTime = now - (now % POLL_INTERVAL) + POLL_INTERVAL;
+    const selectedPollTime = Math.round(
+      earliestPollTime + Math.random() * POLL_INTERVAL
+    );
+    const timeoutMs = selectedPollTime - now;
+
+    this.logger.info(`updater/start: polling in ${timeoutMs}ms`);
+
+    setTimeout(() => {
+      drop(this.safePoll());
+    }, timeoutMs);
+  }
+
+  private async safePoll(): Promise<void> {
+    try {
+      this.logger.info('updater/start: polling now');
+      await this.checkForUpdatesMaybeInstall();
+    } catch (error) {
+      this.logger.error(`updater/start: ${Errors.toLogFormat(error)}`);
+    } finally {
+      this.schedulePoll();
+    }
+  }
 
   private async downloadAndInstall(
     updateInfo: UpdateInformationType,
@@ -253,13 +330,24 @@ export abstract class Updater {
         );
       }
 
-      await this.installUpdate(updateFilePath);
+      await this.installUpdate(
+        updateFilePath,
+        updateInfo.vendor?.requireUserConfirmation !== 'true' &&
+          this.canRunSilently()
+      );
 
       const mainWindow = this.getMainWindow();
       if (mainWindow) {
-        mainWindow.webContents.send('show-update-dialog', DialogType.Update, {
-          version: this.version,
-        });
+        logger.info('downloadAndInstall: showing update dialog...');
+        mainWindow.webContents.send(
+          'show-update-dialog',
+          mode === DownloadMode.Automatic
+            ? DialogType.AutoUpdate
+            : DialogType.DownloadedUpdate,
+          {
+            version: this.version,
+          }
+        );
       } else {
         logger.warn(
           'downloadAndInstall: no mainWindow, cannot show update dialog'
@@ -318,7 +406,7 @@ export abstract class Updater {
         this.logger.warn(
           'offerUpdate: Failed to download differential update, offering full'
         );
-
+        this.throttledSendDownloadingUpdate.cancel();
         return this.offerUpdate(updateInfo, DownloadMode.FullOnly, attempt + 1);
       }
 
@@ -360,13 +448,28 @@ export abstract class Updater {
     const yaml = await getUpdateYaml();
     const parsedYaml = parseYaml(yaml);
 
-    if (parsedYaml.requireManualUpdate) {
-      this.logger.warn('checkForUpdates: manual update required');
-      this.markCannotUpdate(
-        new Error('yaml file has requireManualUpdate flag'),
-        DialogType.Cannot_Update_Require_Manual
-      );
-      return;
+    const { vendor } = parsedYaml;
+    if (vendor) {
+      if (vendor.requireManualUpdate === 'true') {
+        this.logger.warn('checkForUpdates: manual update required');
+        this.markCannotUpdate(
+          new Error('yaml file has requireManualUpdate flag'),
+          DialogType.Cannot_Update_Require_Manual
+        );
+        return;
+      }
+
+      if (vendor.minOSVersion && lt(osRelease(), vendor.minOSVersion)) {
+        this.logger.warn(
+          `checkForUpdates: OS version ${osRelease()} is less than the ` +
+            `minimum supported version ${vendor.minOSVersion}`
+        );
+        this.markCannotUpdate(
+          new Error('yaml file has unsatisfied minOSVersion value'),
+          DialogType.UnsupportedOS
+        );
+        return;
+      }
     }
 
     const version = getVersion(parsedYaml);
@@ -451,6 +554,7 @@ export abstract class Updater {
       version,
       sha512,
       differentialData,
+      vendor,
     };
   }
 
@@ -498,7 +602,7 @@ export abstract class Updater {
 
       this.logger.info(`downloadUpdate: Downloading signature ${signatureUrl}`);
       const signature = Buffer.from(
-        await got(signatureUrl, getGotOptions()).text(),
+        await got(signatureUrl, await getGotOptions()).text(),
         'hex'
       );
 
@@ -510,7 +614,10 @@ export abstract class Updater {
           this.logger.info(
             `downloadUpdate: Downloading blockmap ${blockMapUrl}`
           );
-          const blockMap = await got(blockMapUrl, getGotOptions()).buffer();
+          const blockMap = await got(
+            blockMapUrl,
+            await getGotOptions()
+          ).buffer();
           await writeFile(tempBlockMapPath, blockMap);
         } catch (error) {
           this.logger.warn(
@@ -580,7 +687,7 @@ export abstract class Updater {
         // We could have failed to update differentially due to low free disk
         // space. Remove all cached updates since we are doing a full download
         // anyway.
-        await rimrafPromise(cacheDir);
+        await gracefulRimraf(this.logger, cacheDir);
         cacheDir = await createUpdateCacheDirIfNeeded();
 
         await this.downloadAndReport(
@@ -615,6 +722,17 @@ export abstract class Updater {
             'downloadUpdate: Failed to restore from backup folder, ignoring',
             Errors.toLogFormat(restoreError)
           );
+
+          // If not possible - at least clean up
+          try {
+            await deleteTempDir(this.logger, restoreDir);
+          } catch (cleanupError) {
+            this.logger.warn(
+              'downloadUpdate: Failed to remove backup folder after ' +
+                'failed restore, ignoring',
+              Errors.toLogFormat(cleanupError)
+            );
+          }
         }
 
         this.logger.warn(
@@ -626,7 +744,7 @@ export abstract class Updater {
       }
 
       try {
-        await deleteTempDir(restoreDir);
+        await deleteTempDir(this.logger, restoreDir);
       } catch (error) {
         this.logger.warn(
           'downloadUpdate: Failed to remove backup folder, ignoring',
@@ -637,7 +755,7 @@ export abstract class Updater {
       return { updateFilePath: targetUpdatePath, signature };
     } finally {
       if (!tempPathFailover) {
-        await deleteTempDir(tempDir);
+        await deleteTempDir(this.logger, tempDir);
       }
     }
   }
@@ -647,7 +765,7 @@ export abstract class Updater {
     targetUpdatePath: string,
     updateOnProgress = false
   ): Promise<void> {
-    const downloadStream = got.stream(updateFileUrl, getGotOptions());
+    const downloadStream = got.stream(updateFileUrl, await getGotOptions());
     const writeStream = createWriteStream(targetUpdatePath);
 
     await new Promise<void>((resolve, reject) => {
@@ -694,22 +812,12 @@ export abstract class Updater {
       return process.arch;
     }
 
-    try {
-      // We might be running under Rosetta
-      const flag = 'sysctl.proc_translated';
-      const { stdout } = await promisify(execFile)('sysctl', ['-i', flag]);
-
-      if (stdout.includes(`${flag}: 1`)) {
-        this.logger.info('updater: running under Rosetta');
-        return 'arm64';
-      }
-    } catch (error) {
-      this.logger.warn(
-        `updater: Rosetta detection failed with ${Errors.toLogFormat(error)}`
-      );
+    if (app.runningUnderARM64Translation) {
+      this.logger.info('updater: running under arm64 translation');
+      return 'arm64';
     }
 
-    this.logger.info('updater: not running under Rosetta');
+    this.logger.info('updater: not running under arm64 translation');
     return process.arch;
   }
 }
@@ -747,6 +855,9 @@ export function getUpdatesFileName(): string {
 function getChannel(): string {
   const { version } = packageJson;
 
+  if (isStaging(version)) {
+    return 'staging';
+  }
   if (isAlpha(version)) {
     return 'alpha';
   }
@@ -833,7 +944,7 @@ export function parseYaml(yaml: string): JSONUpdateSchema {
 
 async function getUpdateYaml(): Promise<string> {
   const targetUrl = getUpdateCheckUrl();
-  const body = await got(targetUrl, getGotOptions()).text();
+  const body = await got(targetUrl, await getGotOptions()).text();
 
   if (!body) {
     throw new Error('Got unexpected response back from update check');
@@ -850,7 +961,7 @@ function getBaseTempDir() {
 export async function createTempDir(): Promise<string> {
   const targetDir = await getTempDir();
 
-  await mkdirpPromise(targetDir);
+  await mkdir(targetDir, { recursive: true });
 
   return targetDir;
 }
@@ -861,7 +972,7 @@ export async function getTempDir(): Promise<string> {
 
   // Create parent folder if not already present
   if (!(await pathExists(baseTempDir))) {
-    await mkdirpPromise(baseTempDir);
+    await mkdir(baseTempDir, { recursive: true });
   }
 
   return join(baseTempDir, uniqueName);
@@ -874,12 +985,15 @@ function getUpdateCacheDir() {
 
 export async function createUpdateCacheDirIfNeeded(): Promise<string> {
   const targetDir = getUpdateCacheDir();
-  await mkdirpPromise(targetDir);
+  await mkdir(targetDir, { recursive: true });
 
   return targetDir;
 }
 
-export async function deleteTempDir(targetDir: string): Promise<void> {
+export async function deleteTempDir(
+  logger: LoggerType,
+  targetDir: string
+): Promise<void> {
   if (await pathExists(targetDir)) {
     const pathInfo = await stat(targetDir);
     if (!pathInfo.isDirectory()) {
@@ -896,7 +1010,7 @@ export async function deleteTempDir(targetDir: string): Promise<void> {
     );
   }
 
-  await rimrafPromise(targetDir);
+  await gracefulRimraf(logger, targetDir);
 }
 
 export function getCliOptions<T>(options: ParserConfiguration['options']): T {

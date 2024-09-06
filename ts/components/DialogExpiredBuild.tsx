@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
@@ -9,21 +9,15 @@ import type { WidthBreakpoint } from './_util';
 import { LeftPaneDialog } from './LeftPaneDialog';
 import { openLinkInWebBrowser } from '../util/openLinkInWebBrowser';
 
-type PropsType = {
+export type PropsType = {
   containerWidthBreakpoint: WidthBreakpoint;
-  hasExpired: boolean;
   i18n: LocalizerType;
 };
 
-export const DialogExpiredBuild = ({
+export function DialogExpiredBuild({
   containerWidthBreakpoint,
-  hasExpired,
   i18n,
-}: PropsType): JSX.Element | null => {
-  if (!hasExpired) {
-    return null;
-  }
-
+}: PropsType): JSX.Element | null {
   return (
     <LeftPaneDialog
       containerWidthBreakpoint={containerWidthBreakpoint}
@@ -31,10 +25,10 @@ export const DialogExpiredBuild = ({
       onClick={() => {
         openLinkInWebBrowser('https://signal.org/download/');
       }}
-      clickLabel={i18n('upgrade')}
+      clickLabel={i18n('icu:upgrade')}
       hasAction
     >
-      {i18n('expiredWarning')}{' '}
+      {i18n('icu:expiredWarning')}{' '}
     </LeftPaneDialog>
   );
-};
+}

@@ -1,40 +1,49 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { FC, ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import React, { useRef, useState, useEffect } from 'react';
 import classNames from 'classnames';
-import type { VideoFrameSource } from 'ringrtc';
+import type { VideoFrameSource } from '@signalapp/ringrtc';
 import type { LocalizerType } from '../types/Util';
 import type { GroupCallRemoteParticipantType } from '../types/Calling';
 import { GroupCallRemoteParticipant } from './GroupCallRemoteParticipant';
+import type { CallingImageDataCache } from './CallManager';
 
 const OVERFLOW_SCROLLED_TO_EDGE_THRESHOLD = 20;
 const OVERFLOW_SCROLL_BUTTON_RATIO = 0.75;
 
 // This should be an integer, as sub-pixel widths can cause performance issues.
-export const OVERFLOW_PARTICIPANT_WIDTH = 140;
+export const OVERFLOW_PARTICIPANT_WIDTH = 107;
 
-type PropsType = {
+export type PropsType = {
   getFrameBuffer: () => Buffer;
   getGroupCallVideoFrameSource: (demuxId: number) => VideoFrameSource;
   i18n: LocalizerType;
+  imageDataCache: React.RefObject<CallingImageDataCache>;
+  isCallReconnecting: boolean;
+  onClickRaisedHand?: () => void;
   onParticipantVisibilityChanged: (
     demuxId: number,
     isVisible: boolean
   ) => unknown;
   overflowedParticipants: ReadonlyArray<GroupCallRemoteParticipantType>;
-  speakingDemuxIds: Set<number>;
+  remoteAudioLevels: Map<number, number>;
+  remoteParticipantsCount: number;
 };
 
-export const GroupCallOverflowArea: FC<PropsType> = ({
+export function GroupCallOverflowArea({
   getFrameBuffer,
   getGroupCallVideoFrameSource,
+  imageDataCache,
   i18n,
+  isCallReconnecting,
+  onClickRaisedHand,
   onParticipantVisibilityChanged,
   overflowedParticipants,
-  speakingDemuxIds,
-}) => {
+  remoteAudioLevels,
+  remoteParticipantsCount,
+}: PropsType): JSX.Element | null {
   const overflowRef = useRef<HTMLDivElement | null>(null);
   const [overflowScrollTop, setOverflowScrollTop] = useState(0);
 
@@ -115,14 +124,19 @@ export const GroupCallOverflowArea: FC<PropsType> = ({
             key={remoteParticipant.demuxId}
             getFrameBuffer={getFrameBuffer}
             getGroupCallVideoFrameSource={getGroupCallVideoFrameSource}
+            imageDataCache={imageDataCache}
             i18n={i18n}
-            isSpeaking={speakingDemuxIds.has(remoteParticipant.demuxId)}
+            audioLevel={remoteAudioLevels.get(remoteParticipant.demuxId) ?? 0}
+            onClickRaisedHand={onClickRaisedHand}
             onVisibilityChanged={onParticipantVisibilityChanged}
             width={OVERFLOW_PARTICIPANT_WIDTH}
             height={Math.floor(
               OVERFLOW_PARTICIPANT_WIDTH / remoteParticipant.videoAspectRatio
             )}
             remoteParticipant={remoteParticipant}
+            remoteParticipantsCount={remoteParticipantsCount}
+            isActiveSpeakerInSpeakerView={false}
+            isCallReconnecting={isCallReconnecting}
           />
         ))}
       </div>
@@ -147,7 +161,7 @@ export const GroupCallOverflowArea: FC<PropsType> = ({
       />
     </div>
   );
-};
+}
 
 function OverflowAreaScrollMarker({
   i18n,
@@ -173,9 +187,11 @@ function OverflowAreaScrollMarker({
         type="button"
         className={`${baseClassName}__button`}
         onClick={onClick}
-        aria-label={i18n(
-          `calling__overflow__scroll-${placement === 'top' ? 'up' : 'down'}`
-        )}
+        aria-label={
+          placement === 'top'
+            ? i18n('icu:calling__overflow__scroll-up')
+            : i18n('icu:calling__overflow__scroll-down')
+        }
       />
     </div>
   );

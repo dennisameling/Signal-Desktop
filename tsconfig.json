@@ -7,7 +7,8 @@
     "lib": [
       "dom", // Required to access `window`
       "dom.iterable",
-      "es2020"
+      "es2022",
+      "esnext.disposable" // For `playwright`
     ],
     "incremental": true,
     // "allowJs": true,                       // Allow javascript files to be compiled.
@@ -29,6 +30,8 @@
 
     // As a temporary measure
     "useUnknownInCatchVariables": false,
+    // Temp: The `assertDev()` function doesn't run in production so we can't rely on this
+    "allowUnreachableCode": true,
 
     // Additional Checks
     "noUnusedLocals": true, // Report errors on unused locals.
@@ -59,5 +62,5 @@
     // "experimentalDecorators": true,        // Enables experimental support for ES7 decorators.
     // "emitDecoratorMetadata": true,         // Enables experimental support for emitting type metadata for decorators.
   },
-  "include": ["ts/**/*", "app/*", "package.json"]
+  "include": ["ts/**/*", "app/**/*", "package.json", "build/intl-linter/**/*"]
 }

@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as log from '../logging/log';
@@ -15,7 +15,7 @@ export async function resolveAttachmentDraftData(
     return;
   }
 
-  const data = await window.Signal.Migrations.readDraftData(attachment.path);
+  const data = await window.Signal.Migrations.readDraftData(attachment);
   if (data.byteLength !== attachment.size) {
     log.error(
       `Attachment size from disk ${data.byteLength} did not match attachment size ${attachment.size}`

@@ -1,20 +1,23 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React, { useState } from 'react';
-
 import { action } from '@storybook/addon-actions';
-import { text } from '@storybook/addon-knobs';
-import { storiesOf } from '@storybook/react';
-
+import type { Meta } from '@storybook/react';
 import type { Props } from './MessageBodyReadMore';
 import { MessageBodyReadMore } from './MessageBodyReadMore';
 import { setupI18n } from '../../util/setupI18n';
 import enMessages from '../../../_locales/en/messages.json';
+import type { HydratedBodyRangesType } from '../../types/BodyRange';
+import { BodyRange } from '../../types/BodyRange';
+import { generateAci } from '../../types/ServiceId';
+import { RenderLocation } from './MessageTextRenderer';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf('Components/Conversation/MessageBodyReadMore', module);
+export default {
+  title: 'Components/Conversation/MessageBodyReadMore',
+} satisfies Meta<Props>;
 
 const createProps = (overrideProps: Partial<Props> = {}): Props => ({
   bodyRanges: overrideProps.bodyRanges,
@@ -22,53 +25,142 @@ const createProps = (overrideProps: Partial<Props> = {}): Props => ({
   displayLimit: overrideProps.displayLimit,
   i18n,
   id: 'some-id',
+  isSpoilerExpanded: overrideProps.isSpoilerExpanded || {},
   messageExpanded: action('messageExpanded'),
-  text: text('text', overrideProps.text || ''),
+  onExpandSpoiler: overrideProps.onExpandSpoiler || action('onExpandSpoiler'),
+  renderLocation: RenderLocation.Timeline,
+  text: overrideProps.text || '',
 });
 
 function MessageBodyReadMoreTest({
+  bodyRanges,
+  isSpoilerExpanded,
+  onExpandSpoiler,
   text: messageBodyText,
 }: {
+  bodyRanges?: HydratedBodyRangesType;
+  isSpoilerExpanded?: Record<number, boolean>;
+  onExpandSpoiler?: (data: Record<number, boolean>) => void;
   text: string;
 }): JSX.Element {
   const [displayLimit, setDisplayLimit] = useState<number | undefined>();
 
   return (
     <MessageBodyReadMore
-      {...createProps({ text: messageBodyText })}
+      {...createProps({
+        bodyRanges,
+        isSpoilerExpanded,
+        onExpandSpoiler,
+        text: messageBodyText,
+      })}
       displayLimit={displayLimit}
       messageExpanded={(_, newDisplayLimit) => setDisplayLimit(newDisplayLimit)}
     />
   );
 }
 
-story.add('Long text + 100 more', () => (
-  <MessageBodyReadMoreTest
-    text={`${'test '.repeat(160)}${'extra '.repeat(10)}`}
-  />
-));
+export function LongText100More(): JSX.Element {
+  return (
+    <MessageBodyReadMoreTest
+      text={`${'test '.repeat(160)}${'extra '.repeat(10)}`}
+    />
+  );
+}
 
-story.add('Lots of cake with some cherries on top', () => (
-  <MessageBodyReadMoreTest text={`x${'🍰'.repeat(399)}${'🍒'.repeat(100)}`} />
-));
+export function LotsOfCakeWithSomeCherriesOnTop(): JSX.Element {
+  return (
+    <MessageBodyReadMoreTest text={`x${'🍰'.repeat(399)}${'🍒'.repeat(100)}`} />
+  );
+}
 
-story.add('Leafy not buffered', () => (
-  <MessageBodyReadMoreTest text={`x${'🌿'.repeat(450)}`} />
-));
+export function LeafyNotBuffered(): JSX.Element {
+  return <MessageBodyReadMoreTest text={`x${'🌿'.repeat(450)}`} />;
+}
 
-story.add('Links', () => (
-  <MessageBodyReadMoreTest
-    text={`${'test '.repeat(176)}https://www.signal.org`}
-  />
-));
+export function LongTextWithMention(): JSX.Element {
+  const bodyRanges = [
+    // This is right at boundary for better testing
+    {
+      start: 800,
+      length: 1,
+      mentionAci: generateAci(),
+      conversationID: 'x',
+      replacementText: 'Alice',
+    },
+  ];
 
-story.add('Excessive amounts of cake', () => (
-  <MessageBodyReadMoreTest text={`x${'🍰'.repeat(20000)}`} />
-));
+  const text = `${'x '.repeat(400)}\uFFFC woo!${'y '.repeat(100)}`;
 
-story.add('Long text', () => (
-  <MessageBodyReadMoreTest
-    text={`
+  return <MessageBodyReadMoreTest bodyRanges={bodyRanges} text={text} />;
+}
+
+export function LongTextWithFormatting(): JSX.Element {
+  const bodyRanges = [
+    {
+      start: 0,
+      length: 5,
+      style: BodyRange.Style.ITALIC,
+    },
+    {
+      start: 7,
+      length: 3,
+      style: BodyRange.Style.BOLD,
+    },
+    {
+      start: 1019,
+      length: 4,
+      style: BodyRange.Style.BOLD,
+    },
+    {
+      start: 1024,
+      length: 6,
+      style: BodyRange.Style.ITALIC,
+    },
+  ];
+
+  const text = `ready? set... g${'o'.repeat(1000)}al! bold italic`;
+
+  return <MessageBodyReadMoreTest bodyRanges={bodyRanges} text={text} />;
+}
+
+export function LongTextMostlySpoiler(): JSX.Element {
+  const [isSpoilerExpanded, setIsSpoilerExpanded] = React.useState({});
+  const bodyRanges = [
+    {
+      start: 7,
+      length: 1010,
+      style: BodyRange.Style.SPOILER,
+    },
+  ];
+
+  const text = `ready? set... g${'o'.repeat(1000)}al! bold italic`;
+
+  return (
+    <MessageBodyReadMoreTest
+      bodyRanges={bodyRanges}
+      text={text}
+      isSpoilerExpanded={isSpoilerExpanded}
+      onExpandSpoiler={data => setIsSpoilerExpanded(data)}
+    />
+  );
+}
+
+export function Links(): JSX.Element {
+  return (
+    <MessageBodyReadMoreTest
+      text={`${'test '.repeat(176)}https://www.signal.org`}
+    />
+  );
+}
+
+export function ExcessiveAmountsOfCake(): JSX.Element {
+  return <MessageBodyReadMoreTest text={`x${'🍰'.repeat(20000)}`} />;
+}
+
+export function LongText(): JSX.Element {
+  return (
+    <MessageBodyReadMoreTest
+      text={`
       SCENE I. Rome. A street.
       Enter FLAVIUS, MARULLUS, and certain Commoners
       FLAVIUS
@@ -166,5 +258,6 @@ story.add('Long text', () => (
       Who else would soar above the view of men
       And keep us all in servile fearfulness.
       `}
-  />
-));
+    />
+  );
+}

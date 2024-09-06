@@ -6,45 +6,51 @@ import { SignalService as Proto } from '../protobuf';
 import { isDirectConversation, isMe } from './whatTypeOfConversation';
 import { isInSystemContacts } from './isInSystemContacts';
 
+export type IsConversationAcceptedOptionsType = {
+  ignoreEmptyConvo: boolean;
+};
+
 /**
  * Determine if this conversation should be considered "accepted" in terms
  * of message requests
  */
 export function isConversationAccepted(
-  conversationAttrs: ConversationAttributesType
-): boolean {
-  const messageRequestsEnabled = window.Signal.RemoteConfig.isEnabled(
-    'desktop.messageRequests'
-  );
-
-  if (!messageRequestsEnabled) {
-    return true;
+  conversationAttrs: ConversationAttributesType,
+  { ignoreEmptyConvo }: IsConversationAcceptedOptionsType = {
+    ignoreEmptyConvo: false,
   }
-
+): boolean {
   if (isMe(conversationAttrs)) {
     return true;
   }
 
   const messageRequestEnum = Proto.SyncMessage.MessageRequestResponse.Type;
 
-  const { messageRequestResponseType } = conversationAttrs;
+  const { messageRequestResponseType, removalStage } = conversationAttrs;
+  if (removalStage !== undefined) {
+    return false;
+  }
+
   if (messageRequestResponseType === messageRequestEnum.ACCEPT) {
     return true;
   }
 
   const { sentMessageCount } = conversationAttrs;
 
-  const hasSentMessages = sentMessageCount > 0;
+  const hasSentMessages = (sentMessageCount || 0) > 0;
   const hasMessagesBeforeMessageRequests =
     (conversationAttrs.messageCountBeforeMessageRequests || 0) > 0;
   const hasNoMessages = (conversationAttrs.messageCount || 0) === 0;
 
+  // We don't want to show the message request UI in an empty conversation.
   const isEmptyPrivateConvo =
-    hasNoMessages && isDirectConversation(conversationAttrs);
+    hasNoMessages &&
+    isDirectConversation(conversationAttrs) &&
+    !ignoreEmptyConvo;
   const isEmptyWhitelistedGroup =
     hasNoMessages &&
     !isDirectConversation(conversationAttrs) &&
-    conversationAttrs.profileSharing;
+    Boolean(conversationAttrs.profileSharing);
 
   return (
     isFromOrAddedByTrustedContact(conversationAttrs) ||

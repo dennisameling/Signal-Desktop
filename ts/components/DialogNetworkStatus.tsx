@@ -1,4 +1,4 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React, { useEffect } from 'react';
@@ -13,29 +13,27 @@ import { clearTimeoutIfNecessary } from '../util/clearTimeoutIfNecessary';
 
 const FIVE_SECONDS = 5 * 1000;
 
-export type PropsType = NetworkStateType & {
+export type PropsType = Pick<
+  NetworkStateType,
+  'isOnline' | 'isOutage' | 'socketStatus'
+> & {
   containerWidthBreakpoint: WidthBreakpoint;
-  hasNetworkDialog: boolean;
   i18n: LocalizerType;
   manualReconnect: () => void;
 };
 
-export const DialogNetworkStatus = ({
+export function DialogNetworkStatus({
   containerWidthBreakpoint,
-  hasNetworkDialog,
   i18n,
   isOnline,
+  isOutage,
   socketStatus,
   manualReconnect,
-}: PropsType): JSX.Element | null => {
+}: PropsType): JSX.Element | null {
   const [isConnecting, setIsConnecting] = React.useState<boolean>(
     socketStatus === SocketStatus.CONNECTING
   );
   useEffect(() => {
-    if (!hasNetworkDialog) {
-      return () => null;
-    }
-
     let timeout: NodeJS.Timeout;
 
     if (isConnecting) {
@@ -47,15 +45,22 @@ export const DialogNetworkStatus = ({
     return () => {
       clearTimeoutIfNecessary(timeout);
     };
-  }, [hasNetworkDialog, isConnecting, setIsConnecting]);
+  }, [isConnecting, setIsConnecting]);
 
   const reconnect = () => {
     setIsConnecting(true);
     manualReconnect();
   };
 
-  if (!hasNetworkDialog) {
-    return null;
+  if (isOutage) {
+    return (
+      <LeftPaneDialog
+        containerWidthBreakpoint={containerWidthBreakpoint}
+        type="warning"
+        icon="error"
+        subtitle={i18n('icu:DialogNetworkStatus__outage')}
+      />
+    );
   }
 
   if (isConnecting) {
@@ -75,8 +80,8 @@ export const DialogNetworkStatus = ({
         containerWidthBreakpoint={containerWidthBreakpoint}
         type="warning"
         icon={spinner}
-        title={i18n('connecting')}
-        subtitle={i18n('connectingHangOn')}
+        title={i18n('icu:connecting')}
+        subtitle={i18n('icu:connectingHangOn')}
       />
     );
   }
@@ -86,11 +91,11 @@ export const DialogNetworkStatus = ({
       containerWidthBreakpoint={containerWidthBreakpoint}
       type="warning"
       icon="network"
-      title={isOnline ? i18n('disconnected') : i18n('offline')}
-      subtitle={i18n('checkNetworkConnection')}
+      title={isOnline ? i18n('icu:disconnected') : i18n('icu:offline')}
+      subtitle={i18n('icu:checkNetworkConnection')}
       hasAction
-      clickLabel={i18n('connect')}
+      clickLabel={i18n('icu:connect')}
       onClick={reconnect}
     />
   );
-};
+}

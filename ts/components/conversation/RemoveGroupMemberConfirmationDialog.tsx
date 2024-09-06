@@ -1,7 +1,6 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { FunctionComponent } from 'react';
 import React from 'react';
 
 import type { ConversationType } from '../../state/ducks/conversations';
@@ -9,7 +8,7 @@ import type { LocalizerType } from '../../types/Util';
 import { isAccessControlEnabled } from '../../groups/util';
 
 import { ConfirmationDialog } from '../ConfirmationDialog';
-import { Intl } from '../Intl';
+import { I18n } from '../I18n';
 import { ContactName } from './ContactName';
 
 type PropsType = {
@@ -20,35 +19,46 @@ type PropsType = {
   onRemove: () => void;
 };
 
-export const RemoveGroupMemberConfirmationDialog: FunctionComponent<
-  PropsType
-> = ({ conversation, group, i18n, onClose, onRemove }) => {
-  const descriptionKey = isAccessControlEnabled(
+export function RemoveGroupMemberConfirmationDialog({
+  conversation,
+  group,
+  i18n,
+  onClose,
+  onRemove,
+}: PropsType): JSX.Element {
+  const accessControlEnabled = isAccessControlEnabled(
     group.accessControlAddFromInviteLink
-  )
-    ? 'RemoveGroupMemberConfirmation__description__with-link'
-    : 'RemoveGroupMemberConfirmation__description';
+  );
+
+  const contactName = <ContactName title={conversation.title} />;
 
   return (
     <ConfirmationDialog
+      dialogName="RemoveGroupMemberConfirmationDialog"
       actions={[
         {
           action: onRemove,
-          text: i18n('RemoveGroupMemberConfirmation__remove-button'),
+          text: i18n('icu:RemoveGroupMemberConfirmation__remove-button'),
           style: 'negative',
         },
       ]}
       i18n={i18n}
       onClose={onClose}
       title={
-        <Intl
-          i18n={i18n}
-          id={descriptionKey}
-          components={{
-            name: <ContactName title={conversation.title} />,
-          }}
-        />
+        accessControlEnabled ? (
+          <I18n
+            i18n={i18n}
+            id="icu:RemoveGroupMemberConfirmation__description__with-link"
+            components={{ name: contactName }}
+          />
+        ) : (
+          <I18n
+            i18n={i18n}
+            id="icu:RemoveGroupMemberConfirmation__description"
+            components={{ name: contactName }}
+          />
+        )
       }
     />
   );
-};
+}

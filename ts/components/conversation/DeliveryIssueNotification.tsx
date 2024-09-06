@@ -8,32 +8,26 @@ import { Button, ButtonSize, ButtonVariant } from '../Button';
 import { SystemMessage } from './SystemMessage';
 import type { ConversationType } from '../../state/ducks/conversations';
 import type { LocalizerType } from '../../types/Util';
-import { Intl } from '../Intl';
-import { Emojify } from './Emojify';
+import { I18n } from '../I18n';
 
 import { DeliveryIssueDialog } from './DeliveryIssueDialog';
+import { UserText } from '../UserText';
 
 export type PropsDataType = {
   sender?: ConversationType;
   inGroup: boolean;
 };
 
-export type PropsActionsType = {
-  learnMoreAboutDeliveryIssue: () => unknown;
-};
-
 type PropsHousekeepingType = {
   i18n: LocalizerType;
 };
 
-export type PropsType = PropsDataType &
-  PropsActionsType &
-  PropsHousekeepingType;
+export type PropsType = PropsDataType & PropsHousekeepingType;
 
 export function DeliveryIssueNotification(
   props: PropsType
 ): ReactElement | null {
-  const { i18n, inGroup, sender, learnMoreAboutDeliveryIssue } = props;
+  const { i18n, inGroup, sender } = props;
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 
   const openDialog = useCallback(() => {
@@ -51,10 +45,10 @@ export function DeliveryIssueNotification(
     <>
       <SystemMessage
         contents={
-          <Intl
-            id="DeliveryIssue--notification"
+          <I18n
+            id="icu:DeliveryIssue--notification"
             components={{
-              sender: <Emojify text={sender.firstName || sender.title} />,
+              sender: <UserText text={sender.firstName || sender.title} />,
             }}
             i18n={i18n}
           />
@@ -66,7 +60,7 @@ export function DeliveryIssueNotification(
             size={ButtonSize.Small}
             variant={ButtonVariant.SystemMessage}
           >
-            {i18n('DeliveryIssue--learnMore')}
+            {i18n('icu:DeliveryIssue--learnMore')}
           </Button>
         }
       />
@@ -74,7 +68,6 @@ export function DeliveryIssueNotification(
         <DeliveryIssueDialog
           i18n={i18n}
           inGroup={inGroup}
-          learnMoreAboutDeliveryIssue={learnMoreAboutDeliveryIssue}
           sender={sender}
           onClose={closeDialog}
         />

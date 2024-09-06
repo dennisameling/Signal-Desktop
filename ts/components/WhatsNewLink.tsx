@@ -3,7 +3,7 @@
 
 import React from 'react';
 
-import { Intl } from './Intl';
+import { I18n } from './I18n';
 
 import type { LocalizerType } from '../types/Util';
 
@@ -12,18 +12,24 @@ export type PropsType = {
   showWhatsNewModal: () => unknown;
 };
 
-export const WhatsNewLink = (props: PropsType): JSX.Element => {
+export function WhatsNewLink(props: PropsType): JSX.Element {
   const { i18n, showWhatsNewModal } = props;
 
   return (
-    <Intl
+    <I18n
       i18n={i18n}
-      id="whatsNew"
-      components={[
-        <button className="WhatsNew" type="button" onClick={showWhatsNewModal}>
-          {i18n('viewReleaseNotes')}
-        </button>,
-      ]}
+      id="icu:whatsNew"
+      components={{
+        whatsNew: (
+          <button
+            className="WhatsNew"
+            type="button"
+            onClick={showWhatsNewModal}
+          >
+            {i18n('icu:viewReleaseNotes')}
+          </button>
+        ),
+      }}
     />
   );
-};
+}

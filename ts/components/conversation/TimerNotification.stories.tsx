@@ -1,51 +1,43 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import * as moment from 'moment';
-import { storiesOf } from '@storybook/react';
-import { boolean, number, select, text } from '@storybook/addon-knobs';
-
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../../util/setupI18n';
+import { DurationInSeconds } from '../../util/durations';
 import enMessages from '../../../_locales/en/messages.json';
 import type { Props } from './TimerNotification';
 import { TimerNotification } from './TimerNotification';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf('Components/Conversation/TimerNotification', module);
-
-const createProps = (overrideProps: Partial<Props> = {}): Props => ({
-  i18n,
-  type: select(
-    'type',
-    {
-      fromOther: 'fromOther',
-      fromMe: 'fromMe',
-      fromSync: 'fromSync',
+export default {
+  title: 'Components/Conversation/TimerNotification',
+  argTypes: {
+    type: {
+      control: { type: 'select' },
+      options: ['fromOther', 'fromMe', 'fromSync'],
     },
-    overrideProps.type || 'fromOther'
-  ),
-  title: text('title', overrideProps.title || ''),
-  ...(boolean('disabled', overrideProps.disabled || false)
-    ? {
-        disabled: true,
-      }
-    : {
-        disabled: false,
-        expireTimer: number(
-          'expireTimer',
-          ('expireTimer' in overrideProps ? overrideProps.expireTimer : 0) || 0
-        ),
-      }),
-});
+    disabled: { control: { type: 'boolean' } },
+    expireTimer: { control: { type: 'number' } },
+  },
+  args: {
+    i18n,
+    type: 'fromOther',
+    title: '',
+    disabled: false,
+    expireTimer: DurationInSeconds.fromHours(0),
+  },
+} satisfies Meta<Props>;
 
-story.add('Set By Other', () => {
-  const props = createProps({
-    expireTimer: moment.duration(1, 'hour').asSeconds(),
+export function SetByOther(args: Props): JSX.Element {
+  const props: Props = {
+    ...args,
+    disabled: false,
+    expireTimer: DurationInSeconds.fromHours(1),
     type: 'fromOther',
     title: 'Mr. Fire',
-  });
+  };
 
   return (
     <>
@@ -54,16 +46,18 @@ story.add('Set By Other', () => {
       <TimerNotification {...props} disabled />
     </>
   );
-});
+}
 
-story.add('Set By Other (with a long name)', () => {
+export function SetByOtherWithALongName(args: Props): JSX.Element {
   const longName = '🦴🧩📴'.repeat(50);
 
-  const props = createProps({
-    expireTimer: moment.duration(1, 'hour').asSeconds(),
+  const props: Props = {
+    ...args,
+    disabled: false,
+    expireTimer: DurationInSeconds.fromHours(1),
     type: 'fromOther',
     title: longName,
-  });
+  };
 
   return (
     <>
@@ -72,14 +66,16 @@ story.add('Set By Other (with a long name)', () => {
       <TimerNotification {...props} disabled />
     </>
   );
-});
+}
 
-story.add('Set By You', () => {
-  const props = createProps({
-    expireTimer: moment.duration(1, 'hour').asSeconds(),
+export function SetByYou(args: Props): JSX.Element {
+  const props: Props = {
+    ...args,
+    disabled: false,
+    expireTimer: DurationInSeconds.fromHours(1),
     type: 'fromMe',
     title: 'Mr. Fire',
-  });
+  };
 
   return (
     <>
@@ -88,14 +84,16 @@ story.add('Set By You', () => {
       <TimerNotification {...props} disabled />
     </>
   );
-});
+}
 
-story.add('Set By Sync', () => {
-  const props = createProps({
-    expireTimer: moment.duration(1, 'hour').asSeconds(),
+export function SetBySync(args: Props): JSX.Element {
+  const props: Props = {
+    ...args,
+    disabled: false,
+    expireTimer: DurationInSeconds.fromHours(1),
     type: 'fromSync',
     title: 'Mr. Fire',
-  });
+  };
 
   return (
     <>
@@ -104,4 +102,4 @@ story.add('Set By Sync', () => {
       <TimerNotification {...props} disabled />
     </>
   );
-});
+}

@@ -1,16 +1,17 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
 import { sample } from 'lodash';
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
 
+import type { Meta } from '@storybook/react';
 import type { PropsType } from './CallingParticipantsList';
 import { CallingParticipantsList } from './CallingParticipantsList';
 import { AvatarColors } from '../types/Colors';
 import type { GroupCallRemoteParticipantType } from '../types/Calling';
-import { getDefaultConversationWithUuid } from '../test-both/helpers/getDefaultConversation';
+import { generateAci } from '../types/ServiceId';
+import { getDefaultConversationWithServiceId } from '../test-both/helpers/getDefaultConversation';
 import { setupI18n } from '../util/setupI18n';
 import enMessages from '../../_locales/en/messages.json';
 
@@ -20,14 +21,17 @@ function createParticipant(
   participantProps: Partial<GroupCallRemoteParticipantType>
 ): GroupCallRemoteParticipantType {
   return {
+    aci: generateAci(),
     demuxId: 2,
     hasRemoteAudio: Boolean(participantProps.hasRemoteAudio),
     hasRemoteVideo: Boolean(participantProps.hasRemoteVideo),
+    isHandRaised: Boolean(participantProps.isHandRaised),
+    mediaKeysReceived: Boolean(participantProps.mediaKeysReceived),
     presenting: Boolean(participantProps.presenting),
     sharingScreen: Boolean(participantProps.sharingScreen),
     videoAspectRatio: 1.3,
-    ...getDefaultConversationWithUuid({
-      avatarPath: participantProps.avatarPath,
+    ...getDefaultConversationWithServiceId({
+      avatarUrl: participantProps.avatarUrl,
       color: sample(AvatarColors),
       isBlocked: Boolean(participantProps.isBlocked),
       name: participantProps.name,
@@ -39,19 +43,23 @@ function createParticipant(
 
 const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   i18n,
+  conversationId: 'fake-conversation-id',
   onClose: action('on-close'),
-  ourUuid: 'cf085e6a-e70b-41ec-a310-c198248af13f',
+  ourServiceId: generateAci(),
   participants: overrideProps.participants || [],
+  showContactModal: action('show-contact-modal'),
 });
 
-const story = storiesOf('Components/CallingParticipantsList', module);
+export default {
+  title: 'Components/CallingParticipantsList',
+} satisfies Meta<PropsType>;
 
-story.add('No one', () => {
+export function NoOne(): JSX.Element {
   const props = createProps();
   return <CallingParticipantsList {...props} />;
-});
+}
 
-story.add('Solo Call', () => {
+export function SoloCall(): JSX.Element {
   const props = createProps({
     participants: [
       createParticipant({
@@ -60,9 +68,9 @@ story.add('Solo Call', () => {
     ],
   });
   return <CallingParticipantsList {...props} />;
-});
+}
 
-story.add('Many Participants', () => {
+export function ManyParticipants(): JSX.Element {
   const props = createProps({
     participants: [
       createParticipant({
@@ -70,6 +78,7 @@ story.add('Many Participants', () => {
       }),
       createParticipant({
         hasRemoteAudio: true,
+        hasRemoteVideo: true,
         presenting: true,
         name: 'Rage Trunks',
         title: 'Rage Trunks',
@@ -85,18 +94,28 @@ story.add('Many Participants', () => {
         title: 'Goku Black',
       }),
       createParticipant({
+        isHandRaised: true,
         title: 'Supreme Kai Zamasu',
+      }),
+      createParticipant({
+        hasRemoteAudio: false,
+        hasRemoteVideo: true,
+        isHandRaised: true,
+        title: 'Chi Chi',
+      }),
+      createParticipant({
+        title: 'Someone With A Really Long Name',
       }),
     ],
   });
   return <CallingParticipantsList {...props} />;
-});
+}
 
-story.add('Overflow', () => {
+export function Overflow(): JSX.Element {
   const props = createProps({
     participants: Array(50)
       .fill(null)
       .map(() => createParticipant({ title: 'Kirby' })),
   });
   return <CallingParticipantsList {...props} />;
-});
+}

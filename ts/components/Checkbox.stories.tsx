@@ -3,8 +3,8 @@
 
 import React from 'react';
 import { action } from '@storybook/addon-actions';
-import { storiesOf } from '@storybook/react';
 
+import type { Meta } from '@storybook/react';
 import type { PropsType } from './Checkbox';
 import { Checkbox } from './Checkbox';
 
@@ -15,14 +15,21 @@ const createProps = (): PropsType => ({
   onChange: action('onChange'),
 });
 
-const story = storiesOf('Components/Checkbox', module);
+export default {
+  title: 'Components/Checkbox',
+} satisfies Meta<PropsType>;
 
-story.add('Normal', () => <Checkbox {...createProps()} />);
+export function Normal(): JSX.Element {
+  return <Checkbox {...createProps()} />;
+}
+export function Checked(): JSX.Element {
+  return <Checkbox {...createProps()} checked />;
+}
 
-story.add('Checked', () => <Checkbox {...createProps()} checked />);
+export function Description(): JSX.Element {
+  return <Checkbox {...createProps()} description="This is a checkbox" />;
+}
 
-story.add('Description', () => (
-  <Checkbox {...createProps()} description="This is a checkbox" />
-));
-
-story.add('Disabled', () => <Checkbox {...createProps()} disabled />);
+export function Disabled(): JSX.Element {
+  return <Checkbox {...createProps()} disabled />;
+}

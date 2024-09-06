@@ -1,29 +1,48 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import type { AciString } from '../types/ServiceId';
 import { usePrevious } from './usePrevious';
 
 type RemoteParticipant = {
   hasRemoteVideo: boolean;
   presenting: boolean;
   title: string;
-  uuid?: string;
+  aci?: AciString;
 };
 
-export function useActivateSpeakerViewOnPresenting(
-  remoteParticipants: ReadonlyArray<RemoteParticipant>,
-  isInSpeakerView: boolean,
-  toggleSpeakerView: () => void
-): void {
-  const presenterUuid = remoteParticipants.find(
-    participant => participant.presenting
-  )?.uuid;
-  const prevPresenterUuid = usePrevious(presenterUuid, presenterUuid);
+export function usePresenter(
+  remoteParticipants: ReadonlyArray<RemoteParticipant>
+): AciString | undefined {
+  return useMemo(
+    () => remoteParticipants.find(participant => participant.presenting)?.aci,
+    [remoteParticipants]
+  );
+}
+
+export function useActivateSpeakerViewOnPresenting({
+  remoteParticipants,
+  switchToPresentationView,
+  switchFromPresentationView,
+}: {
+  remoteParticipants: ReadonlyArray<RemoteParticipant>;
+  switchToPresentationView: () => void;
+  switchFromPresentationView: () => void;
+}): void {
+  const presenterAci = usePresenter(remoteParticipants);
+  const prevPresenterAci = usePrevious(presenterAci, presenterAci);
 
   useEffect(() => {
-    if (prevPresenterUuid !== presenterUuid && !isInSpeakerView) {
-      toggleSpeakerView();
+    if (prevPresenterAci !== presenterAci && presenterAci) {
+      switchToPresentationView();
+    } else if (prevPresenterAci && !presenterAci) {
+      switchFromPresentationView();
     }
-  }, [isInSpeakerView, presenterUuid, prevPresenterUuid, toggleSpeakerView]);
+  }, [
+    presenterAci,
+    prevPresenterAci,
+    switchToPresentationView,
+    switchFromPresentationView,
+  ]);
 }

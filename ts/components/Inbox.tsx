@@ -2,100 +2,205 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ReactNode } from 'react';
-import React, { useEffect, useRef } from 'react';
-import type * as Backbone from 'backbone';
-import type { SafetyNumberProps } from './SafetyNumberChangeDialog';
-import { SafetyNumberChangeDialog } from './SafetyNumberChangeDialog';
-import type { ConversationType } from '../state/ducks/conversations';
-import type { PreferredBadgeSelectorType } from '../state/selectors/badges';
-import type { LocalizerType, ThemeType } from '../types/Util';
-
-type InboxViewType = Backbone.View & {
-  onEmpty?: () => void;
-};
-
-type InboxViewOptionsType = Backbone.ViewOptions & {
-  initialLoadComplete: boolean;
-  window: typeof window;
-};
+import React, { useEffect, useState, useMemo } from 'react';
+import classNames from 'classnames';
+import type { LocalizerType } from '../types/Util';
+import * as log from '../logging/log';
+import { SECOND, DAY } from '../util/durations';
+import type { SmartNavTabsProps } from '../state/smart/NavTabs';
 
 export type PropsType = {
-  cancelConversationVerification: () => void;
-  conversationsStoppingSend: Array<ConversationType>;
+  firstEnvelopeTimestamp: number | undefined;
+  envelopeTimestamp: number | undefined;
   hasInitialLoadCompleted: boolean;
-  getPreferredBadge: PreferredBadgeSelectorType;
   i18n: LocalizerType;
+  isAlpha: boolean;
   isCustomizingPreferredReactions: boolean;
+  navTabsCollapsed: boolean;
+  onToggleNavTabsCollapse: (navTabsCollapsed: boolean) => unknown;
+  renderCallsTab: () => JSX.Element;
+  renderChatsTab: () => JSX.Element;
   renderCustomizingPreferredReactionsModal: () => JSX.Element;
-  renderSafetyNumber: (props: SafetyNumberProps) => JSX.Element;
-  theme: ThemeType;
-  verifyConversationsStoppingSend: () => void;
+  renderNavTabs: (props: SmartNavTabsProps) => JSX.Element;
+  renderStoriesTab: () => JSX.Element;
 };
 
-export const Inbox = ({
-  cancelConversationVerification,
-  conversationsStoppingSend,
+const PART_COUNT = 16;
+
+export function Inbox({
+  firstEnvelopeTimestamp,
+  envelopeTimestamp,
   hasInitialLoadCompleted,
-  getPreferredBadge,
   i18n,
+  isAlpha,
   isCustomizingPreferredReactions,
+  navTabsCollapsed,
+  onToggleNavTabsCollapse,
+  renderCallsTab,
+  renderChatsTab,
   renderCustomizingPreferredReactionsModal,
-  renderSafetyNumber,
-  theme,
-  verifyConversationsStoppingSend,
-}: PropsType): JSX.Element => {
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const viewRef = useRef<InboxViewType | undefined>(undefined);
+  renderNavTabs,
+  renderStoriesTab,
+}: PropsType): JSX.Element {
+  const [internalHasInitialLoadCompleted, setInternalHasInitialLoadCompleted] =
+    useState(hasInitialLoadCompleted);
+
+  const now = useMemo(() => Date.now(), []);
+  const midnight = useMemo(() => {
+    const date = new Date(now);
+    date.setHours(0);
+    date.setMinutes(0);
+    date.setSeconds(0);
+    date.setMilliseconds(0);
+    return date.getTime();
+  }, [now]);
 
   useEffect(() => {
-    const viewOptions: InboxViewOptionsType = {
-      el: hostRef.current,
-      initialLoadComplete: false,
-      window,
-    };
-    const view = new window.Whisper.InboxView(viewOptions);
+    if (internalHasInitialLoadCompleted) {
+      return;
+    }
 
-    viewRef.current = view;
+    const interval = setInterval(() => {
+      const status = window.getSocketStatus();
+      switch (status) {
+        case 'CONNECTING':
+          break;
+        case 'OPEN':
+          // if we've connected, we can wait for real empty event
+          clearInterval(interval);
+          break;
+        case 'CLOSING':
+        case 'CLOSED':
+          clearInterval(interval);
+          // if we failed to connect, we pretend we loaded
+          setInternalHasInitialLoadCompleted(true);
+          break;
+        default:
+          log.warn(
+            `startConnectionListener: Found unexpected socket status ${status}; setting load to done manually.`
+          );
+          setInternalHasInitialLoadCompleted(true);
+          break;
+      }
+    }, SECOND);
 
     return () => {
-      // [`Backbone.View.prototype.remove`][0] removes the DOM element and stops listening
-      //   to event listeners. Because React will do the first, we only want to do the
-      //   second.
-      // [0]: https://github.com/jashkenas/backbone/blob/153dc41616a1f2663e4a86b705fefd412ecb4a7a/backbone.js#L1336-L1342
-      viewRef.current?.stopListening();
-      viewRef.current = undefined;
+      clearInterval(interval);
     };
-  }, []);
+  }, [internalHasInitialLoadCompleted]);
 
   useEffect(() => {
-    if (hasInitialLoadCompleted && viewRef.current && viewRef.current.onEmpty) {
-      viewRef.current.onEmpty();
-    }
-  }, [hasInitialLoadCompleted, viewRef]);
+    setInternalHasInitialLoadCompleted(hasInitialLoadCompleted);
+  }, [hasInitialLoadCompleted]);
 
-  let activeModal: ReactNode;
-  if (conversationsStoppingSend.length) {
-    activeModal = (
-      <SafetyNumberChangeDialog
-        confirmText={i18n('safetyNumberChangeDialog__pending-messages')}
-        contacts={conversationsStoppingSend}
-        getPreferredBadge={getPreferredBadge}
-        i18n={i18n}
-        onCancel={cancelConversationVerification}
-        onConfirm={verifyConversationsStoppingSend}
-        renderSafetyNumber={renderSafetyNumber}
-        theme={theme}
-      />
+  if (!internalHasInitialLoadCompleted) {
+    let loadingProgress = 100;
+    if (
+      firstEnvelopeTimestamp !== undefined &&
+      envelopeTimestamp !== undefined
+    ) {
+      loadingProgress =
+        Math.max(
+          0,
+          Math.min(
+            1,
+            Math.max(0, envelopeTimestamp - firstEnvelopeTimestamp) /
+              Math.max(1e-23, now - firstEnvelopeTimestamp)
+          )
+        ) * 100;
+    }
+
+    let message: string | undefined;
+    if (envelopeTimestamp !== undefined) {
+      const daysBeforeMidnight = Math.ceil(
+        (midnight - envelopeTimestamp) / DAY
+      );
+
+      if (daysBeforeMidnight <= 0) {
+        message = i18n('icu:loadingMessages--today');
+      } else if (daysBeforeMidnight === 1) {
+        message = i18n('icu:loadingMessages--yesterday');
+      } else {
+        message = i18n('icu:loadingMessages--other', {
+          daysAgo: daysBeforeMidnight,
+        });
+      }
+    }
+
+    let logo: JSX.Element;
+    if (isAlpha) {
+      const parts = new Array<JSX.Element>();
+      parts.push(
+        <i key="base" className="Inbox__logo__part Inbox__logo__part--base" />
+      );
+      for (let i = 0; i < PART_COUNT; i += 1) {
+        const isVisible = i <= (loadingProgress * PART_COUNT) / 100;
+        parts.push(
+          <i
+            key={i}
+            className={classNames({
+              Inbox__logo__part: true,
+              'Inbox__logo__part--animated':
+                firstEnvelopeTimestamp !== undefined && loadingProgress !== 0,
+              'Inbox__logo__part--segment': true,
+              'Inbox__logo__part--visible': isVisible,
+            })}
+          />
+        );
+      }
+      logo = <div className="Inbox__logo">{parts}</div>;
+    } else {
+      logo = <div className="module-splash-screen__logo module-img--150" />;
+    }
+
+    return (
+      <div className="app-loading-screen">
+        <div className="module-title-bar-drag-area" />
+
+        {logo}
+
+        {envelopeTimestamp === undefined ? (
+          <div className="dot-container">
+            <span className="dot" />
+            <span className="dot" />
+            <span className="dot" />
+          </div>
+        ) : (
+          <div className="app-loading-screen__progress--container">
+            <div
+              className="app-loading-screen__progress--bar"
+              style={{ transform: `translateX(${loadingProgress - 100}%)` }}
+            />
+          </div>
+        )}
+        {message === undefined ? (
+          <div className="message-placeholder" />
+        ) : (
+          <div className="message">{message}</div>
+        )}
+        <div id="toast" />
+      </div>
     );
   }
-  if (!activeModal && isCustomizingPreferredReactions) {
+
+  let activeModal: ReactNode;
+  if (isCustomizingPreferredReactions) {
     activeModal = renderCustomizingPreferredReactionsModal();
   }
 
   return (
     <>
-      <div className="Inbox" ref={hostRef} />
+      <div className="Inbox">
+        <div className="module-title-bar-drag-area" />
+        {renderNavTabs({
+          navTabsCollapsed,
+          onToggleNavTabsCollapse,
+          renderChatsTab,
+          renderCallsTab,
+          renderStoriesTab,
+        })}
+      </div>
       {activeModal}
     </>
   );
-};
+}

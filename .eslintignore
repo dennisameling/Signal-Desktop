@@ -1,4 +1,3 @@
-build/**
 components/**
 coverage/**
 dist/**
@@ -14,20 +13,23 @@ js/util_worker.js
 libtextsecure/components.js
 libtextsecure/test/test.js
 test/test.js
-sticker-creator/dist/**
+ts/protobuf/compiled.d.ts
+storybook-static/**
+build/ICUMessageParams.d.ts
 
 # Third-party files
 js/Mp3LameEncoder.min.js
 js/WebAudioRecorderMp3.js
-js/libphonenumber-util.js
+js/calling-tools/**
 
 # TypeScript generated files
 app/**/*.js
 ts/**/*.js
-sticker-creator/**/*.js
-!sticker-creator/preload.js
 
-**/*.d.ts
 .eslintrc.js
 webpack.config.ts
 preload.bundle.*
+bundles/**
+
+# Sticker Creator has its own eslint config
+sticker-creator/**

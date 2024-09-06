@@ -2,40 +2,32 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import { storiesOf } from '@storybook/react';
-import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../../util/setupI18n';
 import enMessages from '../../../_locales/en/messages.json';
+import type { PropsType } from './DeliveryIssueNotification';
 import { DeliveryIssueNotification } from './DeliveryIssueNotification';
 import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
 
-const story = storiesOf(
-  'Components/Conversation/DeliveryIssueNotification',
-  module
-);
+export default {
+  title: 'Components/Conversation/DeliveryIssueNotification',
+} satisfies Meta<PropsType>;
 
 const i18n = setupI18n('en', enMessages);
 const sender = getDefaultConversation();
 
-story.add('Default', () => {
+export function Default(): JSX.Element {
   return (
-    <DeliveryIssueNotification
-      i18n={i18n}
-      inGroup={false}
-      learnMoreAboutDeliveryIssue={action('learnMoreAboutDeliveryIssue')}
-      sender={sender}
-    />
+    <DeliveryIssueNotification i18n={i18n} inGroup={false} sender={sender} />
   );
-});
+}
 
-story.add('With a long name', () => {
+export function WithALongName(): JSX.Element {
   const longName = '🤷🏽‍♀️❤️🐞'.repeat(50);
   return (
     <DeliveryIssueNotification
       i18n={i18n}
       inGroup={false}
-      learnMoreAboutDeliveryIssue={action('learnMoreAboutDeliveryIssue')}
       sender={getDefaultConversation({
         firstName: longName,
         name: longName,
@@ -44,15 +36,8 @@ story.add('With a long name', () => {
       })}
     />
   );
-});
+}
 
-story.add('In Group', () => {
-  return (
-    <DeliveryIssueNotification
-      i18n={i18n}
-      inGroup
-      learnMoreAboutDeliveryIssue={action('learnMoreAboutDeliveryIssue')}
-      sender={sender}
-    />
-  );
-});
+export function InGroup(): JSX.Element {
+  return <DeliveryIssueNotification i18n={i18n} inGroup sender={sender} />;
+}

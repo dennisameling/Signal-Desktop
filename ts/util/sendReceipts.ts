@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { chunk } from 'lodash';
@@ -45,34 +45,42 @@ export async function sendReceipts({
       throw missingCaseError(type);
   }
 
+  const { messaging } = window.textsecure;
+  if (!messaging) {
+    throw new Error('messaging is not available!');
+  }
+
   if (requiresUserSetting && !window.storage.get('read-receipt-setting')) {
     log.info('requires user setting. Not sending these receipts');
     return;
   }
 
+  log.info(`Starting receipt send of type ${type}`);
+
   const receiptsBySenderId: Map<string, Array<Receipt>> = receipts.reduce(
     (result, receipt) => {
-      const { senderE164, senderUuid } = receipt;
-      if (!senderE164 && !senderUuid) {
-        log.error('no sender E164 or UUID. Skipping this receipt');
+      const { senderE164, senderAci } = receipt;
+      if (!senderE164 && !senderAci) {
+        log.error('no sender E164 or Service Id. Skipping this receipt');
         return result;
       }
 
-      const senderId = window.ConversationController.ensureContactIds({
+      const sender = window.ConversationController.lookupOrCreate({
         e164: senderE164,
-        uuid: senderUuid,
+        serviceId: senderAci,
+        reason: 'sendReceipts',
       });
-      if (!senderId) {
+      if (!sender) {
         throw new Error(
-          'no conversation found with that E164/UUID. Cannot send this receipt'
+          'no conversation found with that E164/Service Id. Cannot send this receipt'
         );
       }
 
-      const existingGroup = result.get(senderId);
+      const existingGroup = result.get(sender.id);
       if (existingGroup) {
         existingGroup.push(receipt);
       } else {
-        result.set(senderId, [receipt]);
+        result.set(sender.id, [receipt]);
       }
 
       return result;
@@ -110,6 +118,8 @@ export async function sendReceipts({
         return;
       }
 
+      log.info(`Sending receipt of type ${type} to ${sender.idForLogging()}`);
+
       const sendOptions = await getSendOptions(sender.attributes);
 
       const batches = chunk(receiptsForSender, CHUNK_SIZE);
@@ -117,16 +127,26 @@ export async function sendReceipts({
         map(batches, async batch => {
           const timestamps = batch.map(receipt => receipt.timestamp);
           const messageIds = batch.map(receipt => receipt.messageId);
+          const isDirectConversation = batch.some(
+            receipt => receipt.isDirectConversation
+          );
+
+          const senderAci = sender.getCheckedAci('sendReceipts');
 
           await handleMessageSend(
-            window.textsecure.messaging[methodName]({
-              senderE164: sender.get('e164'),
-              senderUuid: sender.get('uuid'),
+            messaging[methodName]({
+              senderAci,
+              isDirectConversation,
               timestamps,
               options: sendOptions,
             }),
             { messageIds, sendType: type }
           );
+
+          window.SignalCI?.handleEvent('receipts', {
+            type,
+            timestamps,
+          });
         })
       );
     })

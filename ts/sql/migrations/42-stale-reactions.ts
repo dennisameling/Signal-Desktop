@@ -1,15 +1,14 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from 'better-sqlite3';
-
 import { batchMultiVarQuery } from '../util';
 import type { ArrayQuery } from '../util';
+import type { WritableDB } from '../Interface';
 import type { LoggerType } from '../../types/Logging';
 
 export default function updateToSchemaVersion42(
   currentVersion: number,
-  db: Database,
+  db: WritableDB,
   logger: LoggerType
 ): void {
   if (currentVersion >= 42) {
@@ -57,7 +56,7 @@ export default function updateToSchemaVersion42(
       }
     });
 
-    function deleteReactions(rowids: Array<number>) {
+    function deleteReactions(rowids: ReadonlyArray<number>) {
       db.prepare<ArrayQuery>(
         `
         DELETE FROM reactions

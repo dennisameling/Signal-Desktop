@@ -1,4 +1,4 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as Path from 'path';
@@ -29,7 +29,7 @@ describe('Errors', () => {
       assert.isUndefined(error.stack);
 
       const formattedError = Errors.toLogFormat(error);
-      assert.strictEqual(formattedError, 'Error: boom');
+      assert.strictEqual(formattedError, 'boom');
     });
 
     [0, false, null, undefined].forEach(value => {

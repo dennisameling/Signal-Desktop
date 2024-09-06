@@ -1,4 +1,4 @@
-// Copyright 2018-2022 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ReactNode } from 'react';
@@ -11,46 +11,67 @@ import * as GoogleChrome from '../../util/GoogleChrome';
 
 import { MessageBody } from './MessageBody';
 import type { AttachmentType, ThumbnailType } from '../../types/Attachment';
-import type { BodyRangesType, LocalizerType } from '../../types/Util';
+import type { HydratedBodyRangesType } from '../../types/BodyRange';
+import type { LocalizerType } from '../../types/Util';
 import type {
   ConversationColorType,
   CustomColorType,
 } from '../../types/Colors';
 import { ContactName } from './ContactName';
-import { getTextWithMentions } from '../../util/getTextWithMentions';
+import { Emojify } from './Emojify';
+import { TextAttachment } from '../TextAttachment';
 import { getClassNamesFor } from '../../util/getClassNamesFor';
 import { getCustomColorStyle } from '../../util/getCustomColorStyle';
+import type { AnyPaymentEvent } from '../../types/Payment';
+import { PaymentEventKind } from '../../types/Payment';
+import {
+  getPaymentEventNotificationText,
+  shouldTryToCopyFromQuotedMessage,
+} from '../../messages/helpers';
+import { RenderLocation } from './MessageTextRenderer';
+import type { QuotedAttachmentType } from '../../model-types';
+
+const EMPTY_OBJECT = Object.freeze(Object.create(null));
+
+export type QuotedAttachmentForUIType = QuotedAttachmentType &
+  Pick<AttachmentType, 'isVoiceMessage' | 'fileName' | 'textAttachment'>;
 
 export type Props = {
   authorTitle: string;
   conversationColor: ConversationColorType;
-  curveTopLeft?: boolean;
-  curveTopRight?: boolean;
+  conversationTitle: string;
   customColor?: CustomColorType;
-  bodyRanges?: BodyRangesType;
+  bodyRanges?: HydratedBodyRangesType;
   i18n: LocalizerType;
   isFromMe: boolean;
   isIncoming?: boolean;
+  isCompose?: boolean;
+  isStoryReply?: boolean;
   moduleClassName?: string;
   onClick?: () => void;
   onClose?: () => void;
   text: string;
-  rawAttachment?: QuotedAttachmentType;
+  rawAttachment?: QuotedAttachmentForUIType;
+  payment?: AnyPaymentEvent;
+  isGiftBadge: boolean;
   isViewOnce: boolean;
+  reactionEmoji?: string;
   referencedMessageNotFound: boolean;
   doubleCheckMissingQuoteReference?: () => unknown;
 };
 
-type State = {
-  imageBroken: boolean;
-};
-
-export type QuotedAttachmentType = Pick<
-  AttachmentType,
-  'contentType' | 'fileName' | 'isVoiceMessage' | 'thumbnail'
->;
-
 function validateQuote(quote: Props): boolean {
+  if (
+    quote.isStoryReply &&
+    (quote.referencedMessageNotFound || quote.reactionEmoji)
+  ) {
+    return true;
+  }
+
+  if (quote.isGiftBadge) {
+    return true;
+  }
+
   if (quote.text) {
     return true;
   }
@@ -59,13 +80,17 @@ function validateQuote(quote: Props): boolean {
     return true;
   }
 
+  if (quote.payment?.kind === PaymentEventKind.Notification) {
+    return true;
+  }
+
   return false;
 }
 
 // Long message attachments should not be shown.
-function getAttachment(
-  rawAttachment: undefined | QuotedAttachmentType
-): undefined | QuotedAttachmentType {
+function getAttachment<T extends Pick<QuotedAttachmentType, 'contentType'>>(
+  rawAttachment: T | undefined
+): T | undefined {
   return rawAttachment && !MIME.isLongMessage(rawAttachment.contentType)
     ? rawAttachment
     : undefined;
@@ -92,53 +117,72 @@ function getTypeLabel({
 }): string | undefined {
   if (GoogleChrome.isVideoTypeSupported(contentType)) {
     if (isViewOnce) {
-      return i18n('message--getDescription--disappearing-video');
+      return i18n('icu:message--getDescription--disappearing-video');
     }
-    return i18n('video');
+    return i18n('icu:video');
   }
   if (GoogleChrome.isImageTypeSupported(contentType)) {
     if (isViewOnce) {
-      return i18n('message--getDescription--disappearing-photo');
+      return i18n('icu:message--getDescription--disappearing-photo');
     }
-    return i18n('photo');
+    return i18n('icu:photo');
   }
 
   if (isViewOnce) {
-    return i18n('message--getDescription--disappearing-media');
+    return i18n('icu:message--getDescription--disappearing-media');
   }
 
   if (MIME.isAudio(contentType) && isVoiceMessage) {
-    return i18n('voiceMessage');
+    return i18n('icu:voiceMessage');
   }
 
-  return MIME.isAudio(contentType) ? i18n('audio') : undefined;
+  return MIME.isAudio(contentType) ? i18n('icu:audio') : undefined;
 }
 
-export class Quote extends React.Component<Props, State> {
-  private getClassName: (modifier?: string) => string;
+export function Quote(props: Props): JSX.Element | null {
+  const {
+    conversationColor,
+    customColor,
+    isStoryReply,
+    onClose,
+    text,
+    bodyRanges,
+    authorTitle,
+    conversationTitle,
+    isFromMe,
+    i18n,
+    payment,
+    isViewOnce,
+    isGiftBadge,
+    rawAttachment,
+    isIncoming,
+    moduleClassName,
+    referencedMessageNotFound,
+    doubleCheckMissingQuoteReference,
+    onClick,
+    isCompose,
+    reactionEmoji,
+  } = props;
+  const [imageBroken, setImageBroken] = useState(false);
 
-  constructor(props: Props) {
-    super(props);
-    this.state = {
-      imageBroken: false,
-    };
-    this.getClassName = getClassNamesFor('module-quote', props.moduleClassName);
-  }
+  const getClassName = getClassNamesFor('module-quote', moduleClassName);
 
-  override componentDidMount(): void {
-    const { doubleCheckMissingQuoteReference, referencedMessageNotFound } =
-      this.props;
-
-    if (referencedMessageNotFound) {
+  useEffect(() => {
+    if (
+      shouldTryToCopyFromQuotedMessage({
+        referencedMessageNotFound,
+        quoteAttachment: rawAttachment,
+      })
+    ) {
       doubleCheckMissingQuoteReference?.();
     }
-  }
+  }, [
+    referencedMessageNotFound,
+    rawAttachment,
+    doubleCheckMissingQuoteReference,
+  ]);
 
-  public handleKeyDown = (
-    event: React.KeyboardEvent<HTMLButtonElement>
-  ): void => {
-    const { onClick } = this.props;
-
+  function handleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
     // This is important to ensure that using this quote to navigate to the referenced
     //   message doesn't also trigger its parent message's keydown.
     if (onClick && (event.key === 'Enter' || event.key === ' ')) {
@@ -146,37 +190,35 @@ export class Quote extends React.Component<Props, State> {
       event.stopPropagation();
       onClick();
     }
-  };
+  }
 
-  public handleClick = (event: React.MouseEvent<HTMLButtonElement>): void => {
-    const { onClick } = this.props;
-
+  function handleClick(event: React.MouseEvent<HTMLButtonElement>) {
     if (onClick) {
       event.preventDefault();
       event.stopPropagation();
       onClick();
     }
-  };
+  }
 
-  public handleImageError = (): void => {
+  function handleImageError() {
     window.console.info(
       'Message: Image failed to load; failing over to placeholder'
     );
-    this.setState({
-      imageBroken: true,
-    });
-  };
+    setImageBroken(true);
+  }
 
-  public renderImage(url: string, icon?: string): JSX.Element {
+  function renderImage(
+    url: string,
+    icon: string | undefined,
+    asGiftBadge?: boolean
+  ): JSX.Element {
     const iconElement = icon ? (
-      <div className={this.getClassName('__icon-container__inner')}>
-        <div
-          className={this.getClassName('__icon-container__circle-background')}
-        >
+      <div className={getClassName('__icon-container__inner')}>
+        <div className={getClassName('__icon-container__circle-background')}>
           <div
             className={classNames(
-              this.getClassName('__icon-container__icon'),
-              this.getClassName(`__icon-container__icon--${icon}`)
+              getClassName('__icon-container__icon'),
+              getClassName(`__icon-container__icon--${icon}`)
             )}
           />
         </div>
@@ -185,26 +227,29 @@ export class Quote extends React.Component<Props, State> {
 
     return (
       <ThumbnailImage
-        className={this.getClassName('__icon-container')}
+        className={classNames(
+          getClassName('__icon-container'),
+          isIncoming === false &&
+            asGiftBadge &&
+            getClassName('__icon-container__outgoing-gift-badge')
+        )}
         src={url}
-        onError={this.handleImageError}
+        onError={handleImageError}
       >
         {iconElement}
       </ThumbnailImage>
     );
   }
 
-  public renderIcon(icon: string): JSX.Element {
+  function renderIcon(icon: string) {
     return (
-      <div className={this.getClassName('__icon-container')}>
-        <div className={this.getClassName('__icon-container__inner')}>
-          <div
-            className={this.getClassName('__icon-container__circle-background')}
-          >
+      <div className={getClassName('__icon-container')}>
+        <div className={getClassName('__icon-container__inner')}>
+          <div className={getClassName('__icon-container__circle-background')}>
             <div
               className={classNames(
-                this.getClassName('__icon-container__icon'),
-                this.getClassName(`__icon-container__icon--${icon}`)
+                getClassName('__icon-container__icon'),
+                getClassName(`__icon-container__icon--${icon}`)
               )}
             />
           </div>
@@ -213,18 +258,18 @@ export class Quote extends React.Component<Props, State> {
     );
   }
 
-  public renderGenericFile(): JSX.Element | null {
-    const { rawAttachment, isIncoming } = this.props;
+  function renderGenericFile() {
     const attachment = getAttachment(rawAttachment);
 
     if (!attachment) {
       return null;
     }
 
-    const { fileName, contentType } = attachment;
+    const { fileName, contentType, textAttachment } = attachment;
     const isGenericFile =
       !GoogleChrome.isVideoTypeSupported(contentType) &&
       !GoogleChrome.isImageTypeSupported(contentType) &&
+      !textAttachment &&
       !MIME.isAudio(contentType);
 
     if (!isGenericFile) {
@@ -232,14 +277,12 @@ export class Quote extends React.Component<Props, State> {
     }
 
     return (
-      <div className={this.getClassName('__generic-file')}>
-        <div className={this.getClassName('__generic-file__icon')} />
+      <div className={getClassName('__generic-file')}>
+        <div className={getClassName('__generic-file__icon')} />
         <div
           className={classNames(
-            this.getClassName('__generic-file__text'),
-            isIncoming
-              ? this.getClassName('__generic-file__text--incoming')
-              : null
+            getClassName('__generic-file__text'),
+            isIncoming ? getClassName('__generic-file__text--incoming') : null
           )}
         >
           {fileName}
@@ -248,61 +291,90 @@ export class Quote extends React.Component<Props, State> {
     );
   }
 
-  public renderIconContainer(): JSX.Element | null {
-    const { rawAttachment, isViewOnce } = this.props;
-    const { imageBroken } = this.state;
+  function renderPayment() {
+    if (payment == null) {
+      return null;
+    }
+
+    return (
+      <>
+        <Emojify text="💳" />
+        {getPaymentEventNotificationText(
+          payment,
+          authorTitle,
+          conversationTitle,
+          isFromMe,
+          i18n
+        )}
+      </>
+    );
+  }
+
+  function renderIconContainer() {
     const attachment = getAttachment(rawAttachment);
+
+    if (isGiftBadge) {
+      return renderImage('images/gift-thumbnail.svg', undefined, true);
+    }
 
     if (!attachment) {
       return null;
     }
 
-    const { contentType, thumbnail } = attachment;
+    const { contentType, textAttachment, thumbnail } = attachment;
     const url = getUrl(thumbnail);
 
     if (isViewOnce) {
-      return this.renderIcon('view-once');
+      return renderIcon('view-once');
+    }
+
+    if (textAttachment) {
+      return (
+        <div className={getClassName('__icon-container')}>
+          <TextAttachment
+            i18n={i18n}
+            isThumbnail
+            textAttachment={textAttachment}
+          />
+        </div>
+      );
     }
 
     if (GoogleChrome.isVideoTypeSupported(contentType)) {
       return url && !imageBroken
-        ? this.renderImage(url, 'play')
-        : this.renderIcon('movie');
+        ? renderImage(url, 'play')
+        : renderIcon('movie');
     }
     if (GoogleChrome.isImageTypeSupported(contentType)) {
       return url && !imageBroken
-        ? this.renderImage(url)
-        : this.renderIcon('image');
+        ? renderImage(url, undefined)
+        : renderIcon('image');
     }
     if (MIME.isAudio(contentType)) {
-      return this.renderIcon('microphone');
+      return renderIcon('microphone');
     }
 
     return null;
   }
 
-  public renderText(): JSX.Element | null {
-    const { bodyRanges, i18n, text, rawAttachment, isIncoming, isViewOnce } =
-      this.props;
-
-    if (text) {
-      const quoteText = bodyRanges
-        ? getTextWithMentions(bodyRanges, text)
-        : text;
-
+  function renderText() {
+    if (text && !isGiftBadge) {
       return (
         <div
           dir="auto"
           className={classNames(
-            this.getClassName('__primary__text'),
-            isIncoming ? this.getClassName('__primary__text--incoming') : null
+            getClassName('__primary__text'),
+            isIncoming ? getClassName('__primary__text--incoming') : null
           )}
         >
           <MessageBody
+            bodyRanges={bodyRanges}
             disableLinks
             disableJumbomoji
-            text={quoteText}
             i18n={i18n}
+            isSpoilerExpanded={EMPTY_OBJECT}
+            renderLocation={RenderLocation.Quote}
+            text={text}
           />
         </div>
       );
@@ -310,26 +382,28 @@ export class Quote extends React.Component<Props, State> {
 
     const attachment = getAttachment(rawAttachment);
 
-    if (!attachment) {
+    let typeLabel;
+
+    if (isGiftBadge) {
+      typeLabel = i18n('icu:quote--donation');
+    } else if (attachment) {
+      const { contentType, isVoiceMessage } = attachment;
+      typeLabel = getTypeLabel({
+        i18n,
+        isViewOnce,
+        contentType,
+        isVoiceMessage,
+      });
+    } else {
       return null;
     }
 
-    const { contentType, isVoiceMessage } = attachment;
-
-    const typeLabel = getTypeLabel({
-      i18n,
-      isViewOnce,
-      contentType,
-      isVoiceMessage,
-    });
     if (typeLabel) {
       return (
         <div
           className={classNames(
-            this.getClassName('__primary__type-label'),
-            isIncoming
-              ? this.getClassName('__primary__type-label--incoming')
-              : null
+            getClassName('__primary__type-label'),
+            isIncoming ? getClassName('__primary__type-label--incoming') : null
           )}
         >
           {typeLabel}
@@ -340,9 +414,7 @@ export class Quote extends React.Component<Props, State> {
     return null;
   }
 
-  public renderClose(): JSX.Element | null {
-    const { i18n, onClose } = this.props;
-
+  function renderClose() {
     if (!onClose) {
       return null;
     }
@@ -364,13 +436,13 @@ export class Quote extends React.Component<Props, State> {
 
     // We need the container to give us the flexibility to implement the iOS design.
     return (
-      <div className={this.getClassName('__close-container')}>
+      <div className={getClassName('__close-container')}>
         <div
           tabIndex={0}
           // We can't be a button because the overall quote is a button; can't nest them
           role="button"
-          className={this.getClassName('__close-button')}
-          aria-label={i18n('close')}
+          className={getClassName('__close-button')}
+          aria-label={i18n('icu:close')}
           onKeyDown={keyDownHandler}
           onClick={clickHandler}
         />
@@ -378,115 +450,127 @@ export class Quote extends React.Component<Props, State> {
     );
   }
 
-  public renderAuthor(): JSX.Element {
-    const { authorTitle, i18n, isFromMe, isIncoming } = this.props;
+  function renderAuthor() {
+    const title = isFromMe ? (
+      i18n('icu:you')
+    ) : (
+      <ContactName title={authorTitle} />
+    );
+    const author = isStoryReply ? (
+      <>
+        {title} &middot; {i18n('icu:Quote__story')}
+      </>
+    ) : (
+      title
+    );
 
     return (
       <div
+        dir="auto"
         className={classNames(
-          this.getClassName('__primary__author'),
-          isIncoming ? this.getClassName('__primary__author--incoming') : null
+          getClassName('__primary__author'),
+          isIncoming ? getClassName('__primary__author--incoming') : null
         )}
       >
-        {isFromMe ? i18n('you') : <ContactName title={authorTitle} />}
+        {author}
       </div>
     );
   }
 
-  public renderReferenceWarning(): JSX.Element | null {
-    const {
-      conversationColor,
-      customColor,
-      i18n,
-      isIncoming,
-      referencedMessageNotFound,
-    } = this.props;
-
-    if (!referencedMessageNotFound) {
+  function renderReferenceWarning() {
+    if (!referencedMessageNotFound || isStoryReply) {
       return null;
     }
 
     return (
       <div
         className={classNames(
-          this.getClassName('__reference-warning'),
+          getClassName('__reference-warning'),
           isIncoming
-            ? this.getClassName(`--incoming-${conversationColor}`)
-            : this.getClassName(`--outgoing-${conversationColor}`)
+            ? getClassName(`--incoming-${conversationColor}`)
+            : getClassName(`--outgoing-${conversationColor}`)
         )}
-        style={{ ...getCustomColorStyle(customColor, true) }}
+        style={{
+          ...getCustomColorStyle(customColor, true),
+        }}
       >
         <div
           className={classNames(
-            this.getClassName('__reference-warning__icon'),
+            getClassName('__reference-warning__icon'),
             isIncoming
-              ? this.getClassName('__reference-warning__icon--incoming')
+              ? getClassName('__reference-warning__icon--incoming')
               : null
           )}
         />
         <div
           className={classNames(
-            this.getClassName('__reference-warning__text'),
+            getClassName('__reference-warning__text'),
             isIncoming
-              ? this.getClassName('__reference-warning__text--incoming')
+              ? getClassName('__reference-warning__text--incoming')
               : null
           )}
         >
-          {i18n('originalMessageNotFound')}
+          {i18n('icu:originalMessageNotFound')}
         </div>
       </div>
     );
   }
 
-  public override render(): JSX.Element | null {
-    const {
-      conversationColor,
-      curveTopLeft,
-      curveTopRight,
-      customColor,
-      isIncoming,
-      onClick,
-      referencedMessageNotFound,
-    } = this.props;
-
-    if (!validateQuote(this.props)) {
-      return null;
-    }
-
-    return (
-      <div className={this.getClassName('__container')}>
-        <button
-          type="button"
-          onClick={this.handleClick}
-          onKeyDown={this.handleKeyDown}
-          className={classNames(
-            this.getClassName(''),
-            isIncoming
-              ? this.getClassName('--incoming')
-              : this.getClassName('--outgoing'),
-            isIncoming
-              ? this.getClassName(`--incoming-${conversationColor}`)
-              : this.getClassName(`--outgoing-${conversationColor}`),
-            !onClick && this.getClassName('--no-click'),
-            referencedMessageNotFound &&
-              this.getClassName('--with-reference-warning'),
-            curveTopLeft && this.getClassName('--curve-top-left'),
-            curveTopRight && this.getClassName('--curve-top-right')
-          )}
-          style={{ ...getCustomColorStyle(customColor, true) }}
-        >
-          <div className={this.getClassName('__primary')}>
-            {this.renderAuthor()}
-            {this.renderGenericFile()}
-            {this.renderText()}
-          </div>
-          {this.renderIconContainer()}
-          {this.renderClose()}
-        </button>
-        {this.renderReferenceWarning()}
-      </div>
-    );
+  if (!validateQuote(props)) {
+    return null;
   }
+
+  let colorClassName: string;
+  let directionClassName: string;
+  if (isCompose) {
+    directionClassName = getClassName('--compose');
+    colorClassName = getClassName(`--compose-${conversationColor}`);
+  } else if (isIncoming) {
+    directionClassName = getClassName('--incoming');
+    colorClassName = getClassName(`--incoming-${conversationColor}`);
+  } else {
+    directionClassName = getClassName('--outgoing');
+    colorClassName = getClassName(`--outgoing-${conversationColor}`);
+  }
+
+  return (
+    <div className={getClassName('__container')}>
+      <button
+        type="button"
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        className={classNames(
+          getClassName(''),
+          directionClassName,
+          colorClassName,
+          !onClick && getClassName('--no-click'),
+          referencedMessageNotFound && getClassName('--with-reference-warning')
+        )}
+        style={{ ...getCustomColorStyle(customColor, true) }}
+      >
+        <div className={getClassName('__primary')}>
+          {renderAuthor()}
+          {renderGenericFile()}
+          {renderPayment()}
+          {renderText()}
+        </div>
+        {reactionEmoji && (
+          <div
+            className={
+              rawAttachment
+                ? getClassName('__reaction-emoji')
+                : getClassName('__reaction-emoji--story-unavailable')
+            }
+          >
+            <Emojify text={reactionEmoji} />
+          </div>
+        )}
+        {renderIconContainer()}
+        {renderClose()}
+      </button>
+      {renderReferenceWarning()}
+    </div>
+  );
 }
 
 function ThumbnailImage({
@@ -530,9 +614,7 @@ function ThumbnailImage({
   return (
     <div
       className={className}
-      style={
-        loadedSrc ? { backgroundImage: `url('${encodeURI(loadedSrc)}')` } : {}
-      }
+      style={loadedSrc ? { backgroundImage: `url('${loadedSrc}')` } : {}}
     >
       {children}
     </div>

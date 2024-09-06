@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ReactChild } from 'react';
@@ -11,12 +11,15 @@ import type { Row } from '../ConversationList';
 import { RowType } from '../ConversationList';
 import type { PropsData as ConversationListItemPropsType } from '../conversationList/ConversationListItem';
 import { handleKeydownForSearch } from './handleKeydownForSearch';
-import type { ConversationType } from '../../state/ducks/conversations';
+import type {
+  ConversationType,
+  ShowConversationType,
+} from '../../state/ducks/conversations';
 import { LeftPaneSearchInput } from '../LeftPaneSearchInput';
 
-import { Intl } from '../Intl';
-import { Emojify } from '../conversation/Emojify';
-import { assert } from '../../util/assert';
+import { I18n } from '../I18n';
+import { assertDev } from '../../util/assert';
+import { UserText } from '../UserText';
 
 // The "correct" thing to do is to measure the size of the left pane and render enough
 //   search results for the container height. But (1) that's slow (2) the list is
@@ -35,11 +38,13 @@ export type LeftPaneSearchPropsType = {
   messageResults: MaybeLoadedSearchResultsType<{
     id: string;
     conversationId: string;
+    type: string;
   }>;
   searchConversationName?: string;
   primarySendsSms: boolean;
   searchTerm: string;
   startSearchCounter: number;
+  isSearchingGlobally: boolean;
   searchDisabled: boolean;
   searchConversation: undefined | ConversationType;
 };
@@ -48,16 +53,17 @@ const searchResultKeys: Array<
   'conversationResults' | 'contactResults' | 'messageResults'
 > = ['conversationResults', 'contactResults', 'messageResults'];
 
-/* eslint-disable class-methods-use-this */
-
 export class LeftPaneSearchHelper extends LeftPaneHelper<LeftPaneSearchPropsType> {
   private readonly conversationResults: MaybeLoadedSearchResultsType<ConversationListItemPropsType>;
 
   private readonly contactResults: MaybeLoadedSearchResultsType<ConversationListItemPropsType>;
 
+  private readonly isSearchingGlobally: boolean;
+
   private readonly messageResults: MaybeLoadedSearchResultsType<{
     id: string;
     conversationId: string;
+    type: string;
   }>;
 
   private readonly searchConversationName?: string;
@@ -75,6 +81,7 @@ export class LeftPaneSearchHelper extends LeftPaneHelper<LeftPaneSearchPropsType
   constructor({
     contactResults,
     conversationResults,
+    isSearchingGlobally,
     messageResults,
     primarySendsSms,
     searchConversation,
@@ -87,6 +94,7 @@ export class LeftPaneSearchHelper extends LeftPaneHelper<LeftPaneSearchPropsType
 
     this.contactResults = contactResults;
     this.conversationResults = conversationResults;
+    this.isSearchingGlobally = isSearchingGlobally;
     this.messageResults = messageResults;
     this.primarySendsSms = primarySendsSms;
     this.searchConversation = searchConversation;
@@ -94,27 +102,39 @@ export class LeftPaneSearchHelper extends LeftPaneHelper<LeftPaneSearchPropsType
     this.searchDisabled = searchDisabled;
     this.searchTerm = searchTerm;
     this.startSearchCounter = startSearchCounter;
+    this.onEnterKeyDown = this.onEnterKeyDown.bind(this);
   }
 
   override getSearchInput({
     clearConversationSearch,
     clearSearch,
+    endConversationSearch,
+    endSearch,
     i18n,
+    showConversation,
     updateSearchTerm,
   }: Readonly<{
     clearConversationSearch: () => unknown;
     clearSearch: () => unknown;
+    endConversationSearch: () => unknown;
+    endSearch: () => unknown;
     i18n: LocalizerType;
+    showConversation: ShowConversationType;
     updateSearchTerm: (searchTerm: string) => unknown;
   }>): ReactChild {
     return (
       <LeftPaneSearchInput
         clearConversationSearch={clearConversationSearch}
         clearSearch={clearSearch}
+        endConversationSearch={endConversationSearch}
+        endSearch={endSearch}
         disabled={this.searchDisabled}
         i18n={i18n}
+        isSearchingGlobally={this.isSearchingGlobally}
+        onEnterKeyDown={this.onEnterKeyDown}
         searchConversation={this.searchConversation}
         searchTerm={this.searchTerm}
+        showConversation={showConversation}
         startSearchCounter={this.startSearchCounter}
         updateSearchTerm={updateSearchTerm}
       />
@@ -139,13 +159,13 @@ export class LeftPaneSearchHelper extends LeftPaneHelper<LeftPaneSearchPropsType
     let noResults: ReactChild;
     if (searchConversationName) {
       noResults = (
-        <Intl
-          id="noSearchResultsInConversation"
+        <I18n
+          id="icu:noSearchResultsInConversation"
           i18n={i18n}
           components={{
             searchTerm,
             conversationName: (
-              <Emojify key="item-1" text={searchConversationName} />
+              <UserText key="item-1" text={searchConversationName} />
             ),
           }}
         />
@@ -153,10 +173,14 @@ export class LeftPaneSearchHelper extends LeftPaneHelper<LeftPaneSearchPropsType
     } else {
       noResults = (
         <>
-          <div>{i18n('noSearchResults', [searchTerm])}</div>
+          <div>
+            {i18n('icu:noSearchResults', {
+              searchTerm,
+            })}
+          </div>
           {primarySendsSms && (
             <div className="module-left-pane__no-search-results__sms-only">
-              {i18n('noSearchResults--sms-only')}
+              {i18n('icu:noSearchResults--sms-only')}
             </div>
           )}
         </>
@@ -217,10 +241,10 @@ export class LeftPaneSearchHelper extends LeftPaneHelper<LeftPaneSearchPropsType
       if (rowIndex === 0) {
         return {
           type: RowType.Header,
-          i18nKey: 'conversationsHeader',
+          getHeaderText: i18n => i18n('icu:conversationsHeader'),
         };
       }
-      assert(
+      assertDev(
         !conversationResults.isLoading,
         "We shouldn't get here with conversation results still loading"
       );
@@ -238,10 +262,10 @@ export class LeftPaneSearchHelper extends LeftPaneHelper<LeftPaneSearchPropsType
       if (localIndex === 0) {
         return {
           type: RowType.Header,
-          i18nKey: 'contactsHeader',
+          getHeaderText: i18n => i18n('icu:contactsHeader'),
         };
       }
-      assert(
+      assertDev(
         !contactResults.isLoading,
         "We shouldn't get here with contact results still loading"
       );
@@ -262,10 +286,10 @@ export class LeftPaneSearchHelper extends LeftPaneHelper<LeftPaneSearchPropsType
     if (localIndex === 0) {
       return {
         type: RowType.Header,
-        i18nKey: 'messagesHeader',
+        getHeaderText: i18n => i18n('icu:messagesHeader'),
       };
     }
-    assert(
+    assertDev(
       !messageResults.isLoading,
       "We shouldn't get here with message results still loading"
     );
@@ -298,10 +322,28 @@ export class LeftPaneSearchHelper extends LeftPaneHelper<LeftPaneSearchPropsType
     );
   }
 
-  // This is currently unimplemented. See DESKTOP-1170.
   getConversationAndMessageAtIndex(
-    _conversationIndex: number
+    conversationIndex: number
   ): undefined | { conversationId: string; messageId?: string } {
+    if (conversationIndex < 0) {
+      return undefined;
+    }
+    let pointer = conversationIndex;
+    for (const list of this.allResults()) {
+      if (list.isLoading) {
+        continue;
+      }
+      if (pointer < list.results.length) {
+        const result = list.results[pointer];
+        return result.type === 'incoming' || result.type === 'outgoing' // message
+          ? {
+              conversationId: result.conversationId,
+              messageId: result.id,
+            }
+          : { conversationId: result.id };
+      }
+      pointer -= list.results.length;
+    }
     return undefined;
   }
 
@@ -309,7 +351,7 @@ export class LeftPaneSearchHelper extends LeftPaneHelper<LeftPaneSearchPropsType
   getConversationAndMessageInDirection(
     _toFind: Readonly<ToFindType>,
     _selectedConversationId: undefined | string,
-    _selectedMessageId: unknown
+    _targetedMessageId: unknown
   ): undefined | { conversationId: string } {
     return undefined;
   }
@@ -332,6 +374,18 @@ export class LeftPaneSearchHelper extends LeftPaneHelper<LeftPaneSearchPropsType
   private isLoading(): boolean {
     return this.allResults().some(results => results.isLoading);
   }
+
+  private onEnterKeyDown(
+    clearSearch: () => unknown,
+    showConversation: ShowConversationType
+  ): void {
+    const conversation = this.getConversationAndMessageAtIndex(0);
+    if (!conversation) {
+      return;
+    }
+    showConversation(conversation);
+    clearSearch();
+  }
 }
 
 function getRowCountForLoadedSearchResults(
@@ -341,7 +395,7 @@ function getRowCountForLoadedSearchResults(
   //   We could change the parameter of this function, but that adds a bunch of redundant
   //   checks that are, in the author's opinion, less clear.
   if (searchResults.isLoading) {
-    assert(
+    assertDev(
       false,
       'getRowCountForLoadedSearchResults: Expected this to be called with loaded search results. Returning 0'
     );

@@ -16,28 +16,35 @@
     }
   }
 
+  &__description {
+    margin-block: 0 16px;
+  }
+
   h2 {
     @include font-body-1-bold;
+    margin-top: 28px;
+    margin-bottom: 20px;
   }
 
   hr {
     border: 0;
     height: 1px;
-    margin: 16px 0;
+    margin-block: 12px;
+    margin-inline: 0;
 
     @include light-theme {
       background: $color-gray-05;
     }
     @include dark-theme {
-      background: $color-gray-90;
+      background: $color-gray-75;
     }
   }
 
   &__buttons {
-    margin-top: 8px;
+    margin-top: 4px;
 
     .module-Button:not(:last-child) {
-      margin-right: 12px;
+      margin-inline-end: 12px;
     }
   }
 }

@@ -1,12 +1,14 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { LoadImageResult } from 'blueimp-load-image';
 import loadImage from 'blueimp-load-image';
 
 import type { MIMEType } from '../types/MIME';
 import { IMAGE_JPEG } from '../types/MIME';
 import { canvasToBlob } from './canvasToBlob';
 import { getValue } from '../RemoteConfig';
+import { parseNumber } from './libphonenumberUtil';
 
 enum MediaQualityLevels {
   One = 1,
@@ -67,18 +69,22 @@ function getMediaQualityLevel(): MediaQualityLevels {
   if (!values) {
     return DEFAULT_LEVEL;
   }
-  const countryValues = parseCountryValues(values);
+
   const e164 = window.textsecure.storage.user.getNumber();
   if (!e164) {
     return DEFAULT_LEVEL;
   }
-  const parsedPhoneNumber = window.libphonenumber.util.parseNumber(e164);
 
+  const parsedPhoneNumber = parseNumber(e164);
   if (!parsedPhoneNumber.isValidNumber) {
     return DEFAULT_LEVEL;
   }
 
-  const level = countryValues.get(parsedPhoneNumber.countryCode);
+  const countryValues = parseCountryValues(values);
+
+  const level = parsedPhoneNumber.countryCode
+    ? countryValues.get(parsedPhoneNumber.countryCode)
+    : undefined;
   if (level) {
     return level;
   }
@@ -102,38 +108,47 @@ async function getCanvasBlobAsJPEG(
   return canvasToBlob(canvas, IMAGE_JPEG, quality);
 }
 
-export async function scaleImageToLevel(
-  fileOrBlobOrURL: File | Blob,
-  contentType: MIMEType,
-  sendAsHighQuality?: boolean
-): Promise<{
+export async function scaleImageToLevel({
+  fileOrBlobOrURL,
+  contentType,
+  size,
+  highQuality,
+}: {
+  fileOrBlobOrURL: File | Blob | string;
+  contentType: MIMEType;
+  size: number;
+  highQuality: boolean | null;
+}): Promise<{
   blob: Blob;
   contentType: MIMEType;
 }> {
-  let image: HTMLCanvasElement;
+  let data: LoadImageResult;
   try {
-    const data = await loadImage(fileOrBlobOrURL, {
+    data = await loadImage(fileOrBlobOrURL, {
       canvas: true,
       orientation: true,
+      meta: true, // Check if we need to strip EXIF data
     });
     if (!(data.image instanceof HTMLCanvasElement)) {
       throw new Error('image not a canvas');
     }
-    ({ image } = data);
-  } catch (err) {
-    const error = new Error('scaleImageToLevel: Failed to process image');
-    error.originalError = err;
+  } catch (cause) {
+    const error = new Error('scaleImageToLevel: Failed to process image', {
+      cause,
+    });
     throw error;
   }
 
-  const level = sendAsHighQuality
-    ? MediaQualityLevels.Three
-    : getMediaQualityLevel();
-  const { maxDimensions, quality, size, thresholdSize } =
-    MEDIA_QUALITY_LEVEL_DATA.get(level) || DEFAULT_LEVEL_DATA;
-
-  if (fileOrBlobOrURL.size <= thresholdSize) {
-    const blob = await canvasToBlob(image, contentType);
+  const level = highQuality ? MediaQualityLevels.Three : getMediaQualityLevel();
+  const {
+    maxDimensions,
+    quality,
+    size: targetSize,
+    thresholdSize,
+  } = MEDIA_QUALITY_LEVEL_DATA.get(level) || DEFAULT_LEVEL_DATA;
+  if (size <= thresholdSize) {
+    // Always encode through canvas as a temporary fix for a library bug
+    const blob: Blob = await canvasToBlob(data.image, contentType);
     return {
       blob,
       contentType,
@@ -148,8 +163,12 @@ export async function scaleImageToLevel(
 
     // We need these operations to be in serial
     // eslint-disable-next-line no-await-in-loop
-    const blob = await getCanvasBlobAsJPEG(image, scalableDimensions, quality);
-    if (blob.size <= size) {
+    const blob = await getCanvasBlobAsJPEG(
+      data.image,
+      scalableDimensions,
+      quality
+    );
+    if (blob.size <= targetSize) {
       return {
         blob,
         contentType: IMAGE_JPEG,
@@ -157,7 +176,7 @@ export async function scaleImageToLevel(
     }
   }
 
-  const blob = await getCanvasBlobAsJPEG(image, MIN_DIMENSIONS, quality);
+  const blob = await getCanvasBlobAsJPEG(data.image, MIN_DIMENSIONS, quality);
   return {
     blob,
     contentType: IMAGE_JPEG,

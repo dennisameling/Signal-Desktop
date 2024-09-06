@@ -15,12 +15,12 @@ export type PropsType = {
   onSave: () => unknown;
 };
 
-export const AvatarModalButtons = ({
+export function AvatarModalButtons({
   hasChanges,
   i18n,
   onCancel,
   onSave,
-}: PropsType): JSX.Element => {
+}: PropsType): JSX.Element {
   const [confirmDiscardAction, setConfirmDiscardAction] = useState<
     (() => unknown) | undefined
   >(undefined);
@@ -37,10 +37,10 @@ export const AvatarModalButtons = ({
         }}
         variant={ButtonVariant.Secondary}
       >
-        {i18n('cancel')}
+        {i18n('icu:cancel')}
       </Button>
       <Button disabled={!hasChanges} onClick={onSave}>
-        {i18n('save')}
+        {i18n('icu:save')}
       </Button>
       {confirmDiscardAction && (
         <ConfirmDiscardDialog
@@ -51,4 +51,4 @@ export const AvatarModalButtons = ({
       )}
     </Modal.ButtonFooter>
   );
-};
+}

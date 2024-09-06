@@ -4,7 +4,7 @@
 import type { KeyboardEvent } from 'react';
 import React, { useState } from 'react';
 import classNames from 'classnames';
-import { assert } from '../util/assert';
+import { assertDev } from '../util/assert';
 import { getClassNamesFor } from '../util/getClassNamesFor';
 
 type Tab = {
@@ -12,46 +12,72 @@ type Tab = {
   label: string;
 };
 
-export type TabsOptionsType = {
-  initialSelectedTab?: string;
+export type BaseTabsOptionsType = {
   moduleClassName?: string;
-  onTabChange?: (selectedTab: string) => unknown;
   tabs: Array<Tab>;
 };
 
-export function useTabs({
-  initialSelectedTab,
-  moduleClassName,
-  onTabChange,
-  tabs,
-}: TabsOptionsType): {
+export type ControlledTabsOptionsType = BaseTabsOptionsType & {
+  selectedTab: string;
+  onTabChange: (selectedTab: string) => unknown;
+};
+
+export type UncontrolledTabsOptionsType = BaseTabsOptionsType & {
+  initialSelectedTab?: string;
+  onTabChange?: (selectedTab: string) => unknown;
+};
+
+export type TabsOptionsType =
+  | ControlledTabsOptionsType
+  | UncontrolledTabsOptionsType;
+
+type TabsProps = {
   selectedTab: string;
   tabsHeaderElement: JSX.Element;
-} {
-  assert(tabs.length, 'Tabs needs more than 1 tab present');
+};
 
-  const getClassName = getClassNamesFor('Tabs', moduleClassName);
+export function useTabs(options: TabsOptionsType): TabsProps {
+  assertDev(options.tabs.length, 'Tabs needs more than 1 tab present');
 
-  const [selectedTab, setSelectedTab] = useState<string>(
-    initialSelectedTab || tabs[0].id
-  );
+  const getClassName = getClassNamesFor('Tabs', options.moduleClassName);
+
+  let selectedTab: string;
+  let onChange: (selectedTab: string) => void;
+
+  if ('selectedTab' in options) {
+    selectedTab = options.selectedTab;
+    onChange = options.onTabChange;
+  } else {
+    // useTabs should always be either controlled or uncontrolled.
+    // This is enforced by the type system.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const [tabState, setTabState] = useState<string>(
+      options.initialSelectedTab || options.tabs[0].id
+    );
+
+    selectedTab = tabState;
+    onChange = (newTab: string) => {
+      setTabState(newTab);
+      options.onTabChange?.(newTab);
+    };
+  }
 
   const tabsHeaderElement = (
-    <div className={getClassName('')}>
-      {tabs.map(({ id, label }) => (
+    <div className={getClassName('')} data-supertab>
+      {options.tabs.map(({ id, label }) => (
         <div
+          aria-selected={selectedTab === id}
           className={classNames(
             getClassName('__tab'),
             selectedTab === id && getClassName('__tab--selected')
           )}
           key={id}
           onClick={() => {
-            setSelectedTab(id);
-            onTabChange?.(id);
+            onChange(id);
           }}
           onKeyUp={(e: KeyboardEvent) => {
             if (e.target === e.currentTarget && e.keyCode === 13) {
-              setSelectedTab(id);
+              onChange(id);
               e.preventDefault();
               e.stopPropagation();
             }

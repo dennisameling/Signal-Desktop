@@ -2,31 +2,33 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import { storiesOf } from '@storybook/react';
-import { boolean, date, number, text, withKnobs } from '@storybook/addon-knobs';
 import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
+import type { Props } from './DocumentListItem';
 import { DocumentListItem } from './DocumentListItem';
 
-const story = storiesOf(
-  'Components/Conversation/MediaGallery/DocumentListItem',
-  module
-);
+export default {
+  title: 'Components/Conversation/MediaGallery/DocumentListItem',
+  argTypes: {
+    timestamp: { control: { type: 'date' } },
+    fileName: { control: { type: 'text' } },
+    fileSize: { control: { type: 'number' } },
+    shouldShowSeparator: { control: { type: 'boolean' } },
+  },
+  args: {
+    timestamp: Date.now(),
+    fileName: 'meow.jpg',
+    fileSize: 1024 * 1000 * 2,
+    shouldShowSeparator: false,
+    onClick: action('onClick'),
+  },
+} satisfies Meta<Props>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-story.addDecorator((withKnobs as any)({ escapeHTML: false }));
+export function Single(args: Props): JSX.Element {
+  return <DocumentListItem {...args} />;
+}
 
-story.add('Single', () => (
-  <DocumentListItem
-    timestamp={date('timestamp', new Date())}
-    fileName={text('fileName', 'meow.jpg')}
-    fileSize={number('fileSize', 1024 * 1000 * 2)}
-    shouldShowSeparator={boolean('shouldShowSeparator', false)}
-    onClick={action('onClick')}
-  />
-));
-
-story.add('Multiple', () => {
+export function Multiple(): JSX.Element {
   const items = [
     {
       fileName: 'meow.jpg',
@@ -46,11 +48,15 @@ story.add('Multiple', () => {
     },
   ];
 
-  return items.map(item => (
-    <DocumentListItem
-      key={item.fileName}
-      onClick={action('onClick')}
-      {...item}
-    />
-  ));
-});
+  return (
+    <>
+      {items.map(item => (
+        <DocumentListItem
+          key={item.fileName}
+          onClick={action('onClick')}
+          {...item}
+        />
+      ))}
+    </>
+  );
+}

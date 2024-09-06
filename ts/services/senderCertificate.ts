@@ -7,11 +7,12 @@ import {
   serializedCertificateSchema,
 } from '../textsecure/OutgoingMessage';
 import * as Bytes from '../Bytes';
-import { assert } from '../util/assert';
+import { assertDev } from '../util/assert';
 import { missingCaseError } from '../util/missingCaseError';
 import { waitForOnline } from '../util/waitForOnline';
 import * as log from '../logging/log';
 import type { StorageInterface } from '../types/Storage.d';
+import * as Errors from '../types/errors';
 import type { WebAPIType } from '../textsecure/WebAPI';
 import { SignalService as Proto } from '../protobuf';
 
@@ -33,28 +34,23 @@ export class SenderCertificateService {
     Promise<undefined | SerializedCertificateType>
   > = new Map();
 
-  private navigator?: { onLine: boolean };
-
-  private onlineEventTarget?: EventTarget;
+  private events?: Pick<typeof window.Whisper.events, 'on' | 'off'>;
 
   private storage?: StorageInterface;
 
   initialize({
     server,
-    navigator,
-    onlineEventTarget,
+    events,
     storage,
   }: {
     server: WebAPIType;
-    navigator: Readonly<{ onLine: boolean }>;
-    onlineEventTarget: EventTarget;
+    events?: Pick<typeof window.Whisper.events, 'on' | 'off'>;
     storage: StorageInterface;
   }): void {
     log.info('Sender certificate service initialized');
 
     this.server = server;
-    this.navigator = navigator;
-    this.onlineEventTarget = onlineEventTarget;
+    this.events = events;
     this.storage = storage;
   }
 
@@ -84,7 +80,7 @@ export class SenderCertificateService {
     await Promise.all(this.fetchPromises.values());
 
     const { storage } = this;
-    assert(
+    assertDev(
       storage,
       'Sender certificate service method was called before it was initialized'
     );
@@ -96,7 +92,7 @@ export class SenderCertificateService {
     mode: SenderCertificateMode
   ): undefined | SerializedCertificateType {
     const { storage } = this;
-    assert(
+    assertDev(
       storage,
       'Sender certificate service method was called before it was initialized'
     );
@@ -129,7 +125,7 @@ export class SenderCertificateService {
     let promise: Promise<undefined | SerializedCertificateType>;
     const doFetch = async () => {
       const result = await this.fetchAndSaveCertificate(mode);
-      assert(
+      assertDev(
         this.fetchPromises.get(mode) === promise,
         'Sender certificate service was deleting a different promise than expected'
       );
@@ -138,7 +134,7 @@ export class SenderCertificateService {
     };
     promise = doFetch();
 
-    assert(
+    assertDev(
       !this.fetchPromises.has(mode),
       'Sender certificate service somehow already had a promise for this mode'
     );
@@ -149,9 +145,9 @@ export class SenderCertificateService {
   private async fetchAndSaveCertificate(
     mode: SenderCertificateMode
   ): Promise<undefined | SerializedCertificateType> {
-    const { storage, navigator, onlineEventTarget } = this;
-    assert(
-      storage && navigator && onlineEventTarget,
+    const { storage, server, events } = this;
+    assertDev(
+      storage && server && events,
       'Sender certificate service method was called before it was initialized'
     );
 
@@ -161,7 +157,7 @@ export class SenderCertificateService {
       )} certificate`
     );
 
-    await waitForOnline(navigator, onlineEventTarget);
+    await waitForOnline({ server, events });
 
     let certificateString: string;
     try {
@@ -171,7 +167,7 @@ export class SenderCertificateService {
         `Sender certificate service could not fetch a ${modeToLogString(
           mode
         )} certificate. Returning undefined`,
-        err && err.stack ? err.stack : err
+        Errors.toLogFormat(err)
       );
       return undefined;
     }
@@ -205,7 +201,7 @@ export class SenderCertificateService {
     mode: SenderCertificateMode
   ): Promise<string> {
     const { server } = this;
-    assert(
+    assertDev(
       server,
       'Sender certificate service method was called before it was initialized'
     );

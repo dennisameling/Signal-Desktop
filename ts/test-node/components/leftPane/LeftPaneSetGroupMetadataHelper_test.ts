@@ -3,15 +3,16 @@
 
 import { assert } from 'chai';
 import * as sinon from 'sinon';
-import { RowType } from '../../../components/ConversationList';
+import { RowType, _testHeaderText } from '../../../components/ConversationList';
 import { getDefaultConversation } from '../../../test-both/helpers/getDefaultConversation';
+import { DurationInSeconds } from '../../../util/durations';
 
 import { LeftPaneSetGroupMetadataHelper } from '../../../components/leftPane/LeftPaneSetGroupMetadataHelper';
 
 function getComposeState() {
   return {
     groupAvatar: undefined,
-    groupExpireTimer: 0,
+    groupExpireTimer: DurationInSeconds.ZERO,
     groupName: '',
     hasError: false,
     isCreating: false,
@@ -91,10 +92,10 @@ describe('LeftPaneSetGroupMetadataHelper', () => {
         selectedContacts,
       });
 
-      assert.deepEqual(helper.getRow(0), {
-        type: RowType.Header,
-        i18nKey: 'setGroupMetadata__members-header',
-      });
+      assert.deepEqual(
+        _testHeaderText(helper.getRow(0)),
+        'icu:setGroupMetadata__members-header'
+      );
       assert.deepEqual(helper.getRow(1), {
         type: RowType.Contact,
         contact: selectedContacts[0],

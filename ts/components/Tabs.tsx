@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ReactNode } from 'react';
@@ -11,19 +11,9 @@ type PropsType = {
   children: (renderProps: { selectedTab: string }) => ReactNode;
 } & TabsOptionsType;
 
-export const Tabs = ({
-  children,
-  initialSelectedTab,
-  moduleClassName,
-  onTabChange,
-  tabs,
-}: PropsType): JSX.Element => {
-  const { selectedTab, tabsHeaderElement } = useTabs({
-    initialSelectedTab,
-    moduleClassName,
-    onTabChange,
-    tabs,
-  });
+export function Tabs(props: PropsType): JSX.Element {
+  const { children, ...options } = props;
+  const { selectedTab, tabsHeaderElement } = useTabs(options);
 
   return (
     <>
@@ -31,4 +21,4 @@ export const Tabs = ({
       {children({ selectedTab })}
     </>
   );
-};
+}

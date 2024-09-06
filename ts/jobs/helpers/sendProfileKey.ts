@@ -7,6 +7,7 @@ import { handleMessageSend } from '../../util/handleMessageSend';
 import { getSendOptions } from '../../util/getSendOptions';
 import {
   isDirectConversation,
+  isGroup,
   isGroupV2,
 } from '../../util/whatTypeOfConversation';
 import { SignalService as Proto } from '../../protobuf';
@@ -22,10 +23,40 @@ import type {
   ProfileKeyJobData,
 } from '../conversationJobQueue';
 import type { CallbackResultType } from '../../textsecure/Types.d';
-import { getUntrustedConversationIds } from './getUntrustedConversationIds';
-import { areAllErrorsUnregistered } from './areAllErrorsUnregistered';
-import { isConversationAccepted } from '../../util/isConversationAccepted';
 import { isConversationUnregistered } from '../../util/isConversationUnregistered';
+import type { ConversationAttributesType } from '../../model-types.d';
+import {
+  OutgoingIdentityKeyError,
+  SendMessageChallengeError,
+  SendMessageProtoError,
+  UnregisteredUserError,
+} from '../../textsecure/Errors';
+import { shouldSendToConversation } from './shouldSendToConversation';
+import { sendToGroup } from '../../util/sendToGroup';
+
+export function canAllErrorsBeIgnored(
+  conversation: ConversationAttributesType,
+  error: unknown
+): boolean {
+  if (
+    error instanceof OutgoingIdentityKeyError ||
+    error instanceof SendMessageChallengeError ||
+    error instanceof UnregisteredUserError
+  ) {
+    return true;
+  }
+
+  return Boolean(
+    isGroup(conversation) &&
+      error instanceof SendMessageProtoError &&
+      error.errors?.every(
+        item =>
+          item instanceof OutgoingIdentityKeyError ||
+          item instanceof SendMessageChallengeError ||
+          item instanceof UnregisteredUserError
+      )
+  );
+}
 
 // Note: because we don't have a recipient map, we will resend this message to folks that
 //   got it on the first go-round, if some sends fail. This is okay, because a recipient
@@ -34,6 +65,7 @@ export async function sendProfileKey(
   conversation: ConversationModel,
   {
     isFinalAttempt,
+    messaging,
     shouldContinue,
     timestamp,
     timeRemaining,
@@ -46,7 +78,7 @@ export async function sendProfileKey(
     return;
   }
 
-  if (!conversation.get('profileSharing')) {
+  if (!data?.isOneTimeSend && !conversation.get('profileSharing')) {
     log.info('No longer sharing profile. Cancelling job.');
     return;
   }
@@ -71,55 +103,45 @@ export async function sendProfileKey(
 
   // Note: flags and the profileKey itself are all that matter in the proto.
 
-  const untrustedConversationIds = getUntrustedConversationIds(
-    conversation.getRecipients()
-  );
-  if (untrustedConversationIds.length) {
-    window.reduxActions.conversations.conversationStoppedByMissingVerification({
-      conversationId: conversation.id,
-      untrustedConversationIds,
-    });
-    throw new Error(
-      `Profile key send blocked because ${untrustedConversationIds.length} conversation(s) were untrusted. Failing this attempt.`
-    );
+  if (!shouldSendToConversation(conversation, log)) {
+    return;
   }
 
   if (isDirectConversation(conversation.attributes)) {
-    if (!isConversationAccepted(conversation.attributes)) {
-      log.info(
-        `conversation ${conversation.idForLogging()} is not accepted; refusing to send`
-      );
-      return;
-    }
     if (isConversationUnregistered(conversation.attributes)) {
       log.info(
         `conversation ${conversation.idForLogging()} is unregistered; refusing to send`
       );
       return;
     }
-    if (conversation.isBlocked()) {
-      log.info(
-        `conversation ${conversation.idForLogging()} is blocked; refusing to send`
-      );
-      return;
-    }
 
-    const proto = await window.textsecure.messaging.getContentMessage({
+    const proto = await messaging.getContentMessage({
       flags: Proto.DataMessage.Flags.PROFILE_KEY_UPDATE,
       profileKey,
       recipients: conversation.getRecipients(),
+      expireTimerVersion: undefined,
       timestamp,
+      includePniSignatureMessage: true,
     });
-    sendPromise = window.textsecure.messaging.sendIndividualProto({
+    sendPromise = messaging.sendIndividualProto({
       contentHint,
-      identifier: conversation.getSendTarget(),
+      serviceId: conversation.getSendTarget(),
       options: sendOptions,
       proto,
       timestamp,
+      urgent: false,
     });
   } else {
     if (isGroupV2(conversation.attributes) && !isNumber(revision)) {
       log.error('No revision provided, but conversation is GroupV2');
+    }
+
+    const ourAci = window.textsecure.storage.user.getCheckedAci();
+    if (!conversation.hasMember(ourAci)) {
+      log.info(
+        `We are not part of group ${conversation.idForLogging()}; refusing to send`
+      );
+      return;
     }
 
     const groupV2Info = conversation.getGroupV2Info();
@@ -127,11 +149,10 @@ export async function sendProfileKey(
       groupV2Info.revision = revision;
     }
 
-    sendPromise = window.Signal.Util.sendToGroup({
+    sendPromise = sendToGroup({
       contentHint,
       groupSendOptions: {
         flags: Proto.DataMessage.Flags.PROFILE_KEY_UPDATE,
-        groupV1: conversation.getGroupV1Info(),
         groupV2: groupV2Info,
         profileKey,
         timestamp,
@@ -140,6 +161,7 @@ export async function sendProfileKey(
       sendOptions,
       sendTarget: conversation.toSenderKeyTarget(),
       sendType,
+      urgent: false,
     });
   }
 
@@ -149,9 +171,9 @@ export async function sendProfileKey(
       sendType,
     });
   } catch (error: unknown) {
-    if (areAllErrorsUnregistered(conversation.attributes, error)) {
+    if (canAllErrorsBeIgnored(conversation.attributes, error)) {
       log.info(
-        'Group send failures were all UnregisteredUserError, returning succcessfully.'
+        'Group send failures were all OutgoingIdentityKeyError, SendMessageChallengeError, or UnregisteredUserError. Returning successfully.'
       );
       return;
     }

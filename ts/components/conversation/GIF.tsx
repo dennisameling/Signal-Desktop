@@ -14,7 +14,9 @@ import {
   getImageDimensions,
   defaultBlurHash,
 } from '../../types/Attachment';
+import * as Errors from '../../types/errors';
 import * as log from '../../logging/log';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 const MAX_GIF_REPEAT = 4;
 const MAX_GIF_TIME = 8;
@@ -27,8 +29,6 @@ export type Props = {
   readonly i18n: LocalizerType;
   readonly theme?: ThemeType;
 
-  readonly reducedMotion?: boolean;
-
   onError(): void;
   showVisualAttachment(): void;
   kickOffAttachmentDownload(): void;
@@ -36,7 +36,7 @@ export type Props = {
 
 type MediaEvent = React.SyntheticEvent<HTMLVideoElement, Event>;
 
-export const GIF: React.FC<Props> = props => {
+export function GIF(props: Props): JSX.Element {
   const {
     attachment,
     size,
@@ -45,16 +45,12 @@ export const GIF: React.FC<Props> = props => {
     i18n,
     theme,
 
-    reducedMotion = Boolean(
-      window.Accessibility && window.Accessibility.reducedMotionSetting
-    ),
-
     onError,
     showVisualAttachment,
     kickOffAttachmentDownload,
   } = props;
 
-  const tapToPlay = reducedMotion;
+  const tapToPlay = useReducedMotion();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { height, width } = getImageDimensions(attachment, size);
@@ -90,7 +86,7 @@ export const GIF: React.FC<Props> = props => {
       video.play().catch(error => {
         log.info(
           "Failed to match GIF playback to window's state",
-          (error && error.stack) || error
+          Errors.toLogFormat(error)
         );
       });
     } else {
@@ -242,7 +238,7 @@ export const GIF: React.FC<Props> = props => {
       <div className="module-image__download-pending--spinner-container">
         <div
           className="module-image__download-pending--spinner"
-          title={i18n('loading')}
+          title={i18n('icu:loading')}
         >
           <Spinner moduleClassName="module-image-spinner" svgSize="small" />
         </div>
@@ -258,4 +254,4 @@ export const GIF: React.FC<Props> = props => {
       {fileSize}
     </div>
   );
-};
+}

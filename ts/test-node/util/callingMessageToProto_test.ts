@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
+import type { CallId } from '@signalapp/ringrtc';
 import {
   CallMessageUrgency,
   CallingMessage,
   HangupMessage,
   HangupType,
   OpaqueMessage,
-} from 'ringrtc';
+} from '@signalapp/ringrtc';
 import { SignalService as Proto } from '../../protobuf';
 
 import { callingMessageToProto } from '../../util/callingMessageToProto';
@@ -23,9 +24,10 @@ describe('callingMessageToProto', () => {
     });
 
     it('attaches the type if provided', () => {
+      const callId: CallId = { high: 0, low: 0, unsigned: false };
+
       const callingMessage = new CallingMessage();
-      callingMessage.hangup = new HangupMessage();
-      callingMessage.hangup.type = HangupType.Busy;
+      callingMessage.hangup = new HangupMessage(callId, HangupType.Busy, 1);
 
       const result = callingMessageToProto(callingMessage);
 

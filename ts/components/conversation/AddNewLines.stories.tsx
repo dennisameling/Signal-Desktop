@@ -2,52 +2,52 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-
-import { text } from '@storybook/addon-knobs';
-import { storiesOf } from '@storybook/react';
-
+import type { Meta } from '@storybook/react';
 import type { Props } from './AddNewLines';
 import { AddNewLines } from './AddNewLines';
 
-const story = storiesOf('Components/Conversation/AddNewLines', module);
+export default {
+  title: 'Components/Conversation/AddNewLines',
+} satisfies Meta<Props>;
+
 const createProps = (overrideProps: Partial<Props> = {}): Props => ({
   renderNonNewLine: overrideProps.renderNonNewLine,
-  text: text('text', overrideProps.text || ''),
+  text: overrideProps.text || '',
 });
 
-story.add('All newlines', () => {
+export function AllNewlines(): JSX.Element {
   const props = createProps({
     text: '\n\n\n',
   });
 
   return <AddNewLines {...props} />;
-});
+}
 
-story.add('Starting/Ending with Newlines', () => {
+export function StartingEndingWithNewlines(): JSX.Element {
   const props = createProps({
     text: '\nSome text\n',
   });
 
   return <AddNewLines {...props} />;
-});
+}
 
-story.add('Newlines in the Middle', () => {
+export function NewlinesInTheMiddle(): JSX.Element {
   const props = createProps({
     text: 'Some\ntext',
   });
 
   return <AddNewLines {...props} />;
-});
+}
 
-story.add('No Newlines', () => {
+export function NoNewlines(): JSX.Element {
   const props = createProps({
     text: 'Some text',
   });
 
   return <AddNewLines {...props} />;
-});
+}
 
-story.add('Custom Render Function', () => {
+export function CustomRenderFunction(): JSX.Element {
   const props = createProps({
     text: 'Some text',
     renderNonNewLine: ({ text: theText, key }) => (
@@ -58,4 +58,4 @@ story.add('Custom Render Function', () => {
   });
 
   return <AddNewLines {...props} />;
-});
+}

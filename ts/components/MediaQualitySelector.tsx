@@ -1,4 +1,4 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { KeyboardEvent } from 'react';
@@ -8,29 +8,33 @@ import { createPortal } from 'react-dom';
 import classNames from 'classnames';
 import { Manager, Popper, Reference } from 'react-popper';
 import type { LocalizerType } from '../types/Util';
+import { useRefMerger } from '../hooks/useRefMerger';
+import { handleOutsideClick } from '../util/handleOutsideClick';
 
 export type PropsType = {
+  conversationId: string;
   i18n: LocalizerType;
   isHighQuality: boolean;
-  onSelectQuality: (isHQ: boolean) => unknown;
+  onSelectQuality: (conversationId: string, isHQ: boolean) => unknown;
 };
 
-export const MediaQualitySelector = ({
+export function MediaQualitySelector({
+  conversationId,
   i18n,
   isHighQuality,
   onSelectQuality,
-}: PropsType): JSX.Element => {
+}: PropsType): JSX.Element {
   const [menuShowing, setMenuShowing] = useState(false);
   const [popperRoot, setPopperRoot] = useState<HTMLElement | null>(null);
   const [focusedOption, setFocusedOption] = useState<0 | 1 | undefined>(
     undefined
   );
 
-  // We use regular MouseEvent below, and this one uses React.MouseEvent
-  const handleClick = (ev: KeyboardEvent | React.MouseEvent) => {
+  const buttonRef = React.useRef<HTMLButtonElement | null>(null);
+  const refMerger = useRefMerger();
+
+  const handleClick = () => {
     setMenuShowing(true);
-    ev.stopPropagation();
-    ev.preventDefault();
   };
 
   const handleKeyDown = (ev: KeyboardEvent) => {
@@ -48,7 +52,7 @@ export const MediaQualitySelector = ({
     }
 
     if (ev.key === 'Enter') {
-      onSelectQuality(Boolean(focusedOption));
+      onSelectQuality(conversationId, Boolean(focusedOption));
       setMenuShowing(false);
       ev.stopPropagation();
       ev.preventDefault();
@@ -65,18 +69,9 @@ export const MediaQualitySelector = ({
       const root = document.createElement('div');
       setPopperRoot(root);
       document.body.appendChild(root);
-      const handleOutsideClick = (event: MouseEvent) => {
-        if (!root.contains(event.target as Node)) {
-          handleClose();
-          event.stopPropagation();
-          event.preventDefault();
-        }
-      };
-      document.addEventListener('click', handleOutsideClick);
 
       return () => {
         document.body.removeChild(root);
-        document.removeEventListener('click', handleOutsideClick);
         setPopperRoot(null);
       };
     }
@@ -84,12 +79,29 @@ export const MediaQualitySelector = ({
     return noop;
   }, [menuShowing, setPopperRoot, handleClose]);
 
+  useEffect(() => {
+    if (!menuShowing) {
+      return noop;
+    }
+
+    return handleOutsideClick(
+      () => {
+        handleClose();
+        return true;
+      },
+      {
+        containerElements: [popperRoot, buttonRef],
+        name: 'MediaQualitySelector',
+      }
+    );
+  }, [menuShowing, popperRoot, handleClose]);
+
   return (
     <Manager>
       <Reference>
         {({ ref }) => (
           <button
-            aria-label={i18n('MediaQualitySelector--button')}
+            aria-label={i18n('icu:MediaQualitySelector--button')}
             className={classNames({
               MediaQualitySelector__button: true,
               'MediaQualitySelector__button--hq': isHighQuality,
@@ -97,7 +109,7 @@ export const MediaQualitySelector = ({
             })}
             onClick={handleClick}
             onKeyDown={handleKeyDown}
-            ref={ref}
+            ref={refMerger(buttonRef, ref)}
             type="button"
           />
         )}
@@ -113,11 +125,11 @@ export const MediaQualitySelector = ({
                   style={style}
                 >
                   <div className="MediaQualitySelector__title">
-                    {i18n('MediaQualitySelector--title')}
+                    {i18n('icu:MediaQualitySelector--title')}
                   </div>
                   <button
                     aria-label={i18n(
-                      'MediaQualitySelector--standard-quality-title'
+                      'icu:MediaQualitySelector--standard-quality-title'
                     )}
                     className={classNames({
                       MediaQualitySelector__option: true,
@@ -126,7 +138,7 @@ export const MediaQualitySelector = ({
                     })}
                     type="button"
                     onClick={() => {
-                      onSelectQuality(false);
+                      onSelectQuality(conversationId, false);
                       setMenuShowing(false);
                     }}
                   >
@@ -139,18 +151,20 @@ export const MediaQualitySelector = ({
                     />
                     <div>
                       <div className="MediaQualitySelector__option--title">
-                        {i18n('MediaQualitySelector--standard-quality-title')}
+                        {i18n(
+                          'icu:MediaQualitySelector--standard-quality-title'
+                        )}
                       </div>
                       <div className="MediaQualitySelector__option--description">
                         {i18n(
-                          'MediaQualitySelector--standard-quality-description'
+                          'icu:MediaQualitySelector--standard-quality-description'
                         )}
                       </div>
                     </div>
                   </button>
                   <button
                     aria-label={i18n(
-                      'MediaQualitySelector--high-quality-title'
+                      'icu:MediaQualitySelector--high-quality-title'
                     )}
                     className={classNames({
                       MediaQualitySelector__option: true,
@@ -159,7 +173,7 @@ export const MediaQualitySelector = ({
                     })}
                     type="button"
                     onClick={() => {
-                      onSelectQuality(true);
+                      onSelectQuality(conversationId, true);
                       setMenuShowing(false);
                     }}
                   >
@@ -171,10 +185,12 @@ export const MediaQualitySelector = ({
                     />
                     <div>
                       <div className="MediaQualitySelector__option--title">
-                        {i18n('MediaQualitySelector--high-quality-title')}
+                        {i18n('icu:MediaQualitySelector--high-quality-title')}
                       </div>
                       <div className="MediaQualitySelector__option--description">
-                        {i18n('MediaQualitySelector--high-quality-description')}
+                        {i18n(
+                          'icu:MediaQualitySelector--high-quality-description'
+                        )}
                       </div>
                     </div>
                   </button>
@@ -186,4 +202,4 @@ export const MediaQualitySelector = ({
         : null}
     </Manager>
   );
-};
+}

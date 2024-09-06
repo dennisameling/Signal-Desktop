@@ -3,27 +3,71 @@
 
 import React from 'react';
 import { action } from '@storybook/addon-actions';
-import { storiesOf } from '@storybook/react';
-
+import type { Meta } from '@storybook/react';
+import type { PropsType } from './DisappearingTimeDialog';
 import { DisappearingTimeDialog } from './DisappearingTimeDialog';
 import { setupI18n } from '../util/setupI18n';
 import enMessages from '../../_locales/en/messages.json';
 
 import { EXPIRE_TIMERS } from '../test-both/util/expireTimers';
 
-const story = storiesOf('Components/DisappearingTimeDialog', module);
+export default {
+  title: 'Components/DisappearingTimeDialog',
+} satisfies Meta<PropsType>;
 
 const i18n = setupI18n('en', enMessages);
 
-EXPIRE_TIMERS.forEach(({ value, label }) => {
-  story.add(`Initial value: ${label}`, () => {
-    return (
-      <DisappearingTimeDialog
-        i18n={i18n}
-        initialValue={value}
-        onSubmit={action('onSubmit')}
-        onClose={action('onClose')}
-      />
-    );
-  });
-});
+export function Seconds(): JSX.Element {
+  return (
+    <DisappearingTimeDialog
+      i18n={i18n}
+      initialValue={EXPIRE_TIMERS[0].value}
+      onSubmit={action('onSubmit')}
+      onClose={action('onClose')}
+    />
+  );
+}
+
+export function Minutes(): JSX.Element {
+  return (
+    <DisappearingTimeDialog
+      i18n={i18n}
+      initialValue={EXPIRE_TIMERS[1].value}
+      onSubmit={action('onSubmit')}
+      onClose={action('onClose')}
+    />
+  );
+}
+
+export function Hours(): JSX.Element {
+  return (
+    <DisappearingTimeDialog
+      i18n={i18n}
+      initialValue={EXPIRE_TIMERS[2].value}
+      onSubmit={action('onSubmit')}
+      onClose={action('onClose')}
+    />
+  );
+}
+
+export function Days(): JSX.Element {
+  return (
+    <DisappearingTimeDialog
+      i18n={i18n}
+      initialValue={EXPIRE_TIMERS[3].value}
+      onSubmit={action('onSubmit')}
+      onClose={action('onClose')}
+    />
+  );
+}
+
+export function Weeks(): JSX.Element {
+  return (
+    <DisappearingTimeDialog
+      i18n={i18n}
+      initialValue={EXPIRE_TIMERS[4].value}
+      onSubmit={action('onSubmit')}
+      onClose={action('onClose')}
+    />
+  );
+}

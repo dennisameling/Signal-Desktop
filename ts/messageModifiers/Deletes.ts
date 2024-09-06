@@ -1,105 +1,104 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-/* eslint-disable max-classes-per-file */
-
-import { Collection, Model } from 'backbone';
-import type { MessageModel } from '../models/messages';
-import { getContactId } from '../messages/helpers';
+import type { MessageAttributesType } from '../model-types.d';
+import { getAuthorId } from '../messages/helpers';
+import { DataReader } from '../sql/Client';
 import * as log from '../logging/log';
+import * as Errors from '../types/errors';
+import { deleteForEveryone } from '../util/deleteForEveryone';
+import { drop } from '../util/drop';
+import { getMessageSentTimestampSet } from '../util/getMessageSentTimestampSet';
 
 export type DeleteAttributesType = {
+  envelopeId: string;
   targetSentTimestamp: number;
   serverTimestamp: number;
   fromId: string;
+  removeFromMessageReceiverCache: () => unknown;
 };
 
-export class DeleteModel extends Model<DeleteAttributesType> {}
+const deletes = new Map<string, DeleteAttributesType>();
 
-let singleton: Deletes | undefined;
+function remove(del: DeleteAttributesType): void {
+  del.removeFromMessageReceiverCache();
+  deletes.delete(del.envelopeId);
+}
 
-export class Deletes extends Collection<DeleteModel> {
-  static getSingleton(): Deletes {
-    if (!singleton) {
-      singleton = new Deletes();
-    }
+export function forMessage(
+  messageAttributes: MessageAttributesType
+): Array<DeleteAttributesType> {
+  const sentTimestamps = getMessageSentTimestampSet(messageAttributes);
+  const deleteValues = Array.from(deletes.values());
 
-    return singleton;
-  }
+  const matchingDeletes = deleteValues.filter(item => {
+    return (
+      item.fromId === getAuthorId(messageAttributes) &&
+      sentTimestamps.has(item.targetSentTimestamp)
+    );
+  });
 
-  forMessage(message: MessageModel): Array<DeleteModel> {
-    const matchingDeletes = this.filter(item => {
-      return (
-        item.get('targetSentTimestamp') === message.get('sent_at') &&
-        item.get('fromId') === getContactId(message.attributes)
-      );
-    });
-
-    if (matchingDeletes.length > 0) {
-      log.info('Found early DOE for message');
-      this.remove(matchingDeletes);
-      return matchingDeletes;
-    }
-
+  if (!matchingDeletes.length) {
     return [];
   }
 
-  async onDelete(del: DeleteModel): Promise<void> {
-    try {
-      // The conversation the deleted message was in; we have to find it in the database
-      //   to to figure that out.
-      const targetConversation =
-        await window.ConversationController.getConversationForTargetMessage(
-          del.get('fromId'),
-          del.get('targetSentTimestamp')
-        );
+  log.info('Found early DOE for message');
+  matchingDeletes.forEach(del => {
+    remove(del);
+  });
+  return matchingDeletes;
+}
 
-      if (!targetConversation) {
-        log.info(
-          'No target conversation for DOE',
-          del.get('fromId'),
-          del.get('targetSentTimestamp')
-        );
+export async function onDelete(del: DeleteAttributesType): Promise<void> {
+  deletes.set(del.envelopeId, del);
 
-        return;
-      }
+  const logId = `Deletes.onDelete(timestamp=${del.targetSentTimestamp})`;
 
-      // Do not await, since this can deadlock the queue
+  try {
+    // The conversation the deleted message was in; we have to find it in the database
+    //   to to figure that out.
+    const targetConversation =
+      await window.ConversationController.getConversationForTargetMessage(
+        del.fromId,
+        del.targetSentTimestamp
+      );
+
+    if (!targetConversation) {
+      log.info(`${logId}: No message for DOE`);
+      return;
+    }
+
+    // Do not await, since this can deadlock the queue
+    drop(
       targetConversation.queueJob('Deletes.onDelete', async () => {
-        log.info('Handling DOE for', del.get('targetSentTimestamp'));
+        log.info(`${logId}: Handling DOE`);
 
-        const messages = await window.Signal.Data.getMessagesBySentAt(
-          del.get('targetSentTimestamp')
+        const messages = await DataReader.getMessagesBySentAt(
+          del.targetSentTimestamp
         );
 
         const targetMessage = messages.find(
-          m => del.get('fromId') === getContactId(m)
+          m => del.fromId === getAuthorId(m) && !m.deletedForEveryone
         );
 
         if (!targetMessage) {
-          log.info(
-            'No message for DOE',
-            del.get('fromId'),
-            del.get('targetSentTimestamp')
-          );
-
+          log.info(`${logId}: No message for DOE 2`);
           return;
         }
 
-        const message = window.MessageController.register(
+        const message = window.MessageCache.__DEPRECATED$register(
           targetMessage.id,
-          targetMessage
+          targetMessage,
+          'Deletes.onDelete'
         );
 
-        await window.Signal.Util.deleteForEveryone(message, del);
+        await deleteForEveryone(message, del);
 
-        this.remove(del);
-      });
-    } catch (error) {
-      log.error(
-        'Deletes.onDelete error:',
-        error && error.stack ? error.stack : error
-      );
-    }
+        remove(del);
+      })
+    );
+  } catch (error) {
+    remove(del);
+    log.error(`${logId}: error`, Errors.toLogFormat(error));
   }
 }

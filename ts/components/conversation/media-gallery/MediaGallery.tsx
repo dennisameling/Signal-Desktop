@@ -1,169 +1,185 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import React from 'react';
-import classNames from 'classnames';
+import React, { useEffect, useRef } from 'react';
 
 import moment from 'moment';
 
+import type { ItemClickEvent } from './types/ItemClickEvent';
+import type { LocalizerType } from '../../../types/Util';
+import type { MediaItemType } from '../../../types/MediaItem';
+import type { SaveAttachmentActionCreatorType } from '../../../state/ducks/conversations';
 import { AttachmentSection } from './AttachmentSection';
 import { EmptyState } from './EmptyState';
-import { groupMediaItemsByDate } from './groupMediaItemsByDate';
-import type { ItemClickEvent } from './types/ItemClickEvent';
-import { missingCaseError } from '../../../util/missingCaseError';
-import type { LocalizerType } from '../../../types/Util';
+import { Tabs } from '../../Tabs';
 import { getMessageTimestamp } from '../../../util/getMessageTimestamp';
+import { groupMediaItemsByDate } from './groupMediaItemsByDate';
+import { missingCaseError } from '../../../util/missingCaseError';
 
-import type { MediaItemType } from '../../../types/MediaItem';
+enum TabViews {
+  Media = 'Media',
+  Documents = 'Documents',
+}
 
 export type Props = {
+  conversationId: string;
   documents: Array<MediaItemType>;
   i18n: LocalizerType;
+  loadMediaItems: (id: string) => unknown;
   media: Array<MediaItemType>;
-
-  onItemClick?: (event: ItemClickEvent) => void;
-};
-
-type State = {
-  selectedTab: 'media' | 'documents';
+  saveAttachment: SaveAttachmentActionCreatorType;
+  showLightboxWithMedia: (
+    selectedIndex: number,
+    media: Array<MediaItemType>
+  ) => void;
 };
 
 const MONTH_FORMAT = 'MMMM YYYY';
 
-type TabSelectEvent = {
-  type: 'media' | 'documents';
-};
-
-const Tab = ({
-  isSelected,
-  label,
-  onSelect,
+function MediaSection({
   type,
-}: {
-  isSelected: boolean;
-  label: string;
-  onSelect?: (event: TabSelectEvent) => void;
-  type: 'media' | 'documents';
-}) => {
-  const handleClick = onSelect
-    ? () => {
-        onSelect({ type });
+  i18n,
+  media,
+  documents,
+  saveAttachment,
+  showLightboxWithMedia,
+}: Pick<
+  Props,
+  'i18n' | 'media' | 'documents' | 'showLightboxWithMedia' | 'saveAttachment'
+> & { type: 'media' | 'documents' }): JSX.Element {
+  const mediaItems = type === 'media' ? media : documents;
+
+  if (!mediaItems || mediaItems.length === 0) {
+    const label = (() => {
+      switch (type) {
+        case 'media':
+          return i18n('icu:mediaEmptyState');
+
+        case 'documents':
+          return i18n('icu:documentsEmptyState');
+
+        default:
+          throw missingCaseError(type);
       }
-    : undefined;
+    })();
 
-  return (
-    // Has key events handled elsewhere
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-    <div
-      className={classNames(
-        'module-media-gallery__tab',
-        isSelected ? 'module-media-gallery__tab--active' : null
-      )}
-      onClick={handleClick}
-      role="tab"
-      tabIndex={0}
-    >
-      {label}
-    </div>
-  );
-};
-
-export class MediaGallery extends React.Component<Props, State> {
-  public readonly focusRef: React.RefObject<HTMLDivElement> = React.createRef();
-
-  constructor(props: Props) {
-    super(props);
-    this.state = {
-      selectedTab: 'media',
-    };
+    return <EmptyState data-test="EmptyState" label={label} />;
   }
 
-  public override componentDidMount(): void {
-    // When this component is created, it's initially not part of the DOM, and then it's
-    //   added off-screen and animated in. This ensures that the focus takes.
-    setTimeout(() => {
-      if (this.focusRef.current) {
-        this.focusRef.current.focus();
+  const now = Date.now();
+  const sections = groupMediaItemsByDate(now, mediaItems).map(section => {
+    const first = section.mediaItems[0];
+    const { message } = first;
+    const date = moment(getMessageTimestamp(message));
+
+    function getHeader(): string {
+      switch (section.type) {
+        case 'yearMonth':
+          return date.format(MONTH_FORMAT);
+        case 'today':
+          return i18n('icu:today');
+        case 'yesterday':
+          return i18n('icu:yesterday');
+        case 'thisWeek':
+          return i18n('icu:thisWeek');
+        case 'thisMonth':
+          return i18n('icu:thisMonth');
+        default:
+          throw missingCaseError(section);
       }
-    });
-  }
-
-  public override render(): JSX.Element {
-    const { selectedTab } = this.state;
-
-    return (
-      <div className="module-media-gallery" tabIndex={-1} ref={this.focusRef}>
-        <div className="module-media-gallery__tab-container">
-          <Tab
-            label="Media"
-            type="media"
-            isSelected={selectedTab === 'media'}
-            onSelect={this.handleTabSelect}
-          />
-          <Tab
-            label="Documents"
-            type="documents"
-            isSelected={selectedTab === 'documents'}
-            onSelect={this.handleTabSelect}
-          />
-        </div>
-        <div className="module-media-gallery__content">
-          {this.renderSections()}
-        </div>
-      </div>
-    );
-  }
-
-  private readonly handleTabSelect = (event: TabSelectEvent): void => {
-    this.setState({ selectedTab: event.type });
-  };
-
-  private renderSections() {
-    const { i18n, media, documents, onItemClick } = this.props;
-    const { selectedTab } = this.state;
-
-    const mediaItems = selectedTab === 'media' ? media : documents;
-    const type = selectedTab;
-
-    if (!mediaItems || mediaItems.length === 0) {
-      const label = (() => {
-        switch (type) {
-          case 'media':
-            return i18n('mediaEmptyState');
-
-          case 'documents':
-            return i18n('documentsEmptyState');
-
-          default:
-            throw missingCaseError(type);
-        }
-      })();
-
-      return <EmptyState data-test="EmptyState" label={label} />;
     }
 
-    const now = Date.now();
-    const sections = groupMediaItemsByDate(now, mediaItems).map(section => {
-      const first = section.mediaItems[0];
-      const { message } = first;
-      const date = moment(getMessageTimestamp(message));
-      const header =
-        section.type === 'yearMonth'
-          ? date.format(MONTH_FORMAT)
-          : i18n(section.type);
+    const header = getHeader();
 
-      return (
-        <AttachmentSection
-          key={header}
-          header={header}
-          i18n={i18n}
-          type={type}
-          mediaItems={section.mediaItems}
-          onItemClick={onItemClick}
-        />
-      );
-    });
+    return (
+      <AttachmentSection
+        key={header}
+        header={header}
+        i18n={i18n}
+        type={type}
+        mediaItems={section.mediaItems}
+        onItemClick={(event: ItemClickEvent) => {
+          switch (event.type) {
+            case 'documents': {
+              saveAttachment(event.attachment, event.message.sent_at);
+              break;
+            }
 
-    return <div className="module-media-gallery__sections">{sections}</div>;
-  }
+            case 'media': {
+              showLightboxWithMedia(event.index, media);
+              break;
+            }
+
+            default:
+              throw new TypeError(`Unknown attachment type: '${event.type}'`);
+          }
+        }}
+      />
+    );
+  });
+
+  return <div className="module-media-gallery__sections">{sections}</div>;
+}
+
+export function MediaGallery({
+  conversationId,
+  documents,
+  i18n,
+  loadMediaItems,
+  media,
+  saveAttachment,
+  showLightboxWithMedia,
+}: Props): JSX.Element {
+  const focusRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    focusRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    loadMediaItems(conversationId);
+  }, [conversationId, loadMediaItems]);
+
+  return (
+    <div className="module-media-gallery" tabIndex={-1} ref={focusRef}>
+      <Tabs
+        initialSelectedTab={TabViews.Media}
+        tabs={[
+          {
+            id: TabViews.Media,
+            label: i18n('icu:media'),
+          },
+          {
+            id: TabViews.Documents,
+            label: i18n('icu:documents'),
+          },
+        ]}
+      >
+        {({ selectedTab }) => (
+          <div className="module-media-gallery__content">
+            {selectedTab === TabViews.Media && (
+              <MediaSection
+                documents={documents}
+                i18n={i18n}
+                media={media}
+                saveAttachment={saveAttachment}
+                showLightboxWithMedia={showLightboxWithMedia}
+                type="media"
+              />
+            )}
+            {selectedTab === TabViews.Documents && (
+              <MediaSection
+                documents={documents}
+                i18n={i18n}
+                media={media}
+                saveAttachment={saveAttachment}
+                showLightboxWithMedia={showLightboxWithMedia}
+                type="documents"
+              />
+            )}
+          </div>
+        )}
+      </Tabs>
+    </div>
+  );
 }

@@ -3,9 +3,9 @@
 
 import React from 'react';
 
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
 
+import type { Meta } from '@storybook/react';
 import enMessages from '../../_locales/en/messages.json';
 import { AvatarColors } from '../types/Colors';
 import { GroupAvatarIcons, PersonalAvatarIcons } from '../types/Avatar';
@@ -27,37 +27,45 @@ const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   size: 80,
 });
 
-const story = storiesOf('Components/BetterAvatar', module);
+export default {
+  title: 'Components/BetterAvatar',
+} satisfies Meta<PropsType>;
 
-story.add('Text', () => (
-  <BetterAvatar
-    {...createProps({
-      avatarData: createAvatarData({
-        color: AvatarColors[0],
-        text: 'AH',
-      }),
-    })}
-  />
-));
+export function Text(): JSX.Element {
+  return (
+    <BetterAvatar
+      {...createProps({
+        avatarData: createAvatarData({
+          color: AvatarColors[0],
+          text: 'AH',
+        }),
+      })}
+    />
+  );
+}
 
-story.add('Personal Icon', () => (
-  <BetterAvatar
-    {...createProps({
-      avatarData: createAvatarData({
-        color: AvatarColors[1],
-        icon: PersonalAvatarIcons[1],
-      }),
-    })}
-  />
-));
+export function PersonalIcon(): JSX.Element {
+  return (
+    <BetterAvatar
+      {...createProps({
+        avatarData: createAvatarData({
+          color: AvatarColors[1],
+          icon: PersonalAvatarIcons[1],
+        }),
+      })}
+    />
+  );
+}
 
-story.add('Group Icon', () => (
-  <BetterAvatar
-    {...createProps({
-      avatarData: createAvatarData({
-        color: AvatarColors[1],
-        icon: GroupAvatarIcons[1],
-      }),
-    })}
-  />
-));
+export function GroupIcon(): JSX.Element {
+  return (
+    <BetterAvatar
+      {...createProps({
+        avatarData: createAvatarData({
+          color: AvatarColors[1],
+          icon: GroupAvatarIcons[1],
+        }),
+      })}
+    />
+  );
+}

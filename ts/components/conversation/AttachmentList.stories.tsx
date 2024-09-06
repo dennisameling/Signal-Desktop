@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-
 import { action } from '@storybook/addon-actions';
-import { storiesOf } from '@storybook/react';
-
-import type { AttachmentDraftType } from '../../types/Attachment';
+import type { Meta } from '@storybook/react';
+import type {
+  AttachmentDraftType,
+  AttachmentType,
+} from '../../types/Attachment';
 import type { Props } from './AttachmentList';
 import { AttachmentList } from './AttachmentList';
 import {
@@ -18,12 +19,13 @@ import {
 } from '../../types/MIME';
 import { setupI18n } from '../../util/setupI18n';
 import enMessages from '../../../_locales/en/messages.json';
-
 import { fakeDraftAttachment } from '../../test-both/helpers/fakeAttachment';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf('Components/Conversation/AttachmentList', module);
+export default {
+  title: 'Components/Conversation/AttachmentList',
+} satisfies Meta<Props<AttachmentDraftType | AttachmentType>>;
 
 const createProps = (
   overrideProps: Partial<Props<AttachmentDraftType>> = {}
@@ -36,7 +38,7 @@ const createProps = (
   onCloseAttachment: action('onCloseAttachment'),
 });
 
-story.add('One File', () => {
+export function OneFile(): JSX.Element {
   const props = createProps({
     attachments: [
       fakeDraftAttachment({
@@ -47,9 +49,9 @@ story.add('One File', () => {
     ],
   });
   return <AttachmentList {...props} />;
-});
+}
 
-story.add('Multiple Visual Attachments', () => {
+export function MultipleVisualAttachments(): JSX.Element {
   const props = createProps({
     attachments: [
       fakeDraftAttachment({
@@ -72,9 +74,9 @@ story.add('Multiple Visual Attachments', () => {
   });
 
   return <AttachmentList {...props} />;
-});
+}
 
-story.add('Multiple with Non-Visual Types', () => {
+export function MultipleWithNonVisualTypes(): JSX.Element {
   const props = createProps({
     attachments: [
       fakeDraftAttachment({
@@ -107,10 +109,10 @@ story.add('Multiple with Non-Visual Types', () => {
   });
 
   return <AttachmentList {...props} />;
-});
+}
 
-story.add('Empty List', () => {
+export function EmptyList(): JSX.Element {
   const props = createProps();
 
   return <AttachmentList {...props} />;
-});
+}

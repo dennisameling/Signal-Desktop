@@ -2,25 +2,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React, { useState } from 'react';
-
-import { storiesOf } from '@storybook/react';
-
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../util/setupI18n';
 import enMessages from '../../_locales/en/messages.json';
-
+import type { PropsType } from './GroupDescriptionInput';
 import { GroupDescriptionInput } from './GroupDescriptionInput';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf('Components/GroupDescriptionInput', module);
+export default {
+  title: 'Components/GroupDescriptionInput',
+} satisfies Meta<PropsType>;
 
-const Wrapper = ({
+function Wrapper({
   disabled,
   startingValue = '',
 }: {
   disabled?: boolean;
   startingValue?: string;
-}) => {
+}) {
   const [value, setValue] = useState(startingValue);
 
   return (
@@ -31,14 +31,18 @@ const Wrapper = ({
       value={value}
     />
   );
-};
+}
 
-story.add('Default', () => <Wrapper />);
+export function Default(): JSX.Element {
+  return <Wrapper />;
+}
 
-story.add('Disabled', () => (
-  <>
-    <Wrapper disabled />
-    <br />
-    <Wrapper disabled startingValue="Has a value" />
-  </>
-));
+export function Disabled(): JSX.Element {
+  return (
+    <>
+      <Wrapper disabled />
+      <br />
+      <Wrapper disabled startingValue="Has a value" />
+    </>
+  );
+}

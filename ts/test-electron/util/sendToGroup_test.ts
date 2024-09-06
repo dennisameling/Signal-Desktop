@@ -2,42 +2,48 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
+import { LibSignalErrorBase } from '@signalapp/libsignal-client';
 
 import {
   _analyzeSenderKeyDevices,
-  _waitForAll,
   _shouldFailSend,
 } from '../../util/sendToGroup';
+import { generateAci } from '../../types/ServiceId';
 
 import type { DeviceType } from '../../textsecure/Types.d';
 import {
   ConnectTimeoutError,
   HTTPError,
+  IncorrectSenderKeyAuthError,
   MessageError,
   OutgoingIdentityKeyError,
   OutgoingMessageError,
   SendMessageChallengeError,
   SendMessageNetworkError,
   SendMessageProtoError,
+  UnknownRecipientError,
   UnregisteredUserError,
 } from '../../textsecure/Errors';
 
 describe('sendToGroup', () => {
+  const serviceIdOne = generateAci();
+  const serviceIdTwo = generateAci();
+
   describe('#_analyzeSenderKeyDevices', () => {
     function getDefaultDeviceList(): Array<DeviceType> {
       return [
         {
-          identifier: 'ident-guid-one',
+          serviceId: serviceIdOne,
           id: 1,
           registrationId: 11,
         },
         {
-          identifier: 'ident-guid-one',
+          serviceId: serviceIdOne,
           id: 2,
           registrationId: 22,
         },
         {
-          identifier: 'ident-guid-two',
+          serviceId: serviceIdTwo,
           id: 2,
           registrationId: 33,
         },
@@ -50,15 +56,15 @@ describe('sendToGroup', () => {
 
       const {
         newToMemberDevices,
-        newToMemberUuids,
+        newToMemberServiceIds,
         removedFromMemberDevices,
-        removedFromMemberUuids,
+        removedFromMemberServiceIds,
       } = _analyzeSenderKeyDevices(memberDevices, devicesForSend);
 
       assert.isEmpty(newToMemberDevices);
-      assert.isEmpty(newToMemberUuids);
+      assert.isEmpty(newToMemberServiceIds);
       assert.isEmpty(removedFromMemberDevices);
-      assert.isEmpty(removedFromMemberUuids);
+      assert.isEmpty(removedFromMemberServiceIds);
     });
     it('returns set of new devices', () => {
       const memberDevices = getDefaultDeviceList();
@@ -69,26 +75,26 @@ describe('sendToGroup', () => {
 
       const {
         newToMemberDevices,
-        newToMemberUuids,
+        newToMemberServiceIds,
         removedFromMemberDevices,
-        removedFromMemberUuids,
+        removedFromMemberServiceIds,
       } = _analyzeSenderKeyDevices(memberDevices, devicesForSend);
 
       assert.deepEqual(newToMemberDevices, [
         {
-          identifier: 'ident-guid-one',
+          serviceId: serviceIdOne,
           id: 2,
           registrationId: 22,
         },
         {
-          identifier: 'ident-guid-two',
+          serviceId: serviceIdTwo,
           id: 2,
           registrationId: 33,
         },
       ]);
-      assert.deepEqual(newToMemberUuids, ['ident-guid-one', 'ident-guid-two']);
+      assert.deepEqual(newToMemberServiceIds, [serviceIdOne, serviceIdTwo]);
       assert.isEmpty(removedFromMemberDevices);
-      assert.isEmpty(removedFromMemberUuids);
+      assert.isEmpty(removedFromMemberServiceIds);
     });
     it('returns set of removed devices', () => {
       const memberDevices = getDefaultDeviceList();
@@ -99,28 +105,28 @@ describe('sendToGroup', () => {
 
       const {
         newToMemberDevices,
-        newToMemberUuids,
+        newToMemberServiceIds,
         removedFromMemberDevices,
-        removedFromMemberUuids,
+        removedFromMemberServiceIds,
       } = _analyzeSenderKeyDevices(memberDevices, devicesForSend);
 
       assert.isEmpty(newToMemberDevices);
-      assert.isEmpty(newToMemberUuids);
+      assert.isEmpty(newToMemberServiceIds);
       assert.deepEqual(removedFromMemberDevices, [
         {
-          identifier: 'ident-guid-one',
+          serviceId: serviceIdOne,
           id: 2,
           registrationId: 22,
         },
         {
-          identifier: 'ident-guid-two',
+          serviceId: serviceIdTwo,
           id: 2,
           registrationId: 33,
         },
       ]);
-      assert.deepEqual(removedFromMemberUuids, [
-        'ident-guid-one',
-        'ident-guid-two',
+      assert.deepEqual(removedFromMemberServiceIds, [
+        serviceIdOne,
+        serviceIdTwo,
       ]);
     });
     it('returns empty removals if partial send', () => {
@@ -133,9 +139,9 @@ describe('sendToGroup', () => {
       const isPartialSend = true;
       const {
         newToMemberDevices,
-        newToMemberUuids,
+        newToMemberServiceIds,
         removedFromMemberDevices,
-        removedFromMemberUuids,
+        removedFromMemberServiceIds,
       } = _analyzeSenderKeyDevices(
         memberDevices,
         devicesForSend,
@@ -143,24 +149,9 @@ describe('sendToGroup', () => {
       );
 
       assert.isEmpty(newToMemberDevices);
-      assert.isEmpty(newToMemberUuids);
+      assert.isEmpty(newToMemberServiceIds);
       assert.isEmpty(removedFromMemberDevices);
-      assert.isEmpty(removedFromMemberUuids);
-    });
-  });
-
-  describe('#_waitForAll', () => {
-    it('returns result of provided tasks', async () => {
-      const task1 = () => Promise.resolve(1);
-      const task2 = () => Promise.resolve(2);
-      const task3 = () => Promise.resolve(3);
-
-      const result = await _waitForAll({
-        tasks: [task1, task2, task3],
-        maxConcurrency: 1,
-      });
-
-      assert.deepEqual(result, [1, 2, 3]);
+      assert.isEmpty(removedFromMemberServiceIds);
     });
   });
 
@@ -171,7 +162,11 @@ describe('sendToGroup', () => {
     });
 
     it("returns true for any error with 'untrusted' identity", async () => {
-      const error = new Error('This was an untrusted identity.');
+      const error = new LibSignalErrorBase(
+        'untrusted identity',
+        'UntrustedIdentity',
+        'ignored'
+      );
       assert.isTrue(_shouldFailSend(error, 'logId'));
     });
 
@@ -185,7 +180,7 @@ describe('sendToGroup', () => {
       assert.isTrue(
         _shouldFailSend(
           new UnregisteredUserError(
-            'something',
+            generateAci(),
             new HTTPError('something', {
               code: 400,
               headers: {},
@@ -213,10 +208,20 @@ describe('sendToGroup', () => {
       assert.isFalse(_shouldFailSend(error, 'testing generic 204'));
     });
 
+    it('returns false for specific errors', () => {
+      const unknownRecipient = new UnknownRecipientError();
+      assert.isFalse(
+        _shouldFailSend(unknownRecipient, 'testing unknown recipient')
+      );
+
+      const incorrectAuth = new IncorrectSenderKeyAuthError();
+      assert.isFalse(_shouldFailSend(incorrectAuth, 'testing incorrect auth'));
+    });
+
     it('returns true for a specified error codes', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const error: any = new Error('generic');
-      error.code = 401;
+      error.code = 428;
 
       assert.isTrue(_shouldFailSend(error, 'testing generic'));
       assert.isTrue(
@@ -297,18 +302,25 @@ describe('sendToGroup', () => {
     it('returns true for errors inside of SendMessageProtoError', () => {
       assert.isTrue(
         _shouldFailSend(
-          new SendMessageProtoError({}),
+          new SendMessageProtoError({
+            dataMessage: undefined,
+            editMessage: undefined,
+          }),
           'testing missing errors list'
         )
       );
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const error: any = new Error('generic');
-      error.code = 401;
+      error.code = 428;
 
       assert.isTrue(
         _shouldFailSend(
-          new SendMessageProtoError({ errors: [error] }),
+          new SendMessageProtoError({
+            dataMessage: undefined,
+            editMessage: undefined,
+            errors: [error],
+          }),
           'testing one error with code'
         )
       );
@@ -316,6 +328,8 @@ describe('sendToGroup', () => {
       assert.isTrue(
         _shouldFailSend(
           new SendMessageProtoError({
+            dataMessage: undefined,
+            editMessage: undefined,
             errors: [
               new Error('something'),
               new ConnectTimeoutError('something'),

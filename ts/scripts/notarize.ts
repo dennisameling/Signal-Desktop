@@ -1,14 +1,12 @@
-// Copyright 2019-2020 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import path from 'path';
 import type { AfterPackContext } from 'electron-builder';
 
-import { notarize } from 'electron-notarize';
+import { notarize } from '@electron/notarize';
 
 import * as packageJson from '../../package.json';
-
-/* eslint-disable no-console */
 
 export async function afterSign({
   appOutDir,
@@ -47,6 +45,14 @@ export async function afterSign({
     return;
   }
 
+  const teamId = process.env.APPLE_TEAM_ID;
+  if (!teamId) {
+    console.warn(
+      'teamId must be provided in environment variable APPLE_TEAM_ID'
+    );
+    return;
+  }
+
   console.log('Notarizing with...');
   console.log(`  primaryBundleId: ${appBundleId}`);
   console.log(`  username: ${appleId}`);
@@ -57,5 +63,6 @@ export async function afterSign({
     appPath,
     appleId,
     appleIdPassword,
+    teamId,
   });
 }

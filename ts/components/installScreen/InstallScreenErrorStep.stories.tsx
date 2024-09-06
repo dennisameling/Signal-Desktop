@@ -2,21 +2,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
-
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../../util/setupI18n';
+import { InstallScreenError } from '../../types/InstallScreen';
 import enMessages from '../../../_locales/en/messages.json';
-
-import { InstallScreenErrorStep, InstallError } from './InstallScreenErrorStep';
+import type { Props } from './InstallScreenErrorStep';
+import { InstallScreenErrorStep } from './InstallScreenErrorStep';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf(
-  'Components/InstallScreen/InstallScreenErrorStep',
-  module
-);
+export default {
+  title: 'Components/InstallScreen/InstallScreenErrorStep',
+} satisfies Meta<Props>;
 
 const defaultProps = {
   i18n,
@@ -24,28 +22,24 @@ const defaultProps = {
   tryAgain: action('tryAgain'),
 };
 
-story.add('Too many devices', () => (
+export const _TooManyDevices = (): JSX.Element => (
   <InstallScreenErrorStep
     {...defaultProps}
-    error={InstallError.TooManyDevices}
+    error={InstallScreenError.TooManyDevices}
   />
-));
+);
 
-story.add('Too old', () => (
-  <InstallScreenErrorStep {...defaultProps} error={InstallError.TooOld} />
-));
+export const _TooOld = (): JSX.Element => (
+  <InstallScreenErrorStep {...defaultProps} error={InstallScreenError.TooOld} />
+);
 
-story.add('Too old', () => (
-  <InstallScreenErrorStep {...defaultProps} error={InstallError.TooOld} />
-));
+export const __TooOld = (): JSX.Element => (
+  <InstallScreenErrorStep {...defaultProps} error={InstallScreenError.TooOld} />
+);
 
-story.add('Connection failed', () => (
+export const _ConnectionFailed = (): JSX.Element => (
   <InstallScreenErrorStep
     {...defaultProps}
-    error={InstallError.ConnectionFailed}
+    error={InstallScreenError.ConnectionFailed}
   />
-));
-
-story.add('Unknown error', () => (
-  <InstallScreenErrorStep {...defaultProps} error={InstallError.UnknownError} />
-));
+);

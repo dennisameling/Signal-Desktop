@@ -4,30 +4,17 @@
 import type { ConversationType } from '../state/ducks/conversations';
 import { format, isValidNumber } from '../types/PhoneNumber';
 
-type FormattedContact = Partial<ConversationType> &
-  Pick<
-    ConversationType,
-    | 'acceptedMessageRequest'
-    | 'badges'
-    | 'id'
-    | 'isMe'
-    | 'sharedGroupNames'
-    | 'title'
-    | 'type'
-    | 'unblurredAvatarPath'
-  >;
-
-const PLACEHOLDER_CONTACT: FormattedContact = {
+const PLACEHOLDER_CONTACT: ConversationType = {
   acceptedMessageRequest: false,
   badges: [],
   id: 'placeholder-contact',
   isMe: false,
   sharedGroupNames: [],
-  title: window.i18n('unknownContact'),
+  title: window.i18n('icu:unknownContact'),
   type: 'direct',
 };
 
-export function findAndFormatContact(identifier?: string): FormattedContact {
+export function findAndFormatContact(identifier?: string): ConversationType {
   if (!identifier) {
     return PLACEHOLDER_CONTACT;
   }

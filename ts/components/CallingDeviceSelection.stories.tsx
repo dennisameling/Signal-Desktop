@@ -3,8 +3,8 @@
 
 import * as React from 'react';
 import { action } from '@storybook/addon-actions';
-import { storiesOf } from '@storybook/react';
 
+import type { Meta } from '@storybook/react';
 import type { Props } from './CallingDeviceSelection';
 import { CallingDeviceSelection } from './CallingDeviceSelection';
 import { setupI18n } from '../util/setupI18n';
@@ -38,13 +38,15 @@ const createProps = ({
   toggleSettings: action('toggle-settings'),
 });
 
-const stories = storiesOf('Components/CallingDeviceSelection', module);
+export default {
+  title: 'Components/CallingDeviceSelection',
+} satisfies Meta<Props>;
 
-stories.add('Default', () => {
+export function Default(): JSX.Element {
   return <CallingDeviceSelection {...createProps()} />;
-});
+}
 
-stories.add('Some Devices', () => {
+export function SomeDevices(): JSX.Element {
   const availableSpeakers = [
     {
       name: 'Default',
@@ -71,9 +73,9 @@ stories.add('Some Devices', () => {
   });
 
   return <CallingDeviceSelection {...props} />;
-});
+}
 
-stories.add('Default Devices', () => {
+export function DefaultDevices(): JSX.Element {
   const availableSpeakers = [
     {
       name: 'default (Headphones)',
@@ -102,9 +104,9 @@ stories.add('Default Devices', () => {
   });
 
   return <CallingDeviceSelection {...props} />;
-});
+}
 
-stories.add('All Devices', () => {
+export function AllDevices(): JSX.Element {
   const availableSpeakers = [
     {
       name: 'Default',
@@ -178,4 +180,4 @@ stories.add('All Devices', () => {
   });
 
   return <CallingDeviceSelection {...props} />;
-});
+}

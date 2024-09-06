@@ -7,18 +7,10 @@
 //
 // But enums can be used as types but also as code. So we keep them out of the ducks.
 
-export enum UsernameSaveState {
-  None = 'None',
-  Saving = 'Saving',
-  UsernameTakenError = 'UsernameTakenError',
-  UsernameMalformedError = 'UsernameMalformedError',
-  GeneralError = 'GeneralError',
-  DeleteFailed = 'DeleteFailed',
-  Success = 'Success',
-}
-
 export enum ComposerStep {
   StartDirectConversation = 'StartDirectConversation',
+  FindByUsername = 'FindByUsername',
+  FindByPhoneNumber = 'FindByPhoneNumber',
   ChooseGroupMembers = 'ChooseGroupMembers',
   SetGroupMetadata = 'SetGroupMetadata',
 }
@@ -32,4 +24,10 @@ export enum OneTimeModalState {
 export enum ConversationVerificationState {
   PendingVerification = 'PendingVerification',
   VerificationCancelled = 'VerificationCancelled',
+}
+
+export enum TargetedMessageSource {
+  Reset = 'Reset',
+  NavigateToMessage = 'NavigateToMessage',
+  Focus = 'Focus',
 }

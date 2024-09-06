@@ -1,4 +1,4 @@
-// Copyright 2019-2022 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
@@ -7,44 +7,80 @@ import Delta from 'quill-delta';
 import ReactQuill from 'react-quill';
 import classNames from 'classnames';
 import { Manager, Reference } from 'react-popper';
-import type { KeyboardStatic, RangeStatic } from 'quill';
+import type { DeltaStatic, KeyboardStatic, RangeStatic } from 'quill';
 import Quill from 'quill';
 
 import { MentionCompletion } from '../quill/mentions/completion';
+import { FormattingMenu, QuillFormattingStyle } from '../quill/formatting/menu';
+import { MonospaceBlot } from '../quill/formatting/monospaceBlot';
+import { SpoilerBlot } from '../quill/formatting/spoilerBlot';
 import { EmojiBlot, EmojiCompletion } from '../quill/emoji';
 import type { EmojiPickDataType } from './emoji/EmojiPicker';
 import { convertShortName } from './emoji/lib';
-import type { LocalizerType, BodyRangeType, ThemeType } from '../types/Util';
+import type {
+  DraftBodyRanges,
+  HydratedBodyRangesType,
+  RangeNode,
+} from '../types/BodyRange';
+import {
+  BodyRange,
+  areBodyRangesEqual,
+  collapseRangeTree,
+  insertRange,
+} from '../types/BodyRange';
+import type { LocalizerType, ThemeType } from '../types/Util';
 import type { ConversationType } from '../state/ducks/conversations';
 import type { PreferredBadgeSelectorType } from '../state/selectors/badges';
-import { isValidUuid } from '../types/UUID';
+import { isAciString } from '../util/isAciString';
 import { MentionBlot } from '../quill/mentions/blot';
 import {
   matchEmojiImage,
   matchEmojiBlot,
-  matchReactEmoji,
   matchEmojiText,
 } from '../quill/emoji/matchers';
 import { matchMention } from '../quill/mentions/matchers';
 import { MemberRepository } from '../quill/memberRepository';
 import {
   getDeltaToRemoveStaleMentions,
-  getTextAndMentionsFromOps,
+  getTextAndRangesFromOps,
   isMentionBlot,
+  isEmojiBlot,
   getDeltaToRestartMention,
-  insertMentionOps,
+  getDeltaToRestartEmoji,
   insertEmojiOps,
+  insertFormattingAndMentionsOps,
 } from '../quill/util';
 import { SignalClipboard } from '../quill/signal-clipboard';
 import { DirectionalBlot } from '../quill/block/blot';
 import { getClassNamesFor } from '../util/getClassNamesFor';
+import { isNotNil } from '../util/isNotNil';
 import * as log from '../logging/log';
+import * as Errors from '../types/errors';
+import { useRefMerger } from '../hooks/useRefMerger';
+import { useEmojiSearch } from '../hooks/useEmojiSearch';
+import type { LinkPreviewType } from '../types/message/LinkPreviews';
+import { StagedLinkPreview } from './conversation/StagedLinkPreview';
+import type { DraftEditMessageType } from '../model-types.d';
+import { usePrevious } from '../hooks/usePrevious';
+import {
+  matchBold,
+  matchItalic,
+  matchMonospace,
+  matchSpoiler,
+  matchStrikethrough,
+} from '../quill/formatting/matchers';
+import { missingCaseError } from '../util/missingCaseError';
+import { AutoSubstituteAsciiEmojis } from '../quill/auto-substitute-ascii-emojis';
 
 Quill.register('formats/emoji', EmojiBlot);
 Quill.register('formats/mention', MentionBlot);
 Quill.register('formats/block', DirectionalBlot);
+Quill.register('formats/monospace', MonospaceBlot);
+Quill.register('formats/spoiler', SpoilerBlot);
+Quill.register('modules/autoSubstituteAsciiEmojis', AutoSubstituteAsciiEmojis);
 Quill.register('modules/emojiCompletion', EmojiCompletion);
 Quill.register('modules/mentionCompletion', MentionCompletion);
+Quill.register('modules/formattingMenu', FormattingMenu);
 Quill.register('modules/signalClipboard', SignalClipboard);
 
 type HistoryStatic = {
@@ -55,41 +91,61 @@ type HistoryStatic = {
 export type InputApi = {
   focus: () => void;
   insertEmoji: (e: EmojiPickDataType) => void;
+  setContents: (
+    text: string,
+    draftBodyRanges?: HydratedBodyRangesType,
+    cursorToEnd?: boolean
+  ) => void;
   reset: () => void;
-  resetEmojiResults: () => void;
   submit: () => void;
 };
 
-export type Props = {
+export type Props = Readonly<{
   children?: React.ReactNode;
-  readonly i18n: LocalizerType;
-  readonly disabled?: boolean;
-  readonly getPreferredBadge: PreferredBadgeSelectorType;
-  readonly large?: boolean;
-  readonly inputApi?: React.MutableRefObject<InputApi | undefined>;
-  readonly skinTone?: EmojiPickDataType['skinTone'];
-  readonly draftText?: string;
-  readonly draftBodyRanges?: Array<BodyRangeType>;
-  readonly moduleClassName?: string;
-  readonly theme: ThemeType;
-  readonly placeholder?: string;
-  sortedGroupMembers?: Array<ConversationType>;
+  conversationId: string | null;
+  i18n: LocalizerType;
+  disabled?: boolean;
+  draftEditMessage: DraftEditMessageType | null;
+  getPreferredBadge: PreferredBadgeSelectorType;
+  large: boolean | null;
+  inputApi: React.MutableRefObject<InputApi | undefined> | null;
+  isFormattingEnabled: boolean;
+  isActive: boolean;
+  sendCounter: number;
+  skinTone: NonNullable<EmojiPickDataType['skinTone']> | null;
+  draftText: string | null;
+  draftBodyRanges: HydratedBodyRangesType | null;
+  moduleClassName?: string;
+  theme: ThemeType;
+  placeholder?: string;
+  sortedGroupMembers: ReadonlyArray<ConversationType> | null;
+  scrollerRef?: React.RefObject<HTMLDivElement>;
   onDirtyChange?(dirty: boolean): unknown;
-  onEditorStateChange?(
-    messageText: string,
-    bodyRanges: Array<BodyRangeType>,
-    caretLocation?: number
-  ): unknown;
+  onEditorStateChange(options: {
+    bodyRanges: DraftBodyRanges;
+    caretLocation?: number;
+    conversationId: string | undefined;
+    messageText: string;
+    sendCounter: number;
+  }): unknown;
   onTextTooLong(): unknown;
   onPickEmoji(o: EmojiPickDataType): unknown;
+  onBlur?: () => unknown;
+  onFocus?: () => unknown;
   onSubmit(
     message: string,
-    mentions: Array<BodyRangeType>,
+    bodyRanges: DraftBodyRanges,
     timestamp: number
   ): unknown;
+  onScroll?: (ev: React.UIEvent<HTMLElement>) => void;
+  platform: string;
+  shouldHidePopovers: boolean | null;
   getQuotedMessage?(): unknown;
   clearQuotedMessage?(): unknown;
-};
+  linkPreviewLoading?: boolean;
+  linkPreviewResult: LinkPreviewType | null;
+  onCloseLinkPreview?(conversationId: string): unknown;
+}>;
 
 const MAX_LENGTH = 64 * 1024;
 const BASE_CLASS_NAME = 'module-composition-input';
@@ -97,25 +153,42 @@ const BASE_CLASS_NAME = 'module-composition-input';
 export function CompositionInput(props: Props): React.ReactElement {
   const {
     children,
-    i18n,
+    clearQuotedMessage,
+    conversationId,
     disabled,
-    large,
-    inputApi,
-    moduleClassName,
-    onPickEmoji,
-    onSubmit,
-    placeholder,
-    skinTone,
-    draftText,
     draftBodyRanges,
+    draftEditMessage,
+    draftText,
     getPreferredBadge,
     getQuotedMessage,
-    clearQuotedMessage,
+    i18n,
+    inputApi,
+    isFormattingEnabled,
+    isActive,
+    large,
+    linkPreviewLoading,
+    linkPreviewResult,
+    moduleClassName,
+    onCloseLinkPreview,
+    onBlur,
+    onFocus,
+    onPickEmoji,
+    onScroll,
+    onSubmit,
+    placeholder,
+    platform,
+    shouldHidePopovers,
+    skinTone,
+    sendCounter,
     sortedGroupMembers,
     theme,
   } = props;
 
+  const refMerger = useRefMerger();
+
   const [emojiCompletionElement, setEmojiCompletionElement] =
+    React.useState<JSX.Element>();
+  const [formattingChooserElement, setFormattingChooserElement] =
     React.useState<JSX.Element>();
   const [lastSelectionRange, setLastSelectionRange] =
     React.useState<RangeStatic | null>(null);
@@ -125,43 +198,71 @@ export function CompositionInput(props: Props): React.ReactElement {
   const emojiCompletionRef = React.useRef<EmojiCompletion>();
   const mentionCompletionRef = React.useRef<MentionCompletion>();
   const quillRef = React.useRef<Quill>();
-  const scrollerRef = React.useRef<HTMLDivElement>(null);
+
+  const scrollerRefInner = React.useRef<HTMLDivElement>(null);
+
   const propsRef = React.useRef<Props>(props);
+  const canSendRef = React.useRef<boolean>(false);
   const memberRepositoryRef = React.useRef<MemberRepository>(
     new MemberRepository()
   );
 
+  const [isMouseDown, setIsMouseDown] = React.useState<boolean>(false);
+
   const generateDelta = (
     text: string,
-    bodyRanges: Array<BodyRangeType>
+    bodyRanges: HydratedBodyRangesType
   ): Delta => {
-    const initialOps = [{ insert: text }];
-    const opsWithMentions = insertMentionOps(initialOps, bodyRanges);
-    const opsWithEmojis = insertEmojiOps(opsWithMentions);
+    const textLength = text.length;
+    const tree = bodyRanges.reduce<ReadonlyArray<RangeNode>>((acc, range) => {
+      if (range.start < textLength) {
+        return insertRange(range, acc);
+      }
+      return acc;
+    }, []);
+    const nodes = collapseRangeTree({ tree, text });
+    const opsWithFormattingAndMentions = insertFormattingAndMentionsOps(nodes);
+    const opsWithEmojis = insertEmojiOps(opsWithFormattingAndMentions, {});
 
     return new Delta(opsWithEmojis);
   };
 
-  const getTextAndMentions = (): [string, Array<BodyRangeType>] => {
+  const getTextAndRanges = (): {
+    text: string;
+    bodyRanges: DraftBodyRanges;
+  } => {
     const quill = quillRef.current;
 
     if (quill === undefined) {
-      return ['', []];
+      return { text: '', bodyRanges: [] };
     }
 
     const contents = quill.getContents();
 
     if (contents === undefined) {
-      return ['', []];
+      return { text: '', bodyRanges: [] };
     }
 
     const { ops } = contents;
 
     if (ops === undefined) {
-      return ['', []];
+      return { text: '', bodyRanges: [] };
     }
 
-    return getTextAndMentionsFromOps(ops);
+    const { text, bodyRanges } = getTextAndRangesFromOps(ops);
+
+    return {
+      text,
+      bodyRanges: bodyRanges.filter(range => {
+        if (BodyRange.isMention(range)) {
+          return true;
+        }
+        if (BodyRange.isFormatting(range)) {
+          return true;
+        }
+        throw missingCaseError(range);
+      }),
+    };
   };
 
   const focus = () => {
@@ -184,7 +285,7 @@ export function CompositionInput(props: Props): React.ReactElement {
     const range = quill.getSelection();
 
     const insertionRange = range || lastSelectionRange;
-    if (insertionRange === null) {
+    if (insertionRange == null) {
       return;
     }
 
@@ -193,7 +294,7 @@ export function CompositionInput(props: Props): React.ReactElement {
     const delta = new Delta()
       .retain(insertionRange.index)
       .delete(insertionRange.length)
-      .insert({ emoji });
+      .insert({ emoji: { value: emoji } });
 
     quill.updateContents(delta, 'user');
     quill.setSelection(insertionRange.index + 1, 0, 'user');
@@ -206,6 +307,7 @@ export function CompositionInput(props: Props): React.ReactElement {
       return;
     }
 
+    canSendRef.current = true;
     quill.setText('');
 
     const historyModule = quill.getModule('history');
@@ -217,14 +319,28 @@ export function CompositionInput(props: Props): React.ReactElement {
     historyModule.clear();
   };
 
-  const resetEmojiResults = () => {
-    const emojiCompletion = emojiCompletionRef.current;
+  const setContents = (
+    text: string,
+    bodyRanges?: HydratedBodyRangesType,
+    cursorToEnd?: boolean
+  ) => {
+    const quill = quillRef.current;
 
-    if (emojiCompletion === undefined) {
+    if (quill === undefined) {
       return;
     }
 
-    emojiCompletion.reset();
+    const delta = generateDelta(text || '', bodyRanges || []);
+
+    canSendRef.current = true;
+    // We need to cast here because we use @types/quill@1.3.10 which has types
+    // for quill-delta even though quill-delta is written in TS and has its own
+    // types. @types/quill@2.0.0 fixes the issue but react-quill has a peer-dep
+    // on the older quill types.
+    quill.setContents(delta as unknown as DeltaStatic);
+    if (cursorToEnd) {
+      quill.setSelection(quill.getLength(), 0);
+    }
   };
 
   const submit = () => {
@@ -235,21 +351,32 @@ export function CompositionInput(props: Props): React.ReactElement {
       return;
     }
 
-    const [text, mentions] = getTextAndMentions();
+    if (!canSendRef.current) {
+      log.warn(
+        'CompositionInput: Not submitting message - cannot send right now'
+      );
+      return;
+    }
+
+    const { text, bodyRanges } = getTextAndRanges();
 
     log.info(
-      `CompositionInput: Submitting message ${timestamp} with ${mentions.length} mentions`
+      `CompositionInput: Submitting message ${timestamp} with ${bodyRanges.length} ranges`
     );
-    onSubmit(text, mentions, timestamp);
+    canSendRef.current = false;
+    const didSend = onSubmit(text, bodyRanges, timestamp);
+
+    if (!didSend) {
+      canSendRef.current = true;
+    }
   };
 
   if (inputApi) {
-    // eslint-disable-next-line no-param-reassign
     inputApi.current = {
       focus,
       insertEmoji,
+      setContents,
       reset,
-      resetEmojiResults,
       submit,
     };
   }
@@ -258,10 +385,48 @@ export function CompositionInput(props: Props): React.ReactElement {
     propsRef.current = props;
   }, [props]);
 
+  React.useEffect(() => {
+    canSendRef.current = !disabled;
+  }, [disabled]);
+
   const onShortKeyEnter = (): boolean => {
     submit();
     return false;
   };
+
+  const previousFormattingEnabled = usePrevious(
+    isFormattingEnabled,
+    isFormattingEnabled
+  );
+  const previousIsMouseDown = usePrevious(isMouseDown, isMouseDown);
+
+  React.useEffect(() => {
+    const formattingChanged =
+      typeof previousFormattingEnabled === 'boolean' &&
+      previousFormattingEnabled !== isFormattingEnabled;
+    const mouseDownChanged = previousIsMouseDown !== isMouseDown;
+
+    const quill = quillRef.current;
+    const changed = formattingChanged || mouseDownChanged;
+    if (quill && changed) {
+      quill.getModule('formattingMenu').updateOptions({
+        isMenuEnabled: isFormattingEnabled,
+        isMouseDown,
+      });
+      quill.options.formats = getQuillFormats();
+    }
+  }, [
+    isFormattingEnabled,
+    isMouseDown,
+    previousFormattingEnabled,
+    previousIsMouseDown,
+  ]);
+
+  React.useEffect(() => {
+    quillRef.current?.getModule('signalClipboard').updateOptions({
+      isDisabled: !isActive,
+    });
+  }, [isActive]);
 
   const onEnter = (): boolean => {
     const quill = quillRef.current;
@@ -366,23 +531,30 @@ export function CompositionInput(props: Props): React.ReactElement {
     }
 
     const [blotToDelete] = quill.getLeaf(selection.index);
-    if (!isMentionBlot(blotToDelete)) {
-      return true;
+    if (isMentionBlot(blotToDelete)) {
+      const contents = quill.getContents(0, selection.index - 1);
+      const restartDelta = getDeltaToRestartMention(contents.ops);
+
+      quill.updateContents(restartDelta);
+      quill.setSelection(selection.index, 0);
+      return false;
     }
 
-    const contents = quill.getContents(0, selection.index - 1);
-    const restartDelta = getDeltaToRestartMention(contents.ops);
+    if (isEmojiBlot(blotToDelete)) {
+      const contents = quill.getContents(0, selection.index);
+      const restartDelta = getDeltaToRestartEmoji(contents.ops);
 
-    quill.updateContents(restartDelta);
-    quill.setSelection(selection.index, 0);
+      quill.updateContents(restartDelta);
+      return false;
+    }
 
-    return false;
+    return true;
   };
 
   const onChange = (): void => {
     const quill = quillRef.current;
 
-    const [text, mentions] = getTextAndMentions();
+    const { text, bodyRanges } = getTextAndRanges();
 
     if (quill !== undefined) {
       const historyModule: HistoryStatic = quill.getModule('history');
@@ -404,17 +576,31 @@ export function CompositionInput(props: Props): React.ReactElement {
         setTimeout(() => {
           const selection = quill.getSelection();
 
-          onEditorStateChange(
-            text,
-            mentions,
-            selection ? selection.index : undefined
-          );
+          onEditorStateChange({
+            bodyRanges,
+            caretLocation: selection ? selection.index : undefined,
+            conversationId: conversationId ?? undefined,
+            messageText: text,
+            sendCounter,
+          });
         }, 0);
       }
     }
 
     if (propsRef.current.onDirtyChange) {
-      propsRef.current.onDirtyChange(text.length > 0);
+      let isDirty: boolean = false;
+
+      if (!draftEditMessage) {
+        isDirty = text.length > 0;
+      } else if (text.trimEnd() !== draftEditMessage.body.trimEnd()) {
+        isDirty = true;
+      } else if (bodyRanges.length !== draftEditMessage.bodyRanges?.length) {
+        isDirty = true;
+      } else if (!areBodyRangesEqual(bodyRanges, draftEditMessage.bodyRanges)) {
+        isDirty = true;
+      }
+
+      propsRef.current.onDirtyChange(isDirty);
     }
   };
 
@@ -430,9 +616,32 @@ export function CompositionInput(props: Props): React.ReactElement {
   }, [disabled]);
 
   React.useEffect(() => {
+    const quill = quillRef.current;
+
+    if (quill === undefined) {
+      return;
+    }
+
+    function handleFocus() {
+      onFocus?.();
+    }
+    function handleBlur() {
+      onBlur?.();
+    }
+
+    quill.root.addEventListener('focus', handleFocus);
+    quill.root.addEventListener('blur', handleBlur);
+
+    return () => {
+      quill.root.removeEventListener('focus', handleFocus);
+      quill.root.removeEventListener('blur', handleBlur);
+    };
+  }, [onFocus, onBlur]);
+
+  React.useEffect(() => {
     const emojiCompletion = emojiCompletionRef.current;
 
-    if (emojiCompletion === undefined || skinTone === undefined) {
+    if (emojiCompletion == null || skinTone == null) {
       return;
     }
 
@@ -455,7 +664,9 @@ export function CompositionInput(props: Props): React.ReactElement {
     []
   );
 
-  const removeStaleMentions = (currentMembers: Array<ConversationType>) => {
+  const removeStaleMentions = (
+    currentMembers: ReadonlyArray<ConversationType>
+  ) => {
     const quill = quillRef.current;
 
     if (quill === undefined) {
@@ -467,11 +678,12 @@ export function CompositionInput(props: Props): React.ReactElement {
       return;
     }
 
-    const currentMemberUuids = currentMembers
-      .map(m => m.uuid)
-      .filter(isValidUuid);
+    const currentMemberAcis = currentMembers
+      .map(m => m.serviceId)
+      .filter(isNotNil)
+      .filter(isAciString);
 
-    const newDelta = getDeltaToRemoveStaleMentions(ops, currentMemberUuids);
+    const newDelta = getDeltaToRemoveStaleMentions(ops, currentMemberAcis);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     quill.updateContents(newDelta as any);
@@ -505,6 +717,8 @@ export function CompositionInput(props: Props): React.ReactElement {
   const callbacksRef = React.useRef(unstaleCallbacks);
   callbacksRef.current = unstaleCallbacks;
 
+  const search = useEmojiSearch(i18n.getLocale());
+
   const reactQuill = React.useMemo(
     () => {
       const delta = generateDelta(draftText || '', draftBodyRanges || []);
@@ -516,12 +730,18 @@ export function CompositionInput(props: Props): React.ReactElement {
           defaultValue={delta}
           modules={{
             toolbar: false,
-            signalClipboard: true,
+            signalClipboard: {
+              isDisabled: !isActive,
+            },
             clipboard: {
               matchers: [
                 ['IMG', matchEmojiImage],
                 ['IMG', matchEmojiBlot],
-                ['SPAN', matchReactEmoji],
+                ['STRONG', matchBold],
+                ['EM', matchItalic],
+                ['SPAN', matchMonospace],
+                ['S', matchStrikethrough],
+                ['SPAN', matchSpoiler],
                 [Node.TEXT_NODE, matchEmojiText],
                 ['SPAN', matchMention(memberRepositoryRef)],
               ],
@@ -552,6 +772,16 @@ export function CompositionInput(props: Props): React.ReactElement {
               onPickEmoji: (emoji: EmojiPickDataType) =>
                 callbacksRef.current.onPickEmoji(emoji),
               skinTone,
+              search,
+            },
+            autoSubstituteAsciiEmojis: {
+              skinTone,
+            },
+            formattingMenu: {
+              i18n,
+              isMenuEnabled: isFormattingEnabled,
+              platform,
+              setFormattingChooserElement,
             },
             mentionCompletion: {
               getPreferredBadge,
@@ -564,8 +794,8 @@ export function CompositionInput(props: Props): React.ReactElement {
               theme,
             },
           }}
-          formats={['emoji', 'mention']}
-          placeholder={placeholder || i18n('sendMessage')}
+          formats={getQuillFormats()}
+          placeholder={placeholder || i18n('icu:sendMessage')}
           readOnly={disabled}
           ref={element => {
             if (element) {
@@ -584,9 +814,9 @@ export function CompositionInput(props: Props): React.ReactElement {
               // When loading a multi-line message out of a draft, the cursor
               // position needs to be pushed to the end of the input manually.
               quill.once('editor-change', () => {
-                const scroller = scrollerRef.current;
+                const scroller = scrollerRefInner.current;
 
-                if (scroller !== null) {
+                if (scroller != null) {
                   quill.scrollingContainer = scroller;
                 }
 
@@ -600,7 +830,7 @@ export function CompositionInput(props: Props): React.ReactElement {
                 'selection-change',
                 (newRange: RangeStatic, oldRange: RangeStatic) => {
                   // If we lose focus, store the last edit point for emoji insertion
-                  if (newRange === null) {
+                  if (newRange == null) {
                     setLastSelectionRange(oldRange);
                   }
                 }
@@ -629,28 +859,112 @@ export function CompositionInput(props: Props): React.ReactElement {
 
   const getClassName = getClassNamesFor(BASE_CLASS_NAME, moduleClassName);
 
+  const onMouseDown = React.useCallback(
+    event => {
+      const target = event.target as HTMLElement;
+      try {
+        // If the user is actually clicking the format menu, we drop this event
+        if (target.closest('.module-composition-input__format-menu')) {
+          return;
+        }
+        setIsMouseDown(true);
+
+        const onMouseUp = () => {
+          setIsMouseDown(false);
+          window.removeEventListener('mouseup', onMouseUp);
+        };
+        window.addEventListener('mouseup', onMouseUp);
+      } catch (error) {
+        log.error(
+          'CompositionInput.onMouseDown: Failed to check event target',
+          Errors.toLogFormat(error)
+        );
+      }
+      setIsMouseDown(true);
+    },
+    [setIsMouseDown]
+  );
+
   return (
     <Manager>
       <Reference>
         {({ ref }) => (
-          <div className={getClassName('__input')} ref={ref}>
+          <div
+            className={getClassName('__input')}
+            data-supertab
+            ref={ref}
+            data-testid="CompositionInput"
+            data-enabled={disabled ? 'false' : 'true'}
+            onMouseDown={onMouseDown}
+          >
+            {draftEditMessage && (
+              <div className={getClassName('__editing-message')}>
+                {i18n('icu:CompositionInput__editing-message')}
+              </div>
+            )}
+            {draftEditMessage?.attachmentThumbnail && (
+              <div className={getClassName('__editing-message__attachment')}>
+                <img
+                  alt={i18n('icu:stagedImageAttachment', {
+                    path: draftEditMessage.attachmentThumbnail,
+                  })}
+                  src={draftEditMessage.attachmentThumbnail}
+                />
+              </div>
+            )}
+            {conversationId && linkPreviewLoading && linkPreviewResult && (
+              <StagedLinkPreview
+                {...linkPreviewResult}
+                moduleClassName="CompositionInput__link-preview"
+                i18n={i18n}
+                onClose={() => onCloseLinkPreview?.(conversationId)}
+              />
+            )}
+            {children}
             <div
-              ref={scrollerRef}
+              ref={
+                props.scrollerRef
+                  ? refMerger(scrollerRefInner, props.scrollerRef)
+                  : scrollerRefInner
+              }
               onClick={focus}
+              onScroll={onScroll}
               className={classNames(
                 getClassName('__input__scroller'),
+                !large && linkPreviewResult
+                  ? getClassName('__input__scroller--link-preview')
+                  : null,
                 large ? getClassName('__input__scroller--large') : null,
                 children ? getClassName('__input--with-children') : null
               )}
             >
-              {children}
               {reactQuill}
-              {emojiCompletionElement}
-              {mentionCompletionElement}
+              {shouldHidePopovers ? null : (
+                <>
+                  {emojiCompletionElement}
+                  {mentionCompletionElement}
+                  {formattingChooserElement}
+                </>
+              )}
             </div>
           </div>
         )}
       </Reference>
     </Manager>
   );
+}
+
+function getQuillFormats(): Array<string> {
+  return [
+    // For image replacement (local-only)
+    'emoji',
+    // @mentions
+    'mention',
+    QuillFormattingStyle.spoiler,
+    QuillFormattingStyle.monospace,
+    // Built-in
+    QuillFormattingStyle.bold,
+    QuillFormattingStyle.italic,
+    QuillFormattingStyle.strike,
+  ];
 }

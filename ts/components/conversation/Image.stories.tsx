@@ -1,15 +1,12 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-
 import { action } from '@storybook/addon-actions';
-import { boolean, number, text } from '@storybook/addon-knobs';
-import { storiesOf } from '@storybook/react';
-
+import type { Meta } from '@storybook/react';
 import { pngUrl } from '../../storybook/Fixtures';
 import type { Props } from './Image';
-import { Image } from './Image';
+import { CurveType, Image } from './Image';
 import { IMAGE_PNG } from '../../types/MIME';
 import type { ThemeType } from '../../types/Util';
 import { setupI18n } from '../../util/setupI18n';
@@ -20,10 +17,12 @@ import { fakeAttachment } from '../../test-both/helpers/fakeAttachment';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf('Components/Conversation/Image', module);
+export default {
+  title: 'Components/Conversation/Image',
+} satisfies Meta<Props>;
 
 const createProps = (overrideProps: Partial<Props> = {}): Props => ({
-  alt: text('alt', overrideProps.alt || ''),
+  alt: overrideProps.alt || '',
   attachment:
     overrideProps.attachment ||
     fakeAttachment({
@@ -31,50 +30,36 @@ const createProps = (overrideProps: Partial<Props> = {}): Props => ({
       fileName: 'sax.png',
       url: pngUrl,
     }),
-  blurHash: text('blurHash', overrideProps.blurHash || ''),
-  bottomOverlay: boolean('bottomOverlay', overrideProps.bottomOverlay || false),
-  closeButton: boolean('closeButton', overrideProps.closeButton || false),
-  curveBottomLeft: boolean(
-    'curveBottomLeft',
-    overrideProps.curveBottomLeft || false
-  ),
-  curveBottomRight: boolean(
-    'curveBottomRight',
-    overrideProps.curveBottomRight || false
-  ),
-  curveTopLeft: boolean('curveTopLeft', overrideProps.curveTopLeft || false),
-  curveTopRight: boolean('curveTopRight', overrideProps.curveTopRight || false),
-  darkOverlay: boolean('darkOverlay', overrideProps.darkOverlay || false),
-  height: number('height', overrideProps.height || 100),
+  blurHash: overrideProps.blurHash || '',
+  bottomOverlay: overrideProps.bottomOverlay || false,
+  closeButton: overrideProps.closeButton || false,
+  curveBottomLeft: overrideProps.curveBottomLeft || CurveType.None,
+  curveBottomRight: overrideProps.curveBottomRight || CurveType.None,
+  curveTopLeft: overrideProps.curveTopLeft || CurveType.None,
+  curveTopRight: overrideProps.curveTopRight || CurveType.None,
+  darkOverlay: overrideProps.darkOverlay || false,
+  height: overrideProps.height || 100,
   i18n,
-  noBackground: boolean('noBackground', overrideProps.noBackground || false),
-  noBorder: boolean('noBorder', overrideProps.noBorder || false),
+  noBackground: overrideProps.noBackground || false,
+  noBorder: overrideProps.noBorder || false,
   onClick: action('onClick'),
   onClickClose: action('onClickClose'),
   onError: action('onError'),
-  overlayText: text('overlayText', overrideProps.overlayText || ''),
-  playIconOverlay: boolean(
-    'playIconOverlay',
-    overrideProps.playIconOverlay || false
-  ),
-  smallCurveTopLeft: boolean(
-    'smallCurveTopLeft',
-    overrideProps.smallCurveTopLeft || false
-  ),
-  softCorners: boolean('softCorners', overrideProps.softCorners || false),
-  tabIndex: number('tabIndex', overrideProps.tabIndex || 0),
-  theme: text('theme', overrideProps.theme || 'light') as ThemeType,
-  url: text('url', 'url' in overrideProps ? overrideProps.url || null : pngUrl),
-  width: number('width', overrideProps.width || 100),
+  overlayText: overrideProps.overlayText || '',
+  playIconOverlay: overrideProps.playIconOverlay || false,
+  tabIndex: overrideProps.tabIndex || 0,
+  theme: overrideProps.theme || ('light' as ThemeType),
+  url: 'url' in overrideProps ? overrideProps.url || '' : pngUrl,
+  width: overrideProps.width || 100,
 });
 
-story.add('URL with Height/Width', () => {
+export function UrlWithHeightWidth(): JSX.Element {
   const props = createProps();
 
   return <Image {...props} />;
-});
+}
 
-story.add('Caption', () => {
+export function Caption(): JSX.Element {
   const defaultProps = createProps();
   const props = {
     ...defaultProps,
@@ -85,25 +70,25 @@ story.add('Caption', () => {
   };
 
   return <Image {...props} />;
-});
+}
 
-story.add('Play Icon', () => {
+export function PlayIcon(): JSX.Element {
   const props = createProps({
     playIconOverlay: true,
   });
 
   return <Image {...props} />;
-});
+}
 
-story.add('Close Button', () => {
+export function CloseButton(): JSX.Element {
   const props = createProps({
     closeButton: true,
   });
 
   return <Image {...props} />;
-});
+}
 
-story.add('No Border or Background', () => {
+export function NoBorderOrBackground(): JSX.Element {
   const props = createProps({
     attachment: fakeAttachment({
       contentType: IMAGE_PNG,
@@ -120,18 +105,30 @@ story.add('No Border or Background', () => {
       <Image {...props} />
     </div>
   );
-});
+}
 
-story.add('Pending', () => {
-  const props = createProps();
-  props.attachment.pending = true;
+export function Pending(): JSX.Element {
+  const props = createProps({
+    attachment: fakeAttachment({
+      contentType: IMAGE_PNG,
+      fileName: 'sax.png',
+      url: pngUrl,
+      pending: true,
+    }),
+  });
 
   return <Image {...props} />;
-});
+}
 
-story.add('Pending w/blurhash', () => {
-  const props = createProps();
-  props.attachment.pending = true;
+export function PendingWBlurhash(): JSX.Element {
+  const props = createProps({
+    attachment: fakeAttachment({
+      contentType: IMAGE_PNG,
+      fileName: 'sax.png',
+      url: pngUrl,
+      pending: true,
+    }),
+  });
 
   return (
     <Image
@@ -141,53 +138,56 @@ story.add('Pending w/blurhash', () => {
       height={400}
     />
   );
-});
+}
 
-story.add('Curved Corners', () => {
+export function CurvedCorners(): JSX.Element {
   const props = createProps({
-    curveBottomLeft: true,
-    curveBottomRight: true,
-    curveTopLeft: true,
-    curveTopRight: true,
+    curveBottomLeft: CurveType.Normal,
+    curveBottomRight: CurveType.Normal,
+    curveTopLeft: CurveType.Normal,
+    curveTopRight: CurveType.Normal,
   });
 
   return <Image {...props} />;
-});
+}
 
-story.add('Small Curve Top Left', () => {
+export function SmallCurveTopLeft(): JSX.Element {
   const props = createProps({
-    smallCurveTopLeft: true,
+    curveTopLeft: CurveType.Small,
   });
 
   return <Image {...props} />;
-});
+}
 
-story.add('Soft Corners', () => {
+export function SoftCorners(): JSX.Element {
   const props = createProps({
-    softCorners: true,
+    curveBottomLeft: CurveType.Tiny,
+    curveBottomRight: CurveType.Tiny,
+    curveTopLeft: CurveType.Tiny,
+    curveTopRight: CurveType.Tiny,
   });
 
   return <Image {...props} />;
-});
+}
 
-story.add('Bottom Overlay', () => {
+export function BottomOverlay(): JSX.Element {
   const props = createProps({
     bottomOverlay: true,
   });
 
   return <Image {...props} />;
-});
+}
 
-story.add('Full Overlay with Text', () => {
+export function FullOverlayWithText(): JSX.Element {
   const props = createProps({
     darkOverlay: true,
     overlayText: 'Honk!',
   });
 
   return <Image {...props} />;
-});
+}
 
-story.add('Blurhash', () => {
+export function Blurhash(): JSX.Element {
   const defaultProps = createProps();
   const props = {
     ...defaultProps,
@@ -195,24 +195,24 @@ story.add('Blurhash', () => {
   };
 
   return <Image {...props} />;
-});
+}
 
-story.add('undefined blurHash', () => {
-  const Wrapper = () => {
-    const theme = React.useContext(StorybookThemeContext);
-    const props = createProps({
-      blurHash: undefined,
-      theme,
-      url: undefined,
-    });
+function UndefinedBlurHashWrapper() {
+  const theme = React.useContext(StorybookThemeContext);
+  const props = createProps({
+    blurHash: undefined,
+    theme,
+    url: undefined,
+  });
 
-    return <Image {...props} />;
-  };
+  return <Image {...props} />;
+}
 
-  return <Wrapper />;
-});
+export function UndefinedBlurHash(): JSX.Element {
+  return <UndefinedBlurHashWrapper />;
+}
 
-story.add('Missing Image', () => {
+export function MissingImage(): JSX.Element {
   const defaultProps = createProps();
   const props = {
     ...defaultProps,
@@ -221,4 +221,4 @@ story.add('Missing Image', () => {
   };
 
   return <Image {...props} />;
-});
+}

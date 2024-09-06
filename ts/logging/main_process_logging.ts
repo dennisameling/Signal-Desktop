@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Signal Messenger, LLC
+// Copyright 2017 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // NOTE: Temporarily allow `then` until we convert the entire file to `async` / `await`:
@@ -7,19 +7,26 @@
 
 import { join } from 'path';
 import split2 from 'split2';
-import { readdirSync, createReadStream, unlinkSync, writeFileSync } from 'fs';
+import {
+  mkdirSync,
+  readdirSync,
+  createReadStream,
+  unlinkSync,
+  writeFileSync,
+} from 'fs';
 import type { BrowserWindow } from 'electron';
 import { app, ipcMain as ipc } from 'electron';
-import pinoms from 'pino-multi-stream';
 import pino from 'pino';
-import * as mkdirp from 'mkdirp';
+import type { StreamEntry } from 'pino';
 import { filter, flatten, map, pick, sortBy } from 'lodash';
 import readFirstLine from 'firstline';
 import { read as readLastLines } from 'read-last-lines';
 import rimraf from 'rimraf';
-import { createStream } from 'rotating-file-stream';
+import { CircularBuffer } from 'cirbuf';
 
 import type { LoggerType } from '../types/Logging';
+import * as Errors from '../types/errors';
+import { createRotatingPinoDest } from '../util/rotatingPinoDest';
 
 import * as log from './log';
 import { Environment, getEnvironment } from '../environment';
@@ -37,7 +44,7 @@ declare global {
   }
 }
 
-const MAX_LOG_LINES = 1000000;
+const MAX_LOG_LINES = 10_000_000;
 
 let globalLogger: undefined | pino.Logger;
 let shouldRestart = false;
@@ -54,15 +61,17 @@ export async function initialize(
 
   const basePath = app.getPath('userData');
   const logPath = join(basePath, 'logs');
-  mkdirp.sync(logPath);
+  mkdirSync(logPath, { recursive: true });
 
   try {
     await cleanupLogs(logPath);
   } catch (error) {
-    const errorString = `Failed to clean logs; deleting all. Error: ${error.stack}`;
+    const errorString =
+      'Failed to clean logs; deleting all. ' +
+      `Error: ${Errors.toLogFormat(error)}`;
     console.error(errorString);
     await deleteAllLogs(logPath);
-    mkdirp.sync(logPath);
+    mkdirSync(logPath, { recursive: true });
 
     // If we want this log entry to persist on disk, we need to wait until we've
     //   set up our logging infrastructure.
@@ -72,24 +81,23 @@ export async function initialize(
   }
 
   const logFile = join(logPath, 'main.log');
-  const stream = createStream(logFile, {
-    interval: '1d',
-    rotate: 3,
+  const rotatingStream = createRotatingPinoDest({
+    logFile,
   });
 
   const onClose = () => {
     globalLogger = undefined;
 
     if (shouldRestart) {
-      initialize(getMainWindow);
+      void initialize(getMainWindow);
     }
   };
 
-  stream.on('close', onClose);
-  stream.on('error', onClose);
+  rotatingStream.on('close', onClose);
+  rotatingStream.on('error', onClose);
 
-  const streams: pinoms.Streams = [];
-  streams.push({ stream });
+  const streams = new Array<StreamEntry>();
+  streams.push({ stream: rotatingStream });
 
   if (isRunningFromConsole) {
     streams.push({
@@ -98,12 +106,19 @@ export async function initialize(
     });
   }
 
-  const logger = pinoms({
-    streams,
-    timestamp: pino.stdTimeFunctions.isoTime,
-  });
+  const logger = pino(
+    {
+      formatters: {
+        // No point in saving pid or hostname
+        bindings: () => ({}),
+      },
+      timestamp: pino.stdTimeFunctions.isoTime,
+    },
+    pino.multistream(streams)
+  );
 
-  ipc.on('fetch-log', async event => {
+  ipc.removeHandler('fetch-log');
+  ipc.handle('fetch-log', async () => {
     const mainWindow = getMainWindow();
     if (!mainWindow) {
       logger.info('Logs were requested, but the main window is missing');
@@ -121,39 +136,23 @@ export async function initialize(
         ...rest,
       };
     } catch (error) {
-      logger.error(`Problem loading log data: ${error.stack}`);
+      logger.error(`Problem loading log data: ${Errors.toLogFormat(error)}`);
       return;
     }
 
-    try {
-      event.sender.send('fetched-log', data);
-    } catch (err: unknown) {
-      // NOTE(evanhahn): We don't want to send a message to a window that's closed.
-      //   I wanted to use `event.sender.isDestroyed()` but that seems to fail.
-      //   Instead, we attempt the send and catch the failure as best we can.
-      const hasUserClosedWindow = isProbablyObjectHasBeenDestroyedError(err);
-      if (hasUserClosedWindow) {
-        logger.info('Logs were requested, but it seems the window was closed');
-      } else {
-        logger.error(
-          'Problem replying with fetched logs',
-          err instanceof Error && err.stack ? err.stack : err
-        );
-      }
-    }
+    return data;
   });
 
-  ipc.on('delete-all-logs', async event => {
+  ipc.removeHandler('delete-all-logs');
+  ipc.handle('delete-all-logs', async () => {
     // Restart logging when the streams will close
     shouldRestart = true;
 
     try {
       await deleteAllLogs(logPath);
     } catch (error) {
-      logger.error(`Problem deleting all logs: ${error.stack}`);
+      logger.error(`Problem deleting all logs: ${Errors.toLogFormat(error)}`);
     }
-
-    event.sender.send('delete-all-logs-complete');
   });
 
   globalLogger = logger;
@@ -197,12 +196,12 @@ async function cleanupLogs(logPath: string) {
   } catch (error) {
     console.error(
       'Error cleaning logs; deleting and starting over from scratch.',
-      error.stack
+      Errors.toLogFormat(error)
     );
 
     // delete and re-create the log directory
     await deleteAllLogs(logPath);
-    mkdirp.sync(logPath);
+    mkdirSync(logPath, { recursive: true });
   }
 }
 
@@ -216,7 +215,7 @@ export function isLineAfterDate(line: string, date: Readonly<Date>): boolean {
     const data = JSON.parse(line);
     return new Date(data.time).getTime() > date.getTime();
   } catch (e) {
-    console.log('error parsing log line', e.stack, line);
+    console.log('error parsing log line', Errors.toLogFormat(e), line);
     return false;
   }
 }
@@ -280,7 +279,7 @@ export async function eliminateOldEntries(
 
 // Exported for testing only.
 export async function fetchLog(logFile: string): Promise<Array<LogEntryType>> {
-  const results = new Array<LogEntryType>();
+  const results = new CircularBuffer<LogEntryType>(MAX_LOG_LINES);
 
   const rawStream = createReadStream(logFile);
   const jsonStream = rawStream.pipe(
@@ -304,12 +303,9 @@ export async function fetchLog(logFile: string): Promise<Array<LogEntryType>> {
     }
 
     results.push(result);
-    if (results.length > MAX_LOG_LINES) {
-      results.shift();
-    }
   }
 
-  return results;
+  return results.toArray();
 }
 
 // Exported for testing only.
@@ -350,10 +346,6 @@ function logAtLevel(level: LogLevel, ...args: ReadonlyArray<unknown>) {
   } else if (isRunningFromConsole && !process.stdout.destroyed) {
     console._log(...args);
   }
-}
-
-function isProbablyObjectHasBeenDestroyedError(err: unknown): boolean {
-  return err instanceof Error && err.message === 'Object has been destroyed';
 }
 
 // This blows up using mocha --watch, so we ensure it is run just once

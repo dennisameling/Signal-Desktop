@@ -1,40 +1,54 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ReactNode } from 'react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import classNames from 'classnames';
-import moment from 'moment';
 import { createPortal } from 'react-dom';
 import { noop } from 'lodash';
 import { useSpring, animated, to } from '@react-spring/web';
 
-import * as GoogleChrome from '../util/GoogleChrome';
-import type { AttachmentType } from '../types/Attachment';
-import { isGIF } from '../types/Attachment';
-import { Avatar, AvatarSize } from './Avatar';
-import type { ConversationType } from '../state/ducks/conversations';
-import { IMAGE_PNG, isImage, isVideo } from '../types/MIME';
+import type { ReadonlyDeep } from 'type-fest';
+import type {
+  ConversationType,
+  SaveAttachmentActionCreatorType,
+} from '../state/ducks/conversations';
 import type { LocalizerType } from '../types/Util';
-import type { MediaItemType, MessageAttributesType } from '../types/MediaItem';
-import { formatDuration } from '../util/formatDuration';
-import { useRestoreFocus } from '../hooks/useRestoreFocus';
+import type { MediaItemType, MediaItemMessageType } from '../types/MediaItem';
+import * as GoogleChrome from '../util/GoogleChrome';
 import * as log from '../logging/log';
+import * as Errors from '../types/errors';
+import { Avatar, AvatarSize } from './Avatar';
+import { IMAGE_PNG, isImage, isVideo } from '../types/MIME';
+import { formatDateTimeForAttachment } from '../util/timestamp';
+import { formatDuration } from '../util/formatDuration';
+import { isGIF } from '../types/Attachment';
+import { useRestoreFocus } from '../hooks/useRestoreFocus';
+import { usePrevious } from '../hooks/usePrevious';
+import { arrow } from '../util/keyboard';
+import { drop } from '../util/drop';
+import { isCmdOrCtrl } from '../hooks/useKeyboardShortcuts';
+import type { ForwardMessagesPayload } from '../state/ducks/globalModals';
+import { ForwardMessagesModalType } from './ForwardMessagesModal';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 export type PropsType = {
   children?: ReactNode;
-  close: () => void;
+  closeLightbox: () => unknown;
   getConversation?: (id: string) => ConversationType;
   i18n: LocalizerType;
   isViewOnce?: boolean;
-  media: Array<MediaItemType>;
-  onForward?: (messageId: string) => void;
-  onSave?: (options: {
-    attachment: AttachmentType;
-    message: MessageAttributesType;
-    index: number;
-  }) => void;
-  selectedIndex?: number;
+  media: ReadonlyArray<ReadonlyDeep<MediaItemType>>;
+  playbackDisabled: boolean;
+  saveAttachment: SaveAttachmentActionCreatorType;
+  selectedIndex: number;
+  toggleForwardMessagesModal: (payload: ForwardMessagesPayload) => unknown;
+  onMediaPlaybackStart: () => void;
+  onNextAttachment: () => void;
+  onPrevAttachment: () => void;
+  onSelectAttachment: (index: number) => void;
+  hasPrevMessage?: boolean;
+  hasNextMessage?: boolean;
 };
 
 const ZOOM_SCALE = 3;
@@ -51,20 +65,40 @@ const INITIAL_IMAGE_TRANSFORM = {
   },
 };
 
+const THUMBNAIL_SPRING_CONFIG = {
+  mass: 1,
+  tension: 986,
+  friction: 64,
+  velocity: 0,
+};
+
+const THUMBNAIL_WIDTH = 44;
+const THUMBNAIL_PADDING = 8;
+const THUMBNAIL_FULL_WIDTH = THUMBNAIL_WIDTH + THUMBNAIL_PADDING;
+
 export function Lightbox({
   children,
-  close,
+  closeLightbox,
   getConversation,
   media,
   i18n,
   isViewOnce = false,
-  onForward,
-  onSave,
-  selectedIndex: initialSelectedIndex = 0,
+  saveAttachment,
+  selectedIndex,
+  toggleForwardMessagesModal,
+  playbackDisabled,
+  onMediaPlaybackStart,
+  onNextAttachment,
+  onPrevAttachment,
+  onSelectAttachment,
+  hasNextMessage,
+  hasPrevMessage,
 }: PropsType): JSX.Element | null {
+  const hasThumbnails = media.length > 1;
+  const messageId = media.at(0)?.message.id;
+  const prevMessageId = usePrevious(messageId, messageId);
+  const needsAnimation = messageId !== prevMessageId;
   const [root, setRoot] = React.useState<HTMLElement | undefined>();
-  const [selectedIndex, setSelectedIndex] =
-    useState<number>(initialSelectedIndex);
 
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(
     null
@@ -105,9 +139,9 @@ export function Lightbox({
         return;
       }
 
-      setSelectedIndex(prevSelectedIndex => Math.max(prevSelectedIndex - 1, 0));
+      onPrevAttachment();
     },
-    [isZoomed]
+    [isZoomed, onPrevAttachment]
   );
 
   const onNext = useCallback(
@@ -121,11 +155,9 @@ export function Lightbox({
         return;
       }
 
-      setSelectedIndex(prevSelectedIndex =>
-        Math.min(prevSelectedIndex + 1, media.length - 1)
-      );
+      onNextAttachment();
     },
-    [isZoomed, media]
+    [isZoomed, onNextAttachment]
   );
 
   const onTimeUpdate = useCallback(() => {
@@ -135,34 +167,48 @@ export function Lightbox({
     setVideoTime(videoElement.currentTime);
   }, [setVideoTime, videoElement]);
 
-  const handleSave = (
-    event: React.MouseEvent<HTMLButtonElement, MouseEvent>
-  ) => {
-    event.stopPropagation();
-    event.preventDefault();
+  const handleSave = useCallback(
+    (
+      event: KeyboardEvent | React.MouseEvent<HTMLButtonElement, MouseEvent>
+    ) => {
+      if (isViewOnce) {
+        return;
+      }
 
-    const mediaItem = media[selectedIndex];
-    const { attachment, message, index } = mediaItem;
+      event.stopPropagation();
+      event.preventDefault();
 
-    onSave?.({ attachment, message, index });
-  };
+      const mediaItem = media[selectedIndex];
+      const { attachment, message, index } = mediaItem;
+
+      saveAttachment(attachment, message.sent_at, index + 1);
+    },
+    [isViewOnce, media, saveAttachment, selectedIndex]
+  );
 
   const handleForward = (
     event: React.MouseEvent<HTMLButtonElement, MouseEvent>
   ) => {
+    if (isViewOnce) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
 
-    close();
+    closeLightbox();
     const mediaItem = media[selectedIndex];
-    onForward?.(mediaItem.message.id);
+    toggleForwardMessagesModal({
+      type: ForwardMessagesModalType.Forward,
+      messageIds: [mediaItem.message.id],
+    });
   };
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent) => {
       switch (event.key) {
         case 'Escape': {
-          close();
+          closeLightbox();
 
           event.preventDefault();
           event.stopPropagation();
@@ -170,25 +216,31 @@ export function Lightbox({
           break;
         }
 
-        case 'ArrowLeft':
+        case arrow('start'):
           onPrevious(event);
           break;
 
-        case 'ArrowRight':
+        case arrow('end'):
           onNext(event);
+          break;
+
+        case 's':
+          if (isCmdOrCtrl(event)) {
+            handleSave(event);
+          }
           break;
 
         default:
       }
     },
-    [close, onNext, onPrevious]
+    [closeLightbox, onNext, onPrevious, handleSave]
   );
 
   const onClose = (event: React.MouseEvent<HTMLElement>) => {
     event.stopPropagation();
     event.preventDefault();
 
-    close();
+    closeLightbox();
   };
 
   const playVideo = useCallback(() => {
@@ -197,11 +249,24 @@ export function Lightbox({
     }
 
     if (videoElement.paused) {
-      videoElement.play();
+      onMediaPlaybackStart();
+      void videoElement.play().catch(error => {
+        log.error('Lightbox: Failed to play video', Errors.toLogFormat(error));
+      });
     } else {
       videoElement.pause();
     }
-  }, [videoElement]);
+  }, [videoElement, onMediaPlaybackStart]);
+
+  useEffect(() => {
+    if (!videoElement || videoElement.paused) {
+      return;
+    }
+
+    if (playbackDisabled) {
+      videoElement.pause();
+    }
+  }, [playbackDisabled, videoElement]);
 
   useEffect(() => {
     const div = document.createElement('div');
@@ -255,6 +320,51 @@ export function Lightbox({
     () => INITIAL_IMAGE_TRANSFORM
   );
 
+  const thumbnailsMarginInlineStart =
+    0 - (selectedIndex * THUMBNAIL_FULL_WIDTH + THUMBNAIL_WIDTH / 2);
+
+  const reducedMotion = useReducedMotion();
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- FIXME
+  const [thumbnailsStyle, thumbnailsAnimation] = useSpring(
+    {
+      immediate: reducedMotion,
+      config: THUMBNAIL_SPRING_CONFIG,
+      to: {
+        marginInlineStart: thumbnailsMarginInlineStart,
+        opacity: hasThumbnails ? 1 : 0,
+      },
+    },
+    [selectedIndex, hasThumbnails]
+  );
+
+  useEffect(() => {
+    if (!needsAnimation) {
+      return;
+    }
+
+    thumbnailsAnimation.stop();
+    thumbnailsAnimation.set({
+      marginInlineStart:
+        thumbnailsMarginInlineStart +
+        (selectedIndex === 0 ? 1 : -1) * THUMBNAIL_FULL_WIDTH,
+      opacity: 0,
+    });
+    drop(
+      Promise.all(
+        thumbnailsAnimation.start({
+          marginInlineStart: thumbnailsMarginInlineStart,
+          opacity: 1,
+        })
+      )
+    );
+  }, [
+    needsAnimation,
+    selectedIndex,
+    thumbnailsMarginInlineStart,
+    thumbnailsAnimation,
+  ]);
+
   const maxBoundsLimiter = useCallback(
     (x: number, y: number): [number, number] => {
       const zoomCache = zoomCacheRef.current;
@@ -292,11 +402,15 @@ export function Lightbox({
       const posY = offsetY * ZOOM_SCALE;
       const [x, y] = maxBoundsLimiter(posX, posY);
 
-      springApi.start({
-        scale: ZOOM_SCALE,
-        translateX: shouldTranslateX ? x : undefined,
-        translateY: shouldTranslateY ? y : undefined,
-      });
+      drop(
+        Promise.all(
+          springApi.start({
+            scale: ZOOM_SCALE,
+            translateX: shouldTranslateX ? x : undefined,
+            translateY: shouldTranslateY ? y : undefined,
+          })
+        )
+      );
     },
     [maxBoundsLimiter, springApi]
   );
@@ -331,11 +445,15 @@ export function Lightbox({
       const x = dragCache.translateX + deltaX;
       const y = dragCache.translateY + deltaY;
 
-      springApi.start({
-        scale: ZOOM_SCALE,
-        translateX: x,
-        translateY: y,
-      });
+      drop(
+        Promise.all(
+          springApi.start({
+            scale: ZOOM_SCALE,
+            translateX: x,
+            translateY: y,
+          })
+        )
+      );
     },
     [springApi]
   );
@@ -376,15 +494,19 @@ export function Lightbox({
         const posY = -offsetY * ZOOM_SCALE + translateY.get();
         const [x, y] = maxBoundsLimiter(posX, posY);
 
-        springApi.start({
-          scale: ZOOM_SCALE,
-          translateX: shouldTranslateX ? x : undefined,
-          translateY: shouldTranslateY ? y : undefined,
-        });
+        drop(
+          Promise.all(
+            springApi.start({
+              scale: ZOOM_SCALE,
+              translateX: shouldTranslateX ? x : undefined,
+              translateY: shouldTranslateY ? y : undefined,
+            })
+          )
+        );
 
         setIsZoomed(true);
       } else {
-        springApi.start(INITIAL_IMAGE_TRANSFORM);
+        drop(Promise.all(springApi.start(INITIAL_IMAGE_TRANSFORM)));
         setIsZoomed(false);
       }
     },
@@ -434,7 +556,7 @@ export function Lightbox({
               type="button"
             >
               <img
-                alt={i18n('lightboxImageAlt')}
+                alt={i18n('icu:lightboxImageAlt')}
                 className="Lightbox__object"
                 onContextMenu={(ev: React.MouseEvent<HTMLImageElement>) => {
                   // These are the only image types supported by Electron's NativeImage
@@ -455,7 +577,7 @@ export function Lightbox({
       } else {
         content = (
           <button
-            aria-label={i18n('lightboxImageAlt')}
+            aria-label={i18n('icu:lightboxImageAlt')}
             className={classNames({
               Lightbox__object: true,
               Lightbox__unsupported: true,
@@ -471,7 +593,7 @@ export function Lightbox({
 
       content = (
         <video
-          className="Lightbox__object"
+          className="Lightbox__object Lightbox__object--video"
           controls={!shouldLoop}
           key={objectURL}
           loop={shouldLoop}
@@ -483,7 +605,7 @@ export function Lightbox({
     } else if (isUnsupportedImageType || isUnsupportedVideoType) {
       content = (
         <button
-          aria-label={i18n('unsupportedAttachment')}
+          aria-label={i18n('icu:unsupportedAttachment')}
           className={classNames({
             Lightbox__object: true,
             Lightbox__unsupported: true,
@@ -499,7 +621,7 @@ export function Lightbox({
 
       content = (
         <button
-          aria-label={i18n('unsupportedAttachment')}
+          aria-label={i18n('icu:unsupportedAttachment')}
           className="Lightbox__object Lightbox__unsupported Lightbox__unsupported--file"
           onClick={onClose}
           type="button"
@@ -508,8 +630,9 @@ export function Lightbox({
     }
   }
 
-  const hasNext = !isZoomed && selectedIndex < media.length - 1;
-  const hasPrevious = !isZoomed && selectedIndex > 0;
+  const hasNext =
+    !isZoomed && (selectedIndex < media.length - 1 || hasNextMessage);
+  const hasPrevious = !isZoomed && (selectedIndex > 0 || hasPrevMessage);
 
   return root
     ? createPortal(
@@ -521,7 +644,7 @@ export function Lightbox({
             event.stopPropagation();
             event.preventDefault();
 
-            close();
+            closeLightbox();
           }}
           onKeyUp={(event: React.KeyboardEvent<HTMLDivElement>) => {
             if (
@@ -531,7 +654,7 @@ export function Lightbox({
               return;
             }
 
-            close();
+            closeLightbox();
           }}
           ref={containerRef}
           role="presentation"
@@ -553,26 +676,26 @@ export function Lightbox({
                   <div />
                 )}
                 <div className="Lightbox__controls">
-                  {onForward ? (
+                  {!isViewOnce ? (
                     <button
-                      aria-label={i18n('forwardMessage')}
+                      aria-label={i18n('icu:forwardMessage')}
                       className="Lightbox__button Lightbox__button--forward"
                       onClick={handleForward}
                       type="button"
                     />
                   ) : null}
-                  {onSave ? (
+                  {!isViewOnce ? (
                     <button
-                      aria-label={i18n('save')}
+                      aria-label={i18n('icu:save')}
                       className="Lightbox__button Lightbox__button--save"
                       onClick={handleSave}
                       type="button"
                     />
                   ) : null}
                   <button
-                    aria-label={i18n('close')}
+                    aria-label={i18n('icu:close')}
                     className="Lightbox__button Lightbox__button--close"
-                    onClick={close}
+                    onClick={closeLightbox}
                     type="button"
                   />
                 </div>
@@ -590,27 +713,28 @@ export function Lightbox({
                 }}
               >
                 {content}
+
+                {hasPrevious && (
+                  <div className="Lightbox__nav-prev">
+                    <button
+                      aria-label={i18n('icu:previous')}
+                      className="Lightbox__button Lightbox__button--previous"
+                      onClick={onPrevious}
+                      type="button"
+                    />
+                  </div>
+                )}
+                {hasNext && (
+                  <div className="Lightbox__nav-next">
+                    <button
+                      aria-label={i18n('icu:next')}
+                      className="Lightbox__button Lightbox__button--next"
+                      onClick={onNext}
+                      type="button"
+                    />
+                  </div>
+                )}
               </animated.div>
-              {hasPrevious && (
-                <div className="Lightbox__nav-prev">
-                  <button
-                    aria-label={i18n('previous')}
-                    className="Lightbox__button Lightbox__button--previous"
-                    onClick={onPrevious}
-                    type="button"
-                  />
-                </div>
-              )}
-              {hasNext && (
-                <div className="Lightbox__nav-next">
-                  <button
-                    aria-label={i18n('next')}
-                    className="Lightbox__button Lightbox__button--next"
-                    onClick={onNext}
-                    type="button"
-                  />
-                </div>
-              )}
             </div>
             <div className="Lightbox__footer">
               {isViewOnce && videoTime ? (
@@ -621,46 +745,46 @@ export function Lightbox({
               {caption ? (
                 <div className="Lightbox__caption">{caption}</div>
               ) : null}
-              {media.length > 1 && (
-                <div className="Lightbox__thumbnails--container">
-                  <div
-                    className="Lightbox__thumbnails"
-                    style={{
-                      marginLeft:
-                        0 - (selectedIndex * 64 + selectedIndex * 8 + 32),
-                    }}
-                  >
-                    {media.map((item, index) => (
-                      <button
-                        className={classNames({
-                          Lightbox__thumbnail: true,
-                          'Lightbox__thumbnail--selected':
-                            index === selectedIndex,
-                        })}
-                        key={item.thumbnailObjectUrl}
-                        type="button"
-                        onClick={(
-                          event: React.MouseEvent<HTMLButtonElement, MouseEvent>
-                        ) => {
-                          event.stopPropagation();
-                          event.preventDefault();
+              <div className="Lightbox__thumbnails--container">
+                <animated.div
+                  className="Lightbox__thumbnails"
+                  style={thumbnailsStyle}
+                >
+                  {hasThumbnails
+                    ? media.map((item, index) => (
+                        <button
+                          className={classNames({
+                            Lightbox__thumbnail: true,
+                            'Lightbox__thumbnail--selected':
+                              index === selectedIndex,
+                          })}
+                          key={item.thumbnailObjectUrl}
+                          type="button"
+                          onClick={(
+                            event: React.MouseEvent<
+                              HTMLButtonElement,
+                              MouseEvent
+                            >
+                          ) => {
+                            event.stopPropagation();
+                            event.preventDefault();
 
-                          setSelectedIndex(index);
-                        }}
-                      >
-                        {item.thumbnailObjectUrl ? (
-                          <img
-                            alt={i18n('lightboxImageAlt')}
-                            src={item.thumbnailObjectUrl}
-                          />
-                        ) : (
-                          <div className="Lightbox__thumbnail--unavailable" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                            onSelectAttachment(index);
+                          }}
+                        >
+                          {item.thumbnailObjectUrl ? (
+                            <img
+                              alt={i18n('icu:lightboxImageAlt')}
+                              src={item.thumbnailObjectUrl}
+                            />
+                          ) : (
+                            <div className="Lightbox__thumbnail--unavailable" />
+                          )}
+                        </button>
+                      ))
+                    : undefined}
+                </animated.div>
+              </div>
             </div>
           </div>
         </div>,
@@ -676,34 +800,35 @@ function LightboxHeader({
 }: {
   getConversation: (id: string) => ConversationType;
   i18n: LocalizerType;
-  message: MessageAttributesType;
+  message: ReadonlyDeep<MediaItemMessageType>;
 }): JSX.Element {
   const conversation = getConversation(message.conversationId);
+
+  const now = Date.now();
 
   return (
     <div className="Lightbox__header--container">
       <div className="Lightbox__header--avatar">
         <Avatar
           acceptedMessageRequest={conversation.acceptedMessageRequest}
-          avatarPath={conversation.avatarPath}
+          avatarUrl={conversation.avatarUrl}
           badge={undefined}
           color={conversation.color}
           conversationType={conversation.type}
           i18n={i18n}
           isMe={conversation.isMe}
-          name={conversation.name}
           phoneNumber={conversation.e164}
           profileName={conversation.profileName}
           sharedGroupNames={conversation.sharedGroupNames}
           size={AvatarSize.THIRTY_TWO}
           title={conversation.title}
-          unblurredAvatarPath={conversation.unblurredAvatarPath}
+          unblurredAvatarUrl={conversation.unblurredAvatarUrl}
         />
       </div>
       <div className="Lightbox__header--content">
         <div className="Lightbox__header--name">{conversation.title}</div>
         <div className="Lightbox__header--timestamp">
-          {moment(message.received_at_ms).format('L LT')}
+          {formatDateTimeForAttachment(i18n, message.sent_at ?? now)}
         </div>
       </div>
     </div>

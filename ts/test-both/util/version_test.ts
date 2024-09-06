@@ -10,6 +10,7 @@ import {
   isAlpha,
   isBeta,
   isProduction,
+  isStaging,
 } from '../../util/version';
 
 describe('version utilities', () => {
@@ -44,6 +45,7 @@ describe('version utilities', () => {
   describe('isAlpha', () => {
     it('returns false for non-alpha version strings', () => {
       assert.isFalse(isAlpha('1.2.3'));
+      assert.isFalse(isAlpha('1.2.3-staging.1'));
       assert.isFalse(isAlpha('1.2.3-beta'));
       assert.isFalse(isAlpha('1.2.3-beta.1'));
       assert.isFalse(isAlpha('1.2.3-rc.1'));
@@ -55,18 +57,33 @@ describe('version utilities', () => {
     });
   });
 
+  describe('isStaging', () => {
+    it('returns false for non-staging version strings', () => {
+      assert.isFalse(isStaging('1.2.3'));
+      assert.isFalse(isStaging('1.2.3-alpha.1'));
+      assert.isFalse(isStaging('1.2.3-beta'));
+      assert.isFalse(isStaging('1.2.3-beta.1'));
+      assert.isFalse(isStaging('1.2.3-rc.1'));
+    });
+
+    it('returns true for Staging version strings', () => {
+      assert.isTrue(isStaging('1.2.3-staging'));
+      assert.isTrue(isStaging('1.2.3-staging.1'));
+      assert.isTrue(isStaging('1.2.3-staging.1232.23-adsfs'));
+    });
+  });
+
   describe('generateAlphaVersion', () => {
-    beforeEach(function beforeEach() {
+    beforeEach(function (this: Mocha.Context) {
       // This isn't a hook.
-      // eslint-disable-next-line react-hooks/rules-of-hooks
       this.clock = useFakeTimers();
     });
 
-    afterEach(function afterEach() {
+    afterEach(function (this: Mocha.Context) {
       this.clock.restore();
     });
 
-    it('uses the current date and provided shortSha', function test() {
+    it('uses the current date and provided shortSha', function (this: Mocha.Context) {
       this.clock.setSystemTime(new Date('2021-07-23T01:22:55.692Z').getTime());
 
       const currentVersion = '5.12.0-beta.1';
@@ -78,7 +95,7 @@ describe('version utilities', () => {
       assert.strictEqual(expected, actual);
     });
 
-    it('same production version is semver.gt', function test() {
+    it('same production version is semver.gt', function (this: Mocha.Context) {
       const currentVersion = '5.12.0-beta.1';
       const shortSha = '07f0efc45';
 
@@ -88,7 +105,7 @@ describe('version utilities', () => {
       assert.isTrue(semver.gt('5.12.0', actual));
     });
 
-    it('same beta version is semver.gt', function test() {
+    it('same beta version is semver.gt', function (this: Mocha.Context) {
       const currentVersion = '5.12.0-beta.1';
       const shortSha = '07f0efc45';
 
@@ -98,7 +115,7 @@ describe('version utilities', () => {
       assert.isTrue(semver.gt(currentVersion, actual));
     });
 
-    it('build earlier same day is semver.lt', function test() {
+    it('build earlier same day is semver.lt', function (this: Mocha.Context) {
       const currentVersion = '5.12.0-beta.1';
       const shortSha = '07f0efc45';
 
@@ -111,7 +128,7 @@ describe('version utilities', () => {
       assert.isTrue(semver.lt(actualEarlier, actualLater));
     });
 
-    it('build previous day is semver.lt', function test() {
+    it('build previous day is semver.lt', function (this: Mocha.Context) {
       const currentVersion = '5.12.0-beta.1';
       const shortSha = '07f0efc45';
 

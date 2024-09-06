@@ -1,10 +1,10 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
 import { times } from 'lodash';
 import { updateRemoteConfig } from '../helpers/RemoteConfigStub';
-import { UUID } from '../../types/UUID';
+import { generateAci } from '../../types/ServiceId';
 
 import { isConversationTooBigToRing } from '../../conversations/isConversationTooBigToRing';
 
@@ -12,7 +12,7 @@ const CONFIG_KEY = 'global.calling.maxGroupCallRingSize';
 
 describe('isConversationTooBigToRing', () => {
   const fakeMemberships = (count: number) =>
-    times(count, () => ({ uuid: UUID.generate().toString(), isAdmin: false }));
+    times(count, () => ({ aci: generateAci(), isAdmin: false }));
 
   it('returns false if there are no memberships (i.e., for a direct conversation)', () => {
     assert.isFalse(isConversationTooBigToRing({}));

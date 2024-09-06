@@ -1,35 +1,60 @@
-// Copyright 2015-2021 Signal Messenger, LLC
+// Copyright 2015 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import os from 'os';
 import { debounce } from 'lodash';
 import EventEmitter from 'events';
-import { Sound } from '../util/Sound';
-import {
-  AudioNotificationSupport,
-  getAudioNotificationSupport,
-  shouldHideExpiringMessageBody,
-} from '../types/Settings';
-import * as OS from '../OS';
+import { Sound, SoundType } from '../util/Sound';
+import { shouldHideExpiringMessageBody } from '../types/Settings';
+import OS from '../util/os/osMain';
 import * as log from '../logging/log';
 import { makeEnumParser } from '../util/enum';
 import { missingCaseError } from '../util/missingCaseError';
 import type { StorageInterface } from '../types/Storage.d';
 import type { LocalizerType } from '../types/Util';
+import { drop } from '../util/drop';
 
 type NotificationDataType = Readonly<{
   conversationId: string;
+  isExpiringMessage: boolean;
   messageId: string;
-  senderTitle: string;
   message: string;
   notificationIconUrl?: undefined | string;
-  isExpiringMessage: boolean;
-  reaction: {
+  notificationIconAbsolutePath?: undefined | string;
+  reaction?: {
     emoji: string;
-    targetAuthorUuid: string;
+    targetAuthorAci: string;
     targetTimestamp: number;
   };
+  senderTitle: string;
+  sentAt: number;
+  storyId?: string;
+  type: NotificationType;
+  useTriToneSound?: boolean;
   wasShown?: boolean;
 }>;
+
+export type NotificationClickData = Readonly<{
+  conversationId: string;
+  messageId: string | null;
+  storyId: string | null;
+}>;
+export type WindowsNotificationData = {
+  avatarPath?: string;
+  body: string;
+  conversationId: string;
+  heading: string;
+  messageId?: string;
+  storyId?: string;
+  type: NotificationType;
+};
+export enum NotificationType {
+  IncomingCall = 'IncomingCall',
+  IncomingGroupCall = 'IncomingGroupCall',
+  IsPresenting = 'IsPresenting',
+  Message = 'Message',
+  Reaction = 'Reaction',
+}
 
 // The keys and values don't match here. This is because the values correspond to old
 //   setting names. In the future, we may wish to migrate these to match.
@@ -125,58 +150,108 @@ class NotificationService extends EventEmitter {
    * which includes debouncing and user permission logic.
    */
   public notify({
-    icon,
+    conversationId,
+    iconUrl,
+    iconPath,
     message,
-    onNotificationClick,
+    messageId,
+    sentAt,
     silent,
+    storyId,
     title,
+    type,
+    useTriToneSound,
   }: Readonly<{
-    icon?: string;
+    conversationId: string;
+    iconUrl?: string;
+    iconPath?: string;
     message: string;
-    onNotificationClick: () => void;
+    messageId?: string;
+    sentAt: number;
     silent: boolean;
+    storyId?: string;
     title: string;
+    type: NotificationType;
+    useTriToneSound?: boolean;
   }>): void {
-    log.info('NotificationService: showing a notification');
+    log.info('NotificationService: showing a notification', sentAt);
 
-    this.lastNotification?.close();
+    if (OS.isWindows()) {
+      // Note: showing a windows notification clears all previous notifications first
+      drop(
+        window.IPC.showWindowsNotification({
+          avatarPath: iconPath,
+          body: message,
+          conversationId,
+          heading: title,
+          messageId,
+          storyId,
+          type,
+        })
+      );
+    } else {
+      this.lastNotification?.close();
 
-    const audioNotificationSupport = getAudioNotificationSupport();
+      const notification = new window.Notification(title, {
+        body: OS.isLinux() ? filterNotificationText(message) : message,
+        icon: iconUrl,
+        silent: true,
+        tag: messageId,
+      });
 
-    const notification = new window.Notification(title, {
-      body: OS.isLinux() ? filterNotificationText(message) : message,
-      icon,
-      silent:
-        silent || audioNotificationSupport !== AudioNotificationSupport.Native,
-    });
-    notification.onclick = onNotificationClick;
+      notification.onclick = () => {
+        // Note: this maps to the xmlTemplate() function in app/WindowsNotifications.ts
+        if (
+          type === NotificationType.Message ||
+          type === NotificationType.Reaction
+        ) {
+          window.IPC.showWindow();
+          window.Events.showConversationViaNotification({
+            conversationId,
+            messageId: messageId ?? null,
+            storyId: storyId ?? null,
+          });
+        } else if (type === NotificationType.IncomingGroupCall) {
+          window.IPC.showWindow();
+          window.reduxActions?.calling?.startCallingLobby({
+            conversationId,
+            isVideoCall: true,
+          });
+        } else if (type === NotificationType.IsPresenting) {
+          window.reduxActions?.calling?.setPresenting();
+        } else if (type === NotificationType.IncomingCall) {
+          window.IPC.showWindow();
+        } else {
+          throw missingCaseError(type);
+        }
+      };
 
-    if (
-      !silent &&
-      audioNotificationSupport === AudioNotificationSupport.Custom
-    ) {
-      // We kick off the sound to be played. No need to await it.
-      new Sound({ src: 'sounds/notification.ogg' }).play();
+      this.lastNotification = notification;
     }
 
-    this.lastNotification = notification;
+    if (!silent) {
+      const soundType =
+        messageId && !useTriToneSound ? SoundType.Pop : SoundType.TriTone;
+      // We kick off the sound to be played. No need to await it.
+      drop(new Sound({ soundType }).play());
+    }
   }
 
   // Remove the last notification if both conditions hold:
   //
   // 1. Either `conversationId` or `messageId` matches (if present)
-  // 2. `emoji`, `targetAuthorUuid`, `targetTimestamp` matches (if present)
+  // 2. `emoji`, `targetAuthorAci`, `targetTimestamp` matches (if present)
   public removeBy({
     conversationId,
     messageId,
     emoji,
-    targetAuthorUuid,
+    targetAuthorAci,
     targetTimestamp,
   }: Readonly<{
     conversationId?: string;
     messageId?: string;
     emoji?: string;
-    targetAuthorUuid?: string;
+    targetAuthorAci?: string;
     targetTimestamp?: number;
   }>): void {
     if (!this.notificationData) {
@@ -205,10 +280,10 @@ class NotificationService extends EventEmitter {
     if (
       reaction &&
       emoji &&
-      targetAuthorUuid &&
+      targetAuthorAci &&
       targetTimestamp &&
       (reaction.emoji !== emoji ||
-        reaction.targetAuthorUuid !== targetAuthorUuid ||
+        reaction.targetAuthorAci !== targetAuthorAci ||
         reaction.targetTimestamp !== targetTimestamp)
     ) {
       return;
@@ -221,15 +296,22 @@ class NotificationService extends EventEmitter {
   private fastUpdate(): void {
     const storage = this.getStorage();
     const i18n = this.getI18n();
+    const { notificationData } = this;
+    const isAppFocused = window.SignalContext.activeWindowService.isActive();
+    const userSetting = this.getNotificationSetting();
 
-    if (this.lastNotification) {
+    if (OS.isWindows()) {
+      // Note: notificationData will be set if we're replacing the previous notification
+      //   with a new one, so we won't clear here. That's because we always clear before
+      //   adding anythhing new; just one notification at a time. Electron forces it, so
+      //   we replicate it with our Windows notifications.
+      if (!notificationData) {
+        drop(window.IPC.clearAllWindowsNotifications());
+      }
+    } else if (this.lastNotification) {
       this.lastNotification.close();
       this.lastNotification = null;
     }
-
-    const { notificationData } = this;
-    const isAppFocused = window.isActive();
-    const userSetting = this.getNotificationSetting();
 
     // This isn't a boolean because TypeScript isn't smart enough to know that, if
     //   `Boolean(notificationData)` is true, `notificationData` is truthy.
@@ -255,25 +337,30 @@ class NotificationService extends EventEmitter {
 
     const shouldDrawAttention = storage.get(
       'notification-draw-attention',
-      true
+      false
     );
     if (shouldDrawAttention) {
       log.info('NotificationService: drawing attention');
-      window.drawAttention();
+      window.IPC.drawAttention();
     }
 
     let notificationTitle: string;
     let notificationMessage: string;
     let notificationIconUrl: undefined | string;
+    let notificationIconAbsolutePath: undefined | string;
 
     const {
       conversationId,
-      messageId,
-      senderTitle,
-      message,
       isExpiringMessage,
+      message,
+      messageId,
       reaction,
+      senderTitle,
+      storyId,
+      sentAt,
+      useTriToneSound,
       wasShown,
+      type,
     } = notificationData;
 
     if (wasShown) {
@@ -292,21 +379,27 @@ class NotificationService extends EventEmitter {
       case NotificationSetting.NameOnly:
       case NotificationSetting.NameAndMessage: {
         notificationTitle = senderTitle;
-        ({ notificationIconUrl } = notificationData);
+        ({ notificationIconUrl, notificationIconAbsolutePath } =
+          notificationData);
 
-        if (isExpiringMessage && shouldHideExpiringMessageBody()) {
-          notificationMessage = i18n('newMessage');
+        if (
+          isExpiringMessage &&
+          shouldHideExpiringMessageBody(OS, os.release())
+        ) {
+          notificationMessage = i18n('icu:newMessage');
         } else if (userSetting === NotificationSetting.NameOnly) {
           if (reaction) {
-            notificationMessage = i18n('notificationReaction', {
+            notificationMessage = i18n('icu:notificationReaction', {
               sender: senderTitle,
               emoji: reaction.emoji,
             });
           } else {
-            notificationMessage = i18n('newMessage');
+            notificationMessage = i18n('icu:newMessage');
           }
+        } else if (storyId) {
+          notificationMessage = message;
         } else if (reaction) {
-          notificationMessage = i18n('notificationReactionMessage', {
+          notificationMessage = i18n('icu:notificationReactionMessage', {
             sender: senderTitle,
             emoji: reaction.emoji,
             message,
@@ -318,12 +411,12 @@ class NotificationService extends EventEmitter {
       }
       case NotificationSetting.NoNameOrMessage:
         notificationTitle = FALLBACK_NOTIFICATION_TITLE;
-        notificationMessage = i18n('newMessage');
+        notificationMessage = i18n('icu:newMessage');
         break;
       default:
         log.error(missingCaseError(userSetting));
         notificationTitle = FALLBACK_NOTIFICATION_TITLE;
-        notificationMessage = i18n('newMessage');
+        notificationMessage = i18n('icu:newMessage');
         break;
     }
 
@@ -335,13 +428,17 @@ class NotificationService extends EventEmitter {
     };
 
     this.notify({
-      title: notificationTitle,
-      icon: notificationIconUrl,
+      conversationId,
+      iconUrl: notificationIconUrl,
+      iconPath: notificationIconAbsolutePath,
+      messageId,
       message: notificationMessage,
+      sentAt,
       silent: !shouldPlayNotificationSound,
-      onNotificationClick: () => {
-        this.emit('click', conversationId, messageId);
-      },
+      storyId,
+      title: notificationTitle,
+      type,
+      useTriToneSound,
     });
   }
 
@@ -388,8 +485,23 @@ export const notificationService = new NotificationService();
 function filterNotificationText(text: string) {
   return (text || '')
     .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+export function shouldSaveNotificationAvatarToDisk(): boolean {
+  const notificationSetting = notificationService.getNotificationSetting();
+  switch (notificationSetting) {
+    case NotificationSetting.NameOnly:
+    case NotificationSetting.NameAndMessage:
+      // According to the MSDN, avatars can only be loaded from disk or an
+      // http server:
+      // https://learn.microsoft.com/en-us/uwp/schemas/tiles/toastschema/element-image?redirectedfrom=MSDN
+      return OS.isWindows();
+    case NotificationSetting.Off:
+    case NotificationSetting.NoNameOrMessage:
+      return false;
+    default:
+      throw missingCaseError(notificationSetting);
+  }
 }

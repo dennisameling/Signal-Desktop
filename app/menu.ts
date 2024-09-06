@@ -1,41 +1,20 @@
-// Copyright 2017-2020 Signal Messenger, LLC
+// Copyright 2017 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { isString } from 'lodash';
-import type { MenuItemConstructorOptions } from 'electron';
 
-import type { LocaleMessagesType } from '../ts/types/I18N';
+import type { LocalizerType } from '../ts/types/I18N';
+import type {
+  MenuListType,
+  MenuOptionsType,
+  MenuActionsType,
+} from '../ts/types/menu';
 
-export type MenuListType = Array<MenuItemConstructorOptions>;
-
-export type MenuOptionsType = {
-  // options
-  development: boolean;
-  devTools: boolean;
-  includeSetup: boolean;
-  isProduction: boolean;
-  platform: string;
-
-  // actions
-  forceUpdate: () => unknown;
-  openContactUs: () => unknown;
-  openForums: () => unknown;
-  openJoinTheBeta: () => unknown;
-  openReleaseNotes: () => unknown;
-  openSupportPage: () => unknown;
-  setupAsNewDevice: () => unknown;
-  setupAsStandalone: () => unknown;
-  showAbout: () => unknown;
-  showDebugLog: () => unknown;
-  showKeyboardShortcuts: () => unknown;
-  showSettings: () => unknown;
-  showStickerCreator: () => unknown;
-  showWindow: () => unknown;
-};
+export type CreateTemplateOptionsType = MenuOptionsType & MenuActionsType;
 
 export const createTemplate = (
-  options: MenuOptionsType,
-  messages: LocaleMessagesType
+  options: CreateTemplateOptionsType,
+  i18n: LocalizerType
 ): MenuListType => {
   if (!isString(options.platform)) {
     throw new TypeError('`options.platform` must be a string');
@@ -56,21 +35,25 @@ export const createTemplate = (
     forceUpdate,
     showAbout,
     showDebugLog,
+    showCallingDevTools,
     showKeyboardShortcuts,
     showSettings,
-    showStickerCreator,
+    openArtCreator,
+    zoomIn,
+    zoomOut,
+    zoomReset,
   } = options;
 
   const template: MenuListType = [
     {
-      label: messages.mainMenuFile.message,
+      label: i18n('icu:mainMenuFile'),
       submenu: [
         {
-          label: messages.mainMenuCreateStickers.message,
-          click: showStickerCreator,
+          label: i18n('icu:mainMenuCreateStickers'),
+          click: openArtCreator,
         },
         {
-          label: messages.mainMenuSettings.message,
+          label: i18n('icu:mainMenuSettings'),
           accelerator: 'CommandOrControl+,',
           click: showSettings,
         },
@@ -79,78 +62,80 @@ export const createTemplate = (
         },
         {
           role: 'quit',
-          label: messages.appMenuQuit.message,
+          label: i18n('icu:appMenuQuit'),
         },
       ],
     },
     {
-      label: messages.mainMenuEdit.message,
+      label: i18n('icu:mainMenuEdit'),
       submenu: [
         {
           role: 'undo',
-          label: messages.editMenuUndo.message,
+          label: i18n('icu:editMenuUndo'),
         },
         {
           role: 'redo',
-          label: messages.editMenuRedo.message,
+          label: i18n('icu:editMenuRedo'),
         },
         {
           type: 'separator',
         },
         {
           role: 'cut',
-          label: messages.editMenuCut.message,
+          label: i18n('icu:editMenuCut'),
         },
         {
           role: 'copy',
-          label: messages.editMenuCopy.message,
+          label: i18n('icu:editMenuCopy'),
         },
         {
           role: 'paste',
-          label: messages.editMenuPaste.message,
+          label: i18n('icu:editMenuPaste'),
         },
         {
           role: 'pasteAndMatchStyle',
-          label: messages.editMenuPasteAndMatchStyle.message,
+          label: i18n('icu:editMenuPasteAndMatchStyle'),
         },
         {
           role: 'delete',
-          label: messages.editMenuDelete.message,
+          label: i18n('icu:editMenuDelete'),
         },
         {
           role: 'selectAll',
-          label: messages.editMenuSelectAll.message,
+          label: i18n('icu:editMenuSelectAll'),
         },
       ],
     },
     {
-      label: messages.mainMenuView.message,
+      label: i18n('icu:mainMenuView'),
       submenu: [
         {
-          role: 'resetZoom',
-          label: messages.viewMenuResetZoom.message,
+          accelerator: 'CmdOrCtrl+0',
+          label: i18n('icu:viewMenuResetZoom'),
+          click: zoomReset,
         },
         {
-          accelerator: platform === 'darwin' ? 'Command+=' : 'Control+=',
-          role: 'zoomIn',
-          label: messages.viewMenuZoomIn.message,
+          accelerator: 'CmdOrCtrl+=',
+          label: i18n('icu:viewMenuZoomIn'),
+          click: zoomIn,
         },
         {
-          role: 'zoomOut',
-          label: messages.viewMenuZoomOut.message,
+          accelerator: 'CmdOrCtrl+-',
+          label: i18n('icu:viewMenuZoomOut'),
+          click: zoomOut,
         },
         {
           type: 'separator',
         },
         {
           role: 'togglefullscreen',
-          label: messages.viewMenuToggleFullScreen.message,
+          label: i18n('icu:viewMenuToggleFullScreen'),
         },
         {
           type: 'separator',
         },
         {
-          label: messages.debugLog.message,
+          label: i18n('icu:debugLog'),
           click: showDebugLog,
         },
         ...(devTools
@@ -160,14 +145,18 @@ export const createTemplate = (
               },
               {
                 role: 'toggleDevTools' as const,
-                label: messages.viewMenuToggleDevTools.message,
+                label: i18n('icu:viewMenuToggleDevTools'),
+              },
+              {
+                label: i18n('icu:viewMenuOpenCallingDevTools'),
+                click: showCallingDevTools,
               },
             ]
           : []),
         ...(devTools && platform !== 'linux'
           ? [
               {
-                label: messages.forceUpdate.message,
+                label: i18n('icu:forceUpdate'),
                 click: forceUpdate,
               },
             ]
@@ -175,21 +164,21 @@ export const createTemplate = (
       ],
     },
     {
-      label: messages.mainMenuWindow.message,
+      label: i18n('icu:mainMenuWindow'),
       role: 'window',
       submenu: [
         {
           role: 'minimize',
-          label: messages.windowMenuMinimize.message,
+          label: i18n('icu:windowMenuMinimize'),
         },
       ],
     },
     {
-      label: messages.mainMenuHelp.message,
+      label: i18n('icu:mainMenuHelp'),
       role: 'help',
       submenu: [
         {
-          label: messages.helpMenuShowKeyboardShortcuts.message,
+          label: i18n('icu:helpMenuShowKeyboardShortcuts'),
           accelerator: 'CmdOrCtrl+/',
           click: showKeyboardShortcuts,
         },
@@ -197,25 +186,25 @@ export const createTemplate = (
           type: 'separator',
         },
         {
-          label: messages.contactUs.message,
+          label: i18n('icu:contactUs'),
           click: openContactUs,
         },
         {
-          label: messages.goToReleaseNotes.message,
+          label: i18n('icu:goToReleaseNotes'),
           click: openReleaseNotes,
         },
         {
-          label: messages.goToForums.message,
+          label: i18n('icu:goToForums'),
           click: openForums,
         },
         {
-          label: messages.goToSupportPage.message,
+          label: i18n('icu:goToSupportPage'),
           click: openSupportPage,
         },
         ...(isProduction
           ? [
               {
-                label: messages.joinTheBeta.message,
+                label: i18n('icu:joinTheBeta'),
                 click: openJoinTheBeta,
               },
             ]
@@ -224,7 +213,7 @@ export const createTemplate = (
           type: 'separator',
         },
         {
-          label: messages.aboutSignalDesktop.message,
+          label: i18n('icu:aboutSignalDesktop'),
           click: showAbout,
         },
       ],
@@ -238,7 +227,7 @@ export const createTemplate = (
       // These are in reverse order, since we're prepending them one at a time
       if (options.development) {
         fileMenu.submenu.unshift({
-          label: messages.menuSetupAsStandalone.message,
+          label: i18n('icu:menuSetupAsStandalone'),
           click: setupAsStandalone,
         });
       }
@@ -247,7 +236,7 @@ export const createTemplate = (
         type: 'separator',
       });
       fileMenu.submenu.unshift({
-        label: messages.menuSetupAsNewDevice.message,
+        label: i18n('icu:menuSetupAsNewDevice'),
         click: setupAsNewDevice,
       });
     } else {
@@ -256,7 +245,7 @@ export const createTemplate = (
   }
 
   if (platform === 'darwin') {
-    return updateForMac(template, messages, options);
+    return updateForMac(template, i18n, options);
   }
 
   return template;
@@ -264,8 +253,8 @@ export const createTemplate = (
 
 function updateForMac(
   template: MenuListType,
-  messages: LocaleMessagesType,
-  options: MenuOptionsType
+  i18n: LocalizerType,
+  options: CreateTemplateOptionsType
 ): MenuListType {
   const { showAbout, showSettings, showWindow } = options;
 
@@ -291,7 +280,7 @@ function updateForMac(
         type: 'separator',
       },
       {
-        label: messages.windowMenuClose.message,
+        label: i18n('icu:windowMenuClose'),
         accelerator: 'CmdOrCtrl+W',
         role: 'close',
       }
@@ -302,17 +291,17 @@ function updateForMac(
 
   // Add the OSX-specific Signal Desktop menu at the far left
   template.unshift({
-    label: messages.signalDesktop.message,
+    label: i18n('icu:signalDesktop'),
     submenu: [
       {
-        label: messages.aboutSignalDesktop.message,
+        label: i18n('icu:aboutSignalDesktop'),
         click: showAbout,
       },
       {
         type: 'separator',
       },
       {
-        label: messages.mainMenuSettings.message,
+        label: i18n('icu:mainMenuSettings'),
         accelerator: 'CommandOrControl+,',
         click: showSettings,
       },
@@ -320,29 +309,29 @@ function updateForMac(
         type: 'separator',
       },
       {
-        label: messages.appMenuServices.message,
+        label: i18n('icu:appMenuServices'),
         role: 'services',
       },
       {
         type: 'separator',
       },
       {
-        label: messages.appMenuHide.message,
+        label: i18n('icu:appMenuHide'),
         role: 'hide',
       },
       {
-        label: messages.appMenuHideOthers.message,
+        label: i18n('icu:appMenuHideOthers'),
         role: 'hideOthers',
       },
       {
-        label: messages.appMenuUnhide.message,
+        label: i18n('icu:appMenuUnhide'),
         role: 'unhide',
       },
       {
         type: 'separator',
       },
       {
-        label: messages.appMenuQuit.message,
+        label: i18n('icu:appMenuQuit'),
         role: 'quit',
       },
     ],
@@ -355,15 +344,15 @@ function updateForMac(
         type: 'separator',
       },
       {
-        label: messages.speech.message,
+        label: i18n('icu:speech'),
         submenu: [
           {
             role: 'startSpeaking',
-            label: messages.editMenuStartSpeaking.message,
+            label: i18n('icu:editMenuStartSpeaking'),
           },
           {
             role: 'stopSpeaking',
-            label: messages.editMenuStopSpeaking.message,
+            label: i18n('icu:editMenuStopSpeaking'),
           },
         ],
       }
@@ -376,16 +365,16 @@ function updateForMac(
   // eslint-disable-next-line no-param-reassign
   template[4].submenu = [
     {
-      label: messages.windowMenuMinimize.message,
+      label: i18n('icu:windowMenuMinimize'),
       accelerator: 'CmdOrCtrl+M',
       role: 'minimize',
     },
     {
-      label: messages.windowMenuZoom.message,
+      label: i18n('icu:windowMenuZoom'),
       role: 'zoom',
     },
     {
-      label: messages.show.message,
+      label: i18n('icu:show'),
       accelerator: 'CmdOrCtrl+Shift+0',
       click: showWindow,
     },
@@ -394,7 +383,7 @@ function updateForMac(
     },
     {
       role: 'front',
-      label: messages.windowMenuBringAllToFront.message,
+      label: i18n('icu:windowMenuBringAllToFront'),
     },
   ];
 

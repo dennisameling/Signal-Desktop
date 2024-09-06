@@ -3,10 +3,13 @@
 
 import { Bytes } from './context/Bytes';
 
-const bytes = window.SignalContext?.bytes || new Bytes();
+const bytes = globalThis.window?.SignalContext?.bytes || new Bytes();
 
 export function fromBase64(value: string): Uint8Array {
   return bytes.fromBase64(value);
+}
+export function fromBase64url(value: string): Uint8Array {
+  return bytes.fromBase64url(value);
 }
 
 export function fromHex(value: string): Uint8Array {
@@ -24,6 +27,10 @@ export function fromString(value: string): Uint8Array {
 
 export function toBase64(data: Uint8Array): string {
   return bytes.toBase64(data);
+}
+
+export function toBase64url(data: Uint8Array): string {
+  return bytes.toBase64url(data);
 }
 
 export function toHex(data: Uint8Array): string {
@@ -62,4 +69,8 @@ export function areEqual(
   b: Uint8Array | null | undefined
 ): boolean {
   return bytes.areEqual(a, b);
+}
+
+export function readBigUint64BE(value: Uint8Array): bigint {
+  return bytes.readBigUint64BE(value);
 }

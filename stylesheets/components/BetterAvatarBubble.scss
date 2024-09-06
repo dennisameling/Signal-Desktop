@@ -51,10 +51,7 @@
       display: block;
       height: 24px;
       width: 24px;
-      @include color-svg(
-        '../images/icons/v2/compose-outline-24.svg',
-        $color-white
-      );
+      @include color-svg('../images/icons/v3/edit/edit.svg', $color-white);
     }
   }
 
@@ -63,17 +60,19 @@
     align-items: center;
     background-color: $color-white;
     border-radius: 100%;
-    box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.12), 0px 2px 4px rgba(0, 0, 0, 0.2);
+    box-shadow:
+      0px 4px 16px rgba(0, 0, 0, 0.12),
+      0px 2px 4px rgba(0, 0, 0, 0.2);
     display: none;
     height: 20px;
     justify-content: center;
     position: absolute;
     top: 0;
-    right: 0;
+    inset-inline-end: 0;
     width: 20px;
 
     &:after {
-      @include color-svg('../images/icons/v2/x-24.svg', $color-gray-75);
+      @include color-svg('../images/icons/v3/x/x-compact.svg', $color-gray-75);
       content: '';
       height: 10px;
       width: 10px;

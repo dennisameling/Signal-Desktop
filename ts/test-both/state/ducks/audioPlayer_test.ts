@@ -3,17 +3,43 @@
 
 import { assert } from 'chai';
 
-import { actions } from '../../../state/ducks/audioPlayer';
-import type { SwitchToAssociatedViewActionType } from '../../../state/ducks/conversations';
-import { actions as conversationsActions } from '../../../state/ducks/conversations';
+import type { TargetedConversationChangedActionType } from '../../../state/ducks/conversations';
+import {
+  TARGETED_CONVERSATION_CHANGED,
+  actions as conversationsActions,
+} from '../../../state/ducks/conversations';
 import { noopAction } from '../../../state/ducks/noop';
 
 import type { StateType } from '../../../state/reducer';
 import { reducer as rootReducer } from '../../../state/reducer';
+import { actions, AudioPlayerContent } from '../../../state/ducks/audioPlayer';
+import type { VoiceNoteAndConsecutiveForPlayback } from '../../../state/selectors/audioPlayer';
 
 const { messageDeleted, messageChanged } = conversationsActions;
 
 const MESSAGE_ID = 'message-id';
+
+function voiceNoteDataForMessage(
+  messageId: string
+): VoiceNoteAndConsecutiveForPlayback {
+  return {
+    conversationId: 'convo',
+    voiceNote: {
+      id: messageId,
+      type: 'outgoing',
+      timestamp: 0,
+      url: undefined,
+      source: undefined,
+      sourceServiceId: undefined,
+      messageIdForLogging: messageId,
+      isPlayed: false,
+    },
+    consecutiveVoiceNotes: [],
+    previousMessageId: undefined,
+    nextMessageTimestamp: undefined,
+    playbackRate: 1,
+  };
+}
 
 describe('both/state/ducks/audioPlayer', () => {
   const getEmptyRootState = (): StateType => {
@@ -22,45 +48,73 @@ describe('both/state/ducks/audioPlayer', () => {
 
   const getInitializedState = (): StateType => {
     const state = getEmptyRootState();
-
     const updated = rootReducer(
       state,
-      actions.setActiveAudioID(MESSAGE_ID, 'context')
+      actions.loadVoiceNoteAudio({
+        voiceNoteData: voiceNoteDataForMessage(MESSAGE_ID),
+        position: 0,
+        context: 'context',
+        ourConversationId: 'convo',
+        playbackRate: 1,
+      })
     );
 
-    assert.strictEqual(updated.audioPlayer.activeAudioID, MESSAGE_ID);
-    assert.strictEqual(updated.audioPlayer.activeAudioContext, 'context');
+    const content = updated.audioPlayer.active?.content;
+
+    assert.isTrue(content && AudioPlayerContent.isVoiceNote(content));
+
+    if (content && AudioPlayerContent.isVoiceNote(content)) {
+      assert.strictEqual(content.current.id, MESSAGE_ID);
+      assert.strictEqual(content.context, 'context');
+    }
 
     return updated;
   };
 
-  describe('setActiveAudioID', () => {
-    it("updates `activeAudioID` in the audioPlayer's state", () => {
+  describe('loadMessageAudio', () => {
+    it("updates `active` in the audioPlayer's state", () => {
       const state = getEmptyRootState();
-      assert.strictEqual(state.audioPlayer.activeAudioID, undefined);
+      assert.strictEqual(state.audioPlayer.active, undefined);
 
       const updated = rootReducer(
         state,
-        actions.setActiveAudioID('test', 'context')
+        actions.loadVoiceNoteAudio({
+          voiceNoteData: voiceNoteDataForMessage('test'),
+          position: 0,
+          context: 'context',
+          ourConversationId: 'convo',
+          playbackRate: 1,
+        })
       );
-      assert.strictEqual(updated.audioPlayer.activeAudioID, 'test');
-      assert.strictEqual(updated.audioPlayer.activeAudioContext, 'context');
+
+      const content = updated.audioPlayer.active?.content;
+      assert.isTrue(content && AudioPlayerContent.isVoiceNote(content));
+
+      if (content && AudioPlayerContent.isVoiceNote(content)) {
+        assert.strictEqual(content.current.id, 'test');
+        assert.strictEqual(content.context, 'context');
+      }
     });
   });
 
-  it('resets activeAudioID when changing the conversation', () => {
+  it('active is not changed when changing the conversation', () => {
     const state = getInitializedState();
 
-    const updated = rootReducer(state, <SwitchToAssociatedViewActionType>{
-      type: 'SWITCH_TO_ASSOCIATED_VIEW',
+    const action: TargetedConversationChangedActionType = {
+      type: TARGETED_CONVERSATION_CHANGED,
       payload: { conversationId: 'any' },
-    });
+    };
+    const updated = rootReducer(state, action);
 
-    assert.strictEqual(updated.audioPlayer.activeAudioID, undefined);
-    assert.strictEqual(updated.audioPlayer.activeAudioContext, 'context');
+    const content = updated.audioPlayer.active?.content;
+    assert.isTrue(content && AudioPlayerContent.isVoiceNote(content));
+
+    if (content && AudioPlayerContent.isVoiceNote(content)) {
+      assert.strictEqual(content.current.id, MESSAGE_ID);
+    }
   });
 
-  it('resets activeAudioID when message was deleted', () => {
+  it('resets active.content when message was deleted', () => {
     const state = getInitializedState();
 
     const updated = rootReducer(
@@ -68,11 +122,10 @@ describe('both/state/ducks/audioPlayer', () => {
       messageDeleted(MESSAGE_ID, 'conversation-id')
     );
 
-    assert.strictEqual(updated.audioPlayer.activeAudioID, undefined);
-    assert.strictEqual(updated.audioPlayer.activeAudioContext, 'context');
+    assert.strictEqual(updated.audioPlayer.active?.content, undefined);
   });
 
-  it('resets activeAudioID when message was erased', () => {
+  it('resets active.content when message is DOE', () => {
     const state = getInitializedState();
 
     const updated = rootReducer(
@@ -89,7 +142,6 @@ describe('both/state/ducks/audioPlayer', () => {
       })
     );
 
-    assert.strictEqual(updated.audioPlayer.activeAudioID, undefined);
-    assert.strictEqual(updated.audioPlayer.activeAudioContext, 'context');
+    assert.strictEqual(updated.audioPlayer.active?.content, undefined);
   });
 });

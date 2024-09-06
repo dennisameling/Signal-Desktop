@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 /* eslint-disable max-classes-per-file */
@@ -23,35 +23,195 @@
  *
  */
 
+/* eslint-disable @typescript-eslint/no-namespace */
+/* eslint-disable @typescript-eslint/brace-style */
+
 import type { connection as WebSocket, IMessage } from 'websocket';
 import Long from 'long';
+import pTimeout from 'p-timeout';
+import { Response } from 'node-fetch';
+import net from 'net';
+import { z } from 'zod';
+import { clearInterval } from 'timers';
+import { random } from 'lodash';
+import type { ChatServiceDebugInfo } from '@signalapp/libsignal-client/Native';
 
+import type { Net } from '@signalapp/libsignal-client';
+import { Buffer } from 'node:buffer';
+import type {
+  ChatServerMessageAck,
+  ChatServiceListener,
+  ConnectionEventsListener,
+} from '@signalapp/libsignal-client/dist/net';
 import type { EventHandler } from './EventTarget';
 import EventTarget from './EventTarget';
 
 import * as durations from '../util/durations';
 import { dropNull } from '../util/dropNull';
+import { drop } from '../util/drop';
 import { isOlderThan } from '../util/timestamp';
 import { strictAssert } from '../util/assert';
 import * as Errors from '../types/errors';
 import { SignalService as Proto } from '../protobuf';
 import * as log from '../logging/log';
 import * as Timers from '../Timers';
+import type { IResource } from './WebSocket';
+import { isProduction } from '../util/version';
+
+import { ToastType } from '../types/Toast';
+import { AbortableProcess } from '../util/AbortableProcess';
+import type { WebAPICredentials } from './Types';
 
 const THIRTY_SECONDS = 30 * durations.SECOND;
 
-const MAX_MESSAGE_SIZE = 256 * 1024;
+const STATS_UPDATE_INTERVAL = durations.MINUTE;
 
-export class IncomingWebSocketRequest {
+const MAX_MESSAGE_SIZE = 512 * 1024;
+
+const AGGREGATED_STATS_KEY = 'websocketStats';
+
+export enum IpVersion {
+  IPv4 = 'ipv4',
+  IPv6 = 'ipv6',
+}
+
+export namespace IpVersion {
+  export function fromDebugInfoCode(ipType: number): IpVersion | undefined {
+    switch (ipType) {
+      case 1:
+        return IpVersion.IPv4;
+      case 2:
+        return IpVersion.IPv6;
+      default:
+        return undefined;
+    }
+  }
+}
+
+const AggregatedStatsSchema = z.object({
+  connectionFailures: z.number(),
+  requestsCompared: z.number(),
+  ipVersionMismatches: z.number(),
+  healthcheckFailures: z.number(),
+  healthcheckBadStatus: z.number(),
+  lastToastTimestamp: z.number(),
+});
+
+export type AggregatedStats = z.infer<typeof AggregatedStatsSchema>;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export namespace AggregatedStats {
+  export function loadOrCreateEmpty(name: string): AggregatedStats {
+    const key = localStorageKey(name);
+    try {
+      const json = localStorage.getItem(key);
+      return json != null
+        ? AggregatedStatsSchema.parse(JSON.parse(json))
+        : createEmpty();
+    } catch (error) {
+      log.warn(
+        `Could not load [${key}] from local storage. Possibly, attempting to load for the first time`,
+        Errors.toLogFormat(error)
+      );
+      return createEmpty();
+    }
+  }
+
+  export function store(stats: AggregatedStats, name: string): void {
+    const key = localStorageKey(name);
+    try {
+      const json = JSON.stringify(stats);
+      localStorage.setItem(key, json);
+    } catch (error) {
+      log.warn(
+        `Failed to store key [${key}] to the local storage`,
+        Errors.toLogFormat(error)
+      );
+    }
+  }
+
+  export function add(a: AggregatedStats, b: AggregatedStats): AggregatedStats {
+    return {
+      requestsCompared: a.requestsCompared + b.requestsCompared,
+      connectionFailures: a.connectionFailures + b.connectionFailures,
+      healthcheckFailures: a.healthcheckFailures + b.healthcheckFailures,
+      ipVersionMismatches: a.ipVersionMismatches + b.ipVersionMismatches,
+      healthcheckBadStatus: a.healthcheckBadStatus + b.healthcheckBadStatus,
+      lastToastTimestamp: Math.max(a.lastToastTimestamp, b.lastToastTimestamp),
+    };
+  }
+
+  export function createEmpty(): AggregatedStats {
+    return {
+      requestsCompared: 0,
+      connectionFailures: 0,
+      ipVersionMismatches: 0,
+      healthcheckFailures: 0,
+      healthcheckBadStatus: 0,
+      lastToastTimestamp: 0,
+    };
+  }
+
+  export function shouldReportError(stats: AggregatedStats): boolean {
+    const timeSinceLastToast = Date.now() - stats.lastToastTimestamp;
+    if (timeSinceLastToast < durations.DAY || stats.requestsCompared < 1000) {
+      return false;
+    }
+    const totalFailuresSinceLastToast =
+      stats.healthcheckBadStatus +
+      stats.healthcheckFailures +
+      stats.connectionFailures;
+    return totalFailuresSinceLastToast > 20;
+  }
+
+  export function localStorageKey(name: string): string {
+    return `${AGGREGATED_STATS_KEY}.${name}`;
+  }
+}
+
+export enum ServerRequestType {
+  ApiMessage = '/api/v1/message',
+  ApiEmptyQueue = '/api/v1/queue/empty',
+  ProvisioningMessage = '/v1/message',
+  ProvisioningAddress = '/v1/address',
+  Unknown = 'unknown',
+}
+
+export type IncomingWebSocketRequest = {
+  readonly requestType: ServerRequestType;
+  readonly body: Uint8Array | undefined;
+  readonly timestamp: number | undefined;
+
+  respond(status: number, message: string): void;
+};
+
+export class IncomingWebSocketRequestLibsignal
+  implements IncomingWebSocketRequest
+{
+  constructor(
+    readonly requestType: ServerRequestType,
+    readonly body: Uint8Array | undefined,
+    readonly timestamp: number | undefined,
+    private readonly ack: ChatServerMessageAck | undefined
+  ) {}
+
+  respond(status: number, _message: string): void {
+    if (this.ack) {
+      drop(this.ack.send(status));
+    }
+  }
+}
+
+export class IncomingWebSocketRequestLegacy
+  implements IncomingWebSocketRequest
+{
   private readonly id: Long;
 
-  public readonly verb: string;
-
-  public readonly path: string;
+  public readonly requestType: ServerRequestType;
 
   public readonly body: Uint8Array | undefined;
 
-  public readonly headers: ReadonlyArray<string>;
+  public readonly timestamp: number | undefined;
 
   constructor(
     request: Proto.IWebSocketRequestMessage,
@@ -62,10 +222,9 @@ export class IncomingWebSocketRequest {
     strictAssert(request.path, 'request without path');
 
     this.id = request.id;
-    this.verb = request.verb;
-    this.path = request.path;
+    this.requestType = resolveType(request.path, request.verb);
     this.body = dropNull(request.body);
-    this.headers = request.headers || [];
+    this.timestamp = resolveTimestamp(request.headers || []);
   }
 
   public respond(status: number, message: string): void {
@@ -78,12 +237,41 @@ export class IncomingWebSocketRequest {
   }
 }
 
+function resolveType(path: string, verb: string): ServerRequestType {
+  if (path === ServerRequestType.ApiMessage) {
+    return ServerRequestType.ApiMessage;
+  }
+  if (path === ServerRequestType.ApiEmptyQueue && verb === 'PUT') {
+    return ServerRequestType.ApiEmptyQueue;
+  }
+  if (path === ServerRequestType.ProvisioningAddress && verb === 'PUT') {
+    return ServerRequestType.ProvisioningAddress;
+  }
+  if (path === ServerRequestType.ProvisioningMessage && verb === 'PUT') {
+    return ServerRequestType.ProvisioningMessage;
+  }
+  return ServerRequestType.Unknown;
+}
+
+function resolveTimestamp(headers: ReadonlyArray<string>): number | undefined {
+  // The 'X-Signal-Timestamp' is usually the last item, so start there.
+  let it = headers.length;
+  // eslint-disable-next-line no-plusplus
+  while (--it >= 0) {
+    const match = headers[it].match(/^X-Signal-Timestamp:\s*(\d+)\s*$/i);
+    if (match && match.length === 2) {
+      return Number(match[1]);
+    }
+  }
+  return undefined;
+}
+
 export type SendRequestOptions = Readonly<{
   verb: string;
   path: string;
   body?: Uint8Array;
   timeout?: number;
-  headers?: ReadonlyArray<string>;
+  headers?: ReadonlyArray<[string, string]>;
 }>;
 
 export type SendRequestResult = Readonly<{
@@ -93,18 +281,456 @@ export type SendRequestResult = Readonly<{
   headers: ReadonlyArray<string>;
 }>;
 
+export enum TransportOption {
+  // Only original transport is used
+  Original = 'original',
+  // All requests are going through the original transport,
+  // but for every request that completes sucessfully we're initiating
+  // a healthcheck request via libsignal transport,
+  // collecting comparison statistics, and if we see many inconsistencies,
+  // we're showing a toast asking user to submit a debug log
+  ShadowingHigh = 'shadowingHigh',
+  // Similar to `shadowingHigh`, however, only 10% of requests
+  // will trigger a healthcheck, and toast is never shown.
+  // Statistics data is still added to the debug logs,
+  // so it will be available to us with all the debug log uploads.
+  ShadowingLow = 'shadowingLow',
+  // Only libsignal transport is used
+  Libsignal = 'libsignal',
+}
+
 export type WebSocketResourceOptions = {
+  name: string;
   handleRequest?: (request: IncomingWebSocketRequest) => void;
-  keepalive?: KeepAliveOptionsType | true;
+  keepalive?: KeepAliveOptionsType;
+  transportOption?: TransportOption;
 };
 
 export class CloseEvent extends Event {
-  constructor(public readonly code: number, public readonly reason: string) {
+  constructor(
+    public readonly code: number,
+    public readonly reason: string
+  ) {
     super('close');
   }
 }
 
-export default class WebSocketResource extends EventTarget {
+// eslint-disable-next-line no-restricted-syntax
+export interface IWebSocketResource extends IResource {
+  sendRequest(options: SendRequestOptions): Promise<Response>;
+
+  addEventListener(name: 'close', handler: (ev: CloseEvent) => void): void;
+
+  forceKeepAlive(timeout?: number): void;
+
+  shutdown(): void;
+
+  close(): void;
+
+  localPort(): number | undefined;
+}
+
+type LibsignalWebSocketResourceHolder = {
+  resource: LibsignalWebSocketResource | undefined;
+};
+
+export function connectUnauthenticatedLibsignal({
+  libsignalNet,
+  name,
+}: {
+  libsignalNet: Net.Net;
+  name: string;
+}): AbortableProcess<LibsignalWebSocketResource> {
+  const logId = `LibsignalWebSocketResource(${name})`;
+  const listener: LibsignalWebSocketResourceHolder & ConnectionEventsListener =
+    {
+      resource: undefined,
+      onConnectionInterrupted(): void {
+        if (!this.resource) {
+          logDisconnectedListenerWarn(logId, 'onConnectionInterrupted');
+          return;
+        }
+        this.resource.onConnectionInterrupted();
+        this.resource = undefined;
+      },
+    };
+  return connectLibsignal(
+    libsignalNet.newUnauthenticatedChatService(listener),
+    listener,
+    logId
+  );
+}
+
+export function connectAuthenticatedLibsignal({
+  libsignalNet,
+  name,
+  credentials,
+  handler,
+  receiveStories,
+}: {
+  libsignalNet: Net.Net;
+  name: string;
+  credentials: WebAPICredentials;
+  handler: (request: IncomingWebSocketRequest) => void;
+  receiveStories: boolean;
+}): AbortableProcess<LibsignalWebSocketResource> {
+  const logId = `LibsignalWebSocketResource(${name})`;
+  const listener: LibsignalWebSocketResourceHolder & ChatServiceListener = {
+    resource: undefined,
+    onIncomingMessage(
+      envelope: Buffer,
+      timestamp: number,
+      ack: ChatServerMessageAck
+    ): void {
+      // Handle incoming messages even if we've disconnected.
+      const request = new IncomingWebSocketRequestLibsignal(
+        ServerRequestType.ApiMessage,
+        envelope,
+        timestamp,
+        ack
+      );
+      handler(request);
+    },
+    onQueueEmpty(): void {
+      if (!this.resource) {
+        logDisconnectedListenerWarn(logId, 'onQueueEmpty');
+        return;
+      }
+      const request = new IncomingWebSocketRequestLibsignal(
+        ServerRequestType.ApiEmptyQueue,
+        undefined,
+        undefined,
+        undefined
+      );
+      handler(request);
+    },
+    onConnectionInterrupted(): void {
+      if (!this.resource) {
+        logDisconnectedListenerWarn(logId, 'onConnectionInterrupted');
+        return;
+      }
+      this.resource.onConnectionInterrupted();
+      this.resource = undefined;
+    },
+  };
+  return connectLibsignal(
+    libsignalNet.newAuthenticatedChatService(
+      credentials.username,
+      credentials.password,
+      receiveStories,
+      listener
+    ),
+    listener,
+    logId
+  );
+}
+
+function logDisconnectedListenerWarn(logId: string, method: string): void {
+  log.warn(`${logId} received ${method}, but listener already disconnected`);
+}
+
+function connectLibsignal(
+  chatService: Net.ChatService,
+  resourceHolder: LibsignalWebSocketResourceHolder,
+  logId: string
+): AbortableProcess<LibsignalWebSocketResource> {
+  const connectAsync = async () => {
+    try {
+      const debugInfo = await chatService.connect();
+      log.info(`${logId} connected`, debugInfo);
+      const resource = new LibsignalWebSocketResource(
+        chatService,
+        IpVersion.fromDebugInfoCode(debugInfo.ipType),
+        logId
+      );
+      // eslint-disable-next-line no-param-reassign
+      resourceHolder.resource = resource;
+      return resource;
+    } catch (error) {
+      // Handle any errors that occur during connection
+      log.error(`${logId} connection failed`, Errors.toLogFormat(error));
+      throw error;
+    }
+  };
+  return new AbortableProcess<LibsignalWebSocketResource>(
+    `${logId}.connect`,
+    {
+      abort() {
+        // if interrupted, trying to disconnect
+        drop(chatService.disconnect());
+      },
+    },
+    connectAsync()
+  );
+}
+
+export class LibsignalWebSocketResource
+  extends EventTarget
+  implements IWebSocketResource
+{
+  closed = false;
+
+  constructor(
+    private readonly chatService: Net.ChatService,
+    private readonly socketIpVersion: IpVersion | undefined,
+    private readonly logId: string
+  ) {
+    super();
+  }
+
+  public localPort(): number | undefined {
+    return undefined;
+  }
+
+  public ipVersion(): IpVersion | undefined {
+    return this.socketIpVersion;
+  }
+
+  public override addEventListener(
+    name: 'close',
+    handler: (ev: CloseEvent) => void
+  ): void;
+
+  public override addEventListener(name: string, handler: EventHandler): void {
+    return super.addEventListener(name, handler);
+  }
+
+  public close(code = 3000, reason?: string): void {
+    if (this.closed) {
+      log.info(`${this.logId}.close: Already closed! ${code}/${reason}`);
+      return;
+    }
+    drop(this.chatService.disconnect());
+
+    // On linux the socket can wait a long time to emit its close event if we've
+    //   lost the internet connection. On the order of minutes. This speeds that
+    //   process up.
+    Timers.setTimeout(
+      () => this.onConnectionInterrupted(),
+      5 * durations.SECOND
+    );
+  }
+
+  public shutdown(): void {
+    this.close(3000, 'Shutdown');
+  }
+
+  onConnectionInterrupted(): void {
+    if (this.closed) {
+      log.warn(
+        `${this.logId}.onConnectionInterrupted called after resource is closed`
+      );
+      return;
+    }
+    this.closed = true;
+    log.warn(`${this.logId}: connection closed`);
+    // TODO: DESKTOP-7519. `reason` should be eventually resolved from the
+    // disconnect reason error object coming from libsignal.
+    const reason = undefined;
+    this.dispatchEvent(new CloseEvent(3000, reason || 'normal'));
+  }
+
+  public forceKeepAlive(): void {
+    // no-op
+  }
+
+  public async sendRequest(options: SendRequestOptions): Promise<Response> {
+    const [response] = await this.sendRequestGetDebugInfo(options);
+    return response;
+  }
+
+  public async sendRequestGetDebugInfo(
+    options: SendRequestOptions
+  ): Promise<[Response, ChatServiceDebugInfo]> {
+    const { response, debugInfo } = await this.chatService.fetchAndDebug({
+      verb: options.verb,
+      path: options.path,
+      headers: options.headers ? options.headers : [],
+      body: options.body,
+      timeoutMillis: options.timeout,
+    });
+    return [
+      new Response(response.body, {
+        status: response.status,
+        statusText: response.message,
+        headers: [...response.headers],
+      }),
+      debugInfo,
+    ];
+  }
+}
+
+export class WebSocketResourceWithShadowing implements IWebSocketResource {
+  private shadowing: LibsignalWebSocketResource | undefined;
+
+  private stats: AggregatedStats;
+
+  private statsTimer: NodeJS.Timeout;
+
+  private shadowingWithReporting: boolean;
+
+  private logId: string;
+
+  constructor(
+    private readonly main: WebSocketResource,
+    private readonly shadowingConnection: AbortableProcess<LibsignalWebSocketResource>,
+    options: WebSocketResourceOptions
+  ) {
+    this.stats = AggregatedStats.createEmpty();
+    this.logId = `WebSocketResourceWithShadowing(${options.name})`;
+    this.statsTimer = setInterval(
+      () => this.updateStats(options.name),
+      STATS_UPDATE_INTERVAL
+    );
+    this.shadowingWithReporting =
+      options.transportOption === TransportOption.ShadowingHigh;
+
+    // the idea is that we want to keep the shadowing connection process
+    // "in the background", so that the main connection wouldn't need to wait on it.
+    // then when we're connected, `this.shadowing` socket resource is initialized
+    // or an error reported in case of connection failure
+    const initializeAfterConnected = async () => {
+      try {
+        this.shadowing = await shadowingConnection.resultPromise;
+        // checking IP one time per connection
+        if (this.main.ipVersion() !== this.shadowing.ipVersion()) {
+          this.stats.ipVersionMismatches += 1;
+          const mainIpType = this.main.ipVersion();
+          const shadowIpType = this.shadowing.ipVersion();
+          log.warn(
+            `${this.logId}: libsignal websocket IP [${shadowIpType}], Desktop websocket IP [${mainIpType}]`
+          );
+        }
+      } catch (error) {
+        this.stats.connectionFailures += 1;
+      }
+    };
+    drop(initializeAfterConnected());
+
+    this.addEventListener('close', (_ev): void => {
+      clearInterval(this.statsTimer);
+      this.updateStats(options.name);
+    });
+  }
+
+  private updateStats(name: string) {
+    const storedStats = AggregatedStats.loadOrCreateEmpty(name);
+    let updatedStats = AggregatedStats.add(storedStats, this.stats);
+    if (
+      this.shadowingWithReporting &&
+      AggregatedStats.shouldReportError(updatedStats) &&
+      !isProduction(window.getVersion())
+    ) {
+      window.reduxActions.toast.showToast({
+        toastType: ToastType.TransportError,
+      });
+      log.warn(
+        `${this.logId}: experimental transport toast displayed, flushing transport statistics before resetting`,
+        updatedStats
+      );
+      updatedStats = AggregatedStats.createEmpty();
+      updatedStats.lastToastTimestamp = Date.now();
+    }
+    AggregatedStats.store(updatedStats, name);
+    this.stats = AggregatedStats.createEmpty();
+  }
+
+  public localPort(): number | undefined {
+    return this.main.localPort();
+  }
+
+  public addEventListener(
+    name: 'close',
+    handler: (ev: CloseEvent) => void
+  ): void {
+    this.main.addEventListener(name, handler);
+  }
+
+  public close(): void {
+    this.main.close();
+    if (this.shadowing) {
+      this.shadowing.close();
+      this.shadowing = undefined;
+    } else {
+      this.shadowingConnection.abort();
+    }
+  }
+
+  public shutdown(): void {
+    this.main.shutdown();
+    if (this.shadowing) {
+      this.shadowing.shutdown();
+      this.shadowing = undefined;
+    } else {
+      this.shadowingConnection.abort();
+    }
+  }
+
+  public forceKeepAlive(timeout?: number): void {
+    this.main.forceKeepAlive(timeout);
+  }
+
+  public async sendRequest(options: SendRequestOptions): Promise<Response> {
+    const responsePromise = this.main.sendRequest(options);
+    const response = await responsePromise;
+
+    // if we're received a response from the main channel and the status was successful,
+    // attempting to run a healthcheck on a libsignal transport.
+    if (
+      isSuccessfulStatusCode(response.status) &&
+      this.shouldSendShadowRequest()
+    ) {
+      drop(this.sendShadowRequest());
+    }
+
+    return response;
+  }
+
+  private async sendShadowRequest(): Promise<void> {
+    // In the shadowing mode, it could be that we're either
+    // still connecting libsignal websocket or have already closed it.
+    // In those cases we're not running shadowing check.
+    if (!this.shadowing) {
+      log.info(
+        `${this.logId}: skipping healthcheck - websocket not connected or already closed`
+      );
+      return;
+    }
+    try {
+      const healthCheckResult = await this.shadowing.sendRequest({
+        verb: 'GET',
+        path: '/v1/keepalive',
+        timeout: KEEPALIVE_TIMEOUT_MS,
+      });
+      this.stats.requestsCompared += 1;
+      if (!isSuccessfulStatusCode(healthCheckResult.status)) {
+        this.stats.healthcheckBadStatus += 1;
+        log.warn(
+          `${this.logId}: keepalive via libsignal responded with status [${healthCheckResult.status}]`
+        );
+      }
+    } catch (error) {
+      this.stats.healthcheckFailures += 1;
+      log.warn(
+        `${this.logId}: failed to send keepalive via libsignal`,
+        Errors.toLogFormat(error)
+      );
+    }
+  }
+
+  private shouldSendShadowRequest(): boolean {
+    return this.shadowingWithReporting || random(0, 100) < 10;
+  }
+}
+
+function isSuccessfulStatusCode(status: number): boolean {
+  return status >= 200 && status < 300;
+}
+
+export default class WebSocketResource
+  extends EventTarget
+  implements IWebSocketResource
+{
   private outgoingId = Long.fromNumber(1, true);
 
   private closed = false;
@@ -122,14 +748,36 @@ export default class WebSocketResource extends EventTarget {
 
   private shutdownTimer?: Timers.Timeout;
 
+  private readonly logId: string;
+
+  private readonly localSocketPort: number | undefined;
+
+  private readonly socketIpVersion: IpVersion | undefined;
+
   // Public for tests
   public readonly keepalive?: KeepAlive;
 
   constructor(
     private readonly socket: WebSocket,
-    private readonly options: WebSocketResourceOptions = {}
+    private readonly options: WebSocketResourceOptions
   ) {
     super();
+
+    this.logId = `WebSocketResource(${options.name})`;
+    this.localSocketPort = socket.socket.localPort;
+
+    if (!socket.socket.localAddress) {
+      this.socketIpVersion = undefined;
+    }
+    if (socket.socket.localAddress == null) {
+      this.socketIpVersion = undefined;
+    } else if (net.isIPv4(socket.socket.localAddress)) {
+      this.socketIpVersion = IpVersion.IPv4;
+    } else if (net.isIPv6(socket.socket.localAddress)) {
+      this.socketIpVersion = IpVersion.IPv6;
+    } else {
+      this.socketIpVersion = undefined;
+    }
 
     this.boundOnMessage = this.onMessage.bind(this);
 
@@ -138,29 +786,34 @@ export default class WebSocketResource extends EventTarget {
     if (options.keepalive) {
       const keepalive = new KeepAlive(
         this,
-        options.keepalive === true ? {} : options.keepalive
+        options.name,
+        options.keepalive ?? {}
       );
       this.keepalive = keepalive;
 
       keepalive.reset();
-      socket.on('message', () => keepalive.reset());
-      socket.on('close', () => keepalive.stop());
+      socket.on('close', () => this.keepalive?.stop());
       socket.on('error', (error: Error) => {
-        log.warn(
-          'WebSocketResource: WebSocket error',
-          Errors.toLogFormat(error)
-        );
+        log.warn(`${this.logId}: WebSocket error`, Errors.toLogFormat(error));
       });
     }
 
     socket.on('close', (code, reason) => {
       this.closed = true;
 
-      log.warn('WebSocketResource: Socket closed');
+      log.warn(`${this.logId}: Socket closed`);
       this.dispatchEvent(new CloseEvent(code, reason || 'normal'));
     });
 
     this.addEventListener('close', () => this.onClose());
+  }
+
+  public ipVersion(): IpVersion | undefined {
+    return this.socketIpVersion;
+  }
+
+  public localPort(): number | undefined {
+    return this.localSocketPort;
   }
 
   public override addEventListener(
@@ -172,9 +825,7 @@ export default class WebSocketResource extends EventTarget {
     return super.addEventListener(name, handler);
   }
 
-  public async sendRequest(
-    options: SendRequestOptions
-  ): Promise<SendRequestResult> {
+  public async sendRequest(options: SendRequestOptions): Promise<Response> {
     const id = this.outgoingId;
     const idString = id.toString();
     strictAssert(!this.outgoingMap.has(idString), 'Duplicate outgoing request');
@@ -188,7 +839,13 @@ export default class WebSocketResource extends EventTarget {
         verb: options.verb,
         path: options.path,
         body: options.body,
-        headers: options.headers ? options.headers.slice() : undefined,
+        headers: options.headers
+          ? options.headers
+              .map(([key, value]) => {
+                return `${key}:${value}`;
+              })
+              .slice()
+          : undefined,
         id,
       },
     }).finish();
@@ -203,7 +860,8 @@ export default class WebSocketResource extends EventTarget {
       let timer = options.timeout
         ? Timers.setTimeout(() => {
             this.removeActive(idString);
-            reject(new Error('Request timed out'));
+            this.close(3001, 'Request timed out');
+            reject(new Error(`Request timed out; id: [${idString}]`));
           }, options.timeout)
         : undefined;
 
@@ -213,6 +871,7 @@ export default class WebSocketResource extends EventTarget {
           timer = undefined;
         }
 
+        this.keepalive?.reset();
         this.removeActive(idString);
         resolve(result);
       });
@@ -220,22 +879,24 @@ export default class WebSocketResource extends EventTarget {
 
     this.socket.sendBytes(Buffer.from(bytes));
 
-    return promise;
+    const requestResult = await promise;
+    return WebSocketResource.intoResponse(requestResult);
   }
 
-  public forceKeepAlive(): void {
+  public forceKeepAlive(timeout?: number): void {
     if (!this.keepalive) {
       return;
     }
-    this.keepalive.send();
+    drop(this.keepalive.send(timeout));
   }
 
   public close(code = 3000, reason?: string): void {
     if (this.closed) {
+      log.info(`${this.logId}.close: Already closed! ${code}/${reason}`);
       return;
     }
 
-    log.info('WebSocketResource.close()');
+    log.info(`${this.logId}.close(${code})`);
     if (this.keepalive) {
       this.keepalive.stop();
     }
@@ -252,9 +913,9 @@ export default class WebSocketResource extends EventTarget {
         return;
       }
 
-      log.warn('WebSocketResource: Dispatching our own socket close event');
+      log.warn(`${this.logId}.close: Dispatching our own socket close event`);
       this.dispatchEvent(new CloseEvent(code, reason || 'normal'));
-    }, 5000);
+    }, 5 * durations.SECOND);
   }
 
   public shutdown(): void {
@@ -263,20 +924,20 @@ export default class WebSocketResource extends EventTarget {
     }
 
     if (this.activeRequests.size === 0) {
-      log.info('WebSocketResource: no active requests, closing');
+      log.info(`${this.logId}.shutdown: no active requests, closing`);
       this.close(3000, 'Shutdown');
       return;
     }
 
     this.shuttingDown = true;
 
-    log.info('WebSocketResource: shutting down');
+    log.info(`${this.logId}.shutdown: shutting down`);
     this.shutdownTimer = Timers.setTimeout(() => {
       if (this.closed) {
         return;
       }
 
-      log.warn('WebSocketResource: Failed to shutdown gracefully');
+      log.warn(`${this.logId}.shutdown: Failed to shutdown gracefully`);
       this.close(3000, 'Shutdown');
     }, THIRTY_SECONDS);
   }
@@ -295,7 +956,7 @@ export default class WebSocketResource extends EventTarget {
         this.options.handleRequest ||
         (request => request.respond(404, 'Not found'));
 
-      const incomingRequest = new IncomingWebSocketRequest(
+      const incomingRequest = new IncomingWebSocketRequestLegacy(
         message.request,
         (bytes: Buffer): void => {
           this.removeActive(incomingRequest);
@@ -359,7 +1020,7 @@ export default class WebSocketResource extends EventTarget {
 
   private removeActive(request: IncomingWebSocketRequest | string): void {
     if (!this.activeRequests.has(request)) {
-      log.warn('WebSocketResource: removing unknown request');
+      log.warn(`${this.logId}.removeActive: removing unknown request`);
       return;
     }
 
@@ -376,40 +1037,68 @@ export default class WebSocketResource extends EventTarget {
       this.shutdownTimer = undefined;
     }
 
-    log.info('WebSocketResource: shutdown complete');
+    log.info(`${this.logId}.removeActive: shutdown complete`);
     this.close(3000, 'Shutdown');
+  }
+
+  private static intoResponse(sendRequestResult: SendRequestResult): Response {
+    const {
+      status,
+      message: statusText,
+      response,
+      headers: flatResponseHeaders,
+    } = sendRequestResult;
+
+    const headers: Array<[string, string]> = flatResponseHeaders.map(header => {
+      const [key, value] = header.split(':', 2);
+      strictAssert(value !== undefined, 'Invalid header!');
+      return [key, value];
+    });
+
+    return new Response(response, {
+      status,
+      statusText,
+      headers,
+    });
   }
 }
 
 export type KeepAliveOptionsType = {
   path?: string;
-  disconnect?: boolean;
 };
 
-const KEEPALIVE_INTERVAL_MS = 55000; // 55 seconds + 5 seconds for closing the
-// socket above.
-const MAX_KEEPALIVE_INTERVAL_MS = 5 * durations.MINUTE;
+// 30 seconds + 5 seconds for closing the socket above.
+const KEEPALIVE_INTERVAL_MS = 30 * durations.SECOND;
+
+// If the machine was in suspended mode for more than 5 minutes - trigger
+// immediate disconnect.
+const STALE_THRESHOLD_MS = 5 * durations.MINUTE;
+
+// If we don't receive a response to keepalive request within 30 seconds -
+// close the socket.
+const KEEPALIVE_TIMEOUT_MS = 30 * durations.SECOND;
+
+const LOG_KEEPALIVE_AFTER_MS = 500;
 
 class KeepAlive {
   private keepAliveTimer: Timers.Timeout | undefined;
 
-  private disconnectTimer: Timers.Timeout | undefined;
-
   private path: string;
-
-  private disconnect: boolean;
 
   private wsr: WebSocketResource;
 
   private lastAliveAt: number = Date.now();
 
+  private logId: string;
+
   constructor(
     websocketResource: WebSocketResource,
+    name: string,
     opts: KeepAliveOptionsType = {}
   ) {
+    this.logId = `WebSocketResources.KeepAlive(${name})`;
     if (websocketResource instanceof WebSocketResource) {
-      this.path = opts.path !== undefined ? opts.path : '/';
-      this.disconnect = opts.disconnect !== undefined ? opts.disconnect : true;
+      this.path = opts.path ?? '/';
       this.wsr = websocketResource;
     } else {
       throw new TypeError('KeepAlive expected a WebSocketResource');
@@ -420,11 +1109,12 @@ class KeepAlive {
     this.clearTimers();
   }
 
-  public async send(): Promise<void> {
+  public async send(timeout = KEEPALIVE_TIMEOUT_MS): Promise<void> {
     this.clearTimers();
 
-    if (isOlderThan(this.lastAliveAt, MAX_KEEPALIVE_INTERVAL_MS)) {
-      log.info('WebSocketResources: disconnecting due to stale state');
+    const isStale = isOlderThan(this.lastAliveAt, STALE_THRESHOLD_MS);
+    if (isStale) {
+      log.info(`${this.logId}.send: disconnecting due to stale state`);
       this.wsr.close(
         3001,
         `Last keepalive request was too far in the past: ${this.lastAliveAt}`
@@ -432,27 +1122,38 @@ class KeepAlive {
       return;
     }
 
-    if (this.disconnect) {
-      // automatically disconnect if server doesn't ack
-      this.disconnectTimer = Timers.setTimeout(() => {
-        log.info('WebSocketResources: disconnecting due to no response');
-        this.clearTimers();
+    log.info(`${this.logId}.send: Sending a keepalive message`);
+    const sentAt = Date.now();
 
-        this.wsr.close(3001, 'No response to keepalive request');
-      }, 10000);
-    } else {
-      this.reset();
+    try {
+      const { status } = await pTimeout(
+        this.wsr.sendRequest({
+          verb: 'GET',
+          path: this.path,
+        }),
+        timeout
+      );
+
+      if (status < 200 || status >= 300) {
+        log.warn(`${this.logId}.send: keepalive response status ${status}`);
+        this.wsr.close(3001, `keepalive response with ${status} code`);
+        return;
+      }
+    } catch (error) {
+      this.wsr.close(3001, 'No response to keepalive request');
+      return;
     }
 
-    log.info('WebSocketResources: Sending a keepalive message');
-    const { status } = await this.wsr.sendRequest({
-      verb: 'GET',
-      path: this.path,
-    });
-
-    if (status >= 200 || status < 300) {
-      this.reset();
+    const responseTime = Date.now() - sentAt;
+    if (responseTime > LOG_KEEPALIVE_AFTER_MS) {
+      log.warn(
+        `${this.logId}.send: delayed response to keepalive request, ` +
+          `response time: ${responseTime}ms`
+      );
     }
+
+    // Successful response on time
+    this.reset();
   }
 
   public reset(): void {
@@ -470,10 +1171,6 @@ class KeepAlive {
     if (this.keepAliveTimer) {
       Timers.clearTimeout(this.keepAliveTimer);
       this.keepAliveTimer = undefined;
-    }
-    if (this.disconnectTimer) {
-      Timers.clearTimeout(this.disconnectTimer);
-      this.disconnectTimer = undefined;
     }
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ConversationAttributesType } from '../model-types.d';
@@ -7,16 +7,11 @@ import type {
   SendOptionsType,
 } from '../textsecure/SendMessage';
 import * as Bytes from '../Bytes';
-import { getRandomBytes } from '../Crypto';
+import { getRandomBytes, getZeroes } from '../Crypto';
 import { getConversationMembers } from './getConversationMembers';
 import { isDirectConversation, isMe } from './whatTypeOfConversation';
-import { isInSystemContacts } from './isInSystemContacts';
-import { missingCaseError } from './missingCaseError';
 import { senderCertificateService } from '../services/senderCertificate';
-import {
-  PhoneNumberSharingMode,
-  parsePhoneNumberSharingMode,
-} from './phoneNumberSharingMode';
+import { shouldSharePhoneNumberWith } from './phoneNumberSharingMode';
 import type { SerializedCertificateType } from '../textsecure/OutgoingMessage';
 import { SenderCertificateMode } from '../textsecure/OutgoingMessage';
 import { isNotNil } from './isNotNil';
@@ -29,14 +24,17 @@ const SEALED_SENDER = {
 };
 
 export async function getSendOptionsForRecipients(
-  recipients: ReadonlyArray<string>
+  recipients: ReadonlyArray<string>,
+  options?: { story?: boolean }
 ): Promise<SendOptionsType> {
   const conversations = recipients
     .map(identifier => window.ConversationController.get(identifier))
     .filter(isNotNil);
 
   const metadataList = await Promise.all(
-    conversations.map(conversation => getSendOptions(conversation.attributes))
+    conversations.map(conversation =>
+      getSendOptions(conversation.attributes, options)
+    )
   );
 
   return metadataList.reduce(
@@ -63,9 +61,9 @@ export async function getSendOptionsForRecipients(
 
 export async function getSendOptions(
   conversationAttrs: ConversationAttributesType,
-  options: { syncMessage?: boolean } = {}
+  options: { syncMessage?: boolean; story?: boolean } = {}
 ): Promise<SendOptionsType> {
-  const { syncMessage } = options;
+  const { syncMessage, story } = options;
 
   if (!isDirectConversation(conversationAttrs)) {
     const contactCollection = getConversationMembers(conversationAttrs);
@@ -95,22 +93,25 @@ export async function getSendOptions(
     };
   }
 
-  const { e164, uuid } = conversationAttrs;
+  const { e164, serviceId } = conversationAttrs;
 
-  const senderCertificate = await getSenderCertificateForDirectConversation(
-    conversationAttrs
-  );
+  const senderCertificate =
+    await getSenderCertificateForDirectConversation(conversationAttrs);
 
   // If we've never fetched user's profile, we default to what we have
-  if (sealedSender === SEALED_SENDER.UNKNOWN) {
+  if (sealedSender === SEALED_SENDER.UNKNOWN || story) {
     const identifierData = {
-      accessKey: accessKey || Bytes.toBase64(getRandomBytes(16)),
+      accessKey:
+        accessKey ||
+        (story
+          ? Bytes.toBase64(getZeroes(16))
+          : Bytes.toBase64(getRandomBytes(16))),
       senderCertificate,
     };
     return {
       sendMetadata: {
         ...(e164 ? { [e164]: identifierData } : {}),
-        ...(uuid ? { [uuid]: identifierData } : {}),
+        ...(serviceId ? { [serviceId]: identifierData } : {}),
       },
     };
   }
@@ -132,7 +133,7 @@ export async function getSendOptions(
   return {
     sendMetadata: {
       ...(e164 ? { [e164]: identifierData } : {}),
-      ...(uuid ? { [uuid]: identifierData } : {}),
+      ...(serviceId ? { [serviceId]: identifierData } : {}),
     },
   };
 }
@@ -146,25 +147,11 @@ function getSenderCertificateForDirectConversation(
     );
   }
 
-  const phoneNumberSharingMode = parsePhoneNumberSharingMode(
-    window.storage.get('phoneNumberSharingMode')
-  );
-
   let certificateMode: SenderCertificateMode;
-  switch (phoneNumberSharingMode) {
-    case PhoneNumberSharingMode.Everybody:
-      certificateMode = SenderCertificateMode.WithE164;
-      break;
-    case PhoneNumberSharingMode.ContactsOnly:
-      certificateMode = isInSystemContacts(conversationAttrs)
-        ? SenderCertificateMode.WithE164
-        : SenderCertificateMode.WithoutE164;
-      break;
-    case PhoneNumberSharingMode.Nobody:
-      certificateMode = SenderCertificateMode.WithoutE164;
-      break;
-    default:
-      throw missingCaseError(phoneNumberSharingMode);
+  if (shouldSharePhoneNumberWith(conversationAttrs)) {
+    certificateMode = SenderCertificateMode.WithE164;
+  } else {
+    certificateMode = SenderCertificateMode.WithoutE164;
   }
 
   return senderCertificateService.get(certificateMode);

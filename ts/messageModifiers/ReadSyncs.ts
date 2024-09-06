@@ -1,151 +1,210 @@
-// Copyright 2017-2021 Signal Messenger, LLC
+// Copyright 2017 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-/* eslint-disable max-classes-per-file */
+import { z } from 'zod';
 
-import { Collection, Model } from 'backbone';
-
-import type { MessageModel } from '../models/messages';
+import type { ReadonlyMessageAttributesType } from '../model-types.d';
+import * as Errors from '../types/errors';
+import * as log from '../logging/log';
+import { StartupQueue } from '../util/StartupQueue';
+import { drop } from '../util/drop';
+import { getMessageIdForLogging } from '../util/idForLogging';
+import { getMessageSentTimestamp } from '../util/getMessageSentTimestamp';
 import { isIncoming } from '../state/selectors/message';
 import { isMessageUnread } from '../util/isMessageUnread';
 import { notificationService } from '../services/notifications';
-import * as log from '../logging/log';
+import { queueUpdateMessage } from '../util/messageBatcher';
+import { strictAssert } from '../util/assert';
+import { isAciString } from '../util/isAciString';
+import { DataReader, DataWriter } from '../sql/Client';
+
+const { removeSyncTaskById } = DataWriter;
+
+export const readSyncTaskSchema = z.object({
+  type: z.literal('ReadSync').readonly(),
+  readAt: z.number(),
+  sender: z.string().optional(),
+  senderAci: z.string().refine(isAciString),
+  senderId: z.string(),
+  timestamp: z.number(),
+});
+
+export type ReadSyncTaskType = z.infer<typeof readSyncTaskSchema>;
 
 export type ReadSyncAttributesType = {
-  senderId: string;
-  sender?: string;
-  senderUuid: string;
-  timestamp: number;
-  readAt: number;
+  envelopeId: string;
+  syncTaskId: string;
+  readSync: ReadSyncTaskType;
 };
 
-class ReadSyncModel extends Model<ReadSyncAttributesType> {}
+const readSyncs = new Map<string, ReadSyncAttributesType>();
 
-let singleton: ReadSyncs | undefined;
+async function remove(sync: ReadSyncAttributesType): Promise<void> {
+  const { syncTaskId } = sync;
+  readSyncs.delete(syncTaskId);
+  await removeSyncTaskById(syncTaskId);
+}
 
-async function maybeItIsAReactionReadSync(sync: ReadSyncModel): Promise<void> {
-  const readReaction = await window.Signal.Data.markReactionAsRead(
-    sync.get('senderUuid'),
-    Number(sync.get('timestamp'))
+async function maybeItIsAReactionReadSync(
+  sync: ReadSyncAttributesType
+): Promise<void> {
+  const { readSync } = sync;
+  const logId = `ReadSyncs.onSync(timestamp=${readSync.timestamp})`;
+
+  const readReaction = await DataWriter.markReactionAsRead(
+    readSync.senderAci,
+    Number(readSync.timestamp)
   );
 
-  if (!readReaction) {
+  if (
+    !readReaction ||
+    readReaction?.targetAuthorAci !== window.storage.user.getCheckedAci()
+  ) {
     log.info(
-      'Nothing found for read sync',
-      sync.get('senderId'),
-      sync.get('sender'),
-      sync.get('senderUuid'),
-      sync.get('timestamp')
+      `${logId} not found:`,
+      readSync.senderId,
+      readSync.sender,
+      readSync.senderAci
     );
     return;
   }
 
+  log.info(
+    `${logId} read reaction sync found:`,
+    readReaction.conversationId,
+    readSync.senderId,
+    readSync.sender,
+    readSync.senderAci
+  );
+
+  await remove(sync);
+
   notificationService.removeBy({
     conversationId: readReaction.conversationId,
     emoji: readReaction.emoji,
-    targetAuthorUuid: readReaction.targetAuthorUuid,
+    targetAuthorAci: readReaction.targetAuthorAci,
     targetTimestamp: readReaction.targetTimestamp,
   });
 }
 
-export class ReadSyncs extends Collection {
-  static getSingleton(): ReadSyncs {
-    if (!singleton) {
-      singleton = new ReadSyncs();
-    }
+export async function forMessage(
+  message: ReadonlyMessageAttributesType
+): Promise<ReadSyncAttributesType | null> {
+  const logId = `ReadSyncs.forMessage(${getMessageIdForLogging(message)})`;
 
-    return singleton;
+  const sender = window.ConversationController.lookupOrCreate({
+    e164: message.source,
+    serviceId: message.sourceServiceId,
+    reason: logId,
+  });
+  const messageTimestamp = getMessageSentTimestamp(message, {
+    log,
+  });
+  const readSyncValues = Array.from(readSyncs.values());
+  const foundSync = readSyncValues.find(item => {
+    const { readSync } = item;
+    return (
+      readSync.senderId === sender?.id &&
+      readSync.timestamp === messageTimestamp
+    );
+  });
+  if (foundSync) {
+    log.info(
+      `${logId}: Found early read sync for message ${foundSync.readSync.timestamp}`
+    );
+    await remove(foundSync);
+    return foundSync;
   }
 
-  forMessage(message: MessageModel): ReadSyncModel | null {
-    const senderId = window.ConversationController.ensureContactIds({
-      e164: message.get('source'),
-      uuid: message.get('sourceUuid'),
-    });
-    const sync = this.find(item => {
-      return (
-        item.get('senderId') === senderId &&
-        item.get('timestamp') === message.get('sent_at')
-      );
-    });
-    if (sync) {
-      log.info(`Found early read sync for message ${sync.get('timestamp')}`);
-      this.remove(sync);
-      return sync;
-    }
+  return null;
+}
 
-    return null;
-  }
+export async function onSync(sync: ReadSyncAttributesType): Promise<void> {
+  const { readSync, syncTaskId } = sync;
 
-  async onSync(sync: ReadSyncModel): Promise<void> {
-    try {
-      const messages = await window.Signal.Data.getMessagesBySentAt(
-        sync.get('timestamp')
-      );
+  readSyncs.set(syncTaskId, sync);
 
-      const found = messages.find(item => {
-        const senderId = window.ConversationController.ensureContactIds({
-          e164: item.source,
-          uuid: item.sourceUuid,
-        });
+  const logId = `ReadSyncs.onSync(timestamp=${readSync.timestamp})`;
 
-        return isIncoming(item) && senderId === sync.get('senderId');
+  try {
+    const messages = await DataReader.getMessagesBySentAt(readSync.timestamp);
+
+    const found = messages.find(item => {
+      const sender = window.ConversationController.lookupOrCreate({
+        e164: item.source,
+        serviceId: item.sourceServiceId,
+        reason: logId,
       });
 
-      if (!found) {
-        await maybeItIsAReactionReadSync(sync);
-        return;
-      }
+      return isIncoming(item) && sender?.id === readSync.senderId;
+    });
 
-      notificationService.removeBy({ messageId: found.id });
-
-      const message = window.MessageController.register(found.id, found);
-      const readAt = Math.min(sync.get('readAt'), Date.now());
-
-      // If message is unread, we mark it read. Otherwise, we update the expiration
-      //   timer to the time specified by the read sync if it's earlier than
-      //   the previous read time.
-      if (isMessageUnread(message.attributes)) {
-        // TODO DESKTOP-1509: use MessageUpdater.markRead once this is TS
-        message.markRead(readAt, { skipSave: true });
-
-        const updateConversation = () => {
-          // onReadMessage may result in messages older than this one being
-          //   marked read. We want those messages to have the same expire timer
-          //   start time as this one, so we pass the readAt value through.
-          message.getConversation()?.onReadMessage(message, readAt);
-        };
-
-        if (window.startupProcessingQueue) {
-          const conversation = message.getConversation();
-          if (conversation) {
-            window.startupProcessingQueue.add(
-              conversation.get('id'),
-              message.get('sent_at'),
-              updateConversation
-            );
-          }
-        } else {
-          updateConversation();
-        }
-      } else {
-        const now = Date.now();
-        const existingTimestamp = message.get('expirationStartTimestamp');
-        const expirationStartTimestamp = Math.min(
-          now,
-          Math.min(existingTimestamp || now, readAt || now)
-        );
-        message.set({ expirationStartTimestamp });
-      }
-
-      window.Signal.Util.queueUpdateMessage(message.attributes);
-
-      this.remove(sync);
-    } catch (error) {
-      log.error(
-        'ReadSyncs.onSync error:',
-        error && error.stack ? error.stack : error
-      );
+    if (!found) {
+      await maybeItIsAReactionReadSync(sync);
+      return;
     }
+
+    notificationService.removeBy({ messageId: found.id });
+
+    const message = window.MessageCache.__DEPRECATED$register(
+      found.id,
+      found,
+      'ReadSyncs.onSync'
+    );
+    const readAt = Math.min(readSync.readAt, Date.now());
+    const newestSentAt = readSync.timestamp;
+
+    // If message is unread, we mark it read. Otherwise, we update the expiration
+    //   timer to the time specified by the read sync if it's earlier than
+    //   the previous read time.
+    if (isMessageUnread(message.attributes)) {
+      // TODO DESKTOP-1509: use MessageUpdater.markRead once this is TS
+      message.markRead(readAt, { skipSave: true });
+
+      const updateConversation = async () => {
+        const conversation = message.getConversation();
+        strictAssert(conversation, `${logId}: conversation not found`);
+        // onReadMessage may result in messages older than this one being
+        //   marked read. We want those messages to have the same expire timer
+        //   start time as this one, so we pass the readAt value through.
+        drop(
+          conversation.onReadMessage(message.attributes, readAt, newestSentAt)
+        );
+      };
+
+      // only available during initialization
+      if (StartupQueue.isAvailable()) {
+        const conversation = message.getConversation();
+        strictAssert(
+          conversation,
+          `${logId}: conversation not found (StartupQueue)`
+        );
+        StartupQueue.add(
+          conversation.get('id'),
+          message.get('sent_at'),
+          updateConversation
+        );
+      } else {
+        // not awaiting since we don't want to block work happening in the
+        // eventHandlerQueue
+        drop(updateConversation());
+      }
+    } else {
+      log.info(`${logId}: updating expiration`);
+      const now = Date.now();
+      const existingTimestamp = message.get('expirationStartTimestamp');
+      const expirationStartTimestamp = Math.min(
+        now,
+        Math.min(existingTimestamp || now, readAt || now)
+      );
+      message.set({ expirationStartTimestamp });
+    }
+
+    queueUpdateMessage(message.attributes);
+
+    await remove(sync);
+  } catch (error) {
+    log.error(`${logId} error:`, Errors.toLogFormat(error));
+    await remove(sync);
   }
 }

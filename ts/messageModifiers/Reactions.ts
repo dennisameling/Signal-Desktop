@@ -1,147 +1,262 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-/* eslint-disable max-classes-per-file */
-
-import { Collection, Model } from 'backbone';
+import type { AciString } from '../types/ServiceId';
+import type {
+  MessageAttributesType,
+  ReadonlyMessageAttributesType,
+} from '../model-types.d';
 import type { MessageModel } from '../models/messages';
-import { getContactId, getContact } from '../messages/helpers';
-import { isOutgoing } from '../state/selectors/message';
-import type { ReactionAttributesType } from '../model-types.d';
+import type { ReactionSource } from '../reactions/ReactionSource';
+import { DataReader } from '../sql/Client';
+import * as Errors from '../types/errors';
 import * as log from '../logging/log';
+import { getAuthor } from '../messages/helpers';
+import { getMessageSentTimestampSet } from '../util/getMessageSentTimestampSet';
+import { isMe } from '../util/whatTypeOfConversation';
+import { isStory } from '../state/selectors/message';
+import { getPropForTimestamp } from '../util/editHelpers';
+import { isSent } from '../messages/MessageSendState';
+import { strictAssert } from '../util/assert';
 
-export class ReactionModel extends Model<ReactionAttributesType> {}
+export type ReactionAttributesType = {
+  emoji: string;
+  envelopeId: string;
+  fromId: string;
+  remove?: boolean;
+  removeFromMessageReceiverCache: () => unknown;
+  source: ReactionSource;
+  // If this is a reaction to a 1:1 story, we can use this message, generated from the
+  //   reaction message itself. Necessary to put 1:1 story replies into the right
+  //   conversation - not the same conversation as the target message!
+  generatedMessageForStoryReaction?: MessageModel;
+  targetAuthorAci: AciString;
+  targetTimestamp: number;
+  timestamp: number;
+  receivedAtDate: number;
+};
 
-let singleton: Reactions | undefined;
+const reactions = new Map<string, ReactionAttributesType>();
 
-export class Reactions extends Collection<ReactionModel> {
-  static getSingleton(): Reactions {
-    if (!singleton) {
-      singleton = new Reactions();
-    }
+function remove(reaction: ReactionAttributesType): void {
+  reactions.delete(reaction.envelopeId);
+  reaction.removeFromMessageReceiverCache();
+}
 
-    return singleton;
+export function findReactionsForMessage(
+  message: ReadonlyMessageAttributesType
+): Array<ReactionAttributesType> {
+  const matchingReactions = Array.from(reactions.values()).filter(reaction => {
+    return isMessageAMatchForReaction({
+      message,
+      targetTimestamp: reaction.targetTimestamp,
+      targetAuthorAci: reaction.targetAuthorAci,
+      reactionSenderConversationId: reaction.fromId,
+    });
+  });
+
+  matchingReactions.forEach(reaction => remove(reaction));
+  return matchingReactions;
+}
+
+async function findMessageForReaction({
+  targetTimestamp,
+  targetAuthorAci,
+  reactionSenderConversationId,
+  logId,
+}: {
+  targetTimestamp: number;
+  targetAuthorAci: string;
+  reactionSenderConversationId: string;
+  logId: string;
+}): Promise<MessageAttributesType | undefined> {
+  const messages = await DataReader.getMessagesBySentAt(targetTimestamp);
+
+  const matchingMessages = messages.filter(message =>
+    isMessageAMatchForReaction({
+      message,
+      targetTimestamp,
+      targetAuthorAci,
+      reactionSenderConversationId,
+    })
+  );
+
+  if (!matchingMessages.length) {
+    return undefined;
   }
 
-  forMessage(message: MessageModel): Array<ReactionModel> {
-    if (isOutgoing(message.attributes)) {
-      const outgoingReactions = this.filter(
-        item => item.get('targetTimestamp') === message.get('sent_at')
-      );
+  if (matchingMessages.length > 1) {
+    // This could theoretically happen given limitations in the reaction proto but
+    // is very unlikely
+    log.warn(
+      `${logId}/findMessageForReaction: found ${matchingMessages.length} matching messages for the reaction!`
+    );
+  }
 
-      if (outgoingReactions.length > 0) {
-        log.info('Found early reaction for outgoing message');
-        this.remove(outgoingReactions);
-        return outgoingReactions;
-      }
-    }
+  return matchingMessages[0];
+}
 
-    const senderId = getContactId(message.attributes);
-    const sentAt = message.get('sent_at');
-    const reactionsBySource = this.filter(re => {
-      const targetSenderId = window.ConversationController.ensureContactIds({
-        uuid: re.get('targetAuthorUuid'),
-      });
-      const targetTimestamp = re.get('targetTimestamp');
-      return targetSenderId === senderId && targetTimestamp === sentAt;
+function isMessageAMatchForReaction({
+  message,
+  targetTimestamp,
+  targetAuthorAci,
+  reactionSenderConversationId,
+}: {
+  message: ReadonlyMessageAttributesType;
+  targetTimestamp: number;
+  targetAuthorAci: string;
+  reactionSenderConversationId: string;
+}): boolean {
+  if (!getMessageSentTimestampSet(message).has(targetTimestamp)) {
+    return false;
+  }
+
+  const targetAuthorConversation =
+    window.ConversationController.get(targetAuthorAci);
+  const reactionSenderConversation = window.ConversationController.get(
+    reactionSenderConversationId
+  );
+
+  if (!targetAuthorConversation || !reactionSenderConversation) {
+    return false;
+  }
+
+  const author = getAuthor(message);
+  if (!author) {
+    return false;
+  }
+
+  if (author.id !== targetAuthorConversation.id) {
+    return false;
+  }
+
+  if (isMe(reactionSenderConversation.attributes)) {
+    // I am either the recipient or sender of all the messages I know about!
+    return true;
+  }
+
+  if (message.type === 'outgoing') {
+    const sendStateByConversationId = getPropForTimestamp({
+      log,
+      message,
+      prop: 'sendStateByConversationId',
+      targetTimestamp,
     });
 
-    if (reactionsBySource.length > 0) {
-      log.info('Found early reaction for message');
-      this.remove(reactionsBySource);
-      return reactionsBySource;
+    const sendState =
+      sendStateByConversationId?.[reactionSenderConversation.id];
+    if (!sendState) {
+      return false;
     }
 
-    return [];
+    return isSent(sendState.status);
   }
 
-  async onReaction(reaction: ReactionModel): Promise<void> {
-    try {
-      // The conversation the target message was in; we have to find it in the database
-      //   to to figure that out.
-      const targetConversationId =
-        window.ConversationController.ensureContactIds({
-          uuid: reaction.get('targetAuthorUuid'),
-        });
-      if (!targetConversationId) {
-        throw new Error(
-          'onReaction: No conversationId returned from ensureContactIds!'
-        );
-      }
+  if (message.type === 'incoming') {
+    const messageConversation = window.ConversationController.get(
+      message.conversationId
+    );
+    if (!messageConversation) {
+      return false;
+    }
 
-      const targetConversation =
-        await window.ConversationController.getConversationForTargetMessage(
-          targetConversationId,
-          reaction.get('targetTimestamp')
-        );
-      if (!targetConversation) {
-        log.info(
-          'No target conversation for reaction',
-          reaction.get('targetAuthorUuid'),
-          reaction.get('targetTimestamp')
-        );
-        return undefined;
-      }
+    const reactionSenderServiceId = reactionSenderConversation.getServiceId();
+    return (
+      reactionSenderServiceId != null &&
+      messageConversation.hasMember(reactionSenderServiceId)
+    );
+  }
 
-      // awaiting is safe since `onReaction` is never called from inside the queue
-      await targetConversation.queueJob('Reactions.onReaction', async () => {
-        log.info('Handling reaction for', reaction.get('targetTimestamp'));
+  return true;
+}
 
-        const messages = await window.Signal.Data.getMessagesBySentAt(
-          reaction.get('targetTimestamp')
-        );
+export async function onReaction(
+  reaction: ReactionAttributesType
+): Promise<void> {
+  reactions.set(reaction.envelopeId, reaction);
+
+  const logId = `Reactions.onReaction(timestamp=${reaction.timestamp};target=${reaction.targetTimestamp})`;
+
+  try {
+    const matchingMessage = await findMessageForReaction({
+      targetTimestamp: reaction.targetTimestamp,
+      targetAuthorAci: reaction.targetAuthorAci,
+      reactionSenderConversationId: reaction.fromId,
+      logId,
+    });
+
+    if (!matchingMessage) {
+      log.info(
+        `${logId}: No message for reaction`,
+        'targeting',
+        reaction.targetAuthorAci
+      );
+      return;
+    }
+
+    const matchingMessageConversation = window.ConversationController.get(
+      matchingMessage.conversationId
+    );
+
+    if (!matchingMessageConversation) {
+      log.info(
+        `${logId}: No target conversation for reaction`,
+        reaction.targetAuthorAci,
+        reaction.targetTimestamp
+      );
+      remove(reaction);
+      return undefined;
+    }
+
+    // awaiting is safe since `onReaction` is never called from inside the queue
+    await matchingMessageConversation.queueJob(
+      'Reactions.onReaction',
+      async () => {
+        log.info(`${logId}: handling`);
+
         // Message is fetched inside the conversation queue so we have the
         // most recent data
-        const targetMessage = messages.find(m => {
-          const contact = getContact(m);
-
-          if (!contact) {
-            return false;
-          }
-
-          const mcid = contact.get('id');
-          const recid = window.ConversationController.ensureContactIds({
-            uuid: reaction.get('targetAuthorUuid'),
-          });
-          return mcid === recid;
+        const targetMessage = await findMessageForReaction({
+          targetTimestamp: reaction.targetTimestamp,
+          targetAuthorAci: reaction.targetAuthorAci,
+          reactionSenderConversationId: reaction.fromId,
+          logId: `${logId}/conversationQueue`,
         });
 
-        if (!targetMessage) {
-          log.info(
-            'No message for reaction',
-            reaction.get('targetAuthorUuid'),
-            reaction.get('targetTimestamp')
+        if (!targetMessage || targetMessage.id !== matchingMessage.id) {
+          log.warn(
+            `${logId}: message no longer a match for reaction! Maybe it's been deleted?`
           );
-
-          // Since we haven't received the message for which we are removing a
-          // reaction, we can just remove those pending reactions
-          if (reaction.get('remove')) {
-            this.remove(reaction);
-            const oldReaction = this.where({
-              targetAuthorUuid: reaction.get('targetAuthorUuid'),
-              targetTimestamp: reaction.get('targetTimestamp'),
-              emoji: reaction.get('emoji'),
-            });
-            oldReaction.forEach(r => this.remove(r));
-          }
-
+          remove(reaction);
           return;
         }
 
-        const message = window.MessageController.register(
+        const targetMessageModel = window.MessageCache.__DEPRECATED$register(
           targetMessage.id,
-          targetMessage
+          targetMessage,
+          'Reactions.onReaction'
         );
 
-        await message.handleReaction(reaction);
+        // Use the generated message in ts/background.ts to create a message
+        // if the reaction is targeted at a story.
+        if (!isStory(targetMessage)) {
+          await targetMessageModel.handleReaction(reaction);
+        } else {
+          const generatedMessage = reaction.generatedMessageForStoryReaction;
+          strictAssert(
+            generatedMessage,
+            'Generated message must exist for story reaction'
+          );
+          await generatedMessage.handleReaction(reaction, {
+            storyMessage: targetMessage,
+          });
+        }
 
-        this.remove(reaction);
-      });
-    } catch (error) {
-      log.error(
-        'Reactions.onReaction error:',
-        error && error.stack ? error.stack : error
-      );
-    }
+        remove(reaction);
+      }
+    );
+  } catch (error) {
+    remove(reaction);
+    log.error(`${logId} error:`, Errors.toLogFormat(error));
   }
 }

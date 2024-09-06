@@ -3,8 +3,16 @@
 
 import { assert } from 'chai';
 import * as sinon from 'sinon';
+import { noop } from 'lodash';
+import { v4 as generateUuid } from 'uuid';
 
-import { actions, getEmptyState, reducer } from '../../../state/ducks/composer';
+import type { ReduxActions } from '../../../state/types';
+import {
+  actions,
+  getComposerStateForConversation,
+  getEmptyState,
+  reducer,
+} from '../../../state/ducks/composer';
 import { noopAction } from '../../../state/ducks/noop';
 import { reducer as rootReducer } from '../../../state/reducer';
 
@@ -15,16 +23,18 @@ import { fakeDraftAttachment } from '../../helpers/fakeAttachment';
 describe('both/state/ducks/composer', () => {
   const QUOTED_MESSAGE = {
     conversationId: '123',
+    id: 'quoted-message-id',
     quote: {
       attachments: [],
       id: 456,
       isViewOnce: false,
+      isGiftBadge: false,
       messageId: '789',
       referencedMessageNotFound: false,
     },
   };
 
-  const getRootStateFunction = (selectedConversationId?: string) => {
+  function getRootStateFunction(selectedConversationId?: string) {
     const state = rootReducer(undefined, noopAction());
     return () => ({
       ...state,
@@ -33,9 +43,25 @@ describe('both/state/ducks/composer', () => {
         selectedConversationId,
       },
     });
-  };
+  }
 
   describe('replaceAttachments', () => {
+    let oldReduxActions: ReduxActions;
+    before(() => {
+      oldReduxActions = window.reduxActions;
+      window.reduxActions = {
+        ...oldReduxActions,
+        linkPreviews: {
+          ...oldReduxActions?.linkPreviews,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          removeLinkPreview: noop as any,
+        },
+      };
+    });
+    after(() => {
+      window.reduxActions = oldReduxActions;
+    });
+
     it('replaces the attachments state', () => {
       const { replaceAttachments } = actions;
       const dispatch = sinon.spy();
@@ -43,6 +69,7 @@ describe('both/state/ducks/composer', () => {
       const attachments: Array<AttachmentDraftType> = [
         {
           contentType: IMAGE_JPEG,
+          clientUuid: generateUuid(),
           pending: true,
           size: 2433,
           path: 'image.jpg',
@@ -56,7 +83,8 @@ describe('both/state/ducks/composer', () => {
 
       const action = dispatch.getCall(0).args[0];
       const state = reducer(getEmptyState(), action);
-      assert.deepEqual(state.attachments, attachments);
+      const composerState = getComposerStateForConversation(state, '123');
+      assert.deepEqual(composerState.attachments, attachments);
     });
 
     it('sets the high quality setting to false when there are no attachments', () => {
@@ -74,14 +102,20 @@ describe('both/state/ducks/composer', () => {
       const state = reducer(
         {
           ...getEmptyState(),
-          shouldSendHighQualityAttachments: true,
+          conversations: {
+            '123': {
+              ...getComposerStateForConversation(getEmptyState(), '123'),
+              shouldSendHighQualityAttachments: true,
+            },
+          },
         },
         action
       );
-      assert.deepEqual(state.attachments, attachments);
+      const composerState = getComposerStateForConversation(state, '123');
+      assert.deepEqual(composerState.attachments, attachments);
 
-      assert.deepEqual(state.attachments, attachments);
-      assert.isFalse(state.shouldSendHighQualityAttachments);
+      assert.deepEqual(composerState.attachments, attachments);
+      assert.isUndefined(composerState.shouldSendHighQualityAttachments);
     });
 
     it('does not update redux if the conversation is not selected', () => {
@@ -102,46 +136,18 @@ describe('both/state/ducks/composer', () => {
   describe('resetComposer', () => {
     it('returns composer back to empty state', () => {
       const { resetComposer } = actions;
-      const nextState = reducer(
-        {
-          attachments: [],
-          linkPreviewLoading: true,
-          quotedMessage: QUOTED_MESSAGE,
-          shouldSendHighQualityAttachments: true,
+      const nextState = reducer(getEmptyState(), resetComposer('456'));
+
+      const composerState = getComposerStateForConversation(nextState, '456');
+      assert.deepEqual(nextState, {
+        ...getEmptyState(),
+        conversations: {
+          '456': {
+            ...composerState,
+            messageCompositionId: composerState.messageCompositionId,
+          },
         },
-        resetComposer()
-      );
-
-      assert.deepEqual(nextState, getEmptyState());
-    });
-  });
-
-  describe('setLinkPreviewResult', () => {
-    it('sets loading state when loading', () => {
-      const { setLinkPreviewResult } = actions;
-      const state = getEmptyState();
-      const nextState = reducer(state, setLinkPreviewResult(true));
-
-      assert.isTrue(nextState.linkPreviewLoading);
-    });
-
-    it('sets the link preview result', () => {
-      const { setLinkPreviewResult } = actions;
-      const state = getEmptyState();
-      const nextState = reducer(
-        state,
-        setLinkPreviewResult(false, {
-          domain: 'https://www.signal.org/',
-          title: 'Signal >> Careers',
-          url: 'https://www.signal.org/workworkwork',
-          description:
-            'Join an organization that empowers users by making private communication simple.',
-          date: null,
-        })
-      );
-
-      assert.isFalse(nextState.linkPreviewLoading);
-      assert.equal(nextState.linkPreviewResult?.title, 'Signal >> Careers');
+      });
     });
   });
 
@@ -150,15 +156,40 @@ describe('both/state/ducks/composer', () => {
       const { setMediaQualitySetting } = actions;
       const state = getEmptyState();
 
-      assert.isFalse(state.shouldSendHighQualityAttachments);
+      const composerState = getComposerStateForConversation(state, '123');
+      assert.isUndefined(composerState.shouldSendHighQualityAttachments);
 
-      const nextState = reducer(state, setMediaQualitySetting(true));
+      const nextState = reducer(state, setMediaQualitySetting('123', true));
 
-      assert.isTrue(nextState.shouldSendHighQualityAttachments);
+      const nextComposerState = getComposerStateForConversation(
+        nextState,
+        '123'
+      );
+      assert.isTrue(nextComposerState.shouldSendHighQualityAttachments);
 
-      const nextNextState = reducer(nextState, setMediaQualitySetting(false));
+      const nextNextState = reducer(
+        nextState,
+        setMediaQualitySetting('123', false)
+      );
+      const nextNextComposerState = getComposerStateForConversation(
+        nextNextState,
+        '123'
+      );
 
-      assert.isFalse(nextNextState.shouldSendHighQualityAttachments);
+      assert.isFalse(nextNextComposerState.shouldSendHighQualityAttachments);
+
+      const notMyConvoState = reducer(
+        nextNextState,
+        setMediaQualitySetting('456', true)
+      );
+      const notMineComposerState = getComposerStateForConversation(
+        notMyConvoState,
+        '123'
+      );
+      assert.isFalse(
+        notMineComposerState.shouldSendHighQualityAttachments,
+        'still false for prev convo'
+      );
     });
   });
 
@@ -166,10 +197,11 @@ describe('both/state/ducks/composer', () => {
     it('sets the quoted message', () => {
       const { setQuotedMessage } = actions;
       const state = getEmptyState();
-      const nextState = reducer(state, setQuotedMessage(QUOTED_MESSAGE));
+      const nextState = reducer(state, setQuotedMessage('123', QUOTED_MESSAGE));
 
-      assert.equal(nextState.quotedMessage?.conversationId, '123');
-      assert.equal(nextState.quotedMessage?.quote?.id, 456);
+      const composerState = getComposerStateForConversation(nextState, '123');
+      assert.equal(composerState.quotedMessage?.conversationId, '123');
+      assert.equal(composerState.quotedMessage?.quote?.id, 456);
     });
   });
 });

@@ -1,4 +1,4 @@
-// Copyright 2019-2021 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { isNumber, compact, isEmpty, range } from 'lodash';
@@ -8,14 +8,17 @@ import LinkifyIt from 'linkify-it';
 import { maybeParseUrl } from '../util/url';
 import { replaceEmojiWithSpaces } from '../util/emoji';
 
-import type { AttachmentType } from './Attachment';
+import type { AttachmentWithHydratedData } from './Attachment';
+import {
+  artAddStickersRoute,
+  groupInvitesRoute,
+  linkCallRoute,
+} from '../util/signalRoutes';
 
-export type LinkPreviewImage = AttachmentType & {
-  data: Uint8Array;
-};
+export type LinkPreviewImage = AttachmentWithHydratedData;
 
 export type LinkPreviewResult = {
-  title: string;
+  title: string | null;
   url: string;
   image?: LinkPreviewImage;
   description: string | null;
@@ -26,6 +29,23 @@ export type LinkPreviewWithDomain = {
   domain: string;
 } & LinkPreviewResult;
 
+export enum LinkPreviewSourceType {
+  Composer,
+  ForwardMessageModal,
+  StoryCreator,
+}
+
+export type MaybeGrabLinkPreviewOptionsType = Readonly<{
+  caretLocation?: number;
+  conversationId?: string;
+  mode?: 'conversation' | 'story';
+}>;
+
+export type AddLinkPreviewOptionsType = Readonly<{
+  conversationId?: string;
+  disableFetch?: boolean;
+}>;
+
 const linkify = LinkifyIt();
 
 export function shouldPreviewHref(href: string): boolean {
@@ -33,9 +53,33 @@ export function shouldPreviewHref(href: string): boolean {
   return Boolean(
     url &&
       url.protocol === 'https:' &&
-      url.hostname !== 'debuglogs.org' &&
+      !isDomainExcluded(url) &&
       !isLinkSneaky(href)
   );
+}
+
+const EXCLUDED_DOMAINS = [
+  'debuglogs.org',
+  'example',
+  'example.com',
+  'example.net',
+  'example.org',
+  'invalid',
+  'localhost',
+  'onion',
+  'test',
+];
+
+function isDomainExcluded(url: URL): boolean {
+  for (const excludedDomain of EXCLUDED_DOMAINS) {
+    if (
+      url.hostname.endsWith(`.${excludedDomain}`) ||
+      url.hostname === excludedDomain
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const DIRECTIONAL_OVERRIDES = /[\u202c\u202d\u202e]/;
@@ -51,19 +95,23 @@ export function shouldLinkifyMessage(
   if (DIRECTIONAL_OVERRIDES.test(message)) {
     return false;
   }
-  if (UNICODE_DRAWING.test(message)) {
-    return false;
-  }
 
   return true;
 }
 
+export function isCallLink(link = ''): boolean {
+  const url = maybeParseUrl(link);
+  return url?.protocol === 'https:' && linkCallRoute.isMatch(url);
+}
+
 export function isStickerPack(link = ''): boolean {
-  return link.startsWith('https://signal.art/addstickers/');
+  const url = maybeParseUrl(link);
+  return url?.protocol === 'https:' && artAddStickersRoute.isMatch(url);
 }
 
 export function isGroupLink(link = ''): boolean {
-  return link.startsWith('https://signal.group/');
+  const url = maybeParseUrl(link);
+  return url?.protocol === 'https:' && groupInvitesRoute.isMatch(url);
 }
 
 export function findLinks(text: string, caretLocation?: number): Array<string> {
@@ -138,13 +186,17 @@ const VALID_URI_CHARACTERS = new Set([
   '_',
   '~',
 ]);
-const ASCII_PATTERN = new RegExp('[\\u0020-\\u007F]', 'g');
+const ASCII_PATTERN = /[\u0020-\u007F]/g;
 const MAX_HREF_LENGTH = 2 ** 12;
 
 export function isLinkSneaky(href: string): boolean {
   // This helps users avoid extremely long links (which could be hiding something
   //   sketchy) and also sidesteps the performance implications of extremely long hrefs.
   if (href.length > MAX_HREF_LENGTH) {
+    return true;
+  }
+
+  if (UNICODE_DRAWING.test(href)) {
     return true;
   }
 

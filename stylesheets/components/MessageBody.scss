@@ -6,23 +6,28 @@
     font-weight: bold;
   }
 
+  &__download-body,
   &__read-more {
     @include button-reset;
     font-weight: bold;
 
     &:focus {
       @include keyboard-mode {
-        color: $color-ultramarine;
+        border: 1px solid $color-black;
+        outline: none;
       }
     }
+  }
+
+  &__message-too-long {
+    font-weight: bold;
   }
 
   &__at-mention {
     border-radius: 4px;
     cursor: pointer;
     display: inline-block;
-    padding-left: 4px;
-    padding-right: 4px;
+    padding-inline: 4px;
     border: 1px solid transparent;
 
     @include light-theme {
@@ -51,5 +56,13 @@
     &--outgoing {
       background-color: $color-black-alpha-40;
     }
+
+    &--invisible {
+      visibility: hidden;
+    }
+  }
+
+  &__author {
+    @include font-body-2-medium;
   }
 }

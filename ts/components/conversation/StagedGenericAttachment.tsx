@@ -1,4 +1,4 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
@@ -13,11 +13,11 @@ export type Props = {
   i18n: LocalizerType;
 };
 
-export const StagedGenericAttachment = ({
+export function StagedGenericAttachment({
   attachment,
   i18n,
   onClose,
-}: Props): JSX.Element => {
+}: Props): JSX.Element {
   const { fileName, contentType } = attachment;
   const extension = getExtensionForDisplay({ contentType, fileName });
 
@@ -26,7 +26,7 @@ export const StagedGenericAttachment = ({
       <button
         type="button"
         className="module-staged-generic-attachment__close-button"
-        aria-label={i18n('close')}
+        aria-label={i18n('icu:close')}
         onClick={() => {
           if (onClose) {
             onClose(attachment);
@@ -45,4 +45,4 @@ export const StagedGenericAttachment = ({
       </div>
     </div>
   );
-};
+}

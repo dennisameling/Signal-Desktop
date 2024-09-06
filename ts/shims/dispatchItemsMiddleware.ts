@@ -4,7 +4,11 @@
 import { ipcRenderer } from 'electron';
 import type { Middleware } from 'redux';
 
-import { COLORS_CHANGED, COLOR_SELECTED } from '../state/ducks/conversations';
+import {
+  COLORS_CHANGED,
+  COLOR_SELECTED,
+  SET_VOICE_NOTE_PLAYBACK_RATE,
+} from '../state/ducks/conversations';
 
 export const dispatchItemsMiddleware: Middleware =
   ({ getState }) =>
@@ -18,7 +22,8 @@ export const dispatchItemsMiddleware: Middleware =
       action.type === 'items/REMOVE_EXTERNAL' ||
       action.type === 'items/RESET' ||
       action.type === COLOR_SELECTED ||
-      action.type === COLORS_CHANGED
+      action.type === COLORS_CHANGED ||
+      action.type === SET_VOICE_NOTE_PLAYBACK_RATE
     ) {
       ipcRenderer.send('preferences-changed', getState().items);
     }

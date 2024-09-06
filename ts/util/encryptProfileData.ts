@@ -3,7 +3,7 @@
 
 import type { ConversationType } from '../state/ducks/conversations';
 import type { ProfileRequestDataType } from '../textsecure/WebAPI';
-import { assert } from './assert';
+import { assertDev } from './assert';
 import * as Bytes from '../Bytes';
 import {
   PaddedLengths,
@@ -12,6 +12,7 @@ import {
 } from '../Crypto';
 import type { AvatarUpdateType } from '../types/Avatar';
 import { deriveProfileKeyCommitment, deriveProfileKeyVersion } from './zkgroup';
+import { isSharingPhoneNumberWithEverybody } from './phoneNumberSharingMode';
 
 export async function encryptProfileData(
   conversation: ConversationType,
@@ -24,11 +25,11 @@ export async function encryptProfileData(
     familyName,
     firstName,
     profileKey,
-    uuid,
+    serviceId,
   } = conversation;
 
-  assert(profileKey, 'profileKey');
-  assert(uuid, 'uuid');
+  assertDev(profileKey, 'profileKey');
+  assertDev(serviceId, 'serviceId');
 
   const keyBuffer = Bytes.fromBase64(profileKey);
 
@@ -56,6 +57,11 @@ export async function encryptProfileData(
       )
     : null;
 
+  const encryptedPhoneNumberSharing = encryptProfile(
+    new Uint8Array([isSharingPhoneNumberWithEverybody() ? 1 : 0]),
+    keyBuffer
+  );
+
   const encryptedAvatarData = newAvatar
     ? encryptProfile(newAvatar, keyBuffer)
     : undefined;
@@ -63,7 +69,7 @@ export async function encryptProfileData(
   const sameAvatar = Bytes.areEqual(oldAvatar, newAvatar);
 
   const profileData = {
-    version: deriveProfileKeyVersion(profileKey, uuid),
+    version: deriveProfileKeyVersion(profileKey, serviceId),
     name: Bytes.toBase64(bytesName),
     about: bytesAbout ? Bytes.toBase64(bytesAbout) : null,
     aboutEmoji: bytesAboutEmoji ? Bytes.toBase64(bytesAboutEmoji) : null,
@@ -71,7 +77,8 @@ export async function encryptProfileData(
     paymentAddress: window.storage.get('paymentAddress') || null,
     avatar: Boolean(newAvatar),
     sameAvatar,
-    commitment: deriveProfileKeyCommitment(profileKey, uuid),
+    commitment: deriveProfileKeyCommitment(profileKey, serviceId),
+    phoneNumberSharing: Bytes.toBase64(encryptedPhoneNumberSharing),
   };
 
   return [profileData, encryptedAvatarData];

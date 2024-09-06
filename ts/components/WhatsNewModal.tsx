@@ -1,15 +1,13 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ReactChild } from 'react';
+import type { ReactNode } from 'react';
 import React from 'react';
 import moment from 'moment';
 
 import { Modal } from './Modal';
-import type { IntlComponentsType } from './Intl';
-import { Intl } from './Intl';
-import { Emojify } from './conversation/Emojify';
-import type { LocalizerType, RenderTextCallbackType } from '../types/Util';
+import { I18n } from './I18n';
+import type { LocalizerType } from '../types/Util';
 
 export type PropsType = {
   hideWhatsNewModal: () => unknown;
@@ -19,63 +17,56 @@ export type PropsType = {
 type ReleaseNotesType = {
   date: Date;
   version: string;
-  features: Array<{ key: string; components: IntlComponentsType }>;
+  header?: JSX.Element;
+  features: Array<JSX.Element>;
 };
 
-const renderText: RenderTextCallbackType = ({ key, text }) => (
-  <Emojify key={key} text={text} />
-);
+// Exported so it doesn't get marked unused
+export function ExternalLink(props: {
+  href: string;
+  children: ReactNode;
+}): JSX.Element {
+  return (
+    <a href={props.href} target="_blank" rel="noreferrer">
+      {props.children}
+    </a>
+  );
+}
 
-const releaseNotes: ReleaseNotesType = {
-  date: new Date(window.getBuildCreation?.() || Date.now()),
-  version: window.getVersion?.(),
-  features: [
-    { key: 'WhatsNew__v5.39--1', components: undefined },
-    { key: 'WhatsNew__v5.39--2', components: undefined },
-  ],
-};
-
-export const WhatsNewModal = ({
+export function WhatsNewModal({
   i18n,
   hideWhatsNewModal,
-}: PropsType): JSX.Element => {
-  let contentNode: ReactChild;
+}: PropsType): JSX.Element {
+  let contentNode: ReactNode;
 
-  if (releaseNotes.features.length === 1) {
-    const { key, components } = releaseNotes.features[0];
-    contentNode = (
-      <p>
-        <Intl
-          i18n={i18n}
-          id={key}
-          renderText={renderText}
-          components={components}
-        />
-      </p>
-    );
+  const releaseNotes: ReleaseNotesType = {
+    date: new Date(window.getBuildCreation?.() || Date.now()),
+    version: window.getVersion?.(),
+    features: [<I18n i18n={i18n} id="icu:WhatsNew__v7.24--0" />],
+  };
+
+  if (releaseNotes.features.length === 1 && !releaseNotes.header) {
+    contentNode = <p>{releaseNotes.features[0]}</p>;
   } else {
     contentNode = (
-      <ul>
-        {releaseNotes.features.map(({ key, components }) => (
-          <li key={key}>
-            <Intl
-              i18n={i18n}
-              id={key}
-              renderText={renderText}
-              components={components}
-            />
-          </li>
-        ))}
-      </ul>
+      <>
+        {releaseNotes.header ? <p>{releaseNotes.header}</p> : null}
+        <ul>
+          {releaseNotes.features.map(element => {
+            return <li key={element.props.id}>{element}</li>;
+          })}
+        </ul>
+      </>
     );
   }
 
   return (
     <Modal
+      modalName="WhatsNewModal"
       hasXButton
       i18n={i18n}
       onClose={hideWhatsNewModal}
-      title={i18n('WhatsNew__modal-title')}
+      title={i18n('icu:WhatsNew__modal-title')}
     >
       <>
         <span>
@@ -86,4 +77,4 @@ export const WhatsNewModal = ({
       </>
     </Modal>
   );
-};
+}

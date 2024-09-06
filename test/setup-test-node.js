@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 /* eslint-disable no-console */
@@ -8,10 +8,11 @@ const chaiAsPromised = require('chai-as-promised');
 
 const { Crypto } = require('../ts/context/Crypto');
 const { setEnvironment, Environment } = require('../ts/environment');
+const { HourCyclePreference } = require('../ts/types/I18N');
 
 chai.use(chaiAsPromised);
 
-setEnvironment(Environment.Test);
+setEnvironment(Environment.Test, true);
 
 const storageMap = new Map();
 
@@ -26,6 +27,11 @@ global.window = {
       warn: (...args) => console.warn(...args),
       error: (...args) => console.error(...args),
     },
+    getResolvedMessagesLocale: () => 'en',
+    getResolvedMessagesLocaleDirection: () => 'ltr',
+    getHourCyclePreference: () => HourCyclePreference.UnknownPreference,
+    getPreferredSystemLocales: () => ['en'],
+    getLocaleOverride: () => null,
   },
   i18n: key => `i18n(${key})`,
   storage: {
@@ -37,3 +43,13 @@ global.window = {
 // For ducks/network.getEmptyState()
 global.navigator = {};
 global.WebSocket = {};
+
+// For GlobalAudioContext.tsx
+/* eslint max-classes-per-file: ["error", 2] */
+global.AudioContext = class {};
+global.Audio = class {
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  pause() {}
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  addEventListener() {}
+};

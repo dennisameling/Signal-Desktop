@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ThunkAction } from 'redux-thunk';
-import { mapValues } from 'lodash';
+import { isEqual, mapValues } from 'lodash';
+import type { ReadonlyDeep } from 'type-fest';
+import { DataWriter } from '../../sql/Client';
 import type { StateType as RootStateType } from '../reducer';
 import type { BadgeType, BadgeImageType } from '../../badges/types';
 import { getOwn } from '../../util/getOwn';
@@ -22,27 +24,27 @@ import { badgeImageFileDownloader } from '../../badges/badgeImageFileDownloader'
 
 // State
 
-export type BadgesStateType = {
+export type BadgesStateType = ReadonlyDeep<{
   byId: Record<string, BadgeType>;
-};
+}>;
 
 // Actions
 
 const IMAGE_FILE_DOWNLOADED = 'badges/IMAGE_FILE_DOWNLOADED';
 const UPDATE_OR_CREATE = 'badges/UPDATE_OR_CREATE';
 
-type ImageFileDownloadedActionType = {
+type ImageFileDownloadedActionType = ReadonlyDeep<{
   type: typeof IMAGE_FILE_DOWNLOADED;
   payload: {
     url: string;
     localPath: string;
   };
-};
+}>;
 
-type UpdateOrCreateActionType = {
+type UpdateOrCreateActionType = ReadonlyDeep<{
   type: typeof UPDATE_OR_CREATE;
-  payload: ReadonlyArray<BadgeType>;
-};
+  payload: Array<BadgeType>;
+}>;
 
 // Action creators
 
@@ -69,14 +71,14 @@ function updateOrCreate(
     //   check (e.g., due to a crash), we won't download its image files. In the unlikely
     //   event that this happens, we'll repair it the next time we check for undownloaded
     //   image files.
-    await window.Signal.Data.updateOrCreateBadges(badges);
+    await DataWriter.updateOrCreateBadges(badges);
 
     dispatch({
       type: UPDATE_OR_CREATE,
       payload: badges,
     });
 
-    badgeImageFileDownloader.checkForFilesToDownload();
+    void badgeImageFileDownloader.checkForFilesToDownload();
   };
 }
 
@@ -146,6 +148,9 @@ export function reducer(
         }
       });
 
+      if (isEqual(state.byId, newById)) {
+        return state;
+      }
       return {
         ...state,
         byId: newById,

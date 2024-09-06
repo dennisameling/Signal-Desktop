@@ -3,17 +3,20 @@
 
 import type { FileHandle } from 'fs/promises';
 import { readFile, open } from 'fs/promises';
+import type { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import { promisify } from 'util';
 import { gunzip as nativeGunzip } from 'zlib';
 import got from 'got';
-import { chunk as lodashChunk } from 'lodash';
+import { chunk as lodashChunk, noop } from 'lodash';
 import pMap from 'p-map';
-import Dicer from 'dicer';
+import Dicer from '@indutny/dicer';
 
 import { strictAssert } from '../util/assert';
 import { wrapEventEmitterOnce } from '../util/wrapEventEmitterOnce';
 import type { LoggerType } from '../types/Logging';
 import { getGotOptions } from './got';
+import type { GotOptions } from './got';
 import { checkIntegrity } from './util';
 
 const gunzip = promisify(nativeGunzip);
@@ -73,7 +76,7 @@ export type DownloadOptionsType = Readonly<{
   logger?: LoggerType;
 
   // Testing
-  gotOptions?: ReturnType<typeof getGotOptions>;
+  gotOptions?: GotOptions;
 }>;
 
 export type DownloadRangesOptionsType = Readonly<{
@@ -85,7 +88,7 @@ export type DownloadRangesOptionsType = Readonly<{
   chunkStatusCallback: (chunkSize: number) => void;
 
   // Testing
-  gotOptions?: ReturnType<typeof getGotOptions>;
+  gotOptions?: GotOptions;
 }>;
 
 export function getBlockMapFileName(fileName: string): string {
@@ -197,7 +200,7 @@ export function computeDiff(
     last.size += size;
   }
 
-  return optimizedDiff;
+  return optimizedDiff.filter(({ size }) => size !== 0);
 }
 
 export async function prepareDownload({
@@ -211,7 +214,7 @@ export async function prepareDownload({
 
   const newBlockMapData = await got(
     getBlockMapFileName(newUrl),
-    getGotOptions()
+    await getGotOptions()
   ).buffer();
 
   const newBlockMap = await parseBlockMap(newBlockMapData);
@@ -342,7 +345,7 @@ export async function downloadRanges(
     logger,
     abortSignal,
     chunkStatusCallback,
-    gotOptions = getGotOptions(),
+    gotOptions = await getGotOptions(),
   } = options;
 
   logger?.info('updater/downloadRanges: downloading ranges', ranges.length);
@@ -367,63 +370,63 @@ export async function downloadRanges(
 
   // Each `part` is a separate readable stream for one of the ranges
   const onPart = async (part: Dicer.PartStream): Promise<void> => {
-    const diff = await takeDiffFromPart(part, diffByRange);
+    try {
+      const diff = await takeDiffFromPart(part, diffByRange);
 
-    let offset = 0;
-    for await (const chunk of part) {
-      strictAssert(
-        offset + chunk.length <= diff.size,
-        'Server returned more data than expected, ' +
-          `written=${offset} ` +
-          `newChunk=${chunk.length} ` +
-          `maxSize=${diff.size}`
-      );
-
-      if (abortSignal?.aborted) {
-        return;
-      }
-
-      await output.write(chunk, 0, chunk.length, offset + diff.writeOffset);
-      offset += chunk.length;
-
-      chunkStatusCallback(chunk.length);
+      await saveDiffStream({
+        diff,
+        stream: part,
+        abortSignal,
+        output,
+        chunkStatusCallback,
+      });
+    } catch (error) {
+      dicer.destroy(error);
     }
-
-    strictAssert(
-      offset === diff.size,
-      `Not enough data to download from offset=${diff.readOffset} ` +
-        `size=${diff.size}`
-    );
   };
 
-  const [{ statusCode, headers }] = await wrapEventEmitterOnce(
-    stream,
-    'response'
-  );
-  strictAssert(statusCode === 206, `Invalid status code: ${statusCode}`);
+  let boundary: string;
+  try {
+    const [{ statusCode, headers }] = await wrapEventEmitterOnce(
+      stream,
+      'response'
+    );
 
-  const match = headers['content-type']?.match(
-    /^multipart\/byteranges;\s*boundary=([^\s;]+)/
-  );
-  strictAssert(match, `Invalid Content-Type: ${headers['content-type']}`);
+    strictAssert(statusCode === 206, `Invalid status code: ${statusCode}`);
 
-  const dicer = new Dicer({ boundary: match[1] });
+    const match = headers['content-type']?.match(
+      /^multipart\/byteranges;\s*boundary=([^\s;]+)/
+    );
+
+    // When the result is single range we might non-multipart response
+    if (ranges.length === 1 && !match) {
+      await saveDiffStream({
+        diff: ranges[0],
+        stream,
+        abortSignal,
+        output,
+        chunkStatusCallback,
+      });
+      return;
+    }
+
+    // eslint-disable-next-line prefer-destructuring
+    boundary = match[1];
+  } catch (error) {
+    // Ignore further errors and destroy stream early
+    stream.on('error', noop);
+    stream.destroy();
+
+    throw error;
+  }
+
+  const dicer = new Dicer({ boundary });
 
   const partPromises = new Array<Promise<void>>();
   dicer.on('part', part => partPromises.push(onPart(part)));
 
-  dicer.once('finish', () => stream.destroy());
-  stream.once('error', err => dicer.destroy(err));
-
   // Pipe the response stream fully into dicer
-  // NOTE: we can't use `pipeline` due to a dicer bug:
-  // https://github.com/mscdex/dicer/issues/26
-  stream.pipe(dicer);
-  await wrapEventEmitterOnce(dicer, 'finish');
-
-  // Due to the bug above we need to do a manual cleanup
-  stream.unpipe(dicer);
-  stream.destroy();
+  await pipeline(stream, dicer);
 
   // Wait for individual parts to be fully written to FS
   await Promise.all(partPromises);
@@ -471,4 +474,50 @@ async function takeDiffFromPart(
   diffByRange.delete(range);
 
   return diff;
+}
+
+async function saveDiffStream({
+  diff,
+  stream,
+  output,
+  abortSignal,
+  chunkStatusCallback,
+}: {
+  diff: DiffType;
+  stream: Readable;
+  output: FileHandle;
+  abortSignal?: AbortSignal;
+  chunkStatusCallback: (chunkSize: number) => void;
+}): Promise<void> {
+  let offset = 0;
+  for await (const chunk of stream) {
+    strictAssert(
+      offset + chunk.length <= diff.size,
+      'Server returned more data than expected, ' +
+        `written=${offset} ` +
+        `newChunk=${chunk.length} ` +
+        `maxSize=${diff.size}`
+    );
+
+    if (abortSignal?.aborted) {
+      return;
+    }
+
+    await output.write(chunk, 0, chunk.length, offset + diff.writeOffset);
+    offset += chunk.length;
+
+    // Check for signal again so that we don't invoke status callback when
+    // aborted.
+    if (abortSignal?.aborted) {
+      return;
+    }
+
+    chunkStatusCallback(chunk.length);
+  }
+
+  strictAssert(
+    offset === diff.size,
+    `Not enough data to download from offset=${diff.readOffset} ` +
+      `size=${diff.size}`
+  );
 }

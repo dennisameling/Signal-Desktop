@@ -1,14 +1,16 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { FunctionComponent } from 'react';
 import React, { useCallback } from 'react';
 
-import { BaseConversationListItem } from './BaseConversationListItem';
+import { SPINNER_CLASS_NAME } from './BaseConversationListItem';
+import { ListTile } from '../ListTile';
+import { Avatar, AvatarSize } from '../Avatar';
+import { Spinner } from '../Spinner';
 
 import type { LocalizerType } from '../../types/Util';
-import { lookupConversationWithoutUuid } from '../../util/lookupConversationWithoutUuid';
-import type { LookupConversationWithoutUuidActionsType } from '../../util/lookupConversationWithoutUuid';
+import type { LookupConversationWithoutServiceIdActionsType } from '../../util/lookupConversationWithoutServiceId';
+import type { ShowConversationType } from '../../state/ducks/conversations';
 
 type PropsData = {
   username: string;
@@ -17,25 +19,25 @@ type PropsData = {
 
 type PropsHousekeeping = {
   i18n: LocalizerType;
-  showConversation: (conversationId: string) => void;
-} & LookupConversationWithoutUuidActionsType;
+  showConversation: ShowConversationType;
+} & LookupConversationWithoutServiceIdActionsType;
 
 export type Props = PropsData & PropsHousekeeping;
 
-export const UsernameSearchResultListItem: FunctionComponent<Props> = ({
+export function UsernameSearchResultListItem({
   i18n,
   isFetchingUsername,
+  lookupConversationWithoutServiceId,
   username,
   showUserNotFoundModal,
   setIsFetchingUUID,
   showConversation,
-}) => {
-  const usernameText = i18n('at-username', { username });
+}: Props): JSX.Element {
   const boundOnClick = useCallback(async () => {
     if (isFetchingUsername) {
       return;
     }
-    const conversationId = await lookupConversationWithoutUuid({
+    const conversationId = await lookupConversationWithoutServiceId({
       showUserNotFoundModal,
       setIsFetchingUUID,
 
@@ -44,29 +46,44 @@ export const UsernameSearchResultListItem: FunctionComponent<Props> = ({
     });
 
     if (conversationId !== undefined) {
-      showConversation(conversationId);
+      showConversation({ conversationId });
     }
   }, [
-    username,
-    showUserNotFoundModal,
+    isFetchingUsername,
+    lookupConversationWithoutServiceId,
     setIsFetchingUUID,
     showConversation,
-    isFetchingUsername,
+    showUserNotFoundModal,
+    username,
   ]);
 
   return (
-    <BaseConversationListItem
-      acceptedMessageRequest={false}
-      conversationType="direct"
-      headerName={usernameText}
-      i18n={i18n}
-      isMe={false}
-      isSelected={false}
-      isUsernameSearchResult
-      shouldShowSpinner={isFetchingUsername}
+    <ListTile
+      leading={
+        <Avatar
+          acceptedMessageRequest={false}
+          conversationType="direct"
+          searchResult
+          i18n={i18n}
+          isMe={false}
+          title={username}
+          size={AvatarSize.THIRTY_TWO}
+          badge={undefined}
+          sharedGroupNames={[]}
+        />
+      }
+      title={username}
       onClick={boundOnClick}
-      sharedGroupNames={[]}
-      title={usernameText}
+      trailing={
+        isFetchingUsername ? (
+          <Spinner
+            size="20px"
+            svgSize="small"
+            moduleClassName={SPINNER_CLASS_NAME}
+            direction="on-progress-dialog"
+          />
+        ) : undefined
+      }
     />
   );
-};
+}

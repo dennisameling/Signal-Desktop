@@ -1,88 +1,163 @@
-// Copyright 2017-2022 Signal Messenger, LLC
+// Copyright 2017 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { join } from 'path';
 import { readFileSync } from 'fs';
 import { merge } from 'lodash';
-import { setupI18n } from '../ts/util/setupI18n';
+import * as LocaleMatcher from '@formatjs/intl-localematcher';
+import { z } from 'zod';
+import { setupI18n } from '../ts/util/setupI18nMain';
+import { shouldNeverBeCalled } from '../ts/util/shouldNeverBeCalled';
 
 import type { LoggerType } from '../ts/types/Logging';
-import type { LocaleMessagesType } from '../ts/types/I18N';
+import type { HourCyclePreference, LocaleMessagesType } from '../ts/types/I18N';
 import type { LocalizerType } from '../ts/types/Util';
+import * as Errors from '../ts/types/errors';
 
-function normalizeLocaleName(locale: string): string {
-  if (/^en-/.test(locale)) {
-    return 'en';
-  }
-
-  return locale;
-}
+const TextInfoSchema = z.object({
+  direction: z.enum(['ltr', 'rtl']),
+});
 
 function getLocaleMessages(locale: string): LocaleMessagesType {
-  const onDiskLocale = locale.replace('-', '_');
-
-  const targetFile = join(
-    __dirname,
-    '..',
-    '_locales',
-    onDiskLocale,
-    'messages.json'
-  );
+  const targetFile = join(__dirname, '..', '_locales', locale, 'messages.json');
 
   return JSON.parse(readFileSync(targetFile, 'utf-8'));
 }
 
+export type LocaleDisplayNames = Record<string, Record<string, string>>;
+export type CountryDisplayNames = Record<string, Record<string, string>>;
+
+function getLocaleDisplayNames(): LocaleDisplayNames {
+  const targetFile = join(
+    __dirname,
+    '..',
+    'build',
+    'locale-display-names.json'
+  );
+  return JSON.parse(readFileSync(targetFile, 'utf-8'));
+}
+
+function getCountryDisplayNames(): CountryDisplayNames {
+  const targetFile = join(
+    __dirname,
+    '..',
+    'build',
+    'country-display-names.json'
+  );
+  return JSON.parse(readFileSync(targetFile, 'utf-8'));
+}
+
+export type LocaleDirection = 'ltr' | 'rtl';
+
 export type LocaleType = {
+  availableLocales: Array<string>;
   i18n: LocalizerType;
   name: string;
+  direction: LocaleDirection;
   messages: LocaleMessagesType;
+  hourCyclePreference: HourCyclePreference;
+  localeDisplayNames: LocaleDisplayNames;
+  countryDisplayNames: CountryDisplayNames;
 };
 
+function getLocaleDirection(
+  localeName: string,
+  logger: LoggerType
+): LocaleDirection {
+  const locale = new Intl.Locale(localeName);
+  // TC39 proposal is now `locale.getTextInfo()` but in browsers its currently
+  // `locale.textInfo`
+  try {
+    // @ts-expect-error -- TS doesn't know about this method
+    if (typeof locale.getTextInfo === 'function') {
+      return TextInfoSchema.parse(
+        // @ts-expect-error -- TS doesn't know about this method
+        locale.getTextInfo()
+      ).direction;
+    }
+    // @ts-expect-error -- TS doesn't know about this property
+    if (typeof locale.textInfo === 'object') {
+      return TextInfoSchema.parse(
+        // @ts-expect-error -- TS doesn't know about this property
+        locale.textInfo
+      ).direction;
+    }
+  } catch (error) {
+    logger.error(
+      'locale: Error getting text info for locale',
+      Errors.toLogFormat(error)
+    );
+  }
+  return 'ltr';
+}
+
+export function _getAvailableLocales(): Array<string> {
+  return JSON.parse(
+    readFileSync(
+      join(__dirname, '..', 'build', 'available-locales.json'),
+      'utf-8'
+    )
+  ) as Array<string>;
+}
+
 export function load({
-  appLocale,
+  preferredSystemLocales,
+  localeOverride,
+  localeDirectionTestingOverride,
+  hourCyclePreference,
   logger,
 }: {
-  appLocale: string;
-  logger: Pick<LoggerType, 'error'>;
+  preferredSystemLocales: Array<string>;
+  localeOverride: string | null;
+  localeDirectionTestingOverride: LocaleDirection | null;
+  hourCyclePreference: HourCyclePreference;
+  logger: LoggerType;
 }): LocaleType {
-  if (!appLocale) {
-    throw new TypeError('`appLocale` is required');
+  if (preferredSystemLocales == null) {
+    throw new TypeError('locale: `preferredSystemLocales` is required');
   }
 
-  if (!logger || !logger.error) {
-    throw new TypeError('`logger.error` is required');
+  if (preferredSystemLocales.length === 0) {
+    logger.warn('locale: `preferredSystemLocales` was empty');
   }
 
-  const english = getLocaleMessages('en');
+  const availableLocales = _getAvailableLocales();
 
-  // Load locale - if we can't load messages for the current locale, we
-  // default to 'en'
-  //
-  // possible locales:
-  // https://github.com/electron/electron/blob/master/docs/api/locales.md
-  let localeName = normalizeLocaleName(appLocale);
-  let messages;
+  logger.info('locale: Supported locales:', availableLocales.join(', '));
+  logger.info('locale: Preferred locales:', preferredSystemLocales.join(', '));
+  logger.info('locale: Locale Override:', localeOverride);
 
-  try {
-    messages = getLocaleMessages(localeName);
+  const matchedLocale = LocaleMatcher.match(
+    localeOverride != null ? [localeOverride] : preferredSystemLocales,
+    availableLocales,
+    'en',
+    { algorithm: 'best fit' }
+  );
 
-    // We start with english, then overwrite that with anything present in locale
-    messages = merge(english, messages);
-  } catch (e) {
-    logger.error(
-      `Problem loading messages for locale ${localeName} ${e.stack}`
-    );
-    logger.error('Falling back to en locale');
+  logger.info(`locale: Matched locale: ${matchedLocale}`);
 
-    localeName = 'en';
-    messages = english;
-  }
+  const matchedLocaleMessages = getLocaleMessages(matchedLocale);
+  const englishMessages = getLocaleMessages('en');
+  const localeDisplayNames = getLocaleDisplayNames();
+  const countryDisplayNames = getCountryDisplayNames();
 
-  const i18n = setupI18n(appLocale, messages);
+  // We start with english, then overwrite that with anything present in locale
+  const finalMessages = merge(englishMessages, matchedLocaleMessages);
+  const i18n = setupI18n(matchedLocale, finalMessages, {
+    renderEmojify: shouldNeverBeCalled,
+  });
+  const direction =
+    localeDirectionTestingOverride ?? getLocaleDirection(matchedLocale, logger);
+  logger.info(`locale: Text info direction for ${matchedLocale}: ${direction}`);
 
   return {
+    availableLocales,
     i18n,
-    name: localeName,
-    messages,
+    name: matchedLocale,
+    direction,
+    messages: finalMessages,
+    hourCyclePreference,
+    localeDisplayNames,
+    countryDisplayNames,
   };
 }

@@ -1,4 +1,4 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
@@ -10,33 +10,18 @@ import * as Bytes from '../../Bytes';
 import * as logger from '../../logging/log';
 
 import { fakeAttachment } from '../../test-both/helpers/fakeAttachment';
+import { DAY } from '../../util/durations';
+import { migrateDataToFileSystem } from '../../util/attachments/migrateDataToFilesystem';
+
+const FAKE_LOCAL_ATTACHMENT: Attachment.LocalAttachmentV2Type = {
+  version: 2,
+  size: 1,
+  plaintextHash: 'bogus',
+  path: 'fake',
+  localKey: 'absent',
+};
 
 describe('Attachment', () => {
-  describe('getUploadSizeLimitKb', () => {
-    const { getUploadSizeLimitKb } = Attachment;
-
-    it('returns 6000 kilobytes for supported non-GIF images', () => {
-      assert.strictEqual(getUploadSizeLimitKb(MIME.IMAGE_JPEG), 6000);
-      assert.strictEqual(getUploadSizeLimitKb(MIME.IMAGE_PNG), 6000);
-      assert.strictEqual(getUploadSizeLimitKb(MIME.IMAGE_WEBP), 6000);
-    });
-
-    it('returns 25000 kilobytes for GIFs', () => {
-      assert.strictEqual(getUploadSizeLimitKb(MIME.IMAGE_GIF), 25000);
-    });
-
-    it('returns 100000 for other file types', () => {
-      assert.strictEqual(getUploadSizeLimitKb(MIME.APPLICATION_JSON), 100000);
-      assert.strictEqual(getUploadSizeLimitKb(MIME.AUDIO_AAC), 100000);
-      assert.strictEqual(getUploadSizeLimitKb(MIME.AUDIO_MP3), 100000);
-      assert.strictEqual(getUploadSizeLimitKb(MIME.VIDEO_MP4), 100000);
-      assert.strictEqual(
-        getUploadSizeLimitKb('image/vnd.adobe.photoshop' as MIME.MIMEType),
-        100000
-      );
-    });
-  });
-
   describe('getFileExtension', () => {
     it('should return file extension from content type', () => {
       const input: Attachment.AttachmentType = fakeAttachment({
@@ -74,28 +59,102 @@ describe('Attachment', () => {
           data: Bytes.fromString('foo'),
           contentType: MIME.VIDEO_QUICKTIME,
         });
-        const timestamp = new Date(new Date(0).getTimezoneOffset() * 60 * 1000);
+        const timestamp = new Date(
+          DAY + new Date(DAY).getTimezoneOffset() * 60 * 1000
+        );
         const actual = Attachment.getSuggestedFilename({
           attachment,
           timestamp,
         });
-        const expected = 'signal-1970-01-01-000000.mov';
+        const expected = 'signal-1970-01-02-000000.mov';
         assert.strictEqual(actual, expected);
       });
     });
     context('for attachment with index', () => {
-      it('should generate a filename based on timestamp', () => {
+      it('should use filename if it is provided', () => {
+        const attachment: Attachment.AttachmentType = fakeAttachment({
+          fileName: 'funny-cat.mov',
+          data: Bytes.fromString('foo'),
+          contentType: MIME.VIDEO_QUICKTIME,
+        });
+        const timestamp = new Date(
+          DAY + new Date(DAY).getTimezoneOffset() * 60 * 1000
+        );
+        const actual = Attachment.getSuggestedFilename({
+          attachment,
+          timestamp,
+        });
+        const expected = 'funny-cat.mov';
+        assert.strictEqual(actual, expected);
+      });
+
+      it('should use filename if it is provided and index is 1', () => {
+        const attachment: Attachment.AttachmentType = fakeAttachment({
+          fileName: 'funny-cat.mov',
+          data: Bytes.fromString('foo'),
+          contentType: MIME.VIDEO_QUICKTIME,
+        });
+        const timestamp = new Date(
+          DAY + new Date(DAY).getTimezoneOffset() * 60 * 1000
+        );
+        const actual = Attachment.getSuggestedFilename({
+          attachment,
+          timestamp,
+          index: 1,
+        });
+        const expected = 'funny-cat.mov';
+        assert.strictEqual(actual, expected);
+      });
+
+      it('should use filename if it is provided and index is >1', () => {
+        const attachment: Attachment.AttachmentType = fakeAttachment({
+          fileName: 'funny-cat.mov',
+          data: Bytes.fromString('foo'),
+          contentType: MIME.VIDEO_QUICKTIME,
+        });
+        const timestamp = new Date(
+          DAY + new Date(DAY).getTimezoneOffset() * 60 * 1000
+        );
+        const actual = Attachment.getSuggestedFilename({
+          attachment,
+          timestamp,
+          index: 2,
+        });
+        const expected = 'signal-1970-01-02-000000_002.mov';
+        assert.strictEqual(actual, expected);
+      });
+
+      it('should use provided index if > 1 and filename not provided', () => {
         const attachment: Attachment.AttachmentType = fakeAttachment({
           data: Bytes.fromString('foo'),
           contentType: MIME.VIDEO_QUICKTIME,
         });
-        const timestamp = new Date(new Date(0).getTimezoneOffset() * 60 * 1000);
+        const timestamp = new Date(
+          DAY + new Date(DAY).getTimezoneOffset() * 60 * 1000
+        );
         const actual = Attachment.getSuggestedFilename({
           attachment,
           timestamp,
           index: 3,
         });
-        const expected = 'signal-1970-01-01-000000_003.mov';
+        const expected = 'signal-1970-01-02-000000_003.mov';
+        assert.strictEqual(actual, expected);
+      });
+
+      it('should not use provided index == 1 if filename not provided', () => {
+        const attachment: Attachment.AttachmentType = fakeAttachment({
+          data: Bytes.fromString('foo'),
+          contentType: MIME.VIDEO_QUICKTIME,
+        });
+        const timestamp = new Date(
+          DAY + new Date(DAY).getTimezoneOffset() * 60 * 1000
+        );
+        const actual = Attachment.getSuggestedFilename({
+          attachment,
+          timestamp,
+          index: 1,
+        });
+        const expected = 'signal-1970-01-02-000000.mov';
         assert.strictEqual(actual, expected);
       });
     });
@@ -367,20 +426,20 @@ describe('Attachment', () => {
       };
 
       const expected = {
+        ...FAKE_LOCAL_ATTACHMENT,
         contentType: MIME.IMAGE_JPEG,
-        path: 'abc/abcdefgh123456789',
         fileName: 'foo.jpg',
-        size: 1111,
       };
 
       const expectedAttachmentData = Bytes.fromString('Above us only sky');
       const writeNewAttachmentData = async (attachmentData: Uint8Array) => {
         assert.deepEqual(attachmentData, expectedAttachmentData);
-        return 'abc/abcdefgh123456789';
+        return FAKE_LOCAL_ATTACHMENT;
       };
 
-      const actual = await Attachment.migrateDataToFileSystem(input, {
+      const actual = await migrateDataToFileSystem(input, {
         writeNewAttachmentData,
+        logger,
       });
       assert.deepEqual(actual, expected);
     });
@@ -398,15 +457,16 @@ describe('Attachment', () => {
         size: 1111,
       };
 
-      const writeNewAttachmentData = async () => 'abc/abcdefgh123456789';
+      const writeNewAttachmentData = async () => FAKE_LOCAL_ATTACHMENT;
 
-      const actual = await Attachment.migrateDataToFileSystem(input, {
+      const actual = await migrateDataToFileSystem(input, {
         writeNewAttachmentData,
+        logger,
       });
       assert.deepEqual(actual, expected);
     });
 
-    it('should throw error if data is not valid', async () => {
+    it('should clear `data` field if it is not a typed array', async () => {
       const input = {
         contentType: MIME.IMAGE_JPEG,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -415,14 +475,14 @@ describe('Attachment', () => {
         size: 1111,
       };
 
-      const writeNewAttachmentData = async () => 'abc/abcdefgh123456789';
+      const writeNewAttachmentData = async () => FAKE_LOCAL_ATTACHMENT;
 
-      await assert.isRejected(
-        Attachment.migrateDataToFileSystem(input, {
-          writeNewAttachmentData,
-        }),
-        'Expected `attachment.data` to be a typed array; got: number'
-      );
+      const actual = await migrateDataToFileSystem(input, {
+        writeNewAttachmentData,
+        logger,
+      });
+
+      assert.isUndefined(actual.data);
     });
   });
 });

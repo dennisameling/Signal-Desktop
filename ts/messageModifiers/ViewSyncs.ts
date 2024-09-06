@@ -1,100 +1,160 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-/* eslint-disable max-classes-per-file */
+import { z } from 'zod';
 
-import { Collection, Model } from 'backbone';
-
-import type { MessageModel } from '../models/messages';
-import { ReadStatus } from '../messages/MessageReadStatus';
-import { markViewed } from '../services/MessageUpdater';
-import { isIncoming } from '../state/selectors/message';
-import { notificationService } from '../services/notifications';
+import type { ReadonlyMessageAttributesType } from '../model-types.d';
+import * as Errors from '../types/errors';
 import * as log from '../logging/log';
+import { GiftBadgeStates } from '../components/conversation/Message';
+import { ReadStatus } from '../messages/MessageReadStatus';
+import { getMessageIdForLogging } from '../util/idForLogging';
+import { getMessageSentTimestamp } from '../util/getMessageSentTimestamp';
+import { isDownloaded } from '../types/Attachment';
+import { isIncoming } from '../state/selectors/message';
+import { markViewed } from '../services/MessageUpdater';
+import { notificationService } from '../services/notifications';
+import { queueAttachmentDownloads } from '../util/queueAttachmentDownloads';
+import { queueUpdateMessage } from '../util/messageBatcher';
+import { AttachmentDownloadUrgency } from '../jobs/AttachmentDownloadManager';
+import { isAciString } from '../util/isAciString';
+import { DataReader, DataWriter } from '../sql/Client';
+
+export const viewSyncTaskSchema = z.object({
+  type: z.literal('ViewSync').readonly(),
+  senderAci: z.string().refine(isAciString),
+  senderE164: z.string().optional(),
+  senderId: z.string(),
+  timestamp: z.number(),
+  viewedAt: z.number(),
+});
+
+export type ViewSyncTaskType = z.infer<typeof viewSyncTaskSchema>;
 
 export type ViewSyncAttributesType = {
-  senderId: string;
-  senderE164?: string;
-  senderUuid: string;
-  timestamp: number;
-  viewedAt: number;
+  envelopeId: string;
+  syncTaskId: string;
+  viewSync: ViewSyncTaskType;
 };
 
-class ViewSyncModel extends Model<ViewSyncAttributesType> {}
+const viewSyncs = new Map<string, ViewSyncAttributesType>();
 
-let singleton: ViewSyncs | undefined;
+async function remove(sync: ViewSyncAttributesType): Promise<void> {
+  await DataWriter.removeSyncTaskById(sync.syncTaskId);
+}
 
-export class ViewSyncs extends Collection {
-  static getSingleton(): ViewSyncs {
-    if (!singleton) {
-      singleton = new ViewSyncs();
-    }
+export async function forMessage(
+  message: ReadonlyMessageAttributesType
+): Promise<Array<ViewSyncAttributesType>> {
+  const logId = `ViewSyncs.forMessage(${getMessageIdForLogging(message)})`;
 
-    return singleton;
+  const sender = window.ConversationController.lookupOrCreate({
+    e164: message.source,
+    serviceId: message.sourceServiceId,
+    reason: logId,
+  });
+  const messageTimestamp = getMessageSentTimestamp(message, {
+    log,
+  });
+
+  const viewSyncValues = Array.from(viewSyncs.values());
+
+  const matchingSyncs = viewSyncValues.filter(item => {
+    const { viewSync } = item;
+    return (
+      viewSync.senderId === sender?.id &&
+      viewSync.timestamp === messageTimestamp
+    );
+  });
+
+  if (matchingSyncs.length > 0) {
+    log.info(
+      `${logId}: Found ${matchingSyncs.length} early view sync(s) for message ${messageTimestamp}`
+    );
   }
+  await Promise.all(
+    matchingSyncs.map(async sync => {
+      await remove(sync);
+    })
+  );
 
-  forMessage(message: MessageModel): Array<ViewSyncModel> {
-    const senderId = window.ConversationController.ensureContactIds({
-      e164: message.get('source'),
-      uuid: message.get('sourceUuid'),
-    });
-    const syncs = this.filter(item => {
-      return (
-        item.get('senderId') === senderId &&
-        item.get('timestamp') === message.get('sent_at')
-      );
-    });
-    if (syncs.length) {
-      log.info(
-        `Found ${syncs.length} early view sync(s) for message ${message.get(
-          'sent_at'
-        )}`
-      );
-      this.remove(syncs);
-    }
-    return syncs;
-  }
+  return matchingSyncs;
+}
 
-  async onSync(sync: ViewSyncModel): Promise<void> {
-    try {
-      const messages = await window.Signal.Data.getMessagesBySentAt(
-        sync.get('timestamp')
-      );
+export async function onSync(sync: ViewSyncAttributesType): Promise<void> {
+  viewSyncs.set(sync.syncTaskId, sync);
+  const { viewSync } = sync;
 
-      const found = messages.find(item => {
-        const senderId = window.ConversationController.ensureContactIds({
-          e164: item.source,
-          uuid: item.sourceUuid,
-        });
+  const logId = `ViewSyncs.onSync(timestamp=${viewSync.timestamp})`;
 
-        return isIncoming(item) && senderId === sync.get('senderId');
+  try {
+    const messages = await DataReader.getMessagesBySentAt(viewSync.timestamp);
+
+    const found = messages.find(item => {
+      const sender = window.ConversationController.lookupOrCreate({
+        e164: item.source,
+        serviceId: item.sourceServiceId,
+        reason: logId,
       });
 
-      if (!found) {
-        log.info(
-          'Nothing found for view sync',
-          sync.get('senderId'),
-          sync.get('senderE164'),
-          sync.get('senderUuid'),
-          sync.get('timestamp')
-        );
-        return;
-      }
+      return sender?.id === viewSync.senderId;
+    });
 
-      notificationService.removeBy({ messageId: found.id });
-
-      const message = window.MessageController.register(found.id, found);
-
-      if (message.get('readStatus') !== ReadStatus.Viewed) {
-        message.set(markViewed(message.attributes, sync.get('viewedAt')));
-      }
-
-      this.remove(sync);
-    } catch (error) {
-      log.error(
-        'ViewSyncs.onSync error:',
-        error && error.stack ? error.stack : error
+    if (!found) {
+      log.info(
+        `${logId}: nothing found`,
+        viewSync.senderId,
+        viewSync.senderE164,
+        viewSync.senderAci
       );
+      return;
     }
+
+    notificationService.removeBy({ messageId: found.id });
+
+    const message = window.MessageCache.__DEPRECATED$register(
+      found.id,
+      found,
+      'ViewSyncs.onSync'
+    );
+    let didChangeMessage = false;
+
+    if (message.get('readStatus') !== ReadStatus.Viewed) {
+      didChangeMessage = true;
+      message.set(markViewed(message.attributes, viewSync.viewedAt));
+
+      const attachments = message.get('attachments');
+      if (!attachments?.every(isDownloaded)) {
+        const updatedFields = await queueAttachmentDownloads(
+          message.attributes,
+          { urgency: AttachmentDownloadUrgency.STANDARD }
+        );
+        if (updatedFields) {
+          message.set(updatedFields);
+        }
+      }
+    }
+
+    const giftBadge = message.get('giftBadge');
+    if (giftBadge) {
+      didChangeMessage = true;
+      message.set({
+        giftBadge: {
+          ...giftBadge,
+          state: isIncoming(message.attributes)
+            ? GiftBadgeStates.Redeemed
+            : GiftBadgeStates.Opened,
+        },
+      });
+    }
+
+    if (didChangeMessage) {
+      queueUpdateMessage(message.attributes);
+    }
+
+    await remove(sync);
+  } catch (error) {
+    log.error(`${logId} error:`, Errors.toLogFormat(error));
+    await remove(sync);
   }
 }

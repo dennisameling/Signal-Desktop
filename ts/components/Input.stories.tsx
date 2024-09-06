@@ -1,12 +1,9 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React, { useState } from 'react';
-
-import { storiesOf } from '@storybook/react';
-import { text } from '@storybook/addon-knobs';
 import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
 import type { PropsType } from './Input';
 import { Input } from './Input';
 import { setupI18n } from '../util/setupI18n';
@@ -14,7 +11,11 @@ import enMessages from '../../_locales/en/messages.json';
 
 const i18n = setupI18n('en', enMessages);
 
-const stories = storiesOf('Components/Input', module);
+export default {
+  title: 'Components/Input',
+  argTypes: {},
+  args: {},
+} satisfies Meta<PropsType>;
 
 const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   disabled: Boolean(overrideProps.disabled),
@@ -25,11 +26,8 @@ const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   icon: overrideProps.icon,
   maxLengthCount: overrideProps.maxLengthCount,
   onChange: action('onChange'),
-  placeholder: text(
-    'placeholder',
-    overrideProps.placeholder || 'Enter some text here'
-  ),
-  value: text('value', overrideProps.value || ''),
+  placeholder: overrideProps.placeholder ?? 'Enter some text here',
+  value: overrideProps.value ?? '',
   whenToShowRemainingCount: overrideProps.whenToShowRemainingCount,
 });
 
@@ -40,64 +38,80 @@ function Controller(props: PropsType): JSX.Element {
   return <Input {...props} onChange={setValue} value={value} />;
 }
 
-stories.add('Simple', () => <Controller {...createProps()} />);
+export function Simple(): JSX.Element {
+  return <Controller {...createProps()} />;
+}
 
-stories.add('hasClearButton', () => (
-  <Controller
-    {...createProps({
-      hasClearButton: true,
-    })}
-  />
-));
+export function HasClearButton(): JSX.Element {
+  return (
+    <Controller
+      {...createProps({
+        hasClearButton: true,
+      })}
+    />
+  );
+}
 
-stories.add('character count', () => (
-  <Controller
-    {...createProps({
-      maxLengthCount: 10,
-    })}
-  />
-));
+export function CharacterCount(): JSX.Element {
+  return (
+    <Controller
+      {...createProps({
+        maxLengthCount: 10,
+      })}
+    />
+  );
+}
 
-stories.add('character count (customizable show)', () => (
-  <Controller
-    {...createProps({
-      maxLengthCount: 64,
-      whenToShowRemainingCount: 32,
-    })}
-  />
-));
+export function CharacterCountCustomizableShow(): JSX.Element {
+  return (
+    <Controller
+      {...createProps({
+        maxLengthCount: 64,
+        whenToShowRemainingCount: 32,
+      })}
+    />
+  );
+}
 
-stories.add('expandable', () => (
-  <Controller
-    {...createProps({
-      expandable: true,
-    })}
-  />
-));
+export function Expandable(): JSX.Element {
+  return (
+    <Controller
+      {...createProps({
+        expandable: true,
+      })}
+    />
+  );
+}
 
-stories.add('expandable w/count', () => (
-  <Controller
-    {...createProps({
-      expandable: true,
-      hasClearButton: true,
-      maxLengthCount: 140,
-      whenToShowRemainingCount: 0,
-    })}
-  />
-));
+export function ExpandableWCount(): JSX.Element {
+  return (
+    <Controller
+      {...createProps({
+        expandable: true,
+        hasClearButton: true,
+        maxLengthCount: 140,
+        whenToShowRemainingCount: 0,
+      })}
+    />
+  );
+}
 
-stories.add('disabled', () => (
-  <Controller
-    {...createProps({
-      disabled: true,
-    })}
-  />
-));
+export function Disabled(): JSX.Element {
+  return (
+    <Controller
+      {...createProps({
+        disabled: true,
+      })}
+    />
+  );
+}
 
-stories.add('spellcheck disabled', () => (
-  <Controller
-    {...createProps({
-      disableSpellcheck: true,
-    })}
-  />
-));
+export function SpellcheckDisabled(): JSX.Element {
+  return (
+    <Controller
+      {...createProps({
+        disableSpellcheck: true,
+      })}
+    />
+  );
+}

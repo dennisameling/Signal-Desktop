@@ -1,11 +1,11 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import { storiesOf } from '@storybook/react';
-import { boolean, select } from '@storybook/addon-knobs';
 import { action } from '@storybook/addon-actions';
 
+import type { Meta } from '@storybook/react';
+import type { PropsType } from './DialogNetworkStatus';
 import { DialogNetworkStatus } from './DialogNetworkStatus';
 import { SocketStatus } from '../types/SocketStatus';
 import { setupI18n } from '../util/setupI18n';
@@ -20,22 +20,19 @@ const defaultProps = {
   hasNetworkDialog: true,
   i18n,
   isOnline: true,
+  isOutage: false,
   socketStatus: SocketStatus.CONNECTING,
   manualReconnect: action('manual-reconnect'),
   withinConnectingGracePeriod: false,
   challengeStatus: 'idle' as const,
 };
 
-const story = storiesOf('Components/DialogNetworkStatus', module);
+export default {
+  title: 'Components/DialogNetworkStatus',
+} satisfies Meta<PropsType>;
 
-story.add('Knobs Playground', () => {
-  const containerWidthBreakpoint = select(
-    'containerWidthBreakpoint',
-    WidthBreakpoint,
-    WidthBreakpoint.Wide
-  );
-  const hasNetworkDialog = boolean('hasNetworkDialog', true);
-  const isOnline = boolean('isOnline', true);
+export function KnobsPlayground(args: PropsType): JSX.Element {
+  /*
   const socketStatus = select(
     'socketStatus',
     {
@@ -46,61 +43,140 @@ story.add('Knobs Playground', () => {
     },
     SocketStatus.CONNECTING
   );
+   */
 
   return (
-    <FakeLeftPaneContainer containerWidthBreakpoint={containerWidthBreakpoint}>
-      <DialogNetworkStatus
-        {...defaultProps}
-        containerWidthBreakpoint={containerWidthBreakpoint}
-        hasNetworkDialog={hasNetworkDialog}
-        isOnline={isOnline}
-        socketStatus={socketStatus}
-      />
+    <FakeLeftPaneContainer {...args}>
+      <DialogNetworkStatus {...defaultProps} {...args} />
     </FakeLeftPaneContainer>
   );
-});
+}
+KnobsPlayground.args = {
+  containerWidthBreakpoint: WidthBreakpoint.Wide,
+  hasNetworkDialog: true,
+  isOnline: true,
+  isOutage: false,
+  socketStatus: SocketStatus.CONNECTING,
+};
 
-(
-  [
-    ['wide', WidthBreakpoint.Wide],
-    ['narrow', WidthBreakpoint.Narrow],
-  ] as const
-).forEach(([name, containerWidthBreakpoint]) => {
-  const defaultPropsForBreakpoint = {
-    ...defaultProps,
-    containerWidthBreakpoint,
-  };
-
-  story.add(`Connecting (${name} container)`, () => (
-    <FakeLeftPaneContainer containerWidthBreakpoint={containerWidthBreakpoint}>
+export function ConnectingWide(): JSX.Element {
+  return (
+    <FakeLeftPaneContainer containerWidthBreakpoint={WidthBreakpoint.Wide}>
       <DialogNetworkStatus
-        {...defaultPropsForBreakpoint}
+        {...defaultProps}
+        containerWidthBreakpoint={WidthBreakpoint.Wide}
         socketStatus={SocketStatus.CONNECTING}
       />
     </FakeLeftPaneContainer>
-  ));
+  );
+}
 
-  story.add(`Closing (${name} container)`, () => (
-    <FakeLeftPaneContainer containerWidthBreakpoint={containerWidthBreakpoint}>
+export function ClosingWide(): JSX.Element {
+  return (
+    <FakeLeftPaneContainer containerWidthBreakpoint={WidthBreakpoint.Wide}>
       <DialogNetworkStatus
-        {...defaultPropsForBreakpoint}
+        {...defaultProps}
+        containerWidthBreakpoint={WidthBreakpoint.Wide}
         socketStatus={SocketStatus.CLOSING}
       />
     </FakeLeftPaneContainer>
-  ));
+  );
+}
 
-  story.add(`Closed (${name} container)`, () => (
-    <FakeLeftPaneContainer containerWidthBreakpoint={containerWidthBreakpoint}>
+export function ClosedWide(): JSX.Element {
+  return (
+    <FakeLeftPaneContainer containerWidthBreakpoint={WidthBreakpoint.Wide}>
       <DialogNetworkStatus
-        {...defaultPropsForBreakpoint}
+        {...defaultProps}
+        containerWidthBreakpoint={WidthBreakpoint.Wide}
         socketStatus={SocketStatus.CLOSED}
       />
     </FakeLeftPaneContainer>
-  ));
+  );
+}
 
-  story.add(`Offline (${name} container)`, () => (
-    <FakeLeftPaneContainer containerWidthBreakpoint={containerWidthBreakpoint}>
-      <DialogNetworkStatus {...defaultPropsForBreakpoint} isOnline={false} />
+export function OfflineWide(): JSX.Element {
+  return (
+    <FakeLeftPaneContainer containerWidthBreakpoint={WidthBreakpoint.Wide}>
+      <DialogNetworkStatus
+        {...defaultProps}
+        containerWidthBreakpoint={WidthBreakpoint.Wide}
+        isOnline={false}
+      />
     </FakeLeftPaneContainer>
-  ));
-});
+  );
+}
+
+export function OutageWide(): JSX.Element {
+  return (
+    <FakeLeftPaneContainer containerWidthBreakpoint={WidthBreakpoint.Wide}>
+      <DialogNetworkStatus
+        {...defaultProps}
+        containerWidthBreakpoint={WidthBreakpoint.Wide}
+        isOnline={false}
+        isOutage
+      />
+    </FakeLeftPaneContainer>
+  );
+}
+
+export function ConnectingNarrow(): JSX.Element {
+  return (
+    <FakeLeftPaneContainer containerWidthBreakpoint={WidthBreakpoint.Narrow}>
+      <DialogNetworkStatus
+        {...defaultProps}
+        containerWidthBreakpoint={WidthBreakpoint.Narrow}
+        socketStatus={SocketStatus.CONNECTING}
+      />
+    </FakeLeftPaneContainer>
+  );
+}
+
+export function ClosingNarrow(): JSX.Element {
+  return (
+    <FakeLeftPaneContainer containerWidthBreakpoint={WidthBreakpoint.Narrow}>
+      <DialogNetworkStatus
+        {...defaultProps}
+        containerWidthBreakpoint={WidthBreakpoint.Narrow}
+        socketStatus={SocketStatus.CLOSING}
+      />
+    </FakeLeftPaneContainer>
+  );
+}
+
+export function ClosedNarrow(): JSX.Element {
+  return (
+    <FakeLeftPaneContainer containerWidthBreakpoint={WidthBreakpoint.Narrow}>
+      <DialogNetworkStatus
+        {...defaultProps}
+        containerWidthBreakpoint={WidthBreakpoint.Narrow}
+        socketStatus={SocketStatus.CLOSED}
+      />
+    </FakeLeftPaneContainer>
+  );
+}
+
+export function OfflineNarrow(): JSX.Element {
+  return (
+    <FakeLeftPaneContainer containerWidthBreakpoint={WidthBreakpoint.Narrow}>
+      <DialogNetworkStatus
+        {...defaultProps}
+        containerWidthBreakpoint={WidthBreakpoint.Narrow}
+        isOnline={false}
+      />
+    </FakeLeftPaneContainer>
+  );
+}
+
+export function OutageNarrow(): JSX.Element {
+  return (
+    <FakeLeftPaneContainer containerWidthBreakpoint={WidthBreakpoint.Narrow}>
+      <DialogNetworkStatus
+        {...defaultProps}
+        containerWidthBreakpoint={WidthBreakpoint.Narrow}
+        isOnline={false}
+        isOutage
+      />
+    </FakeLeftPaneContainer>
+  );
+}

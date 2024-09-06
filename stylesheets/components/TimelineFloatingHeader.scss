@@ -5,7 +5,7 @@
   align-items: center;
   display: flex;
   flex-direction: column;
-  left: 0;
+  inset-inline-start: 0;
   pointer-events: none;
   position: absolute;
   top: 10px;
@@ -25,14 +25,5 @@
     @include timeline-floating-header-node;
     margin-top: 12px;
     padding: 6px;
-
-    &--visible {
-      opacity: 1;
-    }
-
-    &--hidden {
-      opacity: 0;
-      transition: opacity 0.25s ease-out 0.3s;
-    }
   }
 }

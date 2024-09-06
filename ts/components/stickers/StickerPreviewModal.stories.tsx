@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import { storiesOf } from '@storybook/react';
-import { text } from '@storybook/addon-knobs';
 import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
+import type { Props } from './StickerPreviewModal';
 import { StickerPreviewModal } from './StickerPreviewModal';
 import { setupI18n } from '../../util/setupI18n';
 import enMessages from '../../../_locales/en/messages.json';
@@ -17,7 +16,11 @@ import {
 
 const i18n = setupI18n('en', enMessages);
 
-const book = storiesOf('Components/Stickers/StickerPreviewModal', module);
+export default {
+  title: 'Components/Stickers/StickerPreviewModal',
+  argTypes: {},
+  args: {},
+} satisfies Meta<Props>;
 
 const abeSticker = {
   id: -1,
@@ -38,9 +41,9 @@ const tallSticker = {
   packId: 'tall',
 };
 
-book.add('Full', () => {
-  const title = text('title', 'Foo');
-  const author = text('author', 'Foo McBarrington');
+export function Full(): JSX.Element {
+  const title = 'Foo';
+  const author = 'Foo McBarrington';
 
   const pack = {
     id: 'foo',
@@ -63,6 +66,7 @@ book.add('Full', () => {
 
   return (
     <StickerPreviewModal
+      closeStickerPackPreview={action('closeStickerPackPreview')}
       onClose={action('onClose')}
       installStickerPack={action('installStickerPack')}
       uninstallStickerPack={action('uninstallStickerPack')}
@@ -71,11 +75,11 @@ book.add('Full', () => {
       pack={pack}
     />
   );
-});
+}
 
-book.add('Just four stickers', () => {
-  const title = text('title', 'Foo');
-  const author = text('author', 'Foo McBarrington');
+export function JustFourStickers(): JSX.Element {
+  const title = 'Foo';
+  const author = 'Foo McBarrington';
 
   const pack = {
     id: 'foo',
@@ -92,7 +96,7 @@ book.add('Just four stickers', () => {
 
   return (
     <StickerPreviewModal
-      onClose={action('onClose')}
+      closeStickerPackPreview={action('closeStickerPackPreview')}
       installStickerPack={action('installStickerPack')}
       uninstallStickerPack={action('uninstallStickerPack')}
       downloadStickerPack={action('downloadStickerPack')}
@@ -100,12 +104,12 @@ book.add('Just four stickers', () => {
       pack={pack}
     />
   );
-});
+}
 
-book.add('Initial download', () => {
+export function InitialDownload(): JSX.Element {
   return (
     <StickerPreviewModal
-      onClose={action('onClose')}
+      closeStickerPackPreview={action('closeStickerPackPreview')}
       installStickerPack={action('installStickerPack')}
       uninstallStickerPack={action('uninstallStickerPack')}
       downloadStickerPack={action('downloadStickerPack')}
@@ -114,12 +118,12 @@ book.add('Initial download', () => {
       pack={{} as any}
     />
   );
-});
+}
 
-book.add('Pack deleted', () => {
+export function PackDeleted(): JSX.Element {
   return (
     <StickerPreviewModal
-      onClose={action('onClose')}
+      closeStickerPackPreview={action('closeStickerPackPreview')}
       installStickerPack={action('installStickerPack')}
       uninstallStickerPack={action('uninstallStickerPack')}
       downloadStickerPack={action('downloadStickerPack')}
@@ -127,4 +131,4 @@ book.add('Pack deleted', () => {
       pack={undefined}
     />
   );
-});
+}

@@ -1,4 +1,4 @@
-// Copyright 2019-2021 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { FunctionComponent } from 'react';
@@ -6,12 +6,15 @@ import React, { useCallback, useState } from 'react';
 
 import { ButtonVariant } from '../Button';
 import { ConfirmationDialog } from '../ConfirmationDialog';
-import { BaseConversationListItem } from './BaseConversationListItem';
+import { SPINNER_CLASS_NAME } from './BaseConversationListItem';
+import { ListTile } from '../ListTile';
+import { Avatar, AvatarSize } from '../Avatar';
+import { Spinner } from '../Spinner';
 
 import type { ParsedE164Type } from '../../util/libphonenumberInstance';
-import type { LookupConversationWithoutUuidActionsType } from '../../util/lookupConversationWithoutUuid';
+import type { LookupConversationWithoutServiceIdActionsType } from '../../util/lookupConversationWithoutServiceId';
 import type { LocalizerType } from '../../types/Util';
-import { AvatarColors } from '../../types/Colors';
+import type { ShowConversationType } from '../../state/ducks/conversations';
 
 type PropsData = {
   phoneNumber: ParsedE164Type;
@@ -20,8 +23,8 @@ type PropsData = {
 
 type PropsHousekeeping = {
   i18n: LocalizerType;
-  showConversation: (conversationId: string) => void;
-} & LookupConversationWithoutUuidActionsType;
+  showConversation: ShowConversationType;
+} & LookupConversationWithoutServiceIdActionsType;
 
 export type Props = PropsData & PropsHousekeeping;
 
@@ -30,7 +33,7 @@ export const StartNewConversation: FunctionComponent<Props> = React.memo(
     i18n,
     phoneNumber,
     isFetching,
-    lookupConversationWithoutUuid,
+    lookupConversationWithoutServiceId,
     showUserNotFoundModal,
     setIsFetchingUUID,
     showConversation,
@@ -45,7 +48,7 @@ export const StartNewConversation: FunctionComponent<Props> = React.memo(
       if (isFetching) {
         return;
       }
-      const conversationId = await lookupConversationWithoutUuid({
+      const conversationId = await lookupConversationWithoutServiceId({
         showUserNotFoundModal,
         setIsFetchingUUID,
 
@@ -55,11 +58,11 @@ export const StartNewConversation: FunctionComponent<Props> = React.memo(
       });
 
       if (conversationId !== undefined) {
-        showConversation(conversationId);
+        showConversation({ conversationId });
       }
     }, [
       showConversation,
-      lookupConversationWithoutUuid,
+      lookupConversationWithoutServiceId,
       showUserNotFoundModal,
       setIsFetchingUUID,
       setIsModalVisible,
@@ -71,12 +74,13 @@ export const StartNewConversation: FunctionComponent<Props> = React.memo(
     if (isModalVisible) {
       modal = (
         <ConfirmationDialog
-          cancelText={i18n('ok')}
+          dialogName="StartNewConversation.invalidPhoneNumber"
+          cancelText={i18n('icu:ok')}
           cancelButtonVariant={ButtonVariant.Secondary}
           i18n={i18n}
           onClose={() => setIsModalVisible(false)}
         >
-          {i18n('startConversation--phone-number-not-valid', {
+          {i18n('icu:startConversation--phone-number-not-valid', {
             phoneNumber: phoneNumber.userInput,
           })}
         </ConfirmationDialog>
@@ -85,19 +89,32 @@ export const StartNewConversation: FunctionComponent<Props> = React.memo(
 
     return (
       <>
-        <BaseConversationListItem
-          acceptedMessageRequest={false}
-          color={AvatarColors[0]}
-          conversationType="direct"
-          headerName={phoneNumber.userInput}
-          i18n={i18n}
-          isMe={false}
-          isSelected={false}
-          onClick={boundOnClick}
-          phoneNumber={phoneNumber.userInput}
-          shouldShowSpinner={isFetching}
-          sharedGroupNames={[]}
+        <ListTile
+          leading={
+            <Avatar
+              acceptedMessageRequest={false}
+              conversationType="direct"
+              searchResult
+              i18n={i18n}
+              isMe={false}
+              title={phoneNumber.userInput}
+              size={AvatarSize.THIRTY_TWO}
+              badge={undefined}
+              sharedGroupNames={[]}
+            />
+          }
           title={phoneNumber.userInput}
+          onClick={boundOnClick}
+          trailing={
+            isFetching ? (
+              <Spinner
+                size="20px"
+                svgSize="small"
+                moduleClassName={SPINNER_CLASS_NAME}
+                direction="on-progress-dialog"
+              />
+            ) : undefined
+          }
         />
         {modal}
       </>

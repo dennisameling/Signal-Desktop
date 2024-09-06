@@ -1,118 +1,134 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { Meta, StoryFn } from '@storybook/react';
 import * as React from 'react';
-
+import casual from 'casual';
 import { action } from '@storybook/addon-actions';
-import { boolean } from '@storybook/addon-knobs';
-import { storiesOf } from '@storybook/react';
-
-import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
-import type { PropsType } from './ContactModal';
-import { ContactModal } from './ContactModal';
-import { setupI18n } from '../../util/setupI18n';
-import enMessages from '../../../_locales/en/messages.json';
 import type { ConversationType } from '../../state/ducks/conversations';
-import { getFakeBadges } from '../../test-both/helpers/getFakeBadge';
+import type { PropsType } from './ContactModal';
+import enMessages from '../../../_locales/en/messages.json';
+import { ContactModal } from './ContactModal';
+import { HasStories } from '../../types/Stories';
 import { ThemeType } from '../../types/Util';
+import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
+import { getFakeBadges } from '../../test-both/helpers/getFakeBadge';
+import { setupI18n } from '../../util/setupI18n';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf('Components/Conversation/ContactModal', module);
-
 const defaultContact: ConversationType = getDefaultConversation({
-  id: 'abcdef',
-  title: 'Pauline Oliveros',
-  phoneNumber: '(333) 444-5515',
   about: '👍 Free to chat',
 });
+
 const defaultGroup: ConversationType = getDefaultConversation({
-  id: 'abcdef',
   areWeAdmin: true,
-  title: "It's a group",
-  groupLink: 'something',
+  groupLink: casual.url,
+  title: casual.title,
+  type: 'group',
 });
 
-const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
-  areWeASubscriber: false,
-  areWeAdmin: boolean('areWeAdmin', overrideProps.areWeAdmin || false),
-  badges: overrideProps.badges || [],
-  contact: overrideProps.contact || defaultContact,
-  conversation: overrideProps.conversation || defaultGroup,
-  hideContactModal: action('hideContactModal'),
-  i18n,
-  isAdmin: boolean('isAdmin', overrideProps.isAdmin || false),
-  isMember: boolean('isMember', overrideProps.isMember || true),
-  openConversationInternal: action('openConversationInternal'),
-  removeMemberFromGroup: action('removeMemberFromGroup'),
-  theme: ThemeType.light,
-  toggleSafetyNumberModal: action('toggleSafetyNumberModal'),
-  toggleAdmin: action('toggleAdmin'),
-  updateConversationModelSharedGroups: action(
-    'updateConversationModelSharedGroups'
-  ),
-});
-
-story.add('As non-admin', () => {
-  const props = createProps({
+export default {
+  title: 'Components/Conversation/ContactModal',
+  component: ContactModal,
+  argTypes: {
+    hasActiveCall: { control: { type: 'boolean' } },
+  },
+  args: {
+    i18n,
+    areWeASubscriber: false,
     areWeAdmin: false,
-  });
+    badges: [],
+    blockConversation: action('blockConversation'),
+    contact: defaultContact,
+    conversation: defaultGroup,
+    hasActiveCall: false,
+    hasStories: undefined,
+    hideContactModal: action('hideContactModal'),
+    isAdmin: false,
+    isMember: true,
+    onOutgoingAudioCallInConversation: action(
+      'onOutgoingAudioCallInConversation'
+    ),
+    onOutgoingVideoCallInConversation: action(
+      'onOutgoingVideoCallInConversation'
+    ),
+    removeMemberFromGroup: action('removeMemberFromGroup'),
+    showConversation: action('showConversation'),
+    theme: ThemeType.light,
+    toggleAboutContactModal: action('AboutContactModal'),
+    toggleAdmin: action('toggleAdmin'),
+    toggleSafetyNumberModal: action('toggleSafetyNumberModal'),
+    updateConversationModelSharedGroups: action(
+      'updateConversationModelSharedGroups'
+    ),
+    viewUserStories: action('viewUserStories'),
+  },
+} satisfies Meta<PropsType>;
 
-  return <ContactModal {...props} />;
-});
+// eslint-disable-next-line react/function-component-definition
+const Template: StoryFn<PropsType> = args => <ContactModal {...args} />;
 
-story.add('As admin', () => {
-  const props = createProps({
-    areWeAdmin: true,
-  });
-  return <ContactModal {...props} />;
-});
+export const AsNonAdmin = Template.bind({});
+AsNonAdmin.args = {
+  areWeAdmin: false,
+};
 
-story.add('As admin with no group link', () => {
-  const props = createProps({
-    areWeAdmin: true,
-    conversation: {
-      ...defaultGroup,
-      groupLink: undefined,
-    },
-  });
-  return <ContactModal {...props} />;
-});
+export const AsAdmin = Template.bind({});
+AsAdmin.args = {
+  areWeAdmin: true,
+};
 
-story.add('As admin, viewing non-member of group', () => {
-  const props = createProps({
-    isMember: false,
-  });
+export const AsAdminWithNoGroupLink = Template.bind({});
+AsAdminWithNoGroupLink.args = {
+  areWeAdmin: true,
+  conversation: {
+    ...defaultGroup,
+    groupLink: undefined,
+  },
+};
 
-  return <ContactModal {...props} />;
-});
+export const AsAdminViewingNonMemberOfGroup = Template.bind({});
+AsAdminViewingNonMemberOfGroup.args = {
+  isMember: false,
+};
 
-story.add('Without phone number', () => {
-  const props = createProps({
-    contact: {
-      ...defaultContact,
-      phoneNumber: undefined,
-    },
-  });
+export const WithoutPhoneNumber = Template.bind({});
+WithoutPhoneNumber.args = {
+  contact: {
+    ...defaultContact,
+    phoneNumber: undefined,
+  },
+};
 
-  return <ContactModal {...props} />;
-});
+export const ViewingSelf = Template.bind({});
+ViewingSelf.args = {
+  contact: {
+    ...defaultContact,
+    isMe: true,
+  },
+};
 
-story.add('Viewing self', () => {
-  const props = createProps({
-    contact: {
-      ...defaultContact,
-      isMe: true,
-    },
-  });
+export const WithBadges = Template.bind({});
+WithBadges.args = {
+  badges: getFakeBadges(2),
+};
 
-  return <ContactModal {...props} />;
-});
+export const WithUnreadStories = Template.bind({});
+WithUnreadStories.args = {
+  hasStories: HasStories.Unread,
+};
+WithUnreadStories.storyName = 'Unread Stories';
 
-story.add('With badges', () => {
-  const props = createProps({
-    badges: getFakeBadges(2),
-  });
+export const InSystemContacts = Template.bind({});
+InSystemContacts.args = {
+  contact: {
+    ...defaultContact,
+    systemGivenName: defaultContact.title,
+  },
+};
 
-  return <ContactModal {...props} />;
-});
+export const InAnotherCall = Template.bind({});
+InAnotherCall.args = {
+  hasActiveCall: true,
+};

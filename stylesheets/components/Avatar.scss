@@ -1,10 +1,11 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 .module-Avatar {
   display: inline-flex;
   line-height: 0;
   position: relative;
+  z-index: 0;
   user-select: none;
   vertical-align: middle;
 
@@ -52,7 +53,7 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    left: 0;
+    inset-inline-start: 0;
     position: absolute;
     top: 0;
 
@@ -78,36 +79,37 @@
     display: flex;
     justify-content: center;
     text-align: center;
-    text-transform: uppercase;
     transition: font-size 100ms ease-out;
   }
 
   &__icon {
     -webkit-mask-repeat: no-repeat;
     -webkit-mask-position: center;
-    -webkit-mask-size: 62%;
+    -webkit-mask-size: 62.5%;
     background-color: var(--fg);
 
     @media (forced-colors: active) {
       background-color: WindowText;
     }
 
+    &--callLink {
+      -webkit-mask-image: url('../images/icons/v3/video/video-display-bold.svg');
+    }
+
     &--direct {
-      -webkit-mask-image: url('../images/icons/v2/profile-outline-20.svg');
-      -webkit-mask-size: 60%;
+      -webkit-mask-image: url('../images/icons/v3/person/person.svg');
     }
 
     &--group {
-      -webkit-mask-image: url('../images/icons/v2/group-outline-24.svg');
+      -webkit-mask-image: url('../images/icons/v3/group/group.svg');
     }
 
     &--note-to-self {
-      -webkit-mask-image: url('../images/icons/v2/note-24.svg');
+      -webkit-mask-image: url('../images/icons/v3/note/note.svg');
     }
 
     &--search-result {
-      -webkit-mask-image: url('../images/icons/v2/search-24.svg');
-      -webkit-mask-size: 50%;
+      -webkit-mask-image: url('../images/icons/v3/search/search.svg');
     }
   }
 
@@ -121,7 +123,7 @@
 
     // Positioning should be overridden by JavaScript. These are set defensively.
     bottom: 0;
-    right: 0;
+    inset-inline-end: 0;
 
     &--static {
       pointer-events: none;
@@ -145,11 +147,33 @@
 
   &--with-story {
     border-radius: 100%;
-    border: 2px solid $color-white-alpha-40;
+    border: 2px solid $color-black-alpha-40;
     padding: 3px;
+
+    @include dark-theme {
+      border-color: $color-white-alpha-40;
+
+      &--unread {
+        border-color: $color-ultramarine-dawn;
+      }
+    }
 
     &--unread {
       border-color: $color-ultramarine-dawn;
+    }
+  }
+
+  &--signal-official {
+    .module-Avatar__contents {
+      align-items: center;
+      background-color: $color-ultramarine;
+      display: flex;
+      justify-content: center;
+    }
+
+    .module-Avatar__image {
+      height: 66%;
+      width: 66%;
     }
   }
 }

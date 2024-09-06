@@ -1,8 +1,8 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { RequestInit, Response } from 'node-fetch';
-import type { AbortSignal as AbortSignalForNodeFetch } from 'abort-controller';
+import { blobToArrayBuffer } from 'blob-util';
 
 import type { MIMEType } from '../types/MIME';
 import {
@@ -14,6 +14,7 @@ import {
   stringToMIMEType,
 } from '../types/MIME';
 import type { LoggerType } from '../types/Logging';
+import { scaleImageToLevel } from '../util/scaleImageToLevel';
 import * as log from '../logging/log';
 
 const USER_AGENT = 'WhatsApp/2';
@@ -289,8 +290,6 @@ const getHtmlDocument = async (
   abortSignal: AbortSignal,
   logger: Pick<LoggerType, 'warn'> = log
 ): Promise<HTMLDocument> => {
-  let result: HTMLDocument = emptyHtmlDocument();
-
   const buffer = new Uint8Array(MAX_HTML_BYTES_TO_LOAD);
   let bytesLoadedSoFar = 0;
 
@@ -312,8 +311,6 @@ const getHtmlDocument = async (
       buffer.set(truncatedChunk, bytesLoadedSoFar);
       bytesLoadedSoFar += truncatedChunk.byteLength;
 
-      result = parseHtmlBytes(buffer.slice(0, bytesLoadedSoFar), httpCharset);
-
       const hasLoadedMaxBytes = bytesLoadedSoFar >= buffer.length;
       if (hasLoadedMaxBytes) {
         break;
@@ -325,6 +322,7 @@ const getHtmlDocument = async (
     );
   }
 
+  const result = parseHtmlBytes(buffer.slice(0, bytesLoadedSoFar), httpCharset);
   return result;
 };
 
@@ -448,7 +446,7 @@ export async function fetchLinkPreviewMetadata(
           Accept: 'text/html,application/xhtml+xml',
           'User-Agent': USER_AGENT,
         },
-        signal: abortSignal as AbortSignalForNodeFetch,
+        signal: abortSignal,
       },
       logger
     );
@@ -549,7 +547,7 @@ export async function fetchLinkPreviewImage(
           'User-Agent': USER_AGENT,
         },
         size: MAX_IMAGE_CONTENT_LENGTH,
-        signal: abortSignal as AbortSignalForNodeFetch,
+        signal: abortSignal,
       },
       logger
     );
@@ -601,6 +599,22 @@ export async function fetchLinkPreviewImage(
 
   if (abortSignal.aborted) {
     return null;
+  }
+
+  // Scale link preview image
+  if (contentType !== IMAGE_GIF) {
+    const dataBlob = new Blob([data], {
+      type: contentType,
+    });
+    const { blob: xcodedDataBlob } = await scaleImageToLevel({
+      fileOrBlobOrURL: dataBlob,
+      contentType,
+      size: dataBlob.size,
+      highQuality: false,
+    });
+    const xcodedDataArrayBuffer = await blobToArrayBuffer(xcodedDataBlob);
+
+    data = new Uint8Array(xcodedDataArrayBuffer);
   }
 
   return { data, contentType };

@@ -2,82 +2,91 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { ipcRenderer } from 'electron';
-import url from 'url';
-import type { ParsedUrlQuery } from 'querystring';
-import type { IPCEventsValuesType } from '../util/createIPCEvents';
+import type { MenuItemConstructorOptions } from 'electron';
+
+import type { MenuOptionsType } from '../types/menu';
 import type { LocalizerType } from '../types/Util';
 import type { LoggerType } from '../types/Logging';
 import type { NativeThemeType } from '../context/createNativeThemeListener';
-import type { SettingType } from '../util/preload';
+import type { SettingType, SettingsValuesType } from '../util/preload';
+import type { RendererConfigType } from '../types/RendererConfig';
+
 import { Bytes } from '../context/Bytes';
 import { Crypto } from '../context/Crypto';
 import { Timers } from '../context/Timers';
 
-import { setupI18n } from '../util/setupI18n';
-import {
-  getEnvironment,
-  parseEnvironment,
-  setEnvironment,
-} from '../environment';
+import type { ActiveWindowServiceType } from '../services/ActiveWindowService';
+import { i18n } from '../context/i18n';
 import { strictAssert } from '../util/assert';
-import { createSetting } from '../util/preload';
 import { initialize as initializeLogging } from '../logging/set_up_renderer_logging';
-import { waitForSettingsChange } from './waitForSettingsChange';
-import { createNativeThemeListener } from '../context/createNativeThemeListener';
-
-const config = url.parse(window.location.toString(), true).query;
-const { locale } = config;
-strictAssert(locale, 'locale could not be parsed from config');
-strictAssert(typeof locale === 'string', 'locale is not a string');
-
-const localeMessages = ipcRenderer.sendSync('locale-data');
-setEnvironment(parseEnvironment(config.environment));
+import { MinimalSignalContext } from './minimalContext';
+import type { LocaleDirection } from '../../app/locale';
+import type { HourCyclePreference } from '../types/I18N';
+import type { LocaleEmojiListType } from '../types/emoji';
 
 strictAssert(Boolean(window.SignalContext), 'context must be defined');
 
 initializeLogging();
 
+export type MainWindowStatsType = Readonly<{
+  isMaximized: boolean;
+  isFullScreen: boolean;
+}>;
+
+export type MinimalSignalContextType = {
+  activeWindowService: ActiveWindowServiceType;
+  config: RendererConfigType;
+  executeMenuRole: (role: MenuItemConstructorOptions['role']) => Promise<void>;
+  getAppInstance: () => string | undefined;
+  getEnvironment: () => string;
+  getI18nAvailableLocales: () => ReadonlyArray<string>;
+  getI18nLocale: LocalizerType['getLocale'];
+  getI18nLocaleMessages: LocalizerType['getLocaleMessages'];
+  getLocaleDisplayNames: () => Record<string, Record<string, string>>;
+  getCountryDisplayNames: () => Record<string, Record<string, string>>;
+  getResolvedMessagesLocaleDirection: () => LocaleDirection;
+  getHourCyclePreference: () => HourCyclePreference;
+  getResolvedMessagesLocale: () => string;
+  getPreferredSystemLocales: () => Array<string>;
+  getLocaleOverride: () => string | null;
+  getLocalizedEmojiList: (
+    locale: string
+  ) => Promise<LocaleEmojiListType | undefined>;
+  getMainWindowStats: () => Promise<MainWindowStatsType>;
+  getMenuOptions: () => Promise<MenuOptionsType>;
+  getNodeVersion: () => string;
+  getPath: (name: 'userData' | 'home' | 'install') => string;
+  getVersion: () => string;
+  isTestOrMockEnvironment: () => boolean;
+  nativeThemeListener: NativeThemeType;
+  restartApp: () => void;
+  Settings: {
+    themeSetting: SettingType<SettingsValuesType['themeSetting']>;
+    waitForChange: () => Promise<void>;
+  };
+  OS: {
+    getClassName: () => string;
+    platform: string;
+    release: string;
+  };
+};
+
 export type SignalContextType = {
   bytes: Bytes;
   crypto: Crypto;
-  timers: Timers;
-  nativeThemeListener: NativeThemeType;
-  setIsCallActive: (isCallActive: boolean) => unknown;
-
-  Settings: {
-    themeSetting: SettingType<IPCEventsValuesType['themeSetting']>;
-    waitForChange: () => Promise<void>;
-  };
-  config: ParsedUrlQuery;
-  getAppInstance: () => string | undefined;
-  getEnvironment: () => string;
-  getNodeVersion: () => string;
-  getVersion: () => string;
-  getPath: (name: 'userData' | 'home') => string;
   i18n: LocalizerType;
   log: LoggerType;
   renderWindow?: () => void;
-};
+  setIsCallActive: (isCallActive: boolean) => unknown;
+  timers: Timers;
+} & MinimalSignalContextType;
 
 export const SignalContext: SignalContextType = {
-  Settings: {
-    themeSetting: createSetting('themeSetting', { setter: false }),
-    waitForChange: waitForSettingsChange,
-  },
+  ...MinimalSignalContext,
   bytes: new Bytes(),
-  config,
   crypto: new Crypto(),
-  getAppInstance: (): string | undefined =>
-    config.appInstance ? String(config.appInstance) : undefined,
-  getEnvironment,
-  getNodeVersion: (): string => String(config.node_version),
-  getVersion: (): string => String(config.version),
-  getPath: (name: 'userData' | 'home'): string => {
-    return String(config[`${name}Path`]);
-  },
-  i18n: setupI18n(locale, localeMessages),
+  i18n,
   log: window.SignalContext.log,
-  nativeThemeListener: createNativeThemeListener(ipcRenderer, window),
   setIsCallActive(isCallActive: boolean): void {
     ipcRenderer.send('set-is-call-active', isCallActive);
   },
@@ -85,3 +94,4 @@ export const SignalContext: SignalContextType = {
 };
 
 window.SignalContext = SignalContext;
+window.i18n = SignalContext.i18n;

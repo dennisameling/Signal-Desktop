@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ChangeEvent, ReactChild } from 'react';
@@ -10,6 +10,9 @@ import type {
   ReplaceAvatarActionType,
   SaveAvatarToDiskActionType,
 } from '../../types/Avatar';
+import type { DurationInSeconds } from '../../util/durations';
+import type { LookupConversationWithoutServiceIdActionsType } from '../../util/lookupConversationWithoutServiceId';
+import type { ShowConversationType } from '../../state/ducks/conversations';
 
 export enum FindDirection {
   Up,
@@ -37,12 +40,18 @@ export abstract class LeftPaneHelper<T> {
     _: Readonly<{
       clearConversationSearch: () => unknown;
       clearSearch: () => unknown;
+      endConversationSearch: () => unknown;
+      endSearch: () => unknown;
       i18n: LocalizerType;
       onChangeComposeSearchTerm: (
         event: ChangeEvent<HTMLInputElement>
       ) => unknown;
+      onChangeComposeSelectedRegion: (newRegion: string) => void;
       updateSearchTerm: (searchTerm: string) => unknown;
-    }>
+      showConversation: ShowConversationType;
+      showInbox: () => void;
+    }> &
+      LookupConversationWithoutServiceIdActionsType
   ): null | ReactChild {
     return null;
   }
@@ -55,6 +64,14 @@ export abstract class LeftPaneHelper<T> {
     }>
   ): undefined | (() => void) {
     return undefined;
+  }
+
+  getBackgroundNode(
+    _: Readonly<{
+      i18n: LocalizerType;
+    }>
+  ): null | ReactChild {
+    return null;
   }
 
   getPreRowsNode(
@@ -71,7 +88,7 @@ export abstract class LeftPaneHelper<T> {
       i18n: LocalizerType;
       removeSelectedContact: (_: string) => unknown;
       setComposeGroupAvatar: (_: undefined | Uint8Array) => unknown;
-      setComposeGroupExpireTimer: (_: number) => void;
+      setComposeGroupExpireTimer: (_: DurationInSeconds) => void;
       setComposeGroupName: (_: string) => unknown;
       toggleComposeEditingAvatar: () => unknown;
     }>
@@ -80,11 +97,15 @@ export abstract class LeftPaneHelper<T> {
   }
 
   getFooterContents(
-    _: Readonly<{
-      i18n: LocalizerType;
-      startSettingGroupMetadata: () => void;
-      createGroup: () => unknown;
-    }>
+    _: Readonly<
+      {
+        i18n: LocalizerType;
+        startSettingGroupMetadata: () => void;
+        createGroup: () => unknown;
+        showInbox: () => void;
+        showConversation: ShowConversationType;
+      } & LookupConversationWithoutServiceIdActionsType
+    >
   ): null | ReactChild {
     return null;
   }
@@ -125,7 +146,7 @@ export abstract class LeftPaneHelper<T> {
   abstract getConversationAndMessageInDirection(
     toFind: Readonly<ToFindType>,
     selectedConversationId: undefined | string,
-    selectedMessageId: undefined | string
+    targetedMessageId: undefined | string
   ): undefined | { conversationId: string; messageId?: string };
 
   abstract shouldRecomputeRowHeights(old: Readonly<T>): boolean;

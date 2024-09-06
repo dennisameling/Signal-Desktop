@@ -1,46 +1,52 @@
-// Copyright 2019-2020 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Dictionary } from 'lodash';
 import { omit, reject } from 'lodash';
+import type { ReadonlyDeep } from 'type-fest';
 import type {
   StickerPackStatusType,
   StickerType as StickerDBType,
   StickerPackType as StickerPackDBType,
 } from '../../sql/Interface';
-import dataInterface from '../../sql/Client';
+import { DataReader, DataWriter } from '../../sql/Client';
 import type { RecentStickerType } from '../../types/Stickers';
 import {
   downloadStickerPack as externalDownloadStickerPack,
   maybeDeletePack,
 } from '../../types/Stickers';
+import { storageServiceUploadJob } from '../../services/storage';
 import { sendStickerPackSync } from '../../shims/textsecure';
 import { trigger } from '../../shims/events';
+import { ERASE_STORAGE_SERVICE } from './user';
+import type { EraseStorageServiceStateAction } from './user';
 
 import type { NoopActionType } from './noop';
+import type { BoundActionCreatorsMapObject } from '../../hooks/useBoundActions';
+import { useBoundActions } from '../../hooks/useBoundActions';
 
-const { getRecentStickers, updateStickerLastUsed, updateStickerPackStatus } =
-  dataInterface;
+const { getRecentStickers } = DataReader;
+const { updateStickerLastUsed } = DataWriter;
 
 // State
 
-export type StickersStateType = {
-  readonly installedPack: string | null;
-  readonly packs: Dictionary<StickerPackDBType>;
-  readonly recentStickers: Array<RecentStickerType>;
-  readonly blessedPacks: Dictionary<boolean>;
-};
+export type StickersStateType = ReadonlyDeep<{
+  installedPack: string | null;
+  packs: Dictionary<StickerPackDBType>;
+  recentStickers: Array<RecentStickerType>;
+  blessedPacks: Dictionary<boolean>;
+}>;
 
 // These are for the React components
 
-export type StickerType = {
-  readonly id: number;
-  readonly packId: string;
-  readonly emoji?: string;
-  readonly url: string;
-};
+export type StickerType = ReadonlyDeep<{
+  id: number;
+  packId: string;
+  emoji?: string;
+  url: string;
+}>;
 
-export type StickerPackType = Readonly<{
+export type StickerPackType = ReadonlyDeep<{
   id: string;
   key: string;
   title: string;
@@ -56,99 +62,104 @@ export type StickerPackType = Readonly<{
 
 // Actions
 
-type StickerPackAddedAction = {
+type StickerPackAddedAction = ReadonlyDeep<{
   type: 'stickers/STICKER_PACK_ADDED';
   payload: StickerPackDBType;
-};
+}>;
 
-type StickerAddedAction = {
+type StickerAddedAction = ReadonlyDeep<{
   type: 'stickers/STICKER_ADDED';
   payload: StickerDBType;
-};
+}>;
 
-type InstallStickerPackPayloadType = {
+type InstallStickerPackPayloadType = ReadonlyDeep<{
   packId: string;
   fromSync: boolean;
   status: 'installed';
   installedAt: number;
   recentStickers: Array<RecentStickerType>;
-};
-type InstallStickerPackAction = {
+}>;
+type InstallStickerPackAction = ReadonlyDeep<{
   type: 'stickers/INSTALL_STICKER_PACK';
   payload: Promise<InstallStickerPackPayloadType>;
-};
-type InstallStickerPackFulfilledAction = {
+}>;
+type InstallStickerPackFulfilledAction = ReadonlyDeep<{
   type: 'stickers/INSTALL_STICKER_PACK_FULFILLED';
   payload: InstallStickerPackPayloadType;
-};
-type ClearInstalledStickerPackAction = {
+}>;
+type ClearInstalledStickerPackAction = ReadonlyDeep<{
   type: 'stickers/CLEAR_INSTALLED_STICKER_PACK';
-};
+}>;
 
-type UninstallStickerPackPayloadType = {
+type UninstallStickerPackPayloadType = ReadonlyDeep<{
   packId: string;
   fromSync: boolean;
   status: 'downloaded';
   installedAt?: undefined;
   recentStickers: Array<RecentStickerType>;
-};
-type UninstallStickerPackAction = {
+}>;
+type UninstallStickerPackAction = ReadonlyDeep<{
   type: 'stickers/UNINSTALL_STICKER_PACK';
   payload: Promise<UninstallStickerPackPayloadType>;
-};
-type UninstallStickerPackFulfilledAction = {
+}>;
+type UninstallStickerPackFulfilledAction = ReadonlyDeep<{
   type: 'stickers/UNINSTALL_STICKER_PACK_FULFILLED';
   payload: UninstallStickerPackPayloadType;
-};
+}>;
 
-type StickerPackUpdatedAction = {
+type StickerPackUpdatedAction = ReadonlyDeep<{
   type: 'stickers/STICKER_PACK_UPDATED';
   payload: { packId: string; patch: Partial<StickerPackDBType> };
-};
+}>;
 
-type StickerPackRemovedAction = {
+type StickerPackRemovedAction = ReadonlyDeep<{
   type: 'stickers/REMOVE_STICKER_PACK';
   payload: string;
-};
+}>;
 
-type UseStickerPayloadType = {
+type UseStickerPayloadType = ReadonlyDeep<{
   packId: string;
   stickerId: number;
   time: number;
-};
-type UseStickerAction = {
+}>;
+type UseStickerAction = ReadonlyDeep<{
   type: 'stickers/USE_STICKER';
   payload: Promise<UseStickerPayloadType>;
-};
-type UseStickerFulfilledAction = {
+}>;
+type UseStickerFulfilledAction = ReadonlyDeep<{
   type: 'stickers/USE_STICKER_FULFILLED';
   payload: UseStickerPayloadType;
-};
+}>;
 
-export type StickersActionType =
+export type StickersActionType = ReadonlyDeep<
   | ClearInstalledStickerPackAction
+  | InstallStickerPackFulfilledAction
+  | NoopActionType
   | StickerAddedAction
   | StickerPackAddedAction
-  | InstallStickerPackFulfilledAction
-  | UninstallStickerPackFulfilledAction
-  | StickerPackUpdatedAction
   | StickerPackRemovedAction
+  | StickerPackUpdatedAction
+  | UninstallStickerPackFulfilledAction
   | UseStickerFulfilledAction
-  | NoopActionType;
+>;
 
 // Action Creators
 
 export const actions = {
-  downloadStickerPack,
   clearInstalledStickerPack,
+  downloadStickerPack,
+  installStickerPack,
   removeStickerPack,
   stickerAdded,
   stickerPackAdded,
-  installStickerPack,
-  uninstallStickerPack,
   stickerPackUpdated,
+  uninstallStickerPack,
   useSticker,
 };
+
+export const useStickersActions = (): BoundActionCreatorsMapObject<
+  typeof actions
+> => useBoundActions(actions);
 
 function removeStickerPack(id: string): StickerPackRemovedAction {
   return {
@@ -193,7 +204,7 @@ function downloadStickerPack(
   const { finalStatus } = options || { finalStatus: undefined };
 
   // We're just kicking this off, since it will generate more redux events
-  externalDownloadStickerPack(packId, packKey, { finalStatus });
+  void externalDownloadStickerPack(packId, packKey, { finalStatus });
 
   return {
     type: 'NOOP',
@@ -204,7 +215,11 @@ function downloadStickerPack(
 function installStickerPack(
   packId: string,
   packKey: string,
-  options: { fromSync: boolean } | null = null
+  options: {
+    fromSync?: boolean;
+    fromStorageService?: boolean;
+    fromBackup?: boolean;
+  } = {}
 ): InstallStickerPackAction {
   return {
     type: 'stickers/INSTALL_STICKER_PACK',
@@ -214,17 +229,28 @@ function installStickerPack(
 async function doInstallStickerPack(
   packId: string,
   packKey: string,
-  options: { fromSync: boolean } | null
+  options: {
+    fromSync?: boolean;
+    fromStorageService?: boolean;
+    fromBackup?: boolean;
+  } = {}
 ): Promise<InstallStickerPackPayloadType> {
-  const { fromSync } = options || { fromSync: false };
+  const {
+    fromSync = false,
+    fromStorageService = false,
+    fromBackup = false,
+  } = options;
 
-  const status = 'installed';
   const timestamp = Date.now();
-  await updateStickerPackStatus(packId, status, { timestamp });
+  await DataWriter.installStickerPack(packId, timestamp);
 
-  if (!fromSync) {
+  if (!fromSync && !fromStorageService && !fromBackup) {
     // Kick this off, but don't wait for it
-    sendStickerPackSync(packId, packKey, true);
+    void sendStickerPackSync(packId, packKey, true);
+  }
+
+  if (!fromStorageService && !fromBackup) {
+    storageServiceUploadJob();
   }
 
   const recentStickers = await getRecentStickers();
@@ -232,7 +258,7 @@ async function doInstallStickerPack(
   return {
     packId,
     fromSync,
-    status,
+    status: 'installed',
     installedAt: timestamp,
     recentStickers: recentStickers.map(item => ({
       packId: item.packId,
@@ -243,7 +269,7 @@ async function doInstallStickerPack(
 function uninstallStickerPack(
   packId: string,
   packKey: string,
-  options: { fromSync: boolean } | null = null
+  options: { fromSync?: boolean; fromStorageService?: boolean } = {}
 ): UninstallStickerPackAction {
   return {
     type: 'stickers/UNINSTALL_STICKER_PACK',
@@ -253,19 +279,23 @@ function uninstallStickerPack(
 async function doUninstallStickerPack(
   packId: string,
   packKey: string,
-  options: { fromSync: boolean } | null
+  options: { fromSync?: boolean; fromStorageService?: boolean } = {}
 ): Promise<UninstallStickerPackPayloadType> {
-  const { fromSync } = options || { fromSync: false };
+  const { fromSync = false, fromStorageService = false } = options;
 
-  const status = 'downloaded';
-  await updateStickerPackStatus(packId, status);
+  const timestamp = Date.now();
+  await DataWriter.uninstallStickerPack(packId, timestamp);
 
   // If there are no more references, it should be removed
   await maybeDeletePack(packId);
 
-  if (!fromSync) {
+  if (!fromSync && !fromStorageService) {
     // Kick this off, but don't wait for it
-    sendStickerPackSync(packId, packKey, false);
+    void sendStickerPackSync(packId, packKey, false);
+  }
+
+  if (!fromStorageService) {
+    storageServiceUploadJob();
   }
 
   const recentStickers = await getRecentStickers();
@@ -273,7 +303,7 @@ async function doUninstallStickerPack(
   return {
     packId,
     fromSync,
-    status,
+    status: 'downloaded',
     installedAt: undefined,
     recentStickers: recentStickers.map(item => ({
       packId: item.packId,
@@ -313,7 +343,7 @@ function stickerPackUpdated(
 function useSticker(
   packId: string,
   stickerId: number,
-  time = Date.now()
+  time?: number
 ): UseStickerAction {
   return {
     type: 'stickers/USE_STICKER',
@@ -347,7 +377,7 @@ export function getEmptyState(): StickersStateType {
 
 export function reducer(
   state: Readonly<StickersStateType> = getEmptyState(),
-  action: Readonly<StickersActionType>
+  action: Readonly<StickersActionType | EraseStorageServiceStateAction>
 ): StickersStateType {
   if (action.type === 'stickers/STICKER_PACK_ADDED') {
     // ts complains due to `stickers: {}` being overridden by the payload
@@ -485,6 +515,27 @@ export function reducer(
           },
         },
       },
+    };
+  }
+
+  if (action.type === ERASE_STORAGE_SERVICE) {
+    const { packs } = state;
+
+    const entries = Object.entries(packs).map(([id, pack]) => {
+      return [
+        id,
+        omit(pack, [
+          'storageID',
+          'storageVersion',
+          'storageUnknownFields',
+          'storageNeedsSync',
+        ]),
+      ];
+    });
+
+    return {
+      ...state,
+      packs: Object.fromEntries(entries),
     };
   }
 

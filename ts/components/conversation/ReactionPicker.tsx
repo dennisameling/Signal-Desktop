@@ -1,10 +1,10 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
 import { convertShortName } from '../emoji/lib';
 import type { Props as EmojiPickerProps } from '../emoji/EmojiPicker';
-import { useRestoreFocus } from '../../hooks/useRestoreFocus';
+import { useDelayedRestoreFocus } from '../../hooks/useRestoreFocus';
 import type { LocalizerType } from '../../types/Util';
 import {
   ReactionPickerPicker,
@@ -28,14 +28,14 @@ export type OwnProps = {
   onPick: (emoji: string) => unknown;
   onSetSkinTone: (tone: number) => unknown;
   openCustomizePreferredReactionsModal?: () => unknown;
-  preferredReactionEmoji: Array<string>;
+  preferredReactionEmoji: ReadonlyArray<string>;
   renderEmojiPicker: (props: RenderEmojiPickerProps) => React.ReactElement;
 };
 
 export type Props = OwnProps & Pick<React.HTMLProps<HTMLDivElement>, 'style'>;
 
 export const ReactionPicker = React.forwardRef<HTMLDivElement, Props>(
-  (
+  function ReactionPickerInner(
     {
       i18n,
       onClose,
@@ -48,13 +48,13 @@ export const ReactionPicker = React.forwardRef<HTMLDivElement, Props>(
       style,
     },
     ref
-  ) => {
+  ) {
     const [pickingOther, setPickingOther] = React.useState(false);
 
     // Handle escape key
     React.useEffect(() => {
       const handler = (e: KeyboardEvent) => {
-        if (onClose && e.key === 'Escape') {
+        if (onClose && e.key === 'Escape' && !pickingOther) {
           onClose();
         }
       };
@@ -64,7 +64,7 @@ export const ReactionPicker = React.forwardRef<HTMLDivElement, Props>(
       return () => {
         document.removeEventListener('keydown', handler);
       };
-    }, [onClose]);
+    }, [onClose, pickingOther]);
 
     // Handle EmojiPicker::onPickEmoji
     const onPickEmoji: EmojiPickerProps['onPickEmoji'] = React.useCallback(
@@ -75,7 +75,7 @@ export const ReactionPicker = React.forwardRef<HTMLDivElement, Props>(
     );
 
     // Focus first button and restore focus on unmount
-    const [focusRef] = useRestoreFocus();
+    const [focusRef] = useDelayedRestoreFocus();
 
     if (pickingOther) {
       return renderEmojiPicker({
@@ -100,7 +100,7 @@ export const ReactionPicker = React.forwardRef<HTMLDivElement, Props>(
             onPick(selected);
           }}
           isSelected
-          title={i18n('Reactions--remove')}
+          title={i18n('icu:Reactions--remove')}
         />
       );
     } else {

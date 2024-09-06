@@ -1,78 +1,94 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ComponentProps } from 'react';
 import React, { useContext } from 'react';
-
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
-
-import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
+import type { Meta } from '@storybook/react';
+import {
+  getDefaultConversation,
+  getDefaultGroup,
+} from '../../test-both/helpers/getDefaultConversation';
 import { getRandomColor } from '../../test-both/helpers/getRandomColor';
 import { setupI18n } from '../../util/setupI18n';
+import { DurationInSeconds } from '../../util/durations';
 import enMessages from '../../../_locales/en/messages.json';
 import { StorybookThemeContext } from '../../../.storybook/StorybookThemeContext';
+import type { PropsType } from './ConversationHeader';
 import {
   ConversationHeader,
   OutgoingCallButtonStyle,
 } from './ConversationHeader';
 import { gifUrl } from '../../storybook/Fixtures';
+import { ThemeType } from '../../types/Util';
 
-const book = storiesOf('Components/Conversation/ConversationHeader', module);
+export default {
+  title: 'Components/Conversation/ConversationHeader',
+} satisfies Meta<PropsType>;
+
 const i18n = setupI18n('en', enMessages);
 
-type ConversationHeaderStory = {
+type ItemsType = Array<{
   title: string;
-  description: string;
-  items: Array<{
-    title: string;
-    props: Omit<ComponentProps<typeof ConversationHeader>, 'theme'>;
-  }>;
-};
+  props: Omit<ComponentProps<typeof ConversationHeader>, 'theme'>;
+}>;
 
-const commonProps = {
-  ...getDefaultConversation(),
+const commonConversation = getDefaultConversation();
+const commonProps: PropsType = {
+  ...commonConversation,
+  conversation: getDefaultConversation(),
+  conversationName: commonConversation,
+  addedByName: null,
+  theme: ThemeType.light,
 
-  showBackButton: false,
+  cannotLeaveBecauseYouAreLastAdmin: false,
   outgoingCallButtonStyle: OutgoingCallButtonStyle.Both,
+  isSelectMode: false,
 
   i18n,
 
-  onShowConversationDetails: action('onShowConversationDetails'),
-  onSetDisappearingMessages: action('onSetDisappearingMessages'),
-  onDeleteMessages: action('onDeleteMessages'),
+  localDeleteWarningShown: true,
+  isDeleteSyncSendEnabled: true,
+  setLocalDeleteWarningShown: action('setLocalDeleteWarningShown'),
+
+  onConversationAccept: action('onConversationAccept'),
+  onConversationArchive: action('onConversationArchive'),
+  onConversationBlock: action('onConversationBlock'),
+  onConversationBlockAndReportSpam: action('onConversationBlockAndReportSpam'),
+  onConversationDelete: action('onConversationDelete'),
+  onConversationDeleteMessages: action('onConversationDeleteMessages'),
+  onConversationDisappearingMessagesChange: action(
+    'onConversationDisappearingMessagesChange'
+  ),
+  onConversationLeaveGroup: action('onConversationLeaveGroup'),
+  onConversationMarkUnread: action('onConversationMarkUnread'),
+  onConversationMuteExpirationChange: action(
+    'onConversationMuteExpirationChange'
+  ),
+  onConversationPin: action('onConversationPin'),
+  onConversationReportSpam: action('onConversationReportSpam'),
+  onConversationUnarchive: action('onConversationUnarchive'),
+  onConversationUnpin: action('onConversationUnpin'),
+  onOutgoingAudioCall: action('onOutgoingAudioCall'),
+  onOutgoingVideoCall: action('onOutgoingVideoCall'),
   onSearchInConversation: action('onSearchInConversation'),
-  onSetMuteNotifications: action('onSetMuteNotifications'),
-  onOutgoingAudioCallInConversation: action(
-    'onOutgoingAudioCallInConversation'
-  ),
-  onOutgoingVideoCallInConversation: action(
-    'onOutgoingVideoCallInConversation'
-  ),
-
-  onShowAllMedia: action('onShowAllMedia'),
-  onShowGroupMembers: action('onShowGroupMembers'),
-  onGoBack: action('onGoBack'),
-
-  onArchive: action('onArchive'),
-  onMarkUnread: action('onMarkUnread'),
-  onMoveToInbox: action('onMoveToInbox'),
-  onSetPin: action('onSetPin'),
+  onSelectModeEnter: action('onSelectModeEnter'),
+  onShowMembers: action('onShowMembers'),
+  onViewConversationDetails: action('onViewConversationDetails'),
+  onViewRecentMedia: action('onViewRecentMedia'),
+  onViewUserStories: action('onViewUserStories'),
 };
 
-const stories: Array<ConversationHeaderStory> = [
-  {
-    title: '1:1 conversation',
-    description:
-      "Note the five items in menu, and the second-level menu with disappearing messages options. Disappearing message set to 'off'.",
-    items: [
-      {
-        title: 'With name and profile, verified',
-        props: {
-          ...commonProps,
+export function PrivateConvo(): JSX.Element {
+  const items: ItemsType = [
+    {
+      title: 'With name and profile, verified',
+      props: {
+        ...commonProps,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           isVerified: true,
-          avatarPath: gifUrl,
+          avatarUrl: gifUrl,
           title: 'Someone 🔥 Somewhere',
           name: 'Someone 🔥 Somewhere',
           phoneNumber: '(202) 555-0001',
@@ -80,12 +96,14 @@ const stories: Array<ConversationHeaderStory> = [
           id: '1',
           profileName: '🔥Flames🔥',
           acceptedMessageRequest: true,
-        },
+        }),
       },
-      {
-        title: 'With name, not verified, no avatar',
-        props: {
-          ...commonProps,
+    },
+    {
+      title: 'With name, not verified, no avatar',
+      props: {
+        ...commonProps,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           isVerified: false,
           title: 'Someone 🔥 Somewhere',
@@ -94,12 +112,14 @@ const stories: Array<ConversationHeaderStory> = [
           type: 'direct',
           id: '2',
           acceptedMessageRequest: true,
-        },
+        }),
       },
-      {
-        title: 'With name, not verified, descenders',
-        props: {
-          ...commonProps,
+    },
+    {
+      title: 'With name, not verified, descenders',
+      props: {
+        ...commonProps,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           isVerified: false,
           title: 'Joyrey 🔥 Leppey',
@@ -108,12 +128,14 @@ const stories: Array<ConversationHeaderStory> = [
           type: 'direct',
           id: '3',
           acceptedMessageRequest: true,
-        },
+        }),
       },
-      {
-        title: 'Profile, no name',
-        props: {
-          ...commonProps,
+    },
+    {
+      title: 'Profile, no name',
+      props: {
+        ...commonProps,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           isVerified: false,
           phoneNumber: '(202) 555-0003',
@@ -122,64 +144,59 @@ const stories: Array<ConversationHeaderStory> = [
           title: '🔥Flames🔥',
           profileName: '🔥Flames🔥',
           acceptedMessageRequest: true,
-        },
+        }),
       },
-      {
-        title: 'No name, no profile, no color',
-        props: {
-          ...commonProps,
+    },
+    {
+      title: 'No name, no profile, no color',
+      props: {
+        ...commonProps,
+        conversation: getDefaultConversation({
           title: '(202) 555-0011',
           phoneNumber: '(202) 555-0011',
           type: 'direct',
           id: '5',
           acceptedMessageRequest: true,
-        },
+        }),
       },
-      {
-        title: 'With back button',
-        props: {
-          ...commonProps,
-          showBackButton: true,
-          color: getRandomColor(),
-          phoneNumber: '(202) 555-0004',
-          title: '(202) 555-0004',
-          type: 'direct',
-          id: '6',
-          acceptedMessageRequest: true,
-        },
-      },
-      {
-        title: 'Disappearing messages set',
-        props: {
-          ...commonProps,
+    },
+    {
+      title: 'Disappearing messages set',
+      props: {
+        ...commonProps,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           title: '(202) 555-0005',
           phoneNumber: '(202) 555-0005',
           type: 'direct',
           id: '7',
-          expireTimer: 10,
+          expireTimer: DurationInSeconds.fromSeconds(10),
           acceptedMessageRequest: true,
-        },
+        }),
       },
-      {
-        title: 'Disappearing messages + verified',
-        props: {
-          ...commonProps,
+    },
+    {
+      title: 'Disappearing messages + verified',
+      props: {
+        ...commonProps,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           title: '(202) 555-0005',
           phoneNumber: '(202) 555-0005',
           type: 'direct',
           id: '8',
-          expireTimer: 300,
+          expireTimer: DurationInSeconds.fromSeconds(300),
           acceptedMessageRequest: true,
           isVerified: true,
           canChangeTimer: true,
-        },
+        }),
       },
-      {
-        title: 'Muting Conversation',
-        props: {
-          ...commonProps,
+    },
+    {
+      title: 'Muting Conversation',
+      props: {
+        ...commonProps,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           title: '(202) 555-0006',
           phoneNumber: '(202) 555-0006',
@@ -187,47 +204,67 @@ const stories: Array<ConversationHeaderStory> = [
           id: '9',
           acceptedMessageRequest: true,
           muteExpiresAt: new Date('3000-10-18T11:11:11Z').valueOf(),
-        },
+        }),
       },
-      {
-        title: 'SMS-only conversation',
-        props: {
-          ...commonProps,
+    },
+    {
+      title: 'SMS-only conversation',
+      props: {
+        ...commonProps,
+        isSMSOnly: true,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           title: '(202) 555-0006',
           phoneNumber: '(202) 555-0006',
           type: 'direct',
           id: '10',
           acceptedMessageRequest: true,
-          isSMSOnly: true,
-        },
+        }),
       },
-    ],
-  },
-  {
-    title: 'In a group',
-    description:
-      "Note that the menu should includes 'Show Members' instead of 'Show Safety Number'",
-    items: [
-      {
-        title: 'Basic',
-        props: {
-          ...commonProps,
+    },
+  ];
+
+  const theme = useContext(StorybookThemeContext);
+
+  return (
+    <>
+      {items.map(({ title: subtitle, props }, i) => {
+        return (
+          <div key={i}>
+            {subtitle ? <h3>{subtitle}</h3> : null}
+            <ConversationHeader {...props} theme={theme} />
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+export function Group(): JSX.Element {
+  const items: ItemsType = [
+    {
+      title: 'Basic',
+      props: {
+        ...commonProps,
+        outgoingCallButtonStyle: OutgoingCallButtonStyle.JustVideo,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           title: 'Typescript support group',
           name: 'Typescript support group',
           phoneNumber: '',
           id: '11',
           type: 'group',
-          expireTimer: 10,
+          expireTimer: DurationInSeconds.fromSeconds(10),
           acceptedMessageRequest: true,
-          outgoingCallButtonStyle: OutgoingCallButtonStyle.JustVideo,
-        },
+        }),
       },
-      {
-        title: 'In a group you left - no disappearing messages',
-        props: {
-          ...commonProps,
+    },
+    {
+      title: 'In a group you left - no disappearing messages',
+      props: {
+        ...commonProps,
+        outgoingCallButtonStyle: OutgoingCallButtonStyle.JustVideo,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           title: 'Typescript support group',
           name: 'Typescript support group',
@@ -235,52 +272,73 @@ const stories: Array<ConversationHeaderStory> = [
           id: '12',
           type: 'group',
           left: true,
-          expireTimer: 10,
+          expireTimer: DurationInSeconds.fromSeconds(10),
           acceptedMessageRequest: true,
-          outgoingCallButtonStyle: OutgoingCallButtonStyle.JustVideo,
-        },
+        }),
       },
-      {
-        title: 'In a group with an active group call',
-        props: {
-          ...commonProps,
+    },
+    {
+      title: 'In a group with an active group call',
+      props: {
+        ...commonProps,
+        outgoingCallButtonStyle: OutgoingCallButtonStyle.Join,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           title: 'Typescript support group',
           name: 'Typescript support group',
           phoneNumber: '',
           id: '13',
           type: 'group',
-          expireTimer: 10,
+          expireTimer: DurationInSeconds.fromSeconds(10),
           acceptedMessageRequest: true,
-          outgoingCallButtonStyle: OutgoingCallButtonStyle.Join,
-        },
+        }),
       },
-      {
-        title: 'In a forever muted group',
-        props: {
-          ...commonProps,
+    },
+    {
+      title: 'In a forever muted group',
+      props: {
+        ...commonProps,
+        outgoingCallButtonStyle: OutgoingCallButtonStyle.JustVideo,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           title: 'Way too many messages',
           name: 'Way too many messages',
           phoneNumber: '',
           id: '14',
           type: 'group',
-          expireTimer: 10,
+          expireTimer: DurationInSeconds.fromSeconds(10),
           acceptedMessageRequest: true,
-          outgoingCallButtonStyle: OutgoingCallButtonStyle.JustVideo,
+
           muteExpiresAt: Infinity,
-        },
+        }),
       },
-    ],
-  },
-  {
-    title: 'Note to Self',
-    description: 'No safety number entry.',
-    items: [
-      {
-        title: 'In chat with yourself',
-        props: {
-          ...commonProps,
+    },
+  ];
+
+  const theme = useContext(StorybookThemeContext);
+
+  return (
+    <>
+      {items.map(({ title: subtitle, props }, i) => {
+        return (
+          <div key={i}>
+            {subtitle ? <h3>{subtitle}</h3> : null}
+            <ConversationHeader {...props} theme={theme} />
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+export function NoteToSelf(): JSX.Element {
+  const items: ItemsType = [
+    {
+      title: 'In chat with yourself',
+      props: {
+        ...commonProps,
+        outgoingCallButtonStyle: OutgoingCallButtonStyle.None,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           title: '(202) 555-0007',
           phoneNumber: '(202) 555-0007',
@@ -288,19 +346,35 @@ const stories: Array<ConversationHeaderStory> = [
           type: 'direct',
           isMe: true,
           acceptedMessageRequest: true,
-          outgoingCallButtonStyle: OutgoingCallButtonStyle.None,
-        },
+        }),
       },
-    ],
-  },
-  {
-    title: 'Unaccepted',
-    description: 'No safety number entry.',
-    items: [
-      {
-        title: '1:1 conversation',
-        props: {
-          ...commonProps,
+    },
+  ];
+
+  const theme = useContext(StorybookThemeContext);
+
+  return (
+    <>
+      {items.map(({ title: subtitle, props }, i) => {
+        return (
+          <div key={i}>
+            {subtitle ? <h3>{subtitle}</h3> : null}
+            <ConversationHeader {...props} theme={theme} />
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+export function Unaccepted(): JSX.Element {
+  const items: ItemsType = [
+    {
+      title: '1:1 conversation',
+      props: {
+        ...commonProps,
+        outgoingCallButtonStyle: OutgoingCallButtonStyle.None,
+        conversation: getDefaultConversation({
           color: getRandomColor(),
           title: '(202) 555-0007',
           phoneNumber: '(202) 555-0007',
@@ -308,30 +382,95 @@ const stories: Array<ConversationHeaderStory> = [
           type: 'direct',
           isMe: false,
           acceptedMessageRequest: false,
-          outgoingCallButtonStyle: OutgoingCallButtonStyle.None,
-        },
+        }),
       },
-    ],
-  },
-];
+    },
+  ];
 
-stories.forEach(({ title, description, items }) =>
-  book.add(
-    title,
-    () => {
-      const theme = useContext(StorybookThemeContext);
+  const theme = useContext(StorybookThemeContext);
 
-      return items.map(({ title: subtitle, props }, i) => {
+  return (
+    <>
+      {items.map(({ title: subtitle, props }, i) => {
         return (
           <div key={i}>
             {subtitle ? <h3>{subtitle}</h3> : null}
             <ConversationHeader {...props} theme={theme} />
           </div>
         );
-      });
-    },
-    {
-      docs: description,
-    }
-  )
-);
+      })}
+    </>
+  );
+}
+
+export function NeedsDeleteConfirmation(): JSX.Element {
+  const [localDeleteWarningShown, setLocalDeleteWarningShown] =
+    React.useState(false);
+  const props = {
+    ...commonProps,
+    localDeleteWarningShown,
+    setLocalDeleteWarningShown: () => setLocalDeleteWarningShown(true),
+  };
+  const theme = useContext(StorybookThemeContext);
+
+  return <ConversationHeader {...props} theme={theme} />;
+}
+
+export function NeedsDeleteConfirmationButNotEnabled(): JSX.Element {
+  const [localDeleteWarningShown, setLocalDeleteWarningShown] =
+    React.useState(false);
+  const props = {
+    ...commonProps,
+    localDeleteWarningShown,
+    isDeleteSyncSendEnabled: false,
+    setLocalDeleteWarningShown: () => setLocalDeleteWarningShown(true),
+  };
+  const theme = useContext(StorybookThemeContext);
+
+  return <ConversationHeader {...props} theme={theme} />;
+}
+
+export function DirectConversationInAnotherCall(): JSX.Element {
+  const props = {
+    ...commonProps,
+    hasActiveCall: true,
+  };
+  const theme = useContext(StorybookThemeContext);
+
+  return <ConversationHeader {...props} theme={theme} />;
+}
+
+export function DirectConversationInCurrentCall(): JSX.Element {
+  const props = {
+    ...commonProps,
+    hasActiveCall: true,
+    outgoingCallButtonStyle: OutgoingCallButtonStyle.None,
+  };
+  const theme = useContext(StorybookThemeContext);
+
+  return <ConversationHeader {...props} theme={theme} />;
+}
+
+export function GroupConversationInAnotherCall(): JSX.Element {
+  const props = {
+    ...commonProps,
+    conversation: getDefaultGroup(),
+    hasActiveCall: true,
+    outgoingCallButtonStyle: OutgoingCallButtonStyle.Join,
+  };
+  const theme = useContext(StorybookThemeContext);
+
+  return <ConversationHeader {...props} theme={theme} />;
+}
+
+export function GroupConversationInCurrentCall(): JSX.Element {
+  const props = {
+    ...commonProps,
+    conversation: getDefaultGroup(),
+    hasActiveCall: true,
+    outgoingCallButtonStyle: OutgoingCallButtonStyle.None,
+  };
+  const theme = useContext(StorybookThemeContext);
+
+  return <ConversationHeader {...props} theme={theme} />;
+}

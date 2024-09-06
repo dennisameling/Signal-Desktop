@@ -6,7 +6,7 @@ import React, { forwardRef } from 'react';
 import { Input } from './Input';
 import type { LocalizerType } from '../types/Util';
 
-type PropsType = {
+export type PropsType = {
   disabled?: boolean;
   i18n: LocalizerType;
   onChangeValue: (value: string) => void;
@@ -14,13 +14,16 @@ type PropsType = {
 };
 
 export const GroupTitleInput = forwardRef<HTMLInputElement, PropsType>(
-  ({ i18n, disabled = false, onChangeValue, value }, ref) => {
+  function GroupTitleInputInner(
+    { i18n, disabled = false, onChangeValue, value },
+    ref
+  ) {
     return (
       <Input
         disabled={disabled}
         i18n={i18n}
         onChange={onChangeValue}
-        placeholder={i18n('setGroupMetadata__group-name-placeholder')}
+        placeholder={i18n('icu:setGroupMetadata__group-name-placeholder')}
         maxLengthCount={32}
         ref={ref}
         value={value}

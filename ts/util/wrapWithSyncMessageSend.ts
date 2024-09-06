@@ -15,7 +15,7 @@ import { areAllErrorsUnregistered } from '../jobs/helpers/areAllErrorsUnregister
 
 export async function wrapWithSyncMessageSend({
   conversation,
-  logId,
+  logId: parentLogId,
   messageIds,
   send,
   sendType,
@@ -28,11 +28,10 @@ export async function wrapWithSyncMessageSend({
   sendType: SendTypesType;
   timestamp: number;
 }): Promise<void> {
+  const logId = `wrapWithSyncMessageSend(${parentLogId}, ${timestamp})`;
   const sender = window.textsecure.messaging;
   if (!sender) {
-    throw new Error(
-      `wrapWithSyncMessageSend/${logId}: textsecure.messaging is not available!`
-    );
+    throw new Error(`${logId}: textsecure.messaging is not available!`);
   }
 
   let response: CallbackResultType | undefined;
@@ -45,24 +44,20 @@ export async function wrapWithSyncMessageSend({
   } catch (thrown) {
     if (thrown instanceof SendMessageProtoError) {
       didSuccessfullySendOne = Boolean(
-        thrown.successfulIdentifiers && thrown.successfulIdentifiers.length > 0
+        thrown.successfulServiceIds && thrown.successfulServiceIds.length > 0
       );
       error = thrown;
     }
     if (thrown instanceof Error) {
       error = thrown;
     } else {
-      log.error(
-        `wrapWithSyncMessageSend/${logId}: Thrown value was not an Error, returning early`
-      );
+      log.error(`${logId}: Thrown value was not an Error, returning early`);
       throw error;
     }
   }
 
   if (!response && !error) {
-    throw new Error(
-      `wrapWithSyncMessageSend/${logId}: message send didn't return result or error!`
-    );
+    throw new Error(`${logId}: message send didn't return result or error!`);
   }
 
   const dataMessage =
@@ -71,11 +66,9 @@ export async function wrapWithSyncMessageSend({
 
   if (didSuccessfullySendOne) {
     if (!dataMessage) {
-      log.error(
-        `wrapWithSyncMessageSend/${logId}: dataMessage was not returned by send!`
-      );
+      log.error(`${logId}: dataMessage was not returned by send!`);
     } else {
-      log.info(`wrapWithSyncMessageSend/${logId}: Sending sync message...`);
+      log.info(`${logId}: Sending sync message... `);
       const ourConversation =
         window.ConversationController.getOurConversationOrThrow();
       const options = await getSendOptions(ourConversation.attributes, {
@@ -84,11 +77,12 @@ export async function wrapWithSyncMessageSend({
       await handleMessageSend(
         sender.sendSyncMessage({
           destination: conversation.get('e164'),
-          destinationUuid: conversation.get('uuid'),
+          destinationServiceId: conversation.getServiceId(),
           encodedDataMessage: dataMessage,
           expirationStartTimestamp: null,
           options,
           timestamp,
+          urgent: false,
         }),
         { messageIds, sendType: sendType === 'message' ? 'sentSync' : sendType }
       );
@@ -98,7 +92,8 @@ export async function wrapWithSyncMessageSend({
   if (error instanceof Error) {
     if (areAllErrorsUnregistered(conversation.attributes, error)) {
       log.info(
-        `wrapWithSyncMessageSend/${logId}: Group send failures were all UnregisteredUserError, returning succcessfully.`
+        `${logId}: Group send failures were all UnregisteredUserError, ` +
+          'returning successfully.'
       );
       return;
     }

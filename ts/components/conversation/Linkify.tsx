@@ -1,4 +1,4 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
@@ -10,7 +10,7 @@ import { isLinkSneaky, shouldLinkifyMessage } from '../../types/LinkPreview';
 import { splitByEmoji } from '../../util/emoji';
 import { missingCaseError } from '../../util/missingCaseError';
 
-const linkify = LinkifyIt()
+export const linkify = LinkifyIt()
   // This is all TLDs in place in 2010, according to [IANA's root zone database][0]
   //   except for those domains marked as [a test domain][1].
   //
@@ -319,89 +319,75 @@ export type Props = {
   renderNonLink?: RenderTextCallbackType;
 };
 
-const SUPPORTED_PROTOCOLS = /^(http|https):/i;
+export const SUPPORTED_PROTOCOLS = /^(http|https):/i;
 
-export class Linkify extends React.Component<Props> {
-  public static defaultProps: Partial<Props> = {
-    renderNonLink: ({ text }) => text,
-  };
+const defaultRenderNonLink: RenderTextCallbackType = ({ text }) => text;
 
-  public override render():
-    | JSX.Element
-    | string
-    | null
-    | Array<JSX.Element | string | null> {
-    const { text, renderNonLink } = this.props;
+export function Linkify(props: Props): JSX.Element {
+  const { text, renderNonLink = defaultRenderNonLink } = props;
 
-    if (!shouldLinkifyMessage(text)) {
-      return text;
-    }
-
-    // We have to do this, because renderNonLink is not required in our Props object,
-    //  but it is always provided via defaultProps.
-    if (!renderNonLink) {
-      return null;
-    }
-
-    const chunkData: Array<{
-      chunk: string;
-      matchData: ReadonlyArray<LinkifyIt.Match>;
-    }> = splitByEmoji(text).map(({ type, value: chunk }) => {
-      if (type === 'text') {
-        return { chunk, matchData: linkify.match(chunk) || [] };
-      }
-
-      if (type === 'emoji') {
-        return { chunk, matchData: [] };
-      }
-
-      throw missingCaseError(type);
-    });
-
-    const results: Array<JSX.Element | string> = [];
-    let count = 1;
-
-    chunkData.forEach(({ chunk, matchData }) => {
-      if (matchData.length === 0) {
-        count += 1;
-        results.push(renderNonLink({ text: chunk, key: count }));
-        return;
-      }
-
-      let chunkLastIndex = 0;
-      matchData.forEach(match => {
-        if (chunkLastIndex < match.index) {
-          const textWithNoLink = chunk.slice(chunkLastIndex, match.index);
-          count += 1;
-          results.push(renderNonLink({ text: textWithNoLink, key: count }));
-        }
-
-        const { url, text: originalText } = match;
-        count += 1;
-        if (SUPPORTED_PROTOCOLS.test(url) && !isLinkSneaky(url)) {
-          results.push(
-            <a key={count} href={url}>
-              {originalText}
-            </a>
-          );
-        } else {
-          results.push(renderNonLink({ text: originalText, key: count }));
-        }
-
-        chunkLastIndex = match.lastIndex;
-      });
-
-      if (chunkLastIndex < chunk.length) {
-        count += 1;
-        results.push(
-          renderNonLink({
-            text: chunk.slice(chunkLastIndex),
-            key: count,
-          })
-        );
-      }
-    });
-
-    return results;
+  if (!shouldLinkifyMessage(text)) {
+    return <>{renderNonLink({ text, key: 1 })}</>;
   }
+
+  const chunkData: Array<{
+    chunk: string;
+    matchData: ReadonlyArray<LinkifyIt.Match>;
+  }> = splitByEmoji(text).map(({ type, value: chunk }) => {
+    if (type === 'text') {
+      return { chunk, matchData: linkify.match(chunk) || [] };
+    }
+
+    if (type === 'emoji') {
+      return { chunk, matchData: [] };
+    }
+
+    throw missingCaseError(type);
+  });
+
+  const results: Array<JSX.Element | string> = [];
+  let count = 1;
+
+  chunkData.forEach(({ chunk, matchData }) => {
+    if (matchData.length === 0) {
+      count += 1;
+      results.push(renderNonLink({ text: chunk, key: count }));
+      return;
+    }
+
+    let chunkLastIndex = 0;
+    matchData.forEach(match => {
+      if (chunkLastIndex < match.index) {
+        const textWithNoLink = chunk.slice(chunkLastIndex, match.index);
+        count += 1;
+        results.push(renderNonLink({ text: textWithNoLink, key: count }));
+      }
+
+      const { url, text: originalText } = match;
+      count += 1;
+      if (SUPPORTED_PROTOCOLS.test(url) && !isLinkSneaky(url)) {
+        results.push(
+          <a key={count} href={url}>
+            {originalText}
+          </a>
+        );
+      } else {
+        results.push(renderNonLink({ text: originalText, key: count }));
+      }
+
+      chunkLastIndex = match.lastIndex;
+    });
+
+    if (chunkLastIndex < chunk.length) {
+      count += 1;
+      results.push(
+        renderNonLink({
+          text: chunk.slice(chunkLastIndex),
+          key: count,
+        })
+      );
+    }
+  });
+
+  return <>{results}</>;
 }

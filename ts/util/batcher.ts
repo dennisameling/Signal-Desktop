@@ -1,11 +1,14 @@
-// Copyright 2019-2022 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import PQueue from 'p-queue';
 
 import { sleep } from './sleep';
 import * as log from '../logging/log';
+import * as Errors from '../types/errors';
 import { clearTimeoutIfNecessary } from './clearTimeoutIfNecessary';
+import { MINUTE } from './durations';
+import { drop } from './drop';
 
 declare global {
   // We want to extend `window`'s properties, so we need an interface.
@@ -20,7 +23,15 @@ declare global {
 window.batchers = [];
 
 window.waitForAllBatchers = async () => {
-  await Promise.all(window.batchers.map(item => item.flushAndWait()));
+  log.info('batcher#waitForAllBatchers');
+  try {
+    await Promise.all(window.batchers.map(item => item.flushAndWait()));
+  } catch (error) {
+    log.error(
+      'waitForAllBatchers: error flushing all',
+      Errors.toLogFormat(error)
+    );
+  }
 };
 
 export type BatcherOptionsType<ItemType> = {
@@ -47,7 +58,7 @@ export function createBatcher<ItemType>(
   let items: Array<ItemType> = [];
   const queue = new PQueue({
     concurrency: 1,
-    timeout: 1000 * 60 * 2,
+    timeout: MINUTE * 30,
     throwOnTimeout: true,
   });
 
@@ -57,9 +68,11 @@ export function createBatcher<ItemType>(
 
     const itemsRef = items;
     items = [];
-    queue.add(async () => {
-      await options.processBatch(itemsRef);
-    });
+    drop(
+      queue.add(async () => {
+        await options.processBatch(itemsRef);
+      })
+    );
   }
 
   function add(item: ItemType) {

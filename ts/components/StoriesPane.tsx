@@ -4,24 +4,31 @@
 import Fuse from 'fuse.js';
 import React, { useEffect, useState } from 'react';
 import classNames from 'classnames';
-import { isNotNil } from '../util/isNotNil';
-import type { ConversationStoryType, StoryViewType } from './StoryListItem';
-import type { LocalizerType } from '../types/Util';
+
+import type {
+  ConversationType,
+  ShowConversationType,
+} from '../state/ducks/conversations';
+import type { ConversationStoryType, MyStoryType } from '../types/Stories';
+import type { LocalizerType, ThemeType } from '../types/Util';
+import type { PreferredBadgeSelectorType } from '../state/selectors/badges';
+import type { ShowToastAction } from '../state/ducks/toast';
+import type { ViewUserStoriesActionCreatorType } from '../state/ducks/stories';
+import { MyStoryButton } from './MyStoryButton';
 import { SearchInput } from './SearchInput';
 import { StoryListItem } from './StoryListItem';
+import { isNotNil } from '../util/isNotNil';
+import { NavSidebarSearchHeader, NavSidebarEmpty } from './NavSidebar';
 
 const FUSE_OPTIONS: Fuse.IFuseOptions<ConversationStoryType> = {
-  getFn: (obj, path) => {
-    if (path === 'searchNames') {
-      return obj.stories
-        .flatMap((story: StoryViewType) => [
-          story.sender.title,
-          story.sender.name,
-        ])
-        .filter(isNotNil);
+  getFn: (story, path) => {
+    if (path[0] === 'searchNames' || path === 'searchNames') {
+      return [story.storyView.sender.title, story.storyView.sender.name].filter(
+        isNotNil
+      );
     }
 
-    return obj.group?.title ?? '';
+    return story.group?.title ?? '';
   },
   keys: [
     {
@@ -45,31 +52,46 @@ function search(
     .map(result => result.item);
 }
 
-function getNewestStory(story: ConversationStoryType): StoryViewType {
-  return story.stories[story.stories.length - 1];
-}
-
 export type PropsType = {
+  getPreferredBadge: PreferredBadgeSelectorType;
   hiddenStories: Array<ConversationStoryType>;
   i18n: LocalizerType;
-  onBack: () => unknown;
-  onStoryClicked: (conversationId: string) => unknown;
-  openConversationInternal: (_: { conversationId: string }) => unknown;
+  maxAttachmentSizeInKb: number;
+  me: ConversationType;
+  myStories: Array<MyStoryType>;
+  onAddStory: (file?: File) => unknown;
+  onMyStoriesClicked: () => unknown;
+  onStoriesSettings: () => unknown;
+  onMediaPlaybackStart: () => void;
   queueStoryDownload: (storyId: string) => unknown;
+  showConversation: ShowConversationType;
+  showToast: ShowToastAction;
   stories: Array<ConversationStoryType>;
+  theme: ThemeType;
   toggleHideStories: (conversationId: string) => unknown;
+  viewUserStories: ViewUserStoriesActionCreatorType;
 };
 
-export const StoriesPane = ({
+export function StoriesPane({
+  getPreferredBadge,
+  hiddenStories,
   i18n,
-  onBack,
-  onStoryClicked,
-  openConversationInternal,
+  maxAttachmentSizeInKb,
+  me,
+  myStories,
+  onAddStory,
+  onMyStoriesClicked,
+  onMediaPlaybackStart,
   queueStoryDownload,
+  showConversation,
+  showToast,
   stories,
+  theme,
   toggleHideStories,
-}: PropsType): JSX.Element => {
+  viewUserStories,
+}: PropsType): JSX.Element {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isShowingHiddenStories, setIsShowingHiddenStories] = useState(false);
   const [renderedStories, setRenderedStories] =
     useState<Array<ConversationStoryType>>(stories);
 
@@ -80,53 +102,91 @@ export const StoriesPane = ({
       setRenderedStories(stories);
     }
   }, [searchTerm, stories]);
-
   return (
     <>
-      <div className="Stories__pane__header">
-        <button
-          aria-label={i18n('back')}
-          className="Stories__pane__header--back"
-          onClick={onBack}
-          type="button"
+      {!stories.length && (
+        <NavSidebarEmpty
+          title={i18n('icu:Stories__list__empty--title')}
+          subtitle={i18n('icu:Stories__list__empty--subtitle')}
         />
-        <div className="Stories__pane__header--title">
-          {i18n('Stories__title')}
-        </div>
-      </div>
-      <SearchInput
-        i18n={i18n}
-        moduleClassName="Stories__search"
-        onChange={event => {
-          setSearchTerm(event.target.value);
-        }}
-        placeholder={i18n('search')}
-        value={searchTerm}
-      />
-      <div
-        className={classNames('Stories__pane__list', {
-          'Stories__pane__list--empty': !stories.length,
-        })}
-      >
+      )}
+      <NavSidebarSearchHeader>
+        <SearchInput
+          i18n={i18n}
+          onChange={event => {
+            setSearchTerm(event.target.value);
+          }}
+          placeholder={i18n('icu:search')}
+          value={searchTerm}
+        />
+      </NavSidebarSearchHeader>
+      <div className="Stories__pane__list">
+        <MyStoryButton
+          i18n={i18n}
+          maxAttachmentSizeInKb={maxAttachmentSizeInKb}
+          me={me}
+          myStories={myStories}
+          onAddStory={onAddStory}
+          onClick={onMyStoriesClicked}
+          queueStoryDownload={queueStoryDownload}
+          showToast={showToast}
+          onMediaPlaybackStart={onMediaPlaybackStart}
+        />
         {renderedStories.map(story => (
           <StoryListItem
-            key={getNewestStory(story).timestamp}
+            conversationId={story.conversationId}
+            getPreferredBadge={getPreferredBadge}
+            hasReplies={story.hasReplies}
+            hasRepliesFromSelf={story.hasRepliesFromSelf}
+            group={story.group}
             i18n={i18n}
-            onClick={() => {
-              onStoryClicked(story.conversationId);
-            }}
-            onHideStory={() => {
-              toggleHideStories(getNewestStory(story).sender.id);
-            }}
+            key={story.storyView.timestamp}
             onGoToConversation={conversationId => {
-              openConversationInternal({ conversationId });
+              showConversation({ conversationId });
             }}
+            onHideStory={toggleHideStories}
+            onMediaPlaybackStart={onMediaPlaybackStart}
             queueStoryDownload={queueStoryDownload}
-            story={getNewestStory(story)}
+            story={story.storyView}
+            theme={theme}
+            viewUserStories={viewUserStories}
           />
         ))}
-        {!stories.length && i18n('Stories__list-empty')}
+        {Boolean(hiddenStories.length) && (
+          <>
+            <button
+              className={classNames('Stories__hidden-stories', {
+                'Stories__hidden-stories--collapsed': !isShowingHiddenStories,
+                'Stories__hidden-stories--expanded': isShowingHiddenStories,
+              })}
+              onClick={() => setIsShowingHiddenStories(!isShowingHiddenStories)}
+              type="button"
+            >
+              {i18n('icu:Stories__hidden-stories')}
+            </button>
+            {isShowingHiddenStories &&
+              hiddenStories.map(story => (
+                <StoryListItem
+                  conversationId={story.conversationId}
+                  getPreferredBadge={getPreferredBadge}
+                  group={story.group}
+                  i18n={i18n}
+                  isHidden
+                  key={story.storyView.timestamp}
+                  onGoToConversation={conversationId => {
+                    showConversation({ conversationId });
+                  }}
+                  onHideStory={toggleHideStories}
+                  onMediaPlaybackStart={onMediaPlaybackStart}
+                  queueStoryDownload={queueStoryDownload}
+                  story={story.storyView}
+                  theme={theme}
+                  viewUserStories={viewUserStories}
+                />
+              ))}
+          </>
+        )}
       </div>
     </>
   );
-};
+}

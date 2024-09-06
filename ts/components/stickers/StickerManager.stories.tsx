@@ -2,18 +2,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../../util/setupI18n';
 import enMessages from '../../../_locales/en/messages.json';
 import type { Props } from './StickerManager';
 import { StickerManager } from './StickerManager';
-import { createPack, sticker1, sticker2 } from './StickerPicker.stories';
+import { createPack, sticker1, sticker2 } from './mocks';
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf('Components/Stickers/StickerManager', module);
+export default {
+  title: 'Components/Stickers/StickerManager',
+} satisfies Meta<Props>;
 
 const receivedPacks = [
   createPack({ id: 'received-pack-1', status: 'downloaded' }, sticker1),
@@ -43,6 +44,7 @@ const knownPacks = [
 
 const createProps = (overrideProps: Partial<Props> = {}): Props => ({
   blessedPacks: overrideProps.blessedPacks || [],
+  closeStickerPackPreview: action('closeStickerPackPreview'),
   downloadStickerPack: action('downloadStickerPack'),
   i18n,
   installStickerPack: action('installStickerPack'),
@@ -52,32 +54,32 @@ const createProps = (overrideProps: Partial<Props> = {}): Props => ({
   uninstallStickerPack: action('uninstallStickerPack'),
 });
 
-story.add('Full', () => {
+export function Full(): JSX.Element {
   const props = createProps({ installedPacks, receivedPacks, blessedPacks });
 
   return <StickerManager {...props} />;
-});
+}
 
-story.add('Installed Packs', () => {
+export function InstalledPacks(): JSX.Element {
   const props = createProps({ installedPacks });
 
   return <StickerManager {...props} />;
-});
+}
 
-story.add('Received Packs', () => {
+export function ReceivedPacks(): JSX.Element {
   const props = createProps({ receivedPacks });
 
   return <StickerManager {...props} />;
-});
+}
 
-story.add('Installed + Known Packs', () => {
+export function InstalledAndKnownPacks(): JSX.Element {
   const props = createProps({ installedPacks, knownPacks });
 
   return <StickerManager {...props} />;
-});
+}
 
-story.add('Empty', () => {
+export function Empty(): JSX.Element {
   const props = createProps();
 
   return <StickerManager {...props} />;
-});
+}

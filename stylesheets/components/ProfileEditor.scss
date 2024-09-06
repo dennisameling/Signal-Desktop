@@ -7,17 +7,17 @@
       align-items: center;
       display: flex;
       font-size: 24px;
-      height: 32px;
       justify-content: center;
-      width: 32px;
+      width: 20px;
+      height: 20px;
     }
 
     &::after {
       -webkit-mask-size: 100%;
       content: '';
       display: block;
-      height: 24px;
-      width: 24px;
+      height: 20px;
+      width: 20px;
 
       @include light-theme {
         background-color: $color-gray-75;
@@ -30,38 +30,74 @@
 
     &--name {
       &::after {
-        -webkit-mask: url(../images/icons/v2/profile-outline-20.svg) no-repeat
-          center;
+        @include light-theme {
+          @include color-svg(
+            '../images/icons/v3/person/person.svg',
+            $color-gray-75
+          );
+        }
+
+        @include dark-theme {
+          @include color-svg(
+            '../images/icons/v3/person/person.svg',
+            $color-gray-15
+          );
+        }
       }
     }
 
     &--username {
       &::after {
-        -webkit-mask: url(../images/icons/v2/at-24.svg) no-repeat center;
+        @include light-theme {
+          @include color-svg('../images/icons/v3/at/at.svg', $color-gray-75);
+        }
+
+        @include dark-theme {
+          @include color-svg('../images/icons/v3/at/at.svg', $color-gray-15);
+        }
+      }
+    }
+
+    &--username-link {
+      &::after {
+        @include light-theme {
+          @include color-svg(
+            '../images/icons/v3/qr_code/qr_code.svg',
+            $color-gray-75
+          );
+        }
+
+        @include dark-theme {
+          @include color-svg(
+            '../images/icons/v3/qr_code/qr_code.svg',
+            $color-gray-15
+          );
+        }
       }
     }
 
     &--bio {
       &::after {
-        -webkit-mask: url(../images/icons/v2/compose-outline-24.svg) no-repeat
-          center;
+        @include light-theme {
+          @include color-svg(
+            '../images/icons/v3/edit/edit.svg',
+            $color-gray-75
+          );
+        }
+
+        @include dark-theme {
+          @include color-svg(
+            '../images/icons/v3/edit/edit.svg',
+            $color-gray-15
+          );
+        }
       }
     }
   }
 
-  &__about-input {
-    &__icon {
-      left: 4px;
-    }
-
-    &__input--with-icon {
-      padding-left: 32px;
-    }
-  }
-
   &__row {
-    padding-left: 0;
-    padding-right: 0;
+    padding-inline: 8px;
+    padding-block: 12px;
   }
 
   &__divider {
@@ -77,16 +113,14 @@
     }
   }
 
-  &__error {
-    @include font-body-2;
-    margin: 16px 0;
-
-    color: $color-accent-red;
+  hr {
+    margin-block: 24px 12px;
   }
 
   &__info {
     @include font-body-2;
-    margin: 16px 0;
+    margin-block: 12px;
+    margin-inline: 8px;
 
     @include light-theme {
       color: $color-gray-60;
@@ -99,11 +133,218 @@
       font-weight: 600;
       text-decoration: none;
     }
+  }
 
-    // To account for missing error section - 16px previous margin, 34px for
-    //   16px margin of error plus 18px line height.
-    &--no-error {
-      margin-bottom: 50px;
+  &__username-menu {
+    &__button {
+      width: 20px;
+      height: 20px;
+
+      @include dark-theme {
+        @include color-svg(
+          '../images/icons/v3/chevron/chevron-down.svg',
+          $color-white
+        );
+      }
+      @include light-theme {
+        @include color-svg(
+          '../images/icons/v3/chevron/chevron-down.svg',
+          $color-black
+        );
+      }
+    }
+
+    &__copy-icon {
+      @include dark-theme {
+        @include color-svg('../images/icons/v3/copy/copy.svg', $color-white);
+      }
+      @include light-theme {
+        @include color-svg('../images/icons/v3/copy/copy.svg', $color-black);
+      }
+    }
+
+    &__copy-link-icon {
+      @include dark-theme {
+        @include color-svg('../images/icons/v3/link/link.svg', $color-white);
+      }
+      @include light-theme {
+        @include color-svg('../images/icons/v3/link/link.svg', $color-black);
+      }
+    }
+
+    &__trash-icon {
+      @include dark-theme {
+        @include color-svg('../images/icons/v3/trash/trash.svg', $color-white);
+      }
+      @include light-theme {
+        @include color-svg('../images/icons/v3/trash/trash.svg', $color-black);
+      }
     }
   }
+
+  &__error-icon {
+    -webkit-mask-size: 100%;
+    display: block;
+    height: 20px;
+    width: 20px;
+
+    @include light-theme {
+      @include color-svg(
+        '../images/icons/v3/error/error-circle.svg',
+        $color-accent-red
+      );
+    }
+
+    @include dark-theme {
+      @include color-svg(
+        '../images/icons/v3/error/error-circle.svg',
+        $color-accent-red
+      );
+    }
+  }
+
+  &__username-link {
+    &__tooltip {
+      padding: 0;
+      background-color: unset;
+
+      --container-padding: 12px;
+
+      &__container {
+        display: flex;
+        flex-direction: row;
+        padding: var(--container-padding);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12);
+        border: 1px solid $color-gray-20;
+        border-radius: inherit;
+        background-color: $color-gray-02;
+        transform-origin: 0 0; // needed for react-spring scale animation
+        @include dark-theme {
+          background-color: $color-gray-75;
+          border-color: $color-gray-60;
+        }
+      }
+
+      --direction-multiplier: 1;
+      &:dir(rtl) {
+        --direction-multiplier: -1;
+      }
+
+      &__arrow {
+        position: absolute;
+
+        // stylelint-disable-next-line declaration-property-value-disallowed-list
+        transform: translateY(calc(-50% - var(--container-padding)))
+          translateX(
+            calc(
+              var(--direction-multiplier) * (20px - var(--container-padding))
+            )
+          )
+          rotate(45deg);
+
+        width: 14px;
+        height: 14px;
+        clip-path: polygon(0 100%, 0 0, 100% 0);
+
+        border: inherit;
+        background: inherit;
+      }
+      &__icon {
+        width: 20px;
+        height: 20px;
+        margin-block-start: 4px;
+        margin-inline: 4px 12px;
+
+        @include dark-theme {
+          @include color-svg(
+            '../images/icons/v3/share/share.svg',
+            $color-white
+          );
+        }
+        @include light-theme {
+          @include color-svg(
+            '../images/icons/v3/share/share.svg',
+            $color-black
+          );
+        }
+      }
+
+      &__content {
+        text-align: start;
+
+        h3 {
+          @include font-body-2-bold;
+          margin: 0;
+        }
+
+        p {
+          @include font-subtitle;
+          max-width: 240px;
+          margin: 0;
+        }
+      }
+
+      &__close {
+        @include button-reset;
+        @include button-focus-outline;
+
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        margin: 0;
+
+        @include color-svg('../images/icons/v3/x/x.svg', $color-gray-45);
+        @include dark-theme {
+          @include color-svg('../images/icons/v3/x/x.svg', $color-gray-25);
+        }
+      }
+    }
+  }
+}
+
+.ProfileEditor__Title {
+  @include font-title-1;
+  text-align: center;
+  overflow-x: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-block: 0 4px;
+  margin-inline: 0;
+  @include light-theme() {
+    color: $color-gray-90;
+  }
+  @include dark-theme() {
+    color: $color-gray-05;
+  }
+}
+
+.ProfileEditor__PhoneNumber {
+  @include font-body-2;
+  text-align: center;
+  overflow-x: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-block: 0 14px;
+  margin-inline: 0;
+  @include light-theme() {
+    color: $color-black;
+  }
+  @include dark-theme() {
+    color: $color-white;
+  }
+}
+
+.ProfileEditor__EditPhotoContainer {
+  display: flex;
+  justify-content: center;
+  margin-block-end: 16px;
+}
+
+.ProfileEditor__EditPhoto {
+  @include font-subtitle;
+
+  padding-block: 5px;
+  padding-inline: 10px;
+  border-radius: 14px;
+  font-weight: 600;
 }

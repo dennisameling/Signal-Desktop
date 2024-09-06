@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
@@ -8,15 +8,18 @@ import { SystemMessage } from './SystemMessage';
 import type { LocalizerType, ThemeType } from '../../types/Util';
 import type { ConversationType } from '../../state/ducks/conversations';
 import type { PreferredBadgeSelectorType } from '../../state/selectors/badges';
-import { Intl } from '../Intl';
+import { I18n } from '../I18n';
 import { ContactName } from './ContactName';
 import { GroupV1MigrationDialog } from '../GroupV1MigrationDialog';
 import * as log from '../../logging/log';
 
 export type PropsDataType = {
   areWeInvited: boolean;
-  droppedMembers: Array<ConversationType>;
-  invitedMembers: Array<ConversationType>;
+  conversationId: string;
+  droppedMembers?: Array<ConversationType>;
+  invitedMembers?: Array<ConversationType>;
+  droppedMemberCount: number;
+  invitedMemberCount: number;
 };
 
 export type PropsHousekeepingType = {
@@ -31,9 +34,11 @@ export function GroupV1Migration(props: PropsType): React.ReactElement {
   const {
     areWeInvited,
     droppedMembers,
+    droppedMemberCount,
     getPreferredBadge,
     i18n,
     invitedMembers,
+    invitedMemberCount,
     theme,
   } = props;
   const [showingDialog, setShowingDialog] = React.useState(false);
@@ -52,22 +57,25 @@ export function GroupV1Migration(props: PropsType): React.ReactElement {
         icon="group"
         contents={
           <>
-            <p>{i18n('GroupV1--Migration--was-upgraded')}</p>
+            <p>{i18n('icu:GroupV1--Migration--was-upgraded')}</p>
             <p>
+              {' '}
               {areWeInvited ? (
-                i18n('GroupV1--Migration--invited--you')
+                i18n('icu:GroupV1--Migration--invited--you')
               ) : (
                 <>
-                  {renderUsers(
-                    invitedMembers,
+                  {renderUsers({
+                    members: invitedMembers,
+                    count: invitedMemberCount,
                     i18n,
-                    'GroupV1--Migration--invited'
-                  )}
-                  {renderUsers(
-                    droppedMembers,
+                    kind: 'invited',
+                  })}
+                  {renderUsers({
+                    members: droppedMembers,
+                    count: droppedMemberCount,
                     i18n,
-                    'GroupV1--Migration--removed'
-                  )}
+                    kind: 'removed',
+                  })}
                 </>
               )}
             </p>
@@ -79,7 +87,7 @@ export function GroupV1Migration(props: PropsType): React.ReactElement {
             size={ButtonSize.Small}
             variant={ButtonVariant.SystemMessage}
           >
-            {i18n('GroupV1--Migration--learn-more')}
+            {i18n('icu:GroupV1--Migration--learn-more')}
           </Button>
         }
       />
@@ -87,11 +95,13 @@ export function GroupV1Migration(props: PropsType): React.ReactElement {
         <GroupV1MigrationDialog
           areWeInvited={areWeInvited}
           droppedMembers={droppedMembers}
+          droppedMemberCount={droppedMemberCount}
           getPreferredBadge={getPreferredBadge}
           hasMigrated
           i18n={i18n}
           invitedMembers={invitedMembers}
-          migrate={() => log.warn('GroupV1Migration: Modal called migrate()')}
+          invitedMemberCount={invitedMemberCount}
+          onMigrate={() => log.warn('GroupV1Migration: Modal called migrate()')}
           onClose={dismissDialog}
           theme={theme}
         />
@@ -100,26 +110,59 @@ export function GroupV1Migration(props: PropsType): React.ReactElement {
   );
 }
 
-function renderUsers(
-  members: Array<ConversationType>,
-  i18n: LocalizerType,
-  keyPrefix: string
-): React.ReactElement | null {
-  if (!members || members.length === 0) {
+function renderUsers({
+  members,
+  count,
+  i18n,
+  kind,
+}: {
+  members?: Array<ConversationType>;
+  count: number;
+  i18n: LocalizerType;
+  kind: 'invited' | 'removed';
+}): React.ReactElement | null {
+  if (count === 0) {
     return null;
   }
 
-  if (members.length === 1) {
+  if (members && count === 1) {
+    const contact = <ContactName title={members[0].title} />;
     return (
       <p>
-        <Intl
-          i18n={i18n}
-          id={`${keyPrefix}--one`}
-          components={[<ContactName title={members[0].title} />]}
-        />
+        {kind === 'invited' && (
+          <I18n
+            i18n={i18n}
+            id="icu:GroupV1--Migration--invited--one"
+            components={{ contact }}
+          />
+        )}
+        {kind === 'removed' && (
+          <I18n
+            i18n={i18n}
+            id="icu:GroupV1--Migration--removed--one"
+            components={{ contact }}
+          />
+        )}
       </p>
     );
   }
 
-  return <p>{i18n(`${keyPrefix}--many`, [members.length.toString()])}</p>;
+  return (
+    <p>
+      {kind === 'invited' && (
+        <I18n
+          i18n={i18n}
+          id="icu:GroupV1--Migration--invited--many"
+          components={{ count }}
+        />
+      )}
+      {kind === 'removed' && (
+        <I18n
+          i18n={i18n}
+          id="icu:GroupV1--Migration--removed--many"
+          components={{ count }}
+        />
+      )}
+    </p>
+  );
 }

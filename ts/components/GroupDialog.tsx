@@ -54,10 +54,10 @@ export function GroupDialog(props: Readonly<PropsType>): JSX.Element {
   }
 
   return (
-    <ModalHost onClose={onClose}>
+    <ModalHost modalName="GroupDialog" onClose={onClose}>
       <div className="module-GroupDialog">
         <button
-          aria-label={i18n('close')}
+          aria-label={i18n('icu:close')}
           type="button"
           className="module-GroupDialog__close-button"
           onClick={() => {
@@ -85,11 +85,11 @@ type ParagraphPropsType = {
   children: ReactNode;
 };
 
-GroupDialog.Paragraph = ({
-  children,
-}: Readonly<ParagraphPropsType>): JSX.Element => (
-  <p className="module-GroupDialog__paragraph">{children}</p>
-);
+function Paragraph({ children }: Readonly<ParagraphPropsType>): JSX.Element {
+  return <p className="module-GroupDialog__paragraph">{children}</p>;
+}
+
+GroupDialog.Paragraph = Paragraph;
 
 type ContactsPropsType = {
   contacts: Array<ConversationType>;
@@ -98,38 +98,41 @@ type ContactsPropsType = {
   theme: ThemeType;
 };
 
-GroupDialog.Contacts = ({
+function Contacts({
   contacts,
   getPreferredBadge,
   i18n,
   theme,
-}: Readonly<ContactsPropsType>) => (
-  <ul className="module-GroupDialog__contacts">
-    {contacts.map(contact => (
-      <li key={contact.id} className="module-GroupDialog__contacts__contact">
-        <Avatar
-          acceptedMessageRequest={contact.acceptedMessageRequest}
-          avatarPath={contact.avatarPath}
-          badge={getPreferredBadge(contact.badges)}
-          color={contact.color}
-          conversationType={contact.type}
-          isMe={contact.isMe}
-          noteToSelf={contact.isMe}
-          theme={theme}
-          title={contact.title}
-          unblurredAvatarPath={contact.unblurredAvatarPath}
-          sharedGroupNames={contact.sharedGroupNames}
-          size={AvatarSize.TWENTY_EIGHT}
-          i18n={i18n}
-        />
-        <ContactName
-          module="module-GroupDialog__contacts__contact__name"
-          title={contact.title}
-        />
-      </li>
-    ))}
-  </ul>
-);
+}: Readonly<ContactsPropsType>): JSX.Element {
+  return (
+    <ul className="module-GroupDialog__contacts">
+      {contacts.map(contact => (
+        <li key={contact.id} className="module-GroupDialog__contacts__contact">
+          <Avatar
+            acceptedMessageRequest={contact.acceptedMessageRequest}
+            avatarUrl={contact.avatarUrl}
+            badge={getPreferredBadge(contact.badges)}
+            color={contact.color}
+            conversationType={contact.type}
+            isMe={contact.isMe}
+            noteToSelf={contact.isMe}
+            theme={theme}
+            title={contact.title}
+            unblurredAvatarUrl={contact.unblurredAvatarUrl}
+            sharedGroupNames={contact.sharedGroupNames}
+            size={AvatarSize.TWENTY_EIGHT}
+            i18n={i18n}
+          />
+          <ContactName
+            module="module-GroupDialog__contacts__contact__name"
+            title={contact.title}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+GroupDialog.Contacts = Contacts;
 
 function focusRef(el: HTMLElement | null) {
   if (el) {

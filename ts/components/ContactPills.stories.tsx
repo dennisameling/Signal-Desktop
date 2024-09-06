@@ -4,9 +4,9 @@
 import React from 'react';
 import { times } from 'lodash';
 
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
 
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../util/setupI18n';
 import enMessages from '../../_locales/en/messages.json';
 import { ContactPills } from './ContactPills';
@@ -17,7 +17,9 @@ import { getDefaultConversation } from '../test-both/helpers/getDefaultConversat
 
 const i18n = setupI18n('en', enMessages);
 
-const story = storiesOf('Components/Contact Pills', module);
+export default {
+  title: 'Components/Contact Pills',
+} satisfies Meta<ContactPillPropsType>;
 
 type ContactType = Omit<ContactPillPropsType, 'i18n' | 'onClickRemove'>;
 
@@ -36,7 +38,7 @@ const contactPillProps = (
 ): ContactPillPropsType => ({
   ...(overrideProps ??
     getDefaultConversation({
-      avatarPath: gifUrl,
+      avatarUrl: gifUrl,
       firstName: 'John',
       id: 'abc123',
       isMe: false,
@@ -49,41 +51,51 @@ const contactPillProps = (
   onClickRemove: action('onClickRemove'),
 });
 
-story.add('Empty list', () => <ContactPills />);
+export function EmptyList(): JSX.Element {
+  return <ContactPills />;
+}
 
-story.add('One contact', () => (
-  <ContactPills>
-    <ContactPill {...contactPillProps()} />
-  </ContactPills>
-));
+export function OneContact(): JSX.Element {
+  return (
+    <ContactPills>
+      <ContactPill {...contactPillProps()} />
+    </ContactPills>
+  );
+}
 
-story.add('Three contacts', () => (
-  <ContactPills>
-    <ContactPill {...contactPillProps(contacts[0])} />
-    <ContactPill {...contactPillProps(contacts[1])} />
-    <ContactPill {...contactPillProps(contacts[2])} />
-  </ContactPills>
-));
+export function ThreeContacts(): JSX.Element {
+  return (
+    <ContactPills>
+      <ContactPill {...contactPillProps(contacts[0])} />
+      <ContactPill {...contactPillProps(contacts[1])} />
+      <ContactPill {...contactPillProps(contacts[2])} />
+    </ContactPills>
+  );
+}
 
-story.add('Four contacts, one with a long name', () => (
-  <ContactPills>
-    <ContactPill {...contactPillProps(contacts[0])} />
-    <ContactPill
-      {...contactPillProps({
-        ...contacts[1],
-        title:
-          'Pablo Diego José Francisco de Paula Juan Nepomuceno María de los Remedios Cipriano de la Santísima Trinidad Ruiz y Picasso',
-      })}
-    />
-    <ContactPill {...contactPillProps(contacts[2])} />
-    <ContactPill {...contactPillProps(contacts[3])} />
-  </ContactPills>
-));
+export function FourContactsOneWithALongName(): JSX.Element {
+  return (
+    <ContactPills>
+      <ContactPill {...contactPillProps(contacts[0])} />
+      <ContactPill
+        {...contactPillProps({
+          ...contacts[1],
+          title:
+            'Pablo Diego José Francisco de Paula Juan Nepomuceno María de los Remedios Cipriano de la Santísima Trinidad Ruiz y Picasso',
+        })}
+      />
+      <ContactPill {...contactPillProps(contacts[2])} />
+      <ContactPill {...contactPillProps(contacts[3])} />
+    </ContactPills>
+  );
+}
 
-story.add('Fifty contacts', () => (
-  <ContactPills>
-    {contacts.map(contact => (
-      <ContactPill key={contact.id} {...contactPillProps(contact)} />
-    ))}
-  </ContactPills>
-));
+export function FiftyContacts(): JSX.Element {
+  return (
+    <ContactPills>
+      {contacts.map(contact => (
+        <ContactPill key={contact.id} {...contactPillProps(contact)} />
+      ))}
+    </ContactPills>
+  );
+}

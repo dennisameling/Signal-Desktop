@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type {
@@ -12,25 +12,26 @@ import classNames from 'classnames';
 import type { LocalizerType } from '../types/Util';
 import { getClassNamesFor } from '../util/getClassNamesFor';
 
-export type PropTypes = {
-  readonly children?: ReactNode;
-  readonly disabled?: boolean;
-  readonly label?: string;
-  readonly hasSearchIcon?: boolean;
-  readonly i18n: LocalizerType;
-  readonly moduleClassName?: string;
-  readonly onClear?: () => unknown;
-  readonly onBlur?: FocusEventHandler<HTMLInputElement>;
-  readonly onChange: (ev: ChangeEvent<HTMLInputElement>) => unknown;
-  readonly onKeyDown?: (ev: KeyboardEvent<HTMLInputElement>) => unknown;
-  readonly placeholder: string;
-  readonly value: string;
-};
+export type PropTypes = Readonly<{
+  children?: ReactNode;
+  disabled?: boolean;
+  label?: string;
+  hasSearchIcon?: boolean;
+  i18n: LocalizerType;
+  moduleClassName?: string;
+  onClear?: () => unknown;
+  onBlur?: FocusEventHandler<HTMLInputElement>;
+  onChange: (ev: ChangeEvent<HTMLInputElement>) => unknown;
+  onKeyDown?: (ev: KeyboardEvent<HTMLInputElement>) => unknown;
+  placeholder: string;
+  value: string;
+  description?: string;
+}>;
 
 const BASE_CLASS_NAME = 'module-SearchInput';
 
 export const SearchInput = forwardRef<HTMLInputElement, PropTypes>(
-  (
+  function SearchInputInner(
     {
       children,
       disabled = false,
@@ -44,16 +45,17 @@ export const SearchInput = forwardRef<HTMLInputElement, PropTypes>(
       onKeyDown,
       placeholder,
       value,
+      description,
     },
     ref
-  ) => {
+  ) {
     const getClassName = getClassNamesFor(BASE_CLASS_NAME, moduleClassName);
     return (
-      <div className={getClassName('__container')}>
+      <div className={getClassName('__container')} data-supertab>
         {hasSearchIcon && <i className={getClassName('__icon')} />}
         {children}
         <input
-          aria-label={label || i18n('search')}
+          aria-label={label || i18n('icu:search')}
           className={classNames(
             getClassName('__input'),
             value && getClassName('__input--with-text'),
@@ -85,12 +87,15 @@ export const SearchInput = forwardRef<HTMLInputElement, PropTypes>(
         />
         {value && onClear && (
           <button
-            aria-label={i18n('cancel')}
+            aria-label={i18n('icu:cancel')}
             className={getClassName('__cancel')}
             onClick={onClear}
             tabIndex={-1}
             type="button"
           />
+        )}
+        {description && (
+          <div className={getClassName('__description')}>{description}</div>
         )}
       </div>
     );

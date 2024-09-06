@@ -1,25 +1,16 @@
-// Copyright 2019-2022 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as log from '../logging/log';
 import { singleProtoJobQueue } from '../jobs/singleProtoJobQueue';
 import * as Errors from '../types/errors';
+import MessageSender from '../textsecure/SendMessage';
 
 export async function sendStickerPackSync(
   packId: string,
   packKey: string,
   installed: boolean
 ): Promise<void> {
-  const { textsecure } = window;
-
-  if (!textsecure.messaging) {
-    log.error(
-      'shim: Cannot call sendStickerPackSync, textsecure.messaging is falsey'
-    );
-
-    return;
-  }
-
   if (window.ConversationController.areWePrimaryDevice()) {
     log.warn(
       'shims/sendStickerPackSync: We are primary device; not sending sync'
@@ -29,7 +20,7 @@ export async function sendStickerPackSync(
 
   try {
     await singleProtoJobQueue.add(
-      textsecure.messaging.getStickerPackSync([
+      MessageSender.getStickerPackSync([
         {
           packId,
           packKey,

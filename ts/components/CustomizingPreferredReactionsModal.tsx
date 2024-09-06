@@ -1,7 +1,7 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePopper } from 'react-popper';
 import { isEqual, noop } from 'lodash';
 
@@ -17,14 +17,15 @@ import { EmojiPicker } from './emoji/EmojiPicker';
 import { DEFAULT_PREFERRED_REACTION_EMOJI_SHORT_NAMES } from '../reactions/constants';
 import { convertShortName } from './emoji/lib';
 import { offsetDistanceModifier } from '../util/popperUtil';
+import { handleOutsideClick } from '../util/handleOutsideClick';
 
-type PropsType = {
-  draftPreferredReactions: Array<string>;
+export type PropsType = {
+  draftPreferredReactions: ReadonlyArray<string>;
   hadSaveError: boolean;
   i18n: LocalizerType;
   isSaving: boolean;
-  originalPreferredReactions: Array<string>;
-  recentEmojis: Array<string>;
+  originalPreferredReactions: ReadonlyArray<string>;
+  recentEmojis: ReadonlyArray<string>;
   selectedDraftEmojiIndex: undefined | number;
   skinTone: number;
 
@@ -77,22 +78,16 @@ export function CustomizingPreferredReactionsModal({
       return noop;
     }
 
-    const onBodyClick = (event: MouseEvent) => {
-      const { target } = event;
-      if (!(target instanceof HTMLElement) || !popperElement) {
-        return;
-      }
-
-      const isClickOutsidePicker = !popperElement.contains(target);
-      if (isClickOutsidePicker) {
+    return handleOutsideClick(
+      () => {
         deselectDraftEmoji();
+        return true;
+      },
+      {
+        containerElements: [popperElement],
+        name: 'CustomizingPreferredReactionsModal.draftEmoji',
       }
-    };
-
-    document.body.addEventListener('click', onBodyClick);
-    return () => {
-      document.body.removeEventListener('click', onBodyClick);
-    };
+    );
   }, [isSomethingSelected, popperElement, deselectDraftEmoji]);
 
   const hasChanged = !isEqual(
@@ -109,15 +104,49 @@ export function CustomizingPreferredReactionsModal({
     );
   const canSave = !isSaving && hasChanged;
 
+  const footer = (
+    <>
+      <Button
+        disabled={!canReset}
+        onClick={() => {
+          resetDraftEmoji();
+        }}
+        onKeyDown={event => {
+          if (event.key === 'Enter' || event.key === 'Space') {
+            resetDraftEmoji();
+          }
+        }}
+        variant={ButtonVariant.SecondaryAffirmative}
+      >
+        {i18n('icu:reset')}
+      </Button>
+      <Button
+        disabled={!canSave}
+        onClick={() => {
+          savePreferredReactions();
+        }}
+        onKeyDown={event => {
+          if (event.key === 'Enter' || event.key === 'Space') {
+            savePreferredReactions();
+          }
+        }}
+      >
+        {i18n('icu:save')}
+      </Button>
+    </>
+  );
+
   return (
     <Modal
+      modalName="CustomizingPreferredReactionsModal"
       moduleClassName="module-CustomizingPreferredReactionsModal"
       hasXButton
       i18n={i18n}
       onClose={() => {
         cancelCustomizePreferredReactionsModal();
       }}
-      title={i18n('CustomizingPreferredReactions__title')}
+      title={i18n('icu:CustomizingPreferredReactions__title')}
+      modalFooter={footer}
     >
       <div className="module-CustomizingPreferredReactionsModal__small-emoji-picker-wrapper">
         <ReactionPickerPicker
@@ -140,8 +169,8 @@ export function CustomizingPreferredReactionsModal({
           ))}
         </ReactionPickerPicker>
         {hadSaveError
-          ? i18n('CustomizingPreferredReactions__had-save-error')
-          : i18n('CustomizingPreferredReactions__subtitle')}
+          ? i18n('icu:CustomizingPreferredReactions__had-save-error')
+          : i18n('icu:CustomizingPreferredReactions__subtitle')}
       </div>
       {isSomethingSelected && (
         <div
@@ -164,28 +193,10 @@ export function CustomizingPreferredReactionsModal({
             onClose={() => {
               deselectDraftEmoji();
             }}
+            wasInvokedFromKeyboard={false}
           />
         </div>
       )}
-      <Modal.ButtonFooter>
-        <Button
-          disabled={!canReset}
-          onClick={() => {
-            resetDraftEmoji();
-          }}
-          variant={ButtonVariant.SecondaryAffirmative}
-        >
-          {i18n('reset')}
-        </Button>
-        <Button
-          disabled={!canSave}
-          onClick={() => {
-            savePreferredReactions();
-          }}
-        >
-          {i18n('save')}
-        </Button>
-      </Modal.ButtonFooter>
     </Modal>
   );
 }

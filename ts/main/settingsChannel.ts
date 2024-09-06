@@ -1,8 +1,9 @@
-// Copyright 2017-2021 Signal Messenger, LLC
+// Copyright 2017 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { BrowserWindow } from 'electron';
 import { ipcMain as ipc, session } from 'electron';
+import { EventEmitter } from 'events';
 
 import { userConfig } from '../../app/user_config';
 import { ephemeralConfig } from '../../app/ephemeral_config';
@@ -13,10 +14,13 @@ import type {
   IPCEventsValuesType,
   IPCEventsCallbacksType,
 } from '../util/createIPCEvents';
+import type { EphemeralSettings, SettingsValuesType } from '../util/preload';
 
 const EPHEMERAL_NAME_MAP = new Map([
   ['spellCheck', 'spell-check'],
   ['systemTraySetting', 'system-tray-setting'],
+  ['themeSetting', 'theme-setting'],
+  ['localeOverride', 'localeOverride'],
 ]);
 
 type ResponseQueueEntry = Readonly<{
@@ -24,7 +28,10 @@ type ResponseQueueEntry = Readonly<{
   reject(error: Error): void;
 }>;
 
-export class SettingsChannel {
+type SettingChangeEventType<Key extends keyof SettingsValuesType> =
+  `change:${Key}`;
+
+export class SettingsChannel extends EventEmitter {
   private mainWindow?: BrowserWindow;
 
   private readonly responseQueue = new Map<number, ResponseQueueEntry>();
@@ -41,6 +48,7 @@ export class SettingsChannel {
 
   public install(): void {
     this.installSetting('deviceName', { setter: false });
+    this.installSetting('phoneNumber', { setter: false });
 
     // ChatColorPicker redux hookups
     this.installCallback('getCustomColors');
@@ -55,34 +63,28 @@ export class SettingsChannel {
     this.installCallback('getDefaultConversationColor');
 
     // Various callbacks
+    this.installCallback('deleteAllMyStories');
     this.installCallback('getAvailableIODevices');
     this.installCallback('isPrimary');
     this.installCallback('syncRequest');
-    this.installCallback('isPhoneNumberSharingEnabled');
 
     // Getters only. These are set by the primary device
     this.installSetting('blockedCount', { setter: false });
     this.installSetting('linkPreviewSetting', { setter: false });
-    this.installSetting('phoneNumberDiscoverabilitySetting', { setter: false });
-    this.installSetting('phoneNumberSharingSetting', { setter: false });
     this.installSetting('readReceiptSetting', { setter: false });
     this.installSetting('typingIndicatorSetting', { setter: false });
 
-    this.installSetting('themeSetting');
     this.installSetting('hideMenuBar');
-    this.installSetting('systemTraySetting', {
-      isEphemeral: true,
-    });
-
     this.installSetting('notificationSetting');
     this.installSetting('notificationDrawAttention');
+    this.installSetting('audioMessage');
     this.installSetting('audioNotification');
     this.installSetting('countMutedConversations');
 
-    this.installSetting('spellCheck', {
-      isEphemeral: true,
-    });
+    this.installSetting('sentMediaQualitySetting');
+    this.installSetting('textFormatting');
 
+    this.installSetting('autoConvertEmoji');
     this.installSetting('autoDownloadUpdate');
     this.installSetting('autoLaunch');
 
@@ -99,9 +101,18 @@ export class SettingsChannel {
     this.installSetting('lastSyncTime');
     this.installSetting('universalExpireTimer');
 
+    this.installSetting('hasStoriesDisabled');
     this.installSetting('zoomFactor');
 
-    installPermissionsHandler({ session, userConfig });
+    this.installSetting('phoneNumberDiscoverabilitySetting');
+    this.installSetting('phoneNumberSharingSetting');
+
+    this.installEphemeralSetting('themeSetting');
+    this.installEphemeralSetting('systemTraySetting');
+    this.installEphemeralSetting('localeOverride');
+    this.installEphemeralSetting('spellCheck');
+
+    installPermissionsHandler({ session: session.defaultSession, userConfig });
 
     // These ones are different because its single source of truth is userConfig,
     // not IndexedDB
@@ -115,13 +126,19 @@ export class SettingsChannel {
       userConfig.set('mediaPermissions', value);
 
       // We reinstall permissions handler to ensure that a revoked permission takes effect
-      installPermissionsHandler({ session, userConfig });
+      installPermissionsHandler({
+        session: session.defaultSession,
+        userConfig,
+      });
     });
     ipc.handle('settings:set:mediaCameraPermissions', (_event, value) => {
       userConfig.set('mediaCameraPermissions', value);
 
       // We reinstall permissions handler to ensure that a revoked permission takes effect
-      installPermissionsHandler({ session, userConfig });
+      installPermissionsHandler({
+        session: session.defaultSession,
+        userConfig,
+      });
     });
 
     ipc.on('settings:response', (_event, seq, error, value) => {
@@ -213,8 +230,7 @@ export class SettingsChannel {
     {
       getter = true,
       setter = true,
-      isEphemeral = false,
-    }: { getter?: boolean; setter?: boolean; isEphemeral?: boolean } = {}
+    }: { getter?: boolean; setter?: boolean } = {}
   ): void {
     if (getter) {
       ipc.handle(`settings:get:${name}`, async () => {
@@ -226,17 +242,90 @@ export class SettingsChannel {
       return;
     }
 
-    ipc.handle(`settings:set:${name}`, (_event, value) => {
-      if (isEphemeral) {
-        const ephemeralName = EPHEMERAL_NAME_MAP.get(name);
-        strictAssert(
-          ephemeralName !== undefined,
-          `${name} is not an ephemeral setting`
-        );
-        ephemeralConfig.set(ephemeralName, value);
+    ipc.handle(`settings:set:${name}`, async (_event, value) => {
+      await this.setSettingInMainWindow(name, value);
+
+      this.emit(`change:${name}`, value);
+    });
+  }
+
+  private installEphemeralSetting<Name extends keyof EphemeralSettings>(
+    name: Name
+  ): void {
+    ipc.handle(`settings:get:${name}`, async () => {
+      const ephemeralName = EPHEMERAL_NAME_MAP.get(name);
+      strictAssert(
+        ephemeralName !== undefined,
+        `${name} is not an ephemeral setting`
+      );
+      return ephemeralConfig.get(ephemeralName);
+    });
+
+    ipc.handle(`settings:set:${name}`, async (_event, value) => {
+      const ephemeralName = EPHEMERAL_NAME_MAP.get(name);
+      strictAssert(
+        ephemeralName !== undefined,
+        `${name} is not an ephemeral setting`
+      );
+      ephemeralConfig.set(ephemeralName, value);
+
+      this.emit(`change:${name}`, value);
+
+      // Notify main to notify windows of preferences change. As for DB-backed
+      // settings, those are set by the renderer, and afterwards the renderer IPC sends
+      // to main the event 'preferences-changed'.
+      this.emit('ephemeral-setting-changed');
+
+      const { mainWindow } = this;
+      if (!mainWindow || !mainWindow.webContents) {
+        return;
       }
 
-      return this.setSettingInMainWindow(name, value);
+      mainWindow.webContents.send(`settings:update:${name}`, value);
     });
+  }
+
+  // EventEmitter types
+
+  public override on(
+    type: 'change:systemTraySetting',
+    callback: (value: string) => void
+  ): this;
+
+  public override on(
+    type: 'ephemeral-setting-changed',
+    callback: () => void
+  ): this;
+
+  public override on(
+    type: SettingChangeEventType<keyof SettingsValuesType>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    callback: (...args: Array<any>) => void
+  ): this;
+
+  public override on(
+    type: string | symbol,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    listener: (...args: Array<any>) => void
+  ): this {
+    return super.on(type, listener);
+  }
+
+  public override emit(
+    type: 'change:systemTraySetting',
+    value: string
+  ): boolean;
+
+  public override emit(type: 'ephemeral-setting-changed'): boolean;
+
+  public override emit(
+    type: SettingChangeEventType<keyof SettingsValuesType>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...args: Array<any>
+  ): boolean;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  public override emit(type: string | symbol, ...args: Array<any>): boolean {
+    return super.emit(type, ...args);
   }
 }

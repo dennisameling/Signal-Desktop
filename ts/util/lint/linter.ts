@@ -1,4 +1,4 @@
-// Copyright 2018-2022 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 /* eslint-disable no-console */
@@ -24,6 +24,7 @@ const excludedFilesRegexp = RegExp(
   [
     '^release/',
     '^preload.bundle.js(LICENSE.txt|map)?',
+    '^bundles/',
     '^storybook-static/',
 
     // Non-distributed files
@@ -60,7 +61,6 @@ const excludedFilesRegexp = RegExp(
     '^js/curve/',
     '^js/util_worker.js',
     '^libtextsecure/test/test.js',
-    '^sticker-creator/dist/bundle.js',
     '^test/test.js',
     '^ts/workers/heicConverter.bundle.js',
     '^ts/sql/mainWorker.bundle.js',
@@ -77,25 +77,25 @@ const excludedFilesRegexp = RegExp(
     '^.github/.+',
 
     // Modules we trust
+    '^node_modules/@react-aria/.+',
+    '^node_modules/@react-stately/.+',
     '^node_modules/@signalapp/libsignal-client/.+',
     '^node_modules/core-js-pure/.+',
     '^node_modules/core-js/.+',
     '^node_modules/fbjs/.+',
     '^node_modules/lodash/.+',
     '^node_modules/react/.+',
+    '^node_modules/react-aria-components/.+',
     '^node_modules/react-contextmenu/.+',
     '^node_modules/react-dom/.+',
-    '^node_modules/react-dropzone/.+',
     '^node_modules/react-hot-loader/.+',
     '^node_modules/react-icon-base/.+',
     '^node_modules/react-input-autosize/.+',
-    '^node_modules/react-measure/.+',
     '^node_modules/react-popper/.+',
     '^node_modules/react-redux/.+',
     '^node_modules/react-router/.+',
     '^node_modules/react-router-dom/.+',
     '^node_modules/react-select/.+',
-    '^node_modules/react-sortable-hoc/.+',
     '^node_modules/react-transition-group/.+',
     '^node_modules/react-virtualized/.+',
     '^node_modules/reactcss/.+',
@@ -103,14 +103,17 @@ const excludedFilesRegexp = RegExp(
     '^node_modules/snyk-resolve-deps/.+',
     '^node_modules/snyk-try-require/.+',
     '^node_modules/@snyk/.+',
+    '^node_modules/use-sync-external-store/.+',
 
     // Submodules we trust
     '^node_modules/react-color/.+/(?:core-js|fbjs|lodash)/.+',
 
     // Modules used only in test/development scenarios
-    '^node_modules/esbuild/.+',
     '^node_modules/@babel/.+',
     '^node_modules/@chanzuckerberg/axe-storybook-testing/.+',
+    '^node_modules/@humanwhocodes/config-array/.+',
+    '^node_modules/@mixer/parallel-prettier/.+',
+    '^node_modules/@eslint/.+',
     '^node_modules/@signalapp/mock-server/.+',
     '^node_modules/@svgr/.+',
     '^node_modules/@types/.+',
@@ -148,6 +151,7 @@ const excludedFilesRegexp = RegExp(
     '^node_modules/css-selector-tokenizer/.+',
     '^node_modules/css-tree/.+',
     '^node_modules/csso/.+',
+    '^node_modules/danger/.+',
     '^node_modules/default-gateway/.+',
     '^node_modules/degenerator/.+',
     '^node_modules/detect-port-alt/.+',
@@ -162,19 +166,23 @@ const excludedFilesRegexp = RegExp(
     '^node_modules/es-abstract/.+',
     '^node_modules/es5-shim/.+', // Currently only used in storybook
     '^node_modules/es6-shim/.+', // Currently only used in storybook
+    '^node_modules/esbuild/.+',
     '^node_modules/escodegen/.+',
     '^node_modules/eslint.+',
+    '^node_modules/espree.+',
     '^node_modules/@typescript-eslint.+',
     '^node_modules/esprima/.+',
     '^node_modules/express/.+',
     '^node_modules/fast-glob/.+',
-    '^node_modules/file-loader/.+',
+    '^node_modules/file-entry-cache/.+',
     '^node_modules/file-system-cache/.+', // Currently only used in storybook
     '^node_modules/finalhandler/.+',
+    '^node_modules/flat-cache/.+',
     '^node_modules/foreground-chat/.+',
     '^node_modules/fsevents/.+',
     '^node_modules/gauge/.+',
     '^node_modules/global-agent/.+',
+    '^node_modules/globby/.+',
     '^node_modules/globule/.+',
     '^node_modules/handle-thing/.+',
     '^node_modules/handlebars/.+', // Used by nyc#istanbul-reports
@@ -187,6 +195,8 @@ const excludedFilesRegexp = RegExp(
     '^node_modules/istanbul.+',
     '^node_modules/jimp/.+',
     '^node_modules/jquery/.+',
+    '^node_modules/jake/.+',
+    '^node_modules/js-sdsl/.+',
     '^node_modules/jss-global/.+',
     '^node_modules/jss/.+',
     '^node_modules/liftup/.+',
@@ -201,6 +211,7 @@ const excludedFilesRegexp = RegExp(
     '^node_modules/needle/.+',
     '^node_modules/nise/.+',
     '^node_modules/node-gyp/.+',
+    '^node_modules/normalize-package-data/.+',
     '^node_modules/npm-run-all/.+',
     '^node_modules/nsp/.+',
     '^node_modules/nyc/.+',
@@ -215,12 +226,14 @@ const excludedFilesRegexp = RegExp(
     '^node_modules/prop-types/.+',
     '^node_modules/protobufjs/cli/.+',
     '^node_modules/ramda/.+',
+    '^node_modules/rambda/.+',
     '^node_modules/react-dev-utils/.+',
     '^node_modules/react-docgen/.+',
     '^node_modules/react-error-overlay/.+',
     '^node_modules/read-config-file/.+', // Used by electron-builder
     '^node_modules/read-pkg/.+', // Used by npm-run-all
     '^node_modules/recast/.+',
+    '^node_modules/rechoir/.+',
     '^node_modules/reduce-css-calc/.+',
     '^node_modules/requizzle/.+',
     '^node_modules/resolve/.+',
@@ -263,14 +276,36 @@ const excludedFilesRegexp = RegExp(
     '^node_modules/yargs-unparser/',
     '^node_modules/yargs/.+',
     '^node_modules/find-yarn-workspace-root/.+',
+    '^node_modules/unzipper/node_modules/bluebird/.+',
     '^node_modules/update-notifier/.+',
     '^node_modules/windows-release/.+',
 
+    // used by danger
+    '^danger/node_modules/.+',
+    '^node_modules/@octokit/.+',
+    '^node_modules/test-exclude/.+',
+    '^node_modules/micromark/.+',
+    '^node_modules/micromark-extension-gfm-task-list-item/.+',
+    '^node_modules/micromark-extension-gfm-autolink-literal/.+',
+    '^node_modules/memfs-or-file-map-to-github-branch/.+',
+    '^node_modules/mdast-util-to-markdown/.+',
+    '^node_modules/mdast-util-from-markdown/.+',
+    '^node_modules/lodash.once/.+',
+    '^node_modules/gitlab/.+',
+    '^node_modules/es6-promisify/.+',
+    '^node_modules/endanger/.+',
+    '^node_modules/cpy/.+',
+    '^node_modules/buffer-equal-constant-time/.+',
+    '^node_modules/universal-url/.+',
+    '^node_modules/extglob/.+',
+
     // Used by Storybook
     '^node_modules/@emotion/.+',
+    '^node_modules/@pmmmwh/react-refresh-webpack-plugin/.+',
     '^node_modules/@storybook/.+',
     '^node_modules/cosmiconfig/.+',
     '^node_modules/create-emotion/.+',
+    '^node_modules/fork-ts-checker-webpack-plugin/.+',
     '^node_modules/gzip-size/.+',
     '^node_modules/markdown-to-jsx/.+',
     '^node_modules/mini-css-extract-plugin/.+',
@@ -283,6 +318,7 @@ const excludedFilesRegexp = RegExp(
     '^node_modules/simplebar/.+',
     '^node_modules/store2/.+',
     '^node_modules/telejson/.+',
+    '^node_modules/watchpack-chokidar2/.+',
 
     // Used by Webpack
     '^node_modules/css-select/.+', // Used by html-webpack-plugin
@@ -303,6 +339,9 @@ const excludedFilesRegexp = RegExp(
     '^node_modules/webpack-hot-middleware/.+',
     '^node_modules/webpack-merge/.+',
     '^node_modules/webpack/.+',
+
+    // Sticker Creator
+    '^sticker-creator/.+',
   ].join('|')
 );
 
@@ -372,7 +411,7 @@ async function main(argv: ReadonlyArray<string>): Promise<void> {
               exception.rule === rule.name &&
               exception.path === relativePath &&
               (line.length < 300
-                ? exception.line === line
+                ? exception.line?.trim() === line.trim()
                 : exception.line === undefined)
           );
 

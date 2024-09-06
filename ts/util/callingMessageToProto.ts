@@ -1,8 +1,9 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { CallingMessage } from 'ringrtc';
-import { CallMessageUrgency } from 'ringrtc';
+import type { CallingMessage } from '@signalapp/ringrtc';
+import { CallMessageUrgency } from '@signalapp/ringrtc';
+import Long from 'long';
 import { SignalService as Proto } from '../protobuf';
 import * as log from '../logging/log';
 import { missingCaseError } from './missingCaseError';
@@ -12,10 +13,8 @@ export function callingMessageToProto(
     offer,
     answer,
     iceCandidates,
-    legacyHangup,
     busy,
     hangup,
-    supportsMultiRing,
     destinationDeviceId,
     opaque,
   }: CallingMessage,
@@ -39,6 +38,7 @@ export function callingMessageToProto(
     offer: offer
       ? {
           ...offer,
+          callId: Long.fromValue(offer.callId),
           type: offer.type as number,
           opaque: bufferToProto(offer.opaque),
         }
@@ -46,6 +46,7 @@ export function callingMessageToProto(
     answer: answer
       ? {
           ...answer,
+          callId: Long.fromValue(answer.callId),
           opaque: bufferToProto(answer.opaque),
         }
       : undefined,
@@ -53,24 +54,24 @@ export function callingMessageToProto(
       ? iceCandidates.map(candidate => {
           return {
             ...candidate,
+            callId: Long.fromValue(candidate.callId),
             opaque: bufferToProto(candidate.opaque),
           };
         })
       : undefined,
-    legacyHangup: legacyHangup
+    busy: busy
       ? {
-          ...legacyHangup,
-          type: legacyHangup.type as number,
+          ...busy,
+          callId: Long.fromValue(busy.callId),
         }
       : undefined,
-    busy,
     hangup: hangup
       ? {
           ...hangup,
+          callId: Long.fromValue(hangup.callId),
           type: hangup.type as number,
         }
       : undefined,
-    supportsMultiRing,
     destinationDeviceId,
     opaque: opaqueField,
   };

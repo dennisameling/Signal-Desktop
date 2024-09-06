@@ -1,10 +1,10 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
 import * as sinon from 'sinon';
 import { v4 as uuid } from 'uuid';
-import { RowType } from '../../../components/ConversationList';
+import { RowType, _testHeaderText } from '../../../components/ConversationList';
 import { getDefaultConversation } from '../../../test-both/helpers/getDefaultConversation';
 
 import { LeftPaneSearchHelper } from '../../../components/leftPane/LeftPaneSearchHelper';
@@ -12,6 +12,7 @@ import { LeftPaneSearchHelper } from '../../../components/leftPane/LeftPaneSearc
 describe('LeftPaneSearchHelper', () => {
   const fakeMessage = () => ({
     id: uuid(),
+    type: 'outgoing',
     conversationId: uuid(),
   });
 
@@ -21,6 +22,7 @@ describe('LeftPaneSearchHelper', () => {
         conversationResults: { isLoading: false, results: [] },
         contactResults: { isLoading: false, results: [] },
         messageResults: { isLoading: false, results: [] },
+        isSearchingGlobally: true,
         searchTerm: 'foo',
         primarySendsSms: false,
         searchConversation: undefined,
@@ -45,6 +47,7 @@ describe('LeftPaneSearchHelper', () => {
           conversationResults: { isLoading: true },
           contactResults: { isLoading: true },
           messageResults: { isLoading: true },
+          isSearchingGlobally: true,
           searchTerm: 'foo',
           primarySendsSms: false,
           searchConversation: undefined,
@@ -61,6 +64,7 @@ describe('LeftPaneSearchHelper', () => {
           },
           contactResults: { isLoading: true },
           messageResults: { isLoading: true },
+          isSearchingGlobally: true,
           searchTerm: 'foo',
           primarySendsSms: false,
           searchConversation: undefined,
@@ -74,6 +78,7 @@ describe('LeftPaneSearchHelper', () => {
           conversationResults: { isLoading: true },
           contactResults: { isLoading: true },
           messageResults: { isLoading: false, results: [fakeMessage()] },
+          isSearchingGlobally: true,
           searchTerm: 'foo',
           primarySendsSms: false,
           searchConversation: undefined,
@@ -89,6 +94,7 @@ describe('LeftPaneSearchHelper', () => {
         conversationResults: { isLoading: false, results: [] },
         contactResults: { isLoading: false, results: [] },
         messageResults: { isLoading: false, results: [] },
+        isSearchingGlobally: true,
         searchTerm: 'foo',
         primarySendsSms: false,
         searchConversation: undefined,
@@ -107,6 +113,7 @@ describe('LeftPaneSearchHelper', () => {
         },
         contactResults: { isLoading: false, results: [] },
         messageResults: { isLoading: false, results: [fakeMessage()] },
+        isSearchingGlobally: true,
         searchTerm: 'foo',
         primarySendsSms: false,
         searchConversation: undefined,
@@ -125,6 +132,7 @@ describe('LeftPaneSearchHelper', () => {
           conversationResults: { isLoading: true },
           contactResults: { isLoading: true },
           messageResults: { isLoading: true },
+          isSearchingGlobally: true,
           searchTerm: 'foo',
           primarySendsSms: false,
           searchConversation: undefined,
@@ -138,6 +146,7 @@ describe('LeftPaneSearchHelper', () => {
           },
           contactResults: { isLoading: true },
           messageResults: { isLoading: true },
+          isSearchingGlobally: true,
           searchTerm: 'foo',
           primarySendsSms: false,
           searchConversation: undefined,
@@ -148,6 +157,7 @@ describe('LeftPaneSearchHelper', () => {
           conversationResults: { isLoading: true },
           contactResults: { isLoading: true },
           messageResults: { isLoading: false, results: [fakeMessage()] },
+          isSearchingGlobally: true,
           searchTerm: 'foo',
           primarySendsSms: false,
           searchConversation: undefined,
@@ -184,6 +194,7 @@ describe('LeftPaneSearchHelper', () => {
         },
         contactResults: { isLoading: false, results: contacts },
         messageResults: { isLoading: false, results: messages },
+        isSearchingGlobally: true,
         searchTerm: 'foo',
         primarySendsSms: false,
         searchConversation: undefined,
@@ -191,10 +202,10 @@ describe('LeftPaneSearchHelper', () => {
         startSearchCounter: 0,
       });
 
-      assert.deepEqual(helper.getRow(0), {
-        type: RowType.Header,
-        i18nKey: 'conversationsHeader',
-      });
+      assert.deepEqual(
+        _testHeaderText(helper.getRow(0)),
+        'icu:conversationsHeader'
+      );
       assert.deepEqual(helper.getRow(1), {
         type: RowType.Conversation,
         conversation: conversations[0],
@@ -203,18 +214,12 @@ describe('LeftPaneSearchHelper', () => {
         type: RowType.Conversation,
         conversation: conversations[1],
       });
-      assert.deepEqual(helper.getRow(3), {
-        type: RowType.Header,
-        i18nKey: 'contactsHeader',
-      });
+      assert.deepEqual(_testHeaderText(helper.getRow(3)), 'icu:contactsHeader');
       assert.deepEqual(helper.getRow(4), {
         type: RowType.Conversation,
         conversation: contacts[0],
       });
-      assert.deepEqual(helper.getRow(5), {
-        type: RowType.Header,
-        i18nKey: 'messagesHeader',
-      });
+      assert.deepEqual(_testHeaderText(helper.getRow(5)), 'icu:messagesHeader');
       assert.deepEqual(helper.getRow(6), {
         type: RowType.MessageSearchResult,
         messageId: messages[0].id,
@@ -236,6 +241,7 @@ describe('LeftPaneSearchHelper', () => {
         },
         contactResults: { isLoading: false, results: contacts },
         messageResults: { isLoading: false, results: messages },
+        isSearchingGlobally: true,
         searchTerm: 'foo',
         primarySendsSms: false,
         searchConversation: undefined,
@@ -243,18 +249,12 @@ describe('LeftPaneSearchHelper', () => {
         startSearchCounter: 0,
       });
 
-      assert.deepEqual(helper.getRow(0), {
-        type: RowType.Header,
-        i18nKey: 'contactsHeader',
-      });
+      assert.deepEqual(_testHeaderText(helper.getRow(0)), 'icu:contactsHeader');
       assert.deepEqual(helper.getRow(1), {
         type: RowType.Conversation,
         conversation: contacts[0],
       });
-      assert.deepEqual(helper.getRow(2), {
-        type: RowType.Header,
-        i18nKey: 'messagesHeader',
-      });
+      assert.deepEqual(_testHeaderText(helper.getRow(2)), 'icu:messagesHeader');
       assert.deepEqual(helper.getRow(3), {
         type: RowType.MessageSearchResult,
         messageId: messages[0].id,
@@ -279,6 +279,7 @@ describe('LeftPaneSearchHelper', () => {
         },
         contactResults: { isLoading: false, results: [] },
         messageResults: { isLoading: false, results: messages },
+        isSearchingGlobally: true,
         searchTerm: 'foo',
         primarySendsSms: false,
         searchConversation: undefined,
@@ -286,10 +287,10 @@ describe('LeftPaneSearchHelper', () => {
         startSearchCounter: 0,
       });
 
-      assert.deepEqual(helper.getRow(0), {
-        type: RowType.Header,
-        i18nKey: 'conversationsHeader',
-      });
+      assert.deepEqual(
+        _testHeaderText(helper.getRow(0)),
+        'icu:conversationsHeader'
+      );
       assert.deepEqual(helper.getRow(1), {
         type: RowType.Conversation,
         conversation: conversations[0],
@@ -298,10 +299,7 @@ describe('LeftPaneSearchHelper', () => {
         type: RowType.Conversation,
         conversation: conversations[1],
       });
-      assert.deepEqual(helper.getRow(3), {
-        type: RowType.Header,
-        i18nKey: 'messagesHeader',
-      });
+      assert.deepEqual(_testHeaderText(helper.getRow(3)), 'icu:messagesHeader');
       assert.deepEqual(helper.getRow(4), {
         type: RowType.MessageSearchResult,
         messageId: messages[0].id,
@@ -324,6 +322,7 @@ describe('LeftPaneSearchHelper', () => {
       },
       contactResults: { isLoading: false, results: contacts },
       messageResults: { isLoading: false, results: [] },
+      isSearchingGlobally: true,
       searchTerm: 'foo',
       primarySendsSms: false,
       searchConversation: undefined,
@@ -331,10 +330,10 @@ describe('LeftPaneSearchHelper', () => {
       startSearchCounter: 0,
     });
 
-    assert.deepEqual(helper.getRow(0), {
-      type: RowType.Header,
-      i18nKey: 'conversationsHeader',
-    });
+    assert.deepEqual(
+      _testHeaderText(helper.getRow(0)),
+      'icu:conversationsHeader'
+    );
     assert.deepEqual(helper.getRow(1), {
       type: RowType.Conversation,
       conversation: conversations[0],
@@ -343,10 +342,7 @@ describe('LeftPaneSearchHelper', () => {
       type: RowType.Conversation,
       conversation: conversations[1],
     });
-    assert.deepEqual(helper.getRow(3), {
-      type: RowType.Header,
-      i18nKey: 'contactsHeader',
-    });
+    assert.deepEqual(_testHeaderText(helper.getRow(3)), 'icu:contactsHeader');
     assert.deepEqual(helper.getRow(4), {
       type: RowType.Conversation,
       conversation: contacts[0],
@@ -361,6 +357,7 @@ describe('LeftPaneSearchHelper', () => {
           conversationResults: { isLoading: true },
           contactResults: { isLoading: true },
           messageResults: { isLoading: true },
+          isSearchingGlobally: true,
           searchTerm: 'foo',
           primarySendsSms: false,
           searchConversation: undefined,
@@ -374,6 +371,7 @@ describe('LeftPaneSearchHelper', () => {
           },
           contactResults: { isLoading: true },
           messageResults: { isLoading: true },
+          isSearchingGlobally: true,
           searchTerm: 'foo',
           primarySendsSms: false,
           searchConversation: undefined,
@@ -384,6 +382,7 @@ describe('LeftPaneSearchHelper', () => {
           conversationResults: { isLoading: true },
           contactResults: { isLoading: true },
           messageResults: { isLoading: false, results: [fakeMessage()] },
+          isSearchingGlobally: true,
           searchTerm: 'foo',
           primarySendsSms: false,
           searchConversation: undefined,
@@ -408,6 +407,7 @@ describe('LeftPaneSearchHelper', () => {
           isLoading: false,
           results: [fakeMessage(), fakeMessage(), fakeMessage()],
         },
+        isSearchingGlobally: true,
         searchTerm: 'foo',
         primarySendsSms: false,
         searchConversation: undefined,
@@ -430,6 +430,7 @@ describe('LeftPaneSearchHelper', () => {
           isLoading: false,
           results: [fakeMessage(), fakeMessage(), fakeMessage()],
         },
+        isSearchingGlobally: true,
         searchTerm: 'foo',
         primarySendsSms: false,
         searchConversation: undefined,
@@ -448,6 +449,7 @@ describe('LeftPaneSearchHelper', () => {
             isLoading: false,
             results: [fakeMessage(), fakeMessage(), fakeMessage()],
           },
+          isSearchingGlobally: true,
           searchTerm: 'bar',
           primarySendsSms: false,
           searchConversation: undefined,
@@ -462,6 +464,7 @@ describe('LeftPaneSearchHelper', () => {
         conversationResults: { isLoading: true },
         contactResults: { isLoading: true },
         messageResults: { isLoading: true },
+        isSearchingGlobally: true,
         searchTerm: 'foo',
         primarySendsSms: false,
         searchConversation: undefined,
@@ -477,6 +480,7 @@ describe('LeftPaneSearchHelper', () => {
           },
           contactResults: { isLoading: true },
           messageResults: { isLoading: true },
+          isSearchingGlobally: true,
           searchTerm: 'bar',
           primarySendsSms: false,
           searchConversation: undefined,
@@ -491,6 +495,7 @@ describe('LeftPaneSearchHelper', () => {
         conversationResults: { isLoading: true },
         contactResults: { isLoading: true },
         messageResults: { isLoading: false, results: [fakeMessage()] },
+        isSearchingGlobally: true,
         searchTerm: 'foo',
         primarySendsSms: false,
         searchConversation: undefined,
@@ -506,6 +511,7 @@ describe('LeftPaneSearchHelper', () => {
           },
           contactResults: { isLoading: false, results: [] },
           messageResults: { isLoading: false, results: [fakeMessage()] },
+          isSearchingGlobally: true,
           searchTerm: 'foo',
           primarySendsSms: false,
           searchConversation: undefined,
@@ -523,6 +529,7 @@ describe('LeftPaneSearchHelper', () => {
         },
         contactResults: { isLoading: false, results: [] },
         messageResults: { isLoading: false, results: [] },
+        isSearchingGlobally: true,
         searchTerm: 'foo',
         primarySendsSms: false,
         searchConversation: undefined,
@@ -538,12 +545,141 @@ describe('LeftPaneSearchHelper', () => {
           },
           contactResults: { isLoading: true },
           messageResults: { isLoading: true },
+          isSearchingGlobally: true,
           searchTerm: 'bar',
           primarySendsSms: false,
           searchConversation: undefined,
           searchDisabled: false,
           startSearchCounter: 0,
         })
+      );
+    });
+  });
+
+  describe('getConversationAndMessageAtIndex', () => {
+    it('returns correct conversation at given index', () => {
+      const expected = getDefaultConversation();
+      const helper = new LeftPaneSearchHelper({
+        conversationResults: {
+          isLoading: false,
+          results: [expected, getDefaultConversation()],
+        },
+        contactResults: { isLoading: false, results: [] },
+        messageResults: {
+          isLoading: false,
+          results: [fakeMessage(), fakeMessage(), fakeMessage()],
+        },
+        isSearchingGlobally: true,
+        searchTerm: 'foo',
+        primarySendsSms: false,
+        searchConversation: undefined,
+        searchDisabled: false,
+        startSearchCounter: 0,
+      });
+      assert.strictEqual(
+        helper.getConversationAndMessageAtIndex(0)?.conversationId,
+        expected.id
+      );
+    });
+
+    it('returns correct contact at given index', () => {
+      const expected = getDefaultConversation();
+      const helper = new LeftPaneSearchHelper({
+        conversationResults: {
+          isLoading: false,
+          results: [getDefaultConversation(), getDefaultConversation()],
+        },
+        contactResults: {
+          isLoading: false,
+          results: [expected],
+        },
+        messageResults: {
+          isLoading: false,
+          results: [fakeMessage(), fakeMessage(), fakeMessage()],
+        },
+        isSearchingGlobally: true,
+        searchTerm: 'foo',
+        primarySendsSms: false,
+        searchConversation: undefined,
+        searchDisabled: false,
+        startSearchCounter: 0,
+      });
+      assert.strictEqual(
+        helper.getConversationAndMessageAtIndex(2)?.conversationId,
+        expected.id
+      );
+    });
+
+    it('returns correct message at given index', () => {
+      const expected = fakeMessage();
+      const helper = new LeftPaneSearchHelper({
+        conversationResults: {
+          isLoading: false,
+          results: [getDefaultConversation(), getDefaultConversation()],
+        },
+        contactResults: { isLoading: false, results: [] },
+        messageResults: {
+          isLoading: false,
+          results: [fakeMessage(), fakeMessage(), expected],
+        },
+        isSearchingGlobally: true,
+        searchTerm: 'foo',
+        primarySendsSms: false,
+        searchConversation: undefined,
+        searchDisabled: false,
+        startSearchCounter: 0,
+      });
+      assert.strictEqual(
+        helper.getConversationAndMessageAtIndex(4)?.messageId,
+        expected.id
+      );
+    });
+
+    it('returns correct message at given index skipping not loaded results', () => {
+      const expected = fakeMessage();
+      const helper = new LeftPaneSearchHelper({
+        conversationResults: { isLoading: true },
+        contactResults: { isLoading: true },
+        messageResults: {
+          isLoading: false,
+          results: [fakeMessage(), expected, fakeMessage()],
+        },
+        isSearchingGlobally: true,
+        searchTerm: 'foo',
+        primarySendsSms: false,
+        searchConversation: undefined,
+        searchDisabled: false,
+        startSearchCounter: 0,
+      });
+      assert.strictEqual(
+        helper.getConversationAndMessageAtIndex(1)?.messageId,
+        expected.id
+      );
+    });
+
+    it('returns undefined if search candidate with given index does not exist', () => {
+      const helper = new LeftPaneSearchHelper({
+        conversationResults: {
+          isLoading: false,
+          results: [getDefaultConversation(), getDefaultConversation()],
+        },
+        contactResults: { isLoading: false, results: [] },
+        messageResults: {
+          isLoading: false,
+          results: [fakeMessage(), fakeMessage(), fakeMessage()],
+        },
+        isSearchingGlobally: true,
+        searchTerm: 'foo',
+        primarySendsSms: false,
+        searchConversation: undefined,
+        searchDisabled: false,
+        startSearchCounter: 0,
+      });
+      assert.isUndefined(
+        helper.getConversationAndMessageAtIndex(100)?.messageId
+      );
+      assert.isUndefined(
+        helper.getConversationAndMessageAtIndex(-100)?.messageId
       );
     });
   });

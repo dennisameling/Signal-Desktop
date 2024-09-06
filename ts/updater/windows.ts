@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { join } from 'path';
@@ -10,7 +10,6 @@ import { app } from 'electron';
 import pify from 'pify';
 
 import { Updater } from './common';
-import { markShouldQuit } from '../../app/window_state';
 
 const readdir = pify(readdirCallback);
 const unlink = pify(unlinkCallback);
@@ -44,13 +43,16 @@ export class WindowsUpdater extends Updater {
       })
     );
   }
-  protected async installUpdate(updateFilePath: string): Promise<void> {
+  protected async installUpdate(
+    updateFilePath: string,
+    isSilent: boolean
+  ): Promise<void> {
     const { logger } = this;
 
-    logger.info('downloadAndInstall: showing dialog...');
-    this.setUpdateListener(async () => {
+    const doInstall = async () => {
+      logger.info('downloadAndInstall: installing...');
       try {
-        await this.install(updateFilePath);
+        await this.install(updateFilePath, isSilent);
         this.installing = true;
       } catch (error) {
         this.markCannotUpdate(error);
@@ -58,12 +60,27 @@ export class WindowsUpdater extends Updater {
         throw error;
       }
 
-      markShouldQuit();
-      app.quit();
-    });
+      // If interrupted at this point, we only want to restart (not reattempt install)
+      this.setUpdateListener(this.restart);
+      this.restart();
+    };
+
+    if (isSilent) {
+      logger.info('downloadAndInstall: running immediately...');
+      await doInstall();
+      return;
+    }
+
+    this.setUpdateListener(doInstall);
   }
 
-  private async install(filePath: string): Promise<void> {
+  protected restart(): void {
+    this.logger.info('downloadAndInstall: restarting...');
+    this.markRestarting();
+    app.quit();
+  }
+
+  private async install(filePath: string, isSilent: boolean): Promise<void> {
     if (this.installing) {
       return;
     }
@@ -72,6 +89,12 @@ export class WindowsUpdater extends Updater {
 
     logger.info('windows/install: installing package...');
     const args = ['--updated'];
+    if (isSilent) {
+      // App isn't automatically restarted with "/S" flag, but "--updated"
+      // will trigger our code in `build/installer.nsh` that will start the app
+      // with "--start-in-tray" flag (see `app/main.ts`)
+      args.push('/S');
+    }
     const options = {
       detached: true,
       stdio: 'ignore' as const, // TypeScript considers this a plain string without help

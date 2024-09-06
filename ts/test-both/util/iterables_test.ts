@@ -1,10 +1,11 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
 import * as sinon from 'sinon';
 
 import {
+  collect,
   concat,
   every,
   filter,
@@ -12,6 +13,7 @@ import {
   groupBy,
   isEmpty,
   isIterable,
+  join,
   map,
   reduce,
   repeat,
@@ -57,7 +59,7 @@ describe('iterable utilities', () => {
       );
       assert.isTrue(
         isIterable(
-          (function* generators() {
+          (function* () {
             yield 123;
           })()
         )
@@ -250,6 +252,52 @@ describe('iterable utilities', () => {
     });
   });
 
+  describe('collect', () => {
+    it('returns an empty iterable when passed an empty iterable', () => {
+      const fn = sinon.fake();
+
+      assert.deepEqual([...collect([], fn)], []);
+      assert.deepEqual([...collect(new Set(), fn)], []);
+      assert.deepEqual([...collect(new Map(), fn)], []);
+
+      sinon.assert.notCalled(fn);
+    });
+
+    it('returns a new iterator with some values removed', () => {
+      const getB = sinon.fake((v: { a: string; b?: number }) => v.b);
+      const result = collect(
+        [{ a: 'n' }, { a: 'm', b: 0 }, { a: 'o' }, { a: 'p', b: 1 }],
+        getB
+      );
+
+      sinon.assert.notCalled(getB);
+
+      assert.deepEqual([...result], [0, 1]);
+      assert.notInstanceOf(result, Array);
+
+      sinon.assert.callCount(getB, 4);
+    });
+
+    it('can collect an infinite iterable', () => {
+      const everyNumber = {
+        *[Symbol.iterator]() {
+          for (let i = 0; true; i += 1) {
+            yield { a: 'x', ...(i % 2 ? { b: i } : {}) };
+          }
+        },
+      };
+
+      const getB = sinon.fake((v: { a: string; b?: number }) => v.b);
+      const result = collect(everyNumber, getB);
+      const iterator = result[Symbol.iterator]();
+
+      assert.deepEqual(iterator.next(), { value: 1, done: false });
+      assert.deepEqual(iterator.next(), { value: 3, done: false });
+      assert.deepEqual(iterator.next(), { value: 5, done: false });
+      assert.deepEqual(iterator.next(), { value: 7, done: false });
+    });
+  });
+
   describe('find', () => {
     const isOdd = (n: number) => Boolean(n % 2);
 
@@ -317,6 +365,31 @@ describe('iterable utilities', () => {
         throw new Error('this should never happen');
       }
       assert.isFalse(isEmpty(numbers()));
+    });
+  });
+
+  describe('join', () => {
+    it('returns the empty string for empty iterables', () => {
+      assert.isEmpty(join([], 'x'));
+      assert.isEmpty(join(new Set(), 'x'));
+    });
+
+    it("returns the stringified value if it's the only value", () => {
+      assert.strictEqual(join(new Set(['foo']), 'x'), 'foo');
+      assert.strictEqual(join(new Set([123]), 'x'), '123');
+      assert.strictEqual(join([{ toString: () => 'foo' }], 'x'), 'foo');
+    });
+
+    it('returns each value stringified, joined by separator', () => {
+      assert.strictEqual(
+        join(new Set(['foo', 'bar', 'baz']), ' '),
+        'foo bar baz'
+      );
+      assert.strictEqual(join(new Set([1, 2, 3]), '--'), '1--2--3');
+    });
+
+    it('handles undefined and null like Array.prototype.join', () => {
+      assert.strictEqual(join(new Set([undefined, null]), ','), ',');
     });
   });
 

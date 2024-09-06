@@ -1,9 +1,9 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
 
-import { isEqual, remove, toggle } from '../../util/setUtil';
+import { difference, isEqual, remove, toggle } from '../../util/setUtil';
 
 describe('set utilities', () => {
   const original = new Set([1, 2, 3]);
@@ -80,6 +80,23 @@ describe('set utilities', () => {
       const result = toggle(original, 2, false);
       assert.deepStrictEqual(result, new Set([1, 3]));
       assert.deepStrictEqual(original, new Set([1, 2, 3]));
+    });
+  });
+
+  describe('difference', () => {
+    it('returns the difference of two sets', () => {
+      assert.deepStrictEqual(
+        difference(new Set(['a', 'b', 'c']), new Set(['a', 'b', 'c'])),
+        new Set()
+      );
+      assert.deepStrictEqual(
+        difference(new Set(['a', 'b', 'c']), new Set([])),
+        new Set(['a', 'b', 'c'])
+      );
+      assert.deepStrictEqual(
+        difference(new Set(['a', 'b', 'c']), new Set(['d'])),
+        new Set(['a', 'b', 'c'])
+      );
     });
   });
 });

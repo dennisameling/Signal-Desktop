@@ -6,7 +6,7 @@ import { AsyncQueue } from '../util/AsyncQueue';
 import { concat, wrapPromise } from '../util/asyncIterables';
 import type { JobQueueStore, StoredJob } from './types';
 import { formatJobForInsert } from './formatJobForInsert';
-import databaseInterface from '../sql/Client';
+import { DataReader, DataWriter } from '../sql/Client';
 import * as log from '../logging/log';
 
 type Database = {
@@ -35,20 +35,21 @@ export class JobQueueDatabaseStore implements JobQueueStore {
     );
 
     const initialFetchPromise = this.initialFetchPromises.get(job.queueType);
-    if (!initialFetchPromise) {
-      throw new Error(
-        `JobQueueDatabaseStore tried to add job for queue ${JSON.stringify(
-          job.queueType
-        )} but streaming had not yet started`
+    if (initialFetchPromise) {
+      await initialFetchPromise;
+    } else {
+      log.warn(
+        `JobQueueDatabaseStore: added job for queue "${job.queueType}" but streaming has not yet started (shouldPersist=${shouldPersist})`
       );
     }
-    await initialFetchPromise;
 
     if (shouldPersist) {
       await this.db.insertJob(formatJobForInsert(job));
     }
 
-    this.getQueue(job.queueType).add(job);
+    if (initialFetchPromise) {
+      this.getQueue(job.queueType).add(job);
+    }
   }
 
   async delete(id: string): Promise<void> {
@@ -106,6 +107,8 @@ export class JobQueueDatabaseStore implements JobQueueStore {
   }
 }
 
-export const jobQueueDatabaseStore = new JobQueueDatabaseStore(
-  databaseInterface
-);
+export const jobQueueDatabaseStore = new JobQueueDatabaseStore({
+  getJobsInQueue: DataReader.getJobsInQueue,
+  insertJob: DataWriter.insertJob,
+  deleteJob: DataWriter.deleteJob,
+});

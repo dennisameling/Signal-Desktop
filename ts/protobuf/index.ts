@@ -1,8 +1,12 @@
-// Copyright 2018-2020 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import './wrap';
 
-import { signalservice as SignalService } from './compiled';
+import {
+  signal as Signal,
+  signalbackups as Backups,
+  signalservice as SignalService,
+} from './compiled';
 
-export { SignalService };
+export { Backups, SignalService, Signal };

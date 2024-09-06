@@ -1,9 +1,9 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
 
-import { Image } from './Image';
+import { CurveType, Image } from './Image';
 import { StagedGenericAttachment } from './StagedGenericAttachment';
 import { StagedPlaceholderAttachment } from './StagedPlaceholderAttachment';
 import type { LocalizerType } from '../../types/Util';
@@ -49,7 +49,7 @@ function getUrl(
   return attachment.url;
 }
 
-export const AttachmentList = <T extends AttachmentType | AttachmentDraftType>({
+export function AttachmentList<T extends AttachmentType | AttachmentDraftType>({
   attachments,
   canEditImages,
   i18n,
@@ -57,7 +57,7 @@ export const AttachmentList = <T extends AttachmentType | AttachmentDraftType>({
   onClickAttachment,
   onCloseAttachment,
   onClose,
-}: Props<T>): JSX.Element | null => {
+}: Props<T>): JSX.Element | null {
   if (!attachments.length) {
     return null;
   }
@@ -72,7 +72,7 @@ export const AttachmentList = <T extends AttachmentType | AttachmentDraftType>({
             type="button"
             onClick={onClose}
             className="module-attachments__close-button"
-            aria-label={i18n('close')}
+            aria-label={i18n('icu:close')}
           />
         </div>
       ) : null}
@@ -102,14 +102,17 @@ export const AttachmentList = <T extends AttachmentType | AttachmentDraftType>({
             const imgElement = (
               <Image
                 key={key}
-                alt={i18n('stagedImageAttachment', [
-                  attachment.fileName || url || index.toString(),
-                ])}
+                alt={i18n('icu:stagedImageAttachment', {
+                  path: attachment.fileName || url || index.toString(),
+                })}
                 className="module-staged-attachment"
                 i18n={i18n}
                 attachment={attachment}
                 isDownloaded={isDownloaded}
-                softCorners
+                curveBottomLeft={CurveType.Tiny}
+                curveBottomRight={CurveType.Tiny}
+                curveTopLeft={CurveType.Tiny}
+                curveTopRight={CurveType.Tiny}
                 playIconOverlay={isVideo}
                 height={IMAGE_HEIGHT}
                 width={IMAGE_WIDTH}
@@ -123,7 +126,7 @@ export const AttachmentList = <T extends AttachmentType | AttachmentDraftType>({
 
             if (isImage && canEditImages) {
               return (
-                <div className="module-attachments--editable">
+                <div className="module-attachments--editable" key={key}>
                   {imgElement}
                   <div className="module-attachments__edit-icon" />
                 </div>
@@ -148,4 +151,4 @@ export const AttachmentList = <T extends AttachmentType | AttachmentDraftType>({
       </div>
     </div>
   );
-};
+}

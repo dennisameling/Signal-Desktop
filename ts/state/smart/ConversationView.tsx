@@ -1,62 +1,76 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import React from 'react';
-import { connect } from 'react-redux';
-import { mapDispatchToProps } from '../actions';
+import React, { memo, useCallback } from 'react';
+import { useSelector } from 'react-redux';
+import { ConversationPanel } from './ConversationPanel';
 import { ConversationView } from '../../components/conversation/ConversationView';
-import type { StateType } from '../reducer';
-import type { CompositionAreaPropsType } from './CompositionArea';
 import { SmartCompositionArea } from './CompositionArea';
-import type { OwnProps as ConversationHeaderPropsType } from './ConversationHeader';
 import { SmartConversationHeader } from './ConversationHeader';
-import type { TimelinePropsType } from './Timeline';
 import { SmartTimeline } from './Timeline';
+import {
+  getActivePanel,
+  getIsPanelAnimating,
+  getSelectedConversationId,
+  getSelectedMessageIds,
+} from '../selectors/conversations';
+import { useComposerActions } from '../ducks/composer';
+import { useConversationsActions } from '../ducks/conversations';
+import { isShowingAnyModal } from '../selectors/globalModals';
 
-export type PropsType = {
-  compositionAreaProps: Pick<
-    CompositionAreaPropsType,
-    | 'clearQuotedMessage'
-    | 'compositionApi'
-    | 'getQuotedMessage'
-    | 'handleClickQuotedMessage'
-    | 'id'
-    | 'onAccept'
-    | 'onBlock'
-    | 'onBlockAndReportSpam'
-    | 'onCancelJoinRequest'
-    | 'onClearAttachments'
-    | 'onClickAddPack'
-    | 'onCloseLinkPreview'
-    | 'onDelete'
-    | 'onEditorStateChange'
-    | 'onPickSticker'
-    | 'onSelectMediaQuality'
-    | 'onSendMessage'
-    | 'onStartGroupMigration'
-    | 'onTextTooLong'
-    | 'onUnblock'
-    | 'openConversation'
-  >;
-  conversationHeaderProps: ConversationHeaderPropsType;
-  timelineProps: TimelinePropsType;
-};
+function renderCompositionArea(conversationId: string) {
+  return <SmartCompositionArea id={conversationId} />;
+}
 
-const mapStateToProps = (_state: StateType, props: PropsType) => {
-  const { compositionAreaProps, conversationHeaderProps, timelineProps } =
-    props;
+function renderConversationHeader(conversationId: string) {
+  return <SmartConversationHeader id={conversationId} />;
+}
 
-  return {
-    renderCompositionArea: () => (
-      <SmartCompositionArea {...compositionAreaProps} />
-    ),
-    renderConversationHeader: () => (
-      <SmartConversationHeader {...conversationHeaderProps} />
-    ),
-    renderTimeline: () => <SmartTimeline {...timelineProps} />,
-  };
-};
+function renderTimeline(conversationId: string) {
+  return <SmartTimeline key={conversationId} id={conversationId} />;
+}
 
-const smart = connect(mapStateToProps, mapDispatchToProps);
+function renderPanel(conversationId: string) {
+  return <ConversationPanel conversationId={conversationId} />;
+}
 
-export const SmartConversationView = smart(ConversationView);
+export const SmartConversationView = memo(
+  function SmartConversationView(): JSX.Element {
+    const conversationId = useSelector(getSelectedConversationId);
+
+    if (!conversationId) {
+      throw new Error('SmartConversationView: No selected conversation');
+    }
+
+    const { toggleSelectMode } = useConversationsActions();
+    const selectedMessageIds = useSelector(getSelectedMessageIds);
+    const isSelectMode = selectedMessageIds != null;
+
+    const { processAttachments } = useComposerActions();
+
+    const hasOpenModal = useSelector(isShowingAnyModal);
+    const activePanel = useSelector(getActivePanel);
+    const isPanelAnimating = useSelector(getIsPanelAnimating);
+    const shouldHideConversationView = activePanel && !isPanelAnimating;
+
+    const onExitSelectMode = useCallback(() => {
+      toggleSelectMode(false);
+    }, [toggleSelectMode]);
+
+    return (
+      <ConversationView
+        conversationId={conversationId}
+        hasOpenModal={hasOpenModal}
+        hasOpenPanel={activePanel != null}
+        isSelectMode={isSelectMode}
+        onExitSelectMode={onExitSelectMode}
+        processAttachments={processAttachments}
+        renderCompositionArea={renderCompositionArea}
+        renderConversationHeader={renderConversationHeader}
+        renderTimeline={renderTimeline}
+        renderPanel={renderPanel}
+        shouldHideConversationView={shouldHideConversationView}
+      />
+    );
+  }
+);

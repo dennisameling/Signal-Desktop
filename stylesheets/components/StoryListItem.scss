@@ -2,51 +2,128 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 .StoryListItem {
-  @include button-reset;
-  align-items: center;
-  border-radius: 10px;
-  display: flex;
-  padding: 0 20px;
-  height: 96px;
-  width: 100%;
+  &__button {
+    @include button-reset;
+    align-items: center;
+    border-radius: 10px;
+    display: flex;
+    height: 96px;
+    min-height: 96px;
+    padding-block: 0;
+    padding-inline: 10px;
+    width: 100%;
 
-  &:hover {
-    background: $color-gray-65;
+    &:focus {
+      @include keyboard-mode {
+        background: $color-gray-15;
+      }
+      @include dark-keyboard-mode {
+        background: $color-gray-65;
+      }
+    }
+
+    // highlighted on hover and when it has triggered a context menu
+    // that has not been closed yet (active)
+    &:hover,
+    &--active {
+      @include light-theme {
+        background: $color-gray-15;
+      }
+      @include dark-theme {
+        background: $color-gray-65;
+      }
+    }
+  }
+
+  &--active-opacity,
+  &--active-opacity__button {
+    &:active {
+      opacity: 0.3;
+    }
+  }
+
+  &__click-container {
+    align-items: center;
+    display: flex;
+    height: 100%;
+    width: 100%;
+
+    &:focus {
+      outline: none;
+    }
+
+    @include keyboard-mode {
+      &:focus {
+        outline: 1px solid $color-ultramarine;
+      }
+    }
   }
 
   &__info {
     display: flex;
-    flex: 1;
     flex-direction: column;
-    margin-left: 12px;
+    flex: 1;
+    justify-content: center;
+    margin-inline: 12px;
 
     &--title {
       @include font-body-1-bold;
-      color: $color-gray-05;
+      display: flex;
+      align-items: center;
+      @include light-theme {
+        color: $color-black;
+      }
+      @include dark-theme {
+        color: $color-gray-05;
+      }
     }
 
-    &--timestamp {
+    &--timestamp,
+    &--sending,
+    &--send_failed {
       @include font-body-2;
-      color: $color-gray-25;
+      @include light-theme {
+        color: $color-gray-60;
+      }
+      @include dark-theme {
+        color: $color-gray-25;
+      }
+    }
+
+    &--send_failed {
+      display: flex;
+      align-items: center;
+      &::before {
+        content: '';
+        display: flex;
+        flex-shrink: 0;
+        height: 12px;
+        width: 12px;
+        margin-inline-end: 8px;
+        @include color-svg(
+          '../images/icons/v3/error/error-circle.svg',
+          $color-accent-red
+        );
+      }
     }
 
     &--replies {
       &--others {
         @include color-svg(
-          '../images/icons/v2/messages-solid-20.svg',
+          '../images/icons/v3/thread/thread-fill-compact.svg',
           $color-gray-25
         );
-        height: 20px;
-        width: 20px;
+        height: 16px;
+        width: 16px;
       }
 
       &--self {
         @include color-svg(
-          '../images/icons/v2/reply-solid-24.svg',
+          '../images/icons/v3/reply/reply-fill-compact.svg',
           $color-gray-25
         );
-        height: 20px;
-        width: 20px;
+        height: 16px;
+        width: 16px;
       }
     }
   }
@@ -56,27 +133,20 @@
     position: relative;
     width: 46px;
 
-    &--add {
-      &::after {
-        content: '';
-        @include color-svg('../images/icons/v2/plus-20.svg', $color-gray-15);
-        height: 18px;
-        width: 18px;
-      }
-    }
-
     &--image {
       @include button-reset;
 
       align-items: center;
-      background-size: cover;
       background-color: $color-gray-60;
+      background-size: cover;
       border-radius: 8px;
       display: flex;
       height: 72px;
       justify-content: center;
+      inset-inline-start: 0;
       overflow: hidden;
       position: absolute;
+      top: 0;
       width: 46px;
       z-index: $z-index-base;
     }
@@ -95,13 +165,44 @@
     }
   }
 
+  @mixin StoryListItem__Icon($path) {
+    @include light-theme {
+      @include color-svg($path, $color-black);
+    }
+    @include dark-theme {
+      @include color-svg($path, $color-white);
+    }
+  }
+
   &__icon {
     &--chat {
-      @include color-svg('../images/icons/v2/open-24.svg', $color-white);
+      @include StoryListItem__Icon('../images/icons/v3/open/open-compact.svg');
+    }
+
+    &--delete {
+      @include StoryListItem__Icon(
+        '../images/icons/v3/trash/trash-compact.svg'
+      );
     }
 
     &--hide {
-      @include color-svg('../images/icons/v2/x-24.svg', $color-white);
+      @include StoryListItem__Icon('../images/icons/v3/x/x-circle-compact.svg');
     }
+
+    &--info {
+      @include StoryListItem__Icon('../images/icons/v3/info/info-compact.svg');
+    }
+  }
+
+  &__chevron::after {
+    content: '';
+    display: inline-block;
+    height: 16px;
+    margin-inline-start: 2px;
+    vertical-align: middle;
+    width: 16px;
+    @include StoryListItem__Icon(
+      '../images/icons/v3/chevron/chevron-right-compact-bold.svg'
+    );
   }
 }

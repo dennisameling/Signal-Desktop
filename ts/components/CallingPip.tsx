@@ -1,9 +1,9 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
 import { minBy, debounce, noop } from 'lodash';
-import type { VideoFrameSource } from 'ringrtc';
+import type { VideoFrameSource } from '@signalapp/ringrtc';
 import { CallingPipRemoteVideo } from './CallingPipRemoteVideo';
 import type { LocalizerType } from '../types/Util';
 import type { ActiveCallType, GroupCallVideoRequest } from '../types/Calling';
@@ -13,6 +13,7 @@ import type {
 } from '../state/ducks/calling';
 import { missingCaseError } from '../util/missingCaseError';
 import { useActivateSpeakerViewOnPresenting } from '../hooks/useActivateSpeakerViewOnPresenting';
+import type { CallingImageDataCache } from './CallManager';
 
 enum PositionMode {
   BeingDragged,
@@ -51,14 +52,19 @@ type SnapCandidate = {
 export type PropsType = {
   activeCall: ActiveCallType;
   getGroupCallVideoFrameSource: (demuxId: number) => VideoFrameSource;
-  hangUpActiveCall: () => void;
+  hangUpActiveCall: (reason: string) => void;
   hasLocalVideo: boolean;
   i18n: LocalizerType;
-  setGroupCallVideoRequest: (_: Array<GroupCallVideoRequest>) => void;
+  imageDataCache: React.RefObject<CallingImageDataCache>;
+  setGroupCallVideoRequest: (
+    _: Array<GroupCallVideoRequest>,
+    speakerHeight: number
+  ) => void;
   setLocalPreview: (_: SetLocalPreviewType) => void;
   setRendererCanvas: (_: SetRendererCanvasType) => void;
+  switchToPresentationView: () => void;
+  switchFromPresentationView: () => void;
   togglePip: () => void;
-  toggleSpeakerView: () => void;
 };
 
 const PIP_HEIGHT = 156;
@@ -66,18 +72,22 @@ const PIP_WIDTH = 120;
 const PIP_TOP_MARGIN = 56;
 const PIP_PADDING = 8;
 
-export const CallingPip = ({
+export function CallingPip({
   activeCall,
   getGroupCallVideoFrameSource,
   hangUpActiveCall,
   hasLocalVideo,
+  imageDataCache,
   i18n,
   setGroupCallVideoRequest,
   setLocalPreview,
   setRendererCanvas,
+  switchToPresentationView,
+  switchFromPresentationView,
   togglePip,
-  toggleSpeakerView,
-}: PropsType): JSX.Element | null => {
+}: PropsType): JSX.Element {
+  const isRTL = i18n.getLocaleDirection() === 'rtl';
+
   const videoContainerRef = React.useRef<null | HTMLDivElement>(null);
   const localVideoRef = React.useRef(null);
 
@@ -88,23 +98,27 @@ export const CallingPip = ({
     offsetY: PIP_TOP_MARGIN,
   });
 
-  useActivateSpeakerViewOnPresenting(
-    activeCall.remoteParticipants,
-    activeCall.isInSpeakerView,
-    toggleSpeakerView
-  );
+  useActivateSpeakerViewOnPresenting({
+    remoteParticipants: activeCall.remoteParticipants,
+    switchToPresentationView,
+    switchFromPresentationView,
+  });
 
   React.useEffect(() => {
     setLocalPreview({ element: localVideoRef });
   }, [setLocalPreview]);
+
+  const hangUp = React.useCallback(() => {
+    hangUpActiveCall('pip button click');
+  }, [hangUpActiveCall]);
 
   const handleMouseMove = React.useCallback(
     (ev: MouseEvent) => {
       if (positionState.mode === PositionMode.BeingDragged) {
         setPositionState(oldState => ({
           ...oldState,
-          mouseX: ev.screenX,
-          mouseY: ev.screenY,
+          mouseX: ev.clientX,
+          mouseY: ev.clientY,
         }));
       }
     },
@@ -119,14 +133,24 @@ export const CallingPip = ({
       const offsetX = mouseX - dragOffsetX;
       const offsetY = mouseY - dragOffsetY;
 
+      let distanceToLeftEdge: number;
+      let distanceToRightEdge: number;
+      if (isRTL) {
+        distanceToLeftEdge = innerWidth - (offsetX + PIP_WIDTH);
+        distanceToRightEdge = offsetX;
+      } else {
+        distanceToLeftEdge = offsetX;
+        distanceToRightEdge = innerWidth - (offsetX + PIP_WIDTH);
+      }
+
       const snapCandidates: Array<SnapCandidate> = [
         {
           mode: PositionMode.SnapToLeft,
-          distanceToEdge: offsetX,
+          distanceToEdge: distanceToLeftEdge,
         },
         {
           mode: PositionMode.SnapToRight,
-          distanceToEdge: innerWidth - (offsetX + PIP_WIDTH),
+          distanceToEdge: distanceToRightEdge,
         },
         {
           mode: PositionMode.SnapToTop,
@@ -156,14 +180,14 @@ export const CallingPip = ({
         case PositionMode.SnapToBottom:
           setPositionState({
             mode: snapTo.mode,
-            offsetX,
+            offsetX: isRTL ? innerWidth - (offsetX + PIP_WIDTH) : offsetX,
           });
           break;
         default:
           throw missingCaseError(snapTo.mode);
       }
     }
-  }, [positionState, setPositionState]);
+  }, [isRTL, positionState, setPositionState]);
 
   React.useEffect(() => {
     if (positionState.mode === PositionMode.BeingDragged) {
@@ -200,7 +224,11 @@ export const CallingPip = ({
     switch (positionState.mode) {
       case PositionMode.BeingDragged:
         return [
-          positionState.mouseX - positionState.dragOffsetX,
+          isRTL
+            ? windowWidth -
+              positionState.mouseX -
+              (PIP_WIDTH - positionState.dragOffsetX)
+            : positionState.mouseX - positionState.dragOffsetX,
           positionState.mouseY - positionState.dragOffsetY,
         ];
       case PositionMode.SnapToLeft:
@@ -238,7 +266,8 @@ export const CallingPip = ({
       default:
         throw missingCaseError(positionState);
     }
-  }, [windowWidth, windowHeight, positionState]);
+  }, [isRTL, windowWidth, windowHeight, positionState]);
+  const localizedTranslateX = isRTL ? -translateX : translateX;
 
   return (
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions
@@ -249,14 +278,15 @@ export const CallingPip = ({
         if (!node) {
           return;
         }
+
         const rect = node.getBoundingClientRect();
-        const dragOffsetX = ev.screenX - rect.left;
-        const dragOffsetY = ev.screenY - rect.top;
+        const dragOffsetX = ev.clientX - rect.left;
+        const dragOffsetY = ev.clientY - rect.top;
 
         setPositionState({
           mode: PositionMode.BeingDragged,
-          mouseX: ev.screenX,
-          mouseY: ev.screenY,
+          mouseX: ev.clientX,
+          mouseY: ev.clientY,
           dragOffsetX,
           dragOffsetY,
         });
@@ -267,7 +297,7 @@ export const CallingPip = ({
           positionState.mode === PositionMode.BeingDragged
             ? '-webkit-grabbing'
             : '-webkit-grab',
-        transform: `translate3d(${translateX}px,${translateY}px, 0)`,
+        transform: `translate3d(${localizedTranslateX}px,calc(${translateY}px), 0)`,
         transition:
           positionState.mode === PositionMode.BeingDragged
             ? 'none'
@@ -277,6 +307,7 @@ export const CallingPip = ({
       <CallingPipRemoteVideo
         activeCall={activeCall}
         getGroupCallVideoFrameSource={getGroupCallVideoFrameSource}
+        imageDataCache={imageDataCache}
         i18n={i18n}
         setRendererCanvas={setRendererCanvas}
         setGroupCallVideoRequest={setGroupCallVideoRequest}
@@ -290,13 +321,13 @@ export const CallingPip = ({
       ) : null}
       <div className="module-calling-pip__actions">
         <button
-          aria-label={i18n('calling__hangup')}
+          aria-label={i18n('icu:calling__hangup')}
           className="module-calling-pip__button--hangup"
-          onClick={hangUpActiveCall}
+          onClick={hangUp}
           type="button"
         />
         <button
-          aria-label={i18n('calling__pip--off')}
+          aria-label={i18n('icu:calling__pip--off')}
           className="module-calling-pip__button--pip"
           onClick={togglePip}
           type="button"
@@ -306,4 +337,4 @@ export const CallingPip = ({
       </div>
     </div>
   );
-};
+}

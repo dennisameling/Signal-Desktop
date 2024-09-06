@@ -1,4 +1,4 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
@@ -75,6 +75,58 @@ describe('Privacy', () => {
     });
   });
 
+  describe('redactCallLinkRoomIds', () => {
+    it('should redact call link room IDs', () => {
+      const text =
+        'Log line with call link room ID 7f3d431d4512b30754915a262db43cd789f799d710525a83429d48aee8c2cd4b\n' +
+        'and another IN ALL UPPERCASE 7F3D431D4512B30754915A262DB43CD789F799D710525A83429D48AEE8C2CD4B';
+
+      const actual = Privacy.redactCallLinkRoomIds(text);
+      const expected =
+        'Log line with call link room ID [REDACTED]d4b\n' +
+        'and another IN ALL UPPERCASE [REDACTED]D4B';
+      assert.equal(actual, expected);
+    });
+  });
+
+  describe('redactCallLinkRootKeys', () => {
+    it('should redact call link root keys', () => {
+      const text =
+        'Log line with call link https://signal.link/call/#key=hktt-kskq-dhcn-bgkm-hbbg-qqkq-sfbp-czmc\n' +
+        'and another IN ALL UPPERCASE HKTT-KSKQ-DHCN-BGKM-HBBG-QQKQ-SFBP-CZMC';
+
+      const actual = Privacy.redactCallLinkRootKeys(text);
+      const expected =
+        'Log line with call link https://signal.link/call/#key=[REDACTED]hktt\n' +
+        'and another IN ALL UPPERCASE [REDACTED]HKTT';
+      assert.equal(actual, expected);
+    });
+  });
+
+  describe('redactAttachmentUrlKeys', () => {
+    it('should redact key= values ', () => {
+      const text =
+        'Log line with url attachment://v2/e6/abcdee64?key=hxKJ9cTfK0v3KEsnzJ2j%2F4Crwe0yu&size=39360&contentType=png ' +
+        'and another already partially redacted attachment://v2/e6/[REDACTED]?LOCALKEY=hxKJ9cTfK0v3KEsnzJ2j%2F4Crwe0yu&size=39360&contentType=png';
+
+      const actual = Privacy.redactAttachmentUrlKeys(text);
+      const expected =
+        'Log line with url attachment://v2/e6/abcdee64?key=[REDACTED] ' +
+        'and another already partially redacted attachment://v2/e6/[REDACTED]?LOCALKEY=[REDACTED]';
+      assert.equal(actual, expected);
+    });
+  });
+
+  describe('redactAttachmentUrl', () => {
+    it('should remove search params ', () => {
+      const url =
+        'attachment://v2/e6/abcdee64?key=hxKJ9cTfK0v3KEsnzJ2j%2F4Crwe0yu&size=39360&contentType=png';
+      const actual = Privacy.redactAttachmentUrl(url);
+      const expected = 'attachment://v2/e6/abcdee64';
+      assert.equal(actual, expected);
+    });
+  });
+
   describe('redactAll', () => {
     it('should redact all sensitive information', () => {
       const encodedAppRootPath = APP_ROOT_PATH.replace(/ /g, '%20');
@@ -86,7 +138,8 @@ describe('Privacy', () => {
         `path2 file:///${encodedAppRootPath}/js/background.js.` +
         'phone2 +13334445566 lorem\n' +
         'group2 group(abcdefghij) doloret\n' +
-        'path3 sensitive-path/attachment.noindex\n';
+        'path3 sensitive-path/attachment.noindex\n' +
+        'attachment://v2/ab/abcde?key=specialkey\n';
 
       const actual = Privacy.redactAll(text);
       const expected =
@@ -94,10 +147,11 @@ describe('Privacy', () => {
         'path1 [REDACTED]/main.js\n' +
         'phone1 +[REDACTED]455 ipsum\n' +
         'group1 group([REDACTED]789) doloret\n' +
-        'path2 file:///[REDACTED]/js/background.js.' +
+        'path2 [REDACTED]/js/background.js.' +
         'phone2 +[REDACTED]566 lorem\n' +
         'group2 group([REDACTED]hij) doloret\n' +
-        'path3 [REDACTED]/attachment.noindex\n';
+        'path3 [REDACTED]/attachment.noindex\n' +
+        'attachment://v2/ab/abcde?key=[REDACTED]\n';
       assert.equal(actual, expected);
     });
   });
@@ -134,7 +188,7 @@ describe('Privacy', () => {
         'path1 [REDACTED]/main.js\n' +
         'phone1 +12223334455 ipsum\n' +
         'group1 group(123456789) doloret\n' +
-        'path2 file:///[REDACTED]/js/background.js.';
+        'path2 [REDACTED]/js/background.js.';
       assert.equal(actual, expected);
     });
 

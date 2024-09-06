@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ReactChild, ChangeEvent } from 'react';
@@ -21,19 +21,23 @@ import type { LocalizerType } from '../../types/Util';
 import type { ParsedE164Type } from '../../util/libphonenumberInstance';
 import { parseAndFormatPhoneNumber } from '../../util/libphonenumberInstance';
 import type { UUIDFetchStateType } from '../../util/uuidFetchState';
-import { isFetchingByE164 } from '../../util/uuidFetchState';
 import {
-  getGroupSizeRecommendedLimit,
-  getGroupSizeHardLimit,
-} from '../../groups/limits';
+  isFetchingByUsername,
+  isFetchingByE164,
+} from '../../util/uuidFetchState';
 
 export type LeftPaneChooseGroupMembersPropsType = {
   uuidFetchState: UUIDFetchStateType;
   candidateContacts: ReadonlyArray<ConversationType>;
+  groupSizeRecommendedLimit: number;
+  groupSizeHardLimit: number;
   isShowingRecommendedGroupSizeModal: boolean;
   isShowingMaximumGroupSizeModal: boolean;
+  ourE164: string | undefined;
+  ourUsername: string | undefined;
   searchTerm: string;
   regionCode: string | undefined;
+  username: string | undefined;
   selectedContacts: Array<ConversationType>;
 };
 
@@ -42,13 +46,21 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
 
   private readonly isPhoneNumberChecked: boolean;
 
+  private readonly isUsernameChecked: boolean;
+
   private readonly isShowingMaximumGroupSizeModal: boolean;
 
   private readonly isShowingRecommendedGroupSizeModal: boolean;
 
+  private readonly groupSizeRecommendedLimit: number;
+
+  private readonly groupSizeHardLimit: number;
+
   private readonly searchTerm: string;
 
   private readonly phoneNumber: ParsedE164Type | undefined;
+
+  private readonly username: string | undefined;
 
   private readonly selectedContacts: Array<ConversationType>;
 
@@ -60,14 +72,21 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
     candidateContacts,
     isShowingMaximumGroupSizeModal,
     isShowingRecommendedGroupSizeModal,
+    groupSizeRecommendedLimit,
+    groupSizeHardLimit,
+    ourE164,
+    ourUsername,
     searchTerm,
     regionCode,
     selectedContacts,
     uuidFetchState,
+    username,
   }: Readonly<LeftPaneChooseGroupMembersPropsType>) {
     super();
 
     this.uuidFetchState = uuidFetchState;
+    this.groupSizeRecommendedLimit = groupSizeRecommendedLimit - 1;
+    this.groupSizeHardLimit = groupSizeHardLimit - 1;
 
     this.candidateContacts = candidateContacts;
     this.isShowingMaximumGroupSizeModal = isShowingMaximumGroupSizeModal;
@@ -75,15 +94,33 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
       isShowingRecommendedGroupSizeModal;
     this.searchTerm = searchTerm;
 
+    const isUsernameVisible =
+      username !== undefined &&
+      username !== ourUsername &&
+      this.candidateContacts.every(contact => contact.username !== username);
+
+    if (isUsernameVisible) {
+      this.username = username;
+    }
+
+    this.isUsernameChecked = selectedContacts.some(
+      contact => contact.username === this.username
+    );
+
     const phoneNumber = parseAndFormatPhoneNumber(searchTerm, regionCode);
-    if (phoneNumber) {
+    if (
+      !isUsernameVisible &&
+      (ourUsername === undefined || username !== ourUsername) &&
+      phoneNumber
+    ) {
+      const { e164 } = phoneNumber;
       this.isPhoneNumberChecked =
         phoneNumber.isValid &&
-        selectedContacts.some(contact => contact.e164 === phoneNumber.e164);
+        selectedContacts.some(contact => contact.e164 === e164);
 
-      const isVisible = this.candidateContacts.every(
-        contact => contact.e164 !== phoneNumber.e164
-      );
+      const isVisible =
+        e164 !== ourE164 &&
+        this.candidateContacts.every(contact => contact.e164 !== e164);
       if (isVisible) {
         this.phoneNumber = phoneNumber;
       }
@@ -104,7 +141,7 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
     i18n: LocalizerType;
     startComposing: () => void;
   }>): ReactChild {
-    const backButtonLabel = i18n('chooseGroupMembers__back-button');
+    const backButtonLabel = i18n('icu:chooseGroupMembers__back-button');
 
     return (
       <div className="module-left-pane__header__contents">
@@ -116,7 +153,7 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
           type="button"
         />
         <div className="module-left-pane__header__contents__text">
-          {i18n('chooseGroupMembers__title')}
+          {i18n('icu:chooseGroupMembers__title')}
         </div>
       </div>
     );
@@ -144,7 +181,7 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
         i18n={i18n}
         moduleClassName="module-left-pane__compose-search-form"
         onChange={onChangeComposeSearchTerm}
-        placeholder={i18n('contactSearchPlaceholder')}
+        placeholder={i18n('icu:contactSearchPlaceholder')}
         ref={focusRef}
         value={this.searchTerm}
       />
@@ -167,7 +204,7 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
       modalNode = (
         <AddGroupMemberErrorDialog
           i18n={i18n}
-          maximumNumberOfContacts={this.getMaximumNumberOfContacts()}
+          maximumNumberOfContacts={this.groupSizeHardLimit}
           mode={AddGroupMemberErrorDialogMode.MaximumGroupSize}
           onClose={closeMaximumGroupSizeModal}
         />
@@ -176,7 +213,7 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
       modalNode = (
         <AddGroupMemberErrorDialog
           i18n={i18n}
-          recommendedMaximumNumberOfContacts={this.getRecommendedMaximumNumberOfContacts()}
+          recommendedMaximumNumberOfContacts={this.groupSizeRecommendedLimit}
           mode={AddGroupMemberErrorDialogMode.RecommendedMaximumGroupSize}
           onClose={closeRecommendedGroupSizeModal}
         />
@@ -191,13 +228,12 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
               <ContactPill
                 key={contact.id}
                 acceptedMessageRequest={contact.acceptedMessageRequest}
-                avatarPath={contact.avatarPath}
+                avatarUrl={contact.avatarUrl}
                 color={contact.color}
-                firstName={contact.firstName}
+                firstName={contact.systemGivenName ?? contact.firstName}
                 i18n={i18n}
                 id={contact.id}
                 isMe={contact.isMe}
-                name={contact.name}
                 phoneNumber={contact.phoneNumber}
                 profileName={contact.profileName}
                 sharedGroupNames={contact.sharedGroupNames}
@@ -210,7 +246,7 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
 
         {this.getRowCount() ? null : (
           <div className="module-left-pane__compose-no-contacts">
-            {i18n('noContactsFound')}
+            {i18n('icu:noContactsFound')}
           </div>
         )}
 
@@ -232,8 +268,8 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
         onClick={startSettingGroupMetadata}
       >
         {this.selectedContacts.length
-          ? i18n('chooseGroupMembers__next')
-          : i18n('chooseGroupMembers__skip')}
+          ? i18n('icu:chooseGroupMembers__next')
+          : i18n('icu:chooseGroupMembers__skip')}
       </Button>
     );
   }
@@ -243,6 +279,11 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
 
     // Header + Phone Number
     if (this.phoneNumber) {
+      rowCount += 2;
+    }
+
+    // Header + Username
+    if (this.username) {
       rowCount += 2;
     }
 
@@ -260,7 +301,7 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
   }
 
   getRow(actualRowIndex: number): undefined | Row {
-    if (!this.candidateContacts.length && !this.phoneNumber) {
+    if (!this.candidateContacts.length && !this.phoneNumber && !this.username) {
       return undefined;
     }
 
@@ -277,7 +318,7 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
       if (virtualRowIndex === 0) {
         return {
           type: RowType.Header,
-          i18nKey: 'contactsHeader',
+          getHeaderText: i18n => i18n('icu:contactsHeader'),
         };
       }
 
@@ -305,7 +346,7 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
       if (virtualRowIndex === 0) {
         return {
           type: RowType.Header,
-          i18nKey: 'findByPhoneNumberHeader',
+          getHeaderText: i18n => i18n('icu:findByPhoneNumberHeader'),
         };
       }
       if (virtualRowIndex === 1) {
@@ -317,6 +358,24 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
             this.phoneNumber.e164
           ),
           phoneNumber: this.phoneNumber,
+        };
+      }
+      virtualRowIndex -= 2;
+    }
+
+    if (this.username) {
+      if (virtualRowIndex === 0) {
+        return {
+          type: RowType.Header,
+          getHeaderText: i18n => i18n('icu:findByUsernameHeader'),
+        };
+      }
+      if (virtualRowIndex === 1) {
+        return {
+          type: RowType.UsernameCheckbox,
+          isChecked: this.isUsernameChecked,
+          isFetching: isFetchingByUsername(this.uuidFetchState, this.username),
+          username: this.username,
         };
       }
       virtualRowIndex -= 2;
@@ -344,20 +403,12 @@ export class LeftPaneChooseGroupMembersHelper extends LeftPaneHelper<LeftPaneCho
   }
 
   private hasSelectedMaximumNumberOfContacts(): boolean {
-    return this.selectedContacts.length >= this.getMaximumNumberOfContacts();
+    return this.selectedContacts.length >= this.groupSizeHardLimit;
   }
 
   private hasExceededMaximumNumberOfContacts(): boolean {
     // It should be impossible to reach this state. This is here as a failsafe.
-    return this.selectedContacts.length > this.getMaximumNumberOfContacts();
-  }
-
-  private getRecommendedMaximumNumberOfContacts(): number {
-    return getGroupSizeRecommendedLimit(151) - 1;
-  }
-
-  private getMaximumNumberOfContacts(): number {
-    return getGroupSizeHardLimit(1001) - 1;
+    return this.selectedContacts.length > this.groupSizeHardLimit;
   }
 }
 

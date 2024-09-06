@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
+
 import type { LocalizerType } from '../types/Util';
 import { useEscapeHandling } from '../hooks/useEscapeHandling';
 
@@ -12,12 +13,12 @@ export type PropsType = {
   version: string;
 };
 
-export const About = ({
+export function About({
   closeAbout,
-  i18n,
   environment,
+  i18n,
   version,
-}: PropsType): JSX.Element => {
+}: PropsType): JSX.Element {
   useEscapeHandling(closeAbout);
 
   return (
@@ -34,17 +35,17 @@ export const About = ({
         <div>
           <a
             className="acknowledgments"
-            href="https://github.com/signalapp/Signal-Desktop/blob/development/ACKNOWLEDGMENTS.md"
+            href="https://github.com/signalapp/Signal-Desktop/blob/main/ACKNOWLEDGMENTS.md"
           >
-            {i18n('softwareAcknowledgments')}
+            {i18n('icu:softwareAcknowledgments')}
           </a>
         </div>
         <div>
           <a className="privacy" href="https://signal.org/legal">
-            {i18n('privacyPolicy')}
+            {i18n('icu:privacyPolicy')}
           </a>
         </div>
       </div>
     </div>
   );
-};
+}

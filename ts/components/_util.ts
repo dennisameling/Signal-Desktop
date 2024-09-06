@@ -1,4 +1,4 @@
-// Copyright 2019-2021 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 export function cleanId(id: string): string {
@@ -11,7 +11,6 @@ export enum WidthBreakpoint {
   Narrow = 'narrow',
 }
 
-export const getConversationListWidthBreakpoint = (
-  width: number
-): WidthBreakpoint =>
-  width >= 150 ? WidthBreakpoint.Wide : WidthBreakpoint.Narrow;
+export function getNavSidebarWidthBreakpoint(width: number): WidthBreakpoint {
+  return width >= 150 ? WidthBreakpoint.Wide : WidthBreakpoint.Narrow;
+}

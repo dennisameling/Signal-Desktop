@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { every } from './iterables';
@@ -27,3 +27,14 @@ export const isEqual = (
   a: Readonly<Set<unknown>>,
   b: Readonly<Set<unknown>>
 ): boolean => a === b || (a.size === b.size && every(a, item => b.has(item)));
+
+export const difference = <T>(
+  a: Readonly<Set<T>>,
+  b: Readonly<Set<T>>
+): Set<T> => {
+  const result = new Set([...a]);
+  for (const item of b) {
+    result.delete(item);
+  }
+  return result;
+};

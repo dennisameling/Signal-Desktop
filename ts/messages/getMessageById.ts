@@ -2,21 +2,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as log from '../logging/log';
+import { DataReader } from '../sql/Client';
 import type { MessageAttributesType } from '../model-types.d';
-import type { MessageModel } from '../models/messages';
 import * as Errors from '../types/errors';
+import type { MessageModel } from '../models/messages';
 
-export async function getMessageById(
+export async function __DEPRECATED$getMessageById(
   messageId: string
 ): Promise<MessageModel | undefined> {
-  const message = window.MessageController.getById(messageId);
+  const message = window.MessageCache.__DEPRECATED$getById(messageId);
   if (message) {
     return message;
   }
 
   let found: MessageAttributesType | undefined;
   try {
-    found = await window.Signal.Data.getMessageById(messageId);
+    found = await DataReader.getMessageById(messageId);
   } catch (err: unknown) {
     log.error(
       `failed to load message with id ${messageId} ` +
@@ -28,5 +29,9 @@ export async function getMessageById(
     return undefined;
   }
 
-  return window.MessageController.register(found.id, found);
+  return window.MessageCache.__DEPRECATED$register(
+    found.id,
+    found,
+    '__DEPRECATED$getMessageById'
+  );
 }

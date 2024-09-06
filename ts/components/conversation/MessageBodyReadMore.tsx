@@ -1,20 +1,26 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
 
 import type { Props as MessageBodyPropsType } from './MessageBody';
 import { MessageBody } from './MessageBody';
+import { graphemeAndLinkAwareSlice } from '../../util/graphemeAndLinkAwareSlice';
+import { shouldLinkifyMessage } from '../../types/LinkPreview';
 
 export type Props = Pick<
   MessageBodyPropsType,
+  | 'bodyRanges'
   | 'direction'
-  | 'text'
-  | 'textPending'
   | 'disableLinks'
   | 'i18n'
-  | 'bodyRanges'
-  | 'openConversation'
+  | 'isSpoilerExpanded'
+  | 'onExpandSpoiler'
+  | 'kickOffBodyDownload'
+  | 'renderLocation'
+  | 'showConversation'
+  | 'text'
+  | 'textAttachment'
 > & {
   id: string;
   displayLimit?: number;
@@ -29,37 +35,6 @@ export function doesMessageBodyOverflow(str: string): boolean {
   return str.length > INITIAL_LENGTH + BUFFER;
 }
 
-function graphemeAwareSlice(
-  str: string,
-  length: number
-): {
-  hasReadMore: boolean;
-  text: string;
-} {
-  if (str.length <= length + BUFFER) {
-    return { text: str, hasReadMore: false };
-  }
-
-  let text: string | undefined;
-
-  for (const { index } of new Intl.Segmenter().segment(str)) {
-    if (!text && index >= length) {
-      text = str.slice(0, index);
-    }
-    if (text && index > length) {
-      return {
-        text,
-        hasReadMore: true,
-      };
-    }
-  }
-
-  return {
-    text: str,
-    hasReadMore: false,
-  };
-}
-
 export function MessageBodyReadMore({
   bodyRanges,
   direction,
@@ -67,14 +42,25 @@ export function MessageBodyReadMore({
   displayLimit,
   i18n,
   id,
+  isSpoilerExpanded,
+  kickOffBodyDownload,
   messageExpanded,
-  openConversation,
+  onExpandSpoiler,
+  renderLocation,
+  showConversation,
   text,
-  textPending,
+  textAttachment,
 }: Props): JSX.Element {
   const maxLength = displayLimit || INITIAL_LENGTH;
 
-  const { hasReadMore, text: slicedText } = graphemeAwareSlice(text, maxLength);
+  const shouldDisableLinks = disableLinks || !shouldLinkifyMessage(text);
+  const { hasReadMore, text: slicedText } = graphemeAndLinkAwareSlice(
+    text,
+    maxLength,
+    BUFFER
+  );
+
+  const disableJumbomoji = bodyRanges?.length ? true : undefined;
 
   const onIncreaseTextLength = hasReadMore
     ? () => {
@@ -85,13 +71,18 @@ export function MessageBodyReadMore({
   return (
     <MessageBody
       bodyRanges={bodyRanges}
-      disableLinks={disableLinks}
       direction={direction}
+      disableJumbomoji={disableJumbomoji}
+      disableLinks={shouldDisableLinks}
       i18n={i18n}
+      isSpoilerExpanded={isSpoilerExpanded}
+      kickOffBodyDownload={kickOffBodyDownload}
+      onExpandSpoiler={onExpandSpoiler}
       onIncreaseTextLength={onIncreaseTextLength}
-      openConversation={openConversation}
+      renderLocation={renderLocation}
+      showConversation={showConversation}
       text={slicedText}
-      textPending={textPending}
+      textAttachment={textAttachment}
     />
   );
 }

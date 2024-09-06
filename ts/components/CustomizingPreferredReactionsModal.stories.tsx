@@ -4,18 +4,20 @@
 import type { ComponentProps } from 'react';
 import React from 'react';
 
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../util/setupI18n';
+import { DEFAULT_PREFERRED_REACTION_EMOJI } from '../reactions/constants';
 import enMessages from '../../_locales/en/messages.json';
 
+import type { PropsType } from './CustomizingPreferredReactionsModal';
 import { CustomizingPreferredReactionsModal } from './CustomizingPreferredReactionsModal';
 
 const i18n = setupI18n('en', enMessages);
-const story = storiesOf(
-  'Components/CustomizingPreferredReactionsModal',
-  module
-);
+
+export default {
+  title: 'Components/CustomizingPreferredReactionsModal',
+} satisfies Meta<PropsType>;
 
 const defaultProps: ComponentProps<typeof CustomizingPreferredReactionsModal> =
   {
@@ -28,7 +30,7 @@ const defaultProps: ComponentProps<typeof CustomizingPreferredReactionsModal> =
     i18n,
     isSaving: false,
     onSetSkinTone: action('onSetSkinTone'),
-    originalPreferredReactions: ['❤️', '👍', '👎', '😂', '😮', '😢'],
+    originalPreferredReactions: DEFAULT_PREFERRED_REACTION_EMOJI,
     recentEmojis: ['cake'],
     replaceSelectedDraftEmoji: action('replaceSelectedDraftEmoji'),
     resetDraftEmoji: action('resetDraftEmoji'),
@@ -38,21 +40,23 @@ const defaultProps: ComponentProps<typeof CustomizingPreferredReactionsModal> =
     skinTone: 4,
   };
 
-story.add('Default', () => (
-  <CustomizingPreferredReactionsModal {...defaultProps} />
-));
+export function Default(): JSX.Element {
+  return <CustomizingPreferredReactionsModal {...defaultProps} />;
+}
 
-story.add('Draft emoji selected', () => (
-  <CustomizingPreferredReactionsModal
-    {...defaultProps}
-    selectedDraftEmojiIndex={4}
-  />
-));
+export function DraftEmojiSelected(): JSX.Element {
+  return (
+    <CustomizingPreferredReactionsModal
+      {...defaultProps}
+      selectedDraftEmojiIndex={4}
+    />
+  );
+}
 
-story.add('Saving', () => (
-  <CustomizingPreferredReactionsModal {...defaultProps} isSaving />
-));
+export function Saving(): JSX.Element {
+  return <CustomizingPreferredReactionsModal {...defaultProps} isSaving />;
+}
 
-story.add('Had error', () => (
-  <CustomizingPreferredReactionsModal {...defaultProps} hadSaveError />
-));
+export function HadError(): JSX.Element {
+  return <CustomizingPreferredReactionsModal {...defaultProps} hadSaveError />;
+}

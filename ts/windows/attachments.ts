@@ -1,4 +1,4 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { ipcRenderer } from 'electron';
@@ -7,14 +7,12 @@ import { join, normalize, basename } from 'path';
 import fse from 'fs-extra';
 import getGuid from 'uuid/v4';
 
-import { getRandomBytes } from '../Crypto';
-import * as Bytes from '../Bytes';
-
 import { isPathInside } from '../util/isPathInside';
 import { writeWindowsZoneIdentifier } from '../util/windowsZoneIdentifier';
-import { isWindows } from '../OS';
+import OS from '../util/os/osMain';
+import { getRelativePath, createName } from '../util/attachmentPath';
 
-export * from '../util/attachments';
+export * from '../../app/attachments';
 
 type FSAttrType = {
   set: (path: string, attribute: string, value: string) => Promise<void>;
@@ -23,14 +21,16 @@ type FSAttrType = {
 let xattr: FSAttrType | undefined;
 
 try {
-  // eslint-disable-next-line max-len
-  // eslint-disable-next-line global-require, import/no-extraneous-dependencies, import/no-unresolved
+  // eslint-disable-next-line global-require, import/no-extraneous-dependencies
   xattr = require('fs-xattr');
 } catch (e) {
+  if (process.platform === 'darwin') {
+    throw e;
+  }
   window.SignalContext.log?.info('x-attr dependency did not load successfully');
 }
 
-export const createReader = (
+export const createPlaintextReader = (
   root: string
 ): ((relativePath: string) => Promise<Uint8Array>) => {
   if (!isString(root)) {
@@ -50,18 +50,6 @@ export const createReader = (
     return fse.readFile(normalized);
   };
 };
-
-export const getRelativePath = (name: string): string => {
-  if (!isString(name)) {
-    throw new TypeError("'name' must be a string");
-  }
-
-  const prefix = name.slice(0, 2);
-  return join(prefix, name);
-};
-
-export const createName = (suffix = ''): string =>
-  `${Bytes.toHex(getRandomBytes(32))}${suffix}`;
 
 export const copyIntoAttachmentsDirectory = (
   root: string
@@ -126,9 +114,9 @@ export const createWriterForNew = (
   };
 };
 
-export const createWriterForExisting = (
+const createWriterForExisting = (
   root: string
-): ((options: { data: Uint8Array; path: string }) => Promise<string>) => {
+): ((options: { data?: Uint8Array; path?: string }) => Promise<string>) => {
   if (!isString(root)) {
     throw new TypeError("'root' must be a path");
   }
@@ -137,15 +125,15 @@ export const createWriterForExisting = (
     data: bytes,
     path: relativePath,
   }: {
-    data: Uint8Array;
-    path: string;
+    data?: Uint8Array;
+    path?: string;
   }): Promise<string> => {
     if (!isString(relativePath)) {
       throw new TypeError("'relativePath' must be a path");
     }
 
-    if (!isTypedArray(bytes)) {
-      throw new TypeError("'arrayBuffer' must be an array buffer");
+    if (!bytes) {
+      throw new TypeError("'data' must be a Uint8Array");
     }
 
     const buffer = Buffer.from(bytes);
@@ -198,10 +186,6 @@ export const createDoesExist = (
   };
 };
 
-export const openFileInFolder = async (target: string): Promise<void> => {
-  ipcRenderer.send('show-item-in-folder', target);
-};
-
 const showSaveDialog = (
   defaultPath: string
 ): Promise<{
@@ -231,7 +215,7 @@ async function writeWithAttributes(
     const attrValue = `${type};${timestamp};${appName};${guid}`;
 
     await xattr.set(target, 'com.apple.quarantine', attrValue);
-  } else if (isWindows()) {
+  } else if (OS.isWindows()) {
     // This operation may fail (see the function's comments), which is not a show-stopper.
     try {
       await writeWindowsZoneIdentifier(target);

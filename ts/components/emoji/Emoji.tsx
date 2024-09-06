@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
@@ -8,7 +8,7 @@ import { emojiToImage, getImagePath } from './lib';
 
 export const EmojiSizes = [16, 18, 20, 24, 28, 32, 48, 64, 66] as const;
 
-export type EmojiSizeType = typeof EmojiSizes[number];
+export type EmojiSizeType = (typeof EmojiSizes)[number];
 
 export type OwnProps = {
   emoji?: string;

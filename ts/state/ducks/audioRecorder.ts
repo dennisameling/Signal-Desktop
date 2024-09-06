@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ThunkAction } from 'redux-thunk';
+import { v4 as generateUuid } from 'uuid';
 
+import type { ReadonlyDeep } from 'type-fest';
 import * as log from '../../logging/log';
 import type { InMemoryAttachmentDraftType } from '../../types/Attachment';
 import { SignalService as Proto } from '../../protobuf';
@@ -10,26 +12,22 @@ import type { StateType as RootStateType } from '../reducer';
 import { fileToBytes } from '../../util/fileToBytes';
 import { recorder } from '../../services/audioRecorder';
 import { stringToMIMEType } from '../../types/MIME';
+import type { BoundActionCreatorsMapObject } from '../../hooks/useBoundActions';
 import { useBoundActions } from '../../hooks/useBoundActions';
+import { getComposerStateForConversation } from './composer';
 
-export enum ErrorDialogAudioRecorderType {
-  Blur,
-  ErrorRecording,
-  Timeout,
-}
+import * as Errors from '../../types/errors';
+import {
+  ErrorDialogAudioRecorderType,
+  RecordingState,
+} from '../../types/AudioRecorder';
 
 // State
 
-export enum RecordingState {
-  Recording = 'recording',
-  Initializing = 'initializing',
-  Idle = 'idle',
-}
-
-export type AudioPlayerStateType = {
-  readonly recordingState: RecordingState;
-  readonly errorDialogAudioRecorderType?: ErrorDialogAudioRecorderType;
-};
+export type AudioRecorderStateType = ReadonlyDeep<{
+  recordingState: RecordingState;
+  errorDialogAudioRecorderType?: ErrorDialogAudioRecorderType;
+}>;
 
 // Actions
 
@@ -39,33 +37,38 @@ const ERROR_RECORDING = 'audioRecorder/ERROR_RECORDING';
 const NOW_RECORDING = 'audioRecorder/NOW_RECORDING';
 const START_RECORDING = 'audioRecorder/START_RECORDING';
 
-type CancelRecordingAction = {
+type CancelRecordingAction = ReadonlyDeep<{
   type: typeof CANCEL_RECORDING;
   payload: undefined;
-};
-type CompleteRecordingAction = {
+}>;
+type CompleteRecordingAction = ReadonlyDeep<{
   type: typeof COMPLETE_RECORDING;
   payload: undefined;
-};
-type ErrorRecordingAction = {
+}>;
+type ErrorRecordingAction = ReadonlyDeep<{
   type: typeof ERROR_RECORDING;
   payload: ErrorDialogAudioRecorderType;
-};
-type StartRecordingAction = {
+}>;
+type StartRecordingAction = ReadonlyDeep<{
   type: typeof START_RECORDING;
   payload: undefined;
-};
-type NowRecordingAction = {
+}>;
+type NowRecordingAction = ReadonlyDeep<{
   type: typeof NOW_RECORDING;
   payload: undefined;
-};
+}>;
 
-type AudioPlayerActionType =
+type AudioPlayerActionType = ReadonlyDeep<
   | CancelRecordingAction
   | CompleteRecordingAction
   | ErrorRecordingAction
   | NowRecordingAction
-  | StartRecordingAction;
+  | StartRecordingAction
+>;
+
+export function getIsRecording(audioRecorder: AudioRecorderStateType): boolean {
+  return audioRecorder.recordingState === RecordingState.Recording;
+}
 
 // Action Creators
 
@@ -76,19 +79,28 @@ export const actions = {
   startRecording,
 };
 
-export const useActions = (): typeof actions => useBoundActions(actions);
+export const useAudioRecorderActions = (): BoundActionCreatorsMapObject<
+  typeof actions
+> => useBoundActions(actions);
 
-function startRecording(): ThunkAction<
+function startRecording(
+  conversationId: string
+): ThunkAction<
   void,
   RootStateType,
   unknown,
   StartRecordingAction | NowRecordingAction | ErrorRecordingAction
 > {
   return async (dispatch, getState) => {
-    if (getState().composer.attachments.length) {
+    const state = getState();
+
+    if (
+      getComposerStateForConversation(state.composer, conversationId)
+        .attachments.length
+    ) {
       return;
     }
-    if (getState().audioRecorder.recordingState !== RecordingState.Idle) {
+    if (state.audioRecorder.recordingState !== RecordingState.Idle) {
       return;
     }
 
@@ -112,6 +124,7 @@ function startRecording(): ThunkAction<
         });
       }
     } catch (err) {
+      log.error('AudioRecorder/ERROR_RECORDING', Errors.toLogFormat(err));
       dispatch({
         type: ERROR_RECORDING,
         payload: ErrorDialogAudioRecorderType.ErrorRecording,
@@ -127,9 +140,9 @@ function completeRecordingAction(): CompleteRecordingAction {
   };
 }
 
-function completeRecording(
+export function completeRecording(
   conversationId: string,
-  onSendAudioRecording?: (rec: InMemoryAttachmentDraftType) => unknown
+  onRecordingComplete: (rec: InMemoryAttachmentDraftType) => unknown
 ): ThunkAction<
   void,
   RootStateType,
@@ -160,15 +173,14 @@ function completeRecording(
 
       const voiceNoteAttachment: InMemoryAttachmentDraftType = {
         pending: false,
+        clientUuid: generateUuid(),
         contentType: stringToMIMEType(blob.type),
         data,
         size: data.byteLength,
         flags: Proto.AttachmentPointer.Flags.VOICE_MESSAGE,
       };
 
-      if (onSendAudioRecording) {
-        onSendAudioRecording(voiceNoteAttachment);
-      }
+      onRecordingComplete(voiceNoteAttachment);
     } finally {
       dispatch(completeRecordingAction());
     }
@@ -195,7 +207,7 @@ function cancelRecording(): ThunkAction<
 function errorRecording(
   errorDialogAudioRecorderType: ErrorDialogAudioRecorderType
 ): ErrorRecordingAction {
-  recorder.stop();
+  void recorder.stop();
 
   return {
     type: ERROR_RECORDING,
@@ -205,16 +217,16 @@ function errorRecording(
 
 // Reducer
 
-export function getEmptyState(): AudioPlayerStateType {
+export function getEmptyState(): AudioRecorderStateType {
   return {
     recordingState: RecordingState.Idle,
   };
 }
 
 export function reducer(
-  state: Readonly<AudioPlayerStateType> = getEmptyState(),
+  state: Readonly<AudioRecorderStateType> = getEmptyState(),
   action: Readonly<AudioPlayerActionType>
-): AudioPlayerStateType {
+): AudioRecorderStateType {
   if (action.type === START_RECORDING) {
     return {
       ...state,

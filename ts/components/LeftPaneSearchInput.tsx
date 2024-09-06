@@ -1,8 +1,11 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React, { useEffect, useRef } from 'react';
-import type { ConversationType } from '../state/ducks/conversations';
+import type {
+  ConversationType,
+  ShowConversationType,
+} from '../state/ducks/conversations';
 import type { LocalizerType } from '../types/Util';
 import { Avatar, AvatarSize } from './Avatar';
 import { SearchInput } from './SearchInput';
@@ -12,23 +15,36 @@ type PropsType = {
   clearConversationSearch: () => void;
   clearSearch: () => void;
   disabled?: boolean;
+  endConversationSearch: () => void;
+  endSearch: () => void;
   i18n: LocalizerType;
+  isSearchingGlobally: boolean;
+  onEnterKeyDown?: (
+    clearSearch: () => void,
+    showConversation: ShowConversationType
+  ) => void;
   searchConversation?: ConversationType;
   searchTerm: string;
+  showConversation: ShowConversationType;
   startSearchCounter: number;
   updateSearchTerm: (searchTerm: string) => void;
 };
 
-export const LeftPaneSearchInput = ({
+export function LeftPaneSearchInput({
   clearConversationSearch,
   clearSearch,
   disabled,
+  endConversationSearch,
+  endSearch,
   i18n,
+  isSearchingGlobally,
+  onEnterKeyDown,
   searchConversation,
   searchTerm,
+  showConversation,
   startSearchCounter,
   updateSearchTerm,
-}: PropsType): JSX.Element => {
+}: PropsType): JSX.Element {
   const inputRef = useRef<null | HTMLInputElement>(null);
 
   const prevSearchConversationId = usePrevious(
@@ -36,6 +52,7 @@ export const LeftPaneSearchInput = ({
     searchConversation?.id
   );
   const prevSearchCounter = usePrevious(startSearchCounter, startSearchCounter);
+  const wasSearchingGlobally = usePrevious(false, isSearchingGlobally);
 
   useEffect(() => {
     // When user chooses to search in a given conversation we focus the field for them
@@ -46,7 +63,10 @@ export const LeftPaneSearchInput = ({
       inputRef.current?.focus();
     }
     // When user chooses to start a new search, we focus the field
-    if (startSearchCounter !== prevSearchCounter) {
+    if (
+      (isSearchingGlobally && !wasSearchingGlobally) ||
+      startSearchCounter !== prevSearchCounter
+    ) {
       inputRef.current?.select();
     }
   }, [
@@ -54,6 +74,8 @@ export const LeftPaneSearchInput = ({
     prevSearchCounter,
     searchConversation,
     startSearchCounter,
+    isSearchingGlobally,
+    wasSearchingGlobally,
   ]);
 
   const changeValue = (nextSearchTerm: string) => {
@@ -72,12 +94,7 @@ export const LeftPaneSearchInput = ({
     }
   };
 
-  const clearAndFocus = () => {
-    clearSearch();
-    inputRef.current?.focus();
-  };
-
-  const label = i18n(searchConversation ? 'searchIn' : 'search');
+  const label = searchConversation ? i18n('icu:searchIn') : i18n('icu:search');
 
   return (
     <SearchInput
@@ -88,17 +105,28 @@ export const LeftPaneSearchInput = ({
       moduleClassName="LeftPaneSearchInput"
       onBlur={() => {
         if (!searchConversation && !searchTerm) {
-          clearSearch();
+          endSearch();
+        }
+      }}
+      onKeyDown={event => {
+        if (onEnterKeyDown && event.key === 'Enter') {
+          onEnterKeyDown(clearSearch, showConversation);
+          event.preventDefault();
+          event.stopPropagation();
         }
       }}
       onChange={event => {
         changeValue(event.currentTarget.value);
       }}
       onClear={() => {
-        if (searchConversation && searchTerm) {
-          changeValue('');
+        if (searchTerm) {
+          clearSearch();
+          inputRef.current?.focus();
+        } else if (searchConversation) {
+          endConversationSearch();
+          inputRef.current?.focus();
         } else {
-          clearAndFocus();
+          inputRef.current?.blur();
         }
       }}
       ref={inputRef}
@@ -119,7 +147,7 @@ export const LeftPaneSearchInput = ({
         >
           <Avatar
             acceptedMessageRequest={searchConversation.acceptedMessageRequest}
-            avatarPath={searchConversation.avatarPath}
+            avatarUrl={searchConversation.avatarUrl}
             badge={undefined}
             color={searchConversation.color}
             conversationType={searchConversation.type}
@@ -127,18 +155,18 @@ export const LeftPaneSearchInput = ({
             isMe={searchConversation.isMe}
             noteToSelf={searchConversation.isMe}
             sharedGroupNames={searchConversation.sharedGroupNames}
-            size={AvatarSize.SIXTEEN}
+            size={AvatarSize.TWENTY}
             title={searchConversation.title}
-            unblurredAvatarPath={searchConversation.unblurredAvatarPath}
+            unblurredAvatarUrl={searchConversation.unblurredAvatarUrl}
           />
           <button
-            aria-label={i18n('clearSearch')}
+            aria-label={i18n('icu:clearSearch')}
             className="LeftPaneSearchInput__in-conversation-pill__x-button"
-            onClick={clearAndFocus}
+            onClick={endConversationSearch}
             type="button"
           />
         </div>
       )}
     </SearchInput>
   );
-};
+}

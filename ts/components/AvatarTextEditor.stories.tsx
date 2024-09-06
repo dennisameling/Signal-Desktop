@@ -3,8 +3,8 @@
 
 import React from 'react';
 
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../util/setupI18n';
 import enMessages from '../../_locales/en/messages.json';
 
@@ -21,30 +21,38 @@ const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   onDone: action('onDone'),
 });
 
-const story = storiesOf('Components/AvatarTextEditor', module);
+export default {
+  title: 'Components/AvatarTextEditor',
+} satisfies Meta<PropsType>;
 
-story.add('Empty', () => <AvatarTextEditor {...createProps()} />);
+export function Empty(): JSX.Element {
+  return <AvatarTextEditor {...createProps()} />;
+}
 
-story.add('with Data', () => (
-  <AvatarTextEditor
-    {...createProps({
-      avatarData: {
-        id: '123',
-        color: AvatarColors[6],
-        text: 'SUP',
-      },
-    })}
-  />
-));
+export function WithData(): JSX.Element {
+  return (
+    <AvatarTextEditor
+      {...createProps({
+        avatarData: {
+          id: '123',
+          color: AvatarColors[6],
+          text: 'SUP',
+        },
+      })}
+    />
+  );
+}
 
-story.add('with wide characters', () => (
-  <AvatarTextEditor
-    {...createProps({
-      avatarData: {
-        id: '123',
-        color: AvatarColors[6],
-        text: '‱௸𒈙',
-      },
-    })}
-  />
-));
+export function WithWideCharacters(): JSX.Element {
+  return (
+    <AvatarTextEditor
+      {...createProps({
+        avatarData: {
+          id: '123',
+          color: AvatarColors[6],
+          text: '‱௸𒈙',
+        },
+      })}
+    />
+  );
+}

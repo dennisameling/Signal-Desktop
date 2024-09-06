@@ -8,6 +8,10 @@ export class Bytes {
     return Buffer.from(value, 'base64');
   }
 
+  public fromBase64url(value: string): Uint8Array {
+    return Buffer.from(value, 'base64url');
+  }
+
   public fromHex(value: string): Uint8Array {
     return Buffer.from(value, 'hex');
   }
@@ -23,6 +27,10 @@ export class Bytes {
 
   public toBase64(data: Uint8Array): string {
     return Buffer.from(data).toString('base64');
+  }
+
+  public toBase64url(data: Uint8Array): string {
+    return Buffer.from(data).toString('base64url');
   }
 
   public toHex(data: Uint8Array): string {
@@ -66,5 +74,10 @@ export class Bytes {
     }
 
     return Buffer.compare(a, b) === 0;
+  }
+
+  public readBigUint64BE(value: Uint8Array): bigint {
+    const buffer = Buffer.from(value);
+    return buffer.readBigUint64BE();
   }
 }

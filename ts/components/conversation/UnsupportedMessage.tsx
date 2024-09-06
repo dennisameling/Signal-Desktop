@@ -1,4 +1,4 @@
-// Copyright 2019-2021 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
@@ -6,8 +6,9 @@ import React from 'react';
 import { SystemMessage } from './SystemMessage';
 import { Button, ButtonSize, ButtonVariant } from '../Button';
 import { ContactName } from './ContactName';
-import { Intl } from '../Intl';
+import { I18n } from '../I18n';
 import type { LocalizerType } from '../../types/Util';
+import { openLinkInWebBrowser } from '../../util/openLinkInWebBrowser';
 
 export type ContactType = {
   id: string;
@@ -23,50 +24,65 @@ export type PropsData = {
   contact: ContactType;
 };
 
-export type PropsActions = {
-  downloadNewVersion: () => unknown;
-};
-
 type PropsHousekeeping = {
   i18n: LocalizerType;
 };
 
-export type Props = PropsData & PropsHousekeeping & PropsActions;
+export type Props = PropsData & PropsHousekeeping;
 
-export const UnsupportedMessage = ({
+function UnsupportedMessageContents({ canProcessNow, contact, i18n }: Props) {
+  const { isMe } = contact;
+  const contactName = (
+    <span key="external-1" className="module-unsupported-message__contact">
+      <ContactName
+        title={contact.title}
+        module="module-unsupported-message__contact"
+      />
+    </span>
+  );
+  if (isMe) {
+    if (canProcessNow) {
+      return (
+        <I18n
+          id="icu:Message--unsupported-message-ask-to-resend"
+          components={{ contact: contactName }}
+          i18n={i18n}
+        />
+      );
+    }
+    return <I18n id="icu:Message--from-me-unsupported-message" i18n={i18n} />;
+  }
+  if (canProcessNow) {
+    return (
+      <I18n
+        id="icu:Message--from-me-unsupported-message-ask-to-resend"
+        i18n={i18n}
+      />
+    );
+  }
+  return (
+    <I18n
+      id="icu:Message--unsupported-message"
+      i18n={i18n}
+      components={{
+        contact: contactName,
+      }}
+    />
+  );
+}
+
+export function UnsupportedMessage({
   canProcessNow,
   contact,
   i18n,
-  downloadNewVersion,
-}: Props): JSX.Element => {
-  const { isMe } = contact;
-
-  const otherStringId = canProcessNow
-    ? 'Message--unsupported-message-ask-to-resend'
-    : 'Message--unsupported-message';
-  const meStringId = canProcessNow
-    ? 'Message--from-me-unsupported-message-ask-to-resend'
-    : 'Message--from-me-unsupported-message';
-  const stringId = isMe ? meStringId : otherStringId;
-  const icon = canProcessNow ? 'unsupported--can-process' : 'unsupported';
-
+}: Props): JSX.Element {
   return (
     <SystemMessage
-      icon={icon}
+      icon={canProcessNow ? 'unsupported--can-process' : 'unsupported'}
       contents={
-        <Intl
-          id={stringId}
-          components={[
-            <span
-              key="external-1"
-              className="module-unsupported-message__contact"
-            >
-              <ContactName
-                title={contact.title}
-                module="module-unsupported-message__contact"
-              />
-            </span>,
-          ]}
+        <UnsupportedMessageContents
+          canProcessNow={canProcessNow}
+          contact={contact}
           i18n={i18n}
         />
       }
@@ -75,16 +91,16 @@ export const UnsupportedMessage = ({
           <div className="SystemMessage__line">
             <Button
               onClick={() => {
-                downloadNewVersion();
+                openLinkInWebBrowser('https://signal.org/download');
               }}
               size={ButtonSize.Small}
               variant={ButtonVariant.SystemMessage}
             >
-              {i18n('Message--update-signal')}
+              {i18n('icu:Message--update-signal')}
             </Button>
           </div>
         )
       }
     />
   );
-};
+}

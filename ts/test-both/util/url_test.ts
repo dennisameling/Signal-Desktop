@@ -4,7 +4,11 @@
 import { assert } from 'chai';
 import { size } from '../../util/iterables';
 
-import { maybeParseUrl, setUrlSearchParams } from '../../util/url';
+import {
+  maybeParseUrl,
+  setUrlSearchParams,
+  urlPathFromComponents,
+} from '../../util/url';
 
 describe('URL utilities', () => {
   describe('maybeParseUrl', () => {
@@ -40,8 +44,6 @@ describe('URL utilities', () => {
         number: 123,
         true_bool: true,
         false_bool: false,
-        null_value: null,
-        undefined_value: undefined,
         array: ['ok', 'wow'],
         stringified: { toString: () => 'bar' },
       };
@@ -63,8 +65,6 @@ describe('URL utilities', () => {
       assert.strictEqual(newUrl.searchParams.get('number'), '123');
       assert.strictEqual(newUrl.searchParams.get('true_bool'), 'true');
       assert.strictEqual(newUrl.searchParams.get('false_bool'), 'false');
-      assert.strictEqual(newUrl.searchParams.get('null_value'), '');
-      assert.strictEqual(newUrl.searchParams.get('undefined_value'), '');
       assert.strictEqual(newUrl.searchParams.get('array'), 'ok,wow');
       assert.strictEqual(newUrl.searchParams.get('stringified'), 'bar');
     });
@@ -82,6 +82,20 @@ describe('URL utilities', () => {
 
       params.foo = 'should be ignored';
       assert.strictEqual(newUrl.search, '?foo=bar');
+    });
+  });
+
+  describe('urlPathFromComponents', () => {
+    it('returns / if no components are provided', () => {
+      assert.strictEqual(urlPathFromComponents([]), '/');
+    });
+
+    it('joins components, percent-encoding them and removing empty components', () => {
+      const components = ['foo', '', '~', 'bar / baz qúx'];
+      assert.strictEqual(
+        urlPathFromComponents(components),
+        '/foo/~/bar%20%2F%20baz%20q%C3%BAx'
+      );
     });
   });
 });

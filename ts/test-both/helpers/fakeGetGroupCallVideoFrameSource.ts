@@ -1,7 +1,7 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { VideoFrameSource } from 'ringrtc';
+import type { VideoFrameSource } from '@signalapp/ringrtc';
 
 const COLORS: Array<[number, number, number]> = [
   [0xff, 0x00, 0x00],
@@ -32,7 +32,11 @@ class FakeGroupCallVideoFrameSource implements VideoFrameSource {
     this.dimensions = [width, height];
   }
 
-  receiveVideoFrame(destinationBuffer: Buffer): [number, number] | undefined {
+  receiveVideoFrame(
+    destinationBuffer: Buffer,
+    _maxWidth: number,
+    _maxHeight: number
+  ): [number, number] | undefined {
     // Simulate network jitter. Also improves performance when testing.
     if (Math.random() < 0.5) {
       return undefined;

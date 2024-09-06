@@ -1,11 +1,12 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { differenceWith, omit, partition } from 'lodash';
-import PQueue from 'p-queue';
+import { v4 as generateUuid } from 'uuid';
 
 import {
   ErrorCode,
+  LibSignalErrorBase,
   groupEncrypt,
   ProtocolAddress,
   sealedSenderMultiRecipientEncrypt,
@@ -21,8 +22,11 @@ import {
 } from '../textsecure/OutgoingMessage';
 import { Address } from '../types/Address';
 import { QualifiedAddress } from '../types/QualifiedAddress';
-import { UUID } from '../types/UUID';
-import { isEnabled } from '../RemoteConfig';
+import * as Errors from '../types/errors';
+import { DataWriter } from '../sql/Client';
+import { getValue } from '../RemoteConfig';
+import type { ServiceIdString } from '../types/ServiceId';
+import { ServiceIdKind } from '../types/ServiceId';
 import { isRecord } from './isRecord';
 
 import { isOlderThan } from './timestamp';
@@ -32,15 +36,17 @@ import type {
 } from '../textsecure/SendMessage';
 import {
   ConnectTimeoutError,
+  IncorrectSenderKeyAuthError,
   OutgoingIdentityKeyError,
   SendMessageProtoError,
+  UnknownRecipientError,
   UnregisteredUserError,
 } from '../textsecure/Errors';
 import type { HTTPError } from '../textsecure/Errors';
 import { IdentityKeys, SenderKeys, Sessions } from '../LibSignalStores';
 import type { ConversationModel } from '../models/conversations';
 import type { DeviceType, CallbackResultType } from '../textsecure/Types.d';
-import { getKeysForIdentifier } from '../textsecure/getKeysForIdentifier';
+import { getKeysForServiceId } from '../textsecure/getKeysForServiceId';
 import type {
   ConversationAttributesType,
   SenderKeyInfoType,
@@ -55,19 +61,19 @@ import {
   multiRecipient410ResponseSchema,
 } from '../textsecure/WebAPI';
 import { SignalService as Proto } from '../protobuf';
-import * as RemoteConfig from '../RemoteConfig';
 
 import { strictAssert } from './assert';
 import * as log from '../logging/log';
 import { GLOBAL_ZONE } from '../SignalProtocolStore';
+import { waitForAll } from './waitForAll';
 
+const UNKNOWN_RECIPIENT = 404;
+const INCORRECT_AUTH_KEY = 401;
 const ERROR_EXPIRED_OR_MISSING_DEVICES = 409;
 const ERROR_STALE_DEVICES = 410;
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
-
-const MAX_CONCURRENCY = 5;
 
 // sendWithSenderKey is recursive, but we don't want to loop back too many times.
 const MAX_RECURSION = 10;
@@ -80,7 +86,7 @@ const ZERO_ACCESS_KEY = Bytes.toBase64(new Uint8Array(ACCESS_KEY_LENGTH));
 export type SenderKeyTargetType = {
   getGroupId: () => string | undefined;
   getMembers: () => Array<ConversationModel>;
-  hasMember: (id: string) => boolean;
+  hasMember: (serviceId: ServiceIdString) => boolean;
   idForLogging: () => string;
   isGroupV2: () => boolean;
   isValid: () => boolean;
@@ -90,6 +96,7 @@ export type SenderKeyTargetType = {
 };
 
 export async function sendToGroup({
+  abortSignal,
   contentHint,
   groupSendOptions,
   isPartialSend,
@@ -97,7 +104,10 @@ export async function sendToGroup({
   sendOptions,
   sendTarget,
   sendType,
+  story,
+  urgent,
 }: {
+  abortSignal?: AbortSignal;
   contentHint: number;
   groupSendOptions: GroupSendOptionsType;
   isPartialSend?: boolean;
@@ -105,6 +115,8 @@ export async function sendToGroup({
   sendOptions?: SendOptionsType;
   sendTarget: SenderKeyTargetType;
   sendType: SendTypesType;
+  story?: boolean;
+  urgent: boolean;
 }): Promise<CallbackResultType> {
   strictAssert(
     window.textsecure.messaging,
@@ -117,9 +129,14 @@ export async function sendToGroup({
   // First, do the attachment upload and prepare the proto we'll be sending
   const protoAttributes =
     window.textsecure.messaging.getAttrsFromGroupOptions(groupSendOptions);
-  const contentMessage = await window.textsecure.messaging.getContentMessage(
-    protoAttributes
-  );
+  const contentMessage =
+    await window.textsecure.messaging.getContentMessage(protoAttributes);
+
+  // Attachment upload might take too long to succeed - we don't want to proceed
+  // with the send if the caller aborted this call.
+  if (abortSignal?.aborted) {
+    throw new Error('sendToGroup was aborted');
+  }
 
   return sendContentMessageToGroup({
     contentHint,
@@ -130,10 +147,13 @@ export async function sendToGroup({
     sendOptions,
     sendTarget,
     sendType,
+    story,
     timestamp,
+    urgent,
   });
 }
 
+// Note: This is the group send chokepoint. The 1:1 send chokepoint is sendMessageProto.
 export async function sendContentMessageToGroup({
   contentHint,
   contentMessage,
@@ -144,35 +164,42 @@ export async function sendContentMessageToGroup({
   sendOptions,
   sendTarget,
   sendType,
+  story,
   timestamp,
+  urgent,
 }: {
   contentHint: number;
   contentMessage: Proto.Content;
   isPartialSend?: boolean;
   messageId: string | undefined;
   online?: boolean;
-  recipients: Array<string>;
+  recipients: ReadonlyArray<ServiceIdString>;
   sendOptions?: SendOptionsType;
   sendTarget: SenderKeyTargetType;
   sendType: SendTypesType;
+  story?: boolean;
   timestamp: number;
+  urgent: boolean;
 }): Promise<CallbackResultType> {
   const logId = sendTarget.idForLogging();
+
+  const accountManager = window.getAccountManager();
+  if (accountManager.areKeysOutOfDate(ServiceIdKind.ACI)) {
+    log.warn(
+      `sendToGroup/${logId}: Keys are out of date; updating before send`
+    );
+    await accountManager.maybeUpdateKeys(ServiceIdKind.ACI);
+    if (accountManager.areKeysOutOfDate(ServiceIdKind.ACI)) {
+      throw new Error('Keys still out of date after update');
+    }
+  }
+
   strictAssert(
     window.textsecure.messaging,
     'sendContentMessageToGroup: textsecure.messaging not available!'
   );
 
-  const ourConversationId =
-    window.ConversationController.getOurConversationIdOrThrow();
-  const ourConversation = window.ConversationController.get(ourConversationId);
-
-  if (
-    isEnabled('desktop.sendSenderKey3') &&
-    ourConversation?.get('capabilities')?.senderKey &&
-    RemoteConfig.isEnabled('desktop.senderKey.send') &&
-    sendTarget.isValid()
-  ) {
+  if (sendTarget.isValid()) {
     try {
       return await sendToGroupViaSenderKey({
         contentHint,
@@ -185,7 +212,9 @@ export async function sendContentMessageToGroup({
         sendOptions,
         sendTarget,
         sendType,
+        story,
         timestamp,
+        urgent,
       });
     } catch (error: unknown) {
       if (!(error instanceof Error)) {
@@ -198,7 +227,7 @@ export async function sendContentMessageToGroup({
 
       log.error(
         `sendToGroup/${logId}: Sender Key send failed, logging, proceeding to normal send`,
-        error && error.stack ? error.stack : error
+        Errors.toLogFormat(error)
       );
     }
   }
@@ -209,6 +238,8 @@ export async function sendContentMessageToGroup({
     proto: Buffer.from(Proto.Content.encode(contentMessage).finish()),
     sendType,
     timestamp,
+    urgent,
+    hasPniSignatureMessage: false,
   });
   const groupId = sendTarget.isGroupV2() ? sendTarget.getGroupId() : undefined;
   return window.textsecure.messaging.sendGroupProto({
@@ -218,7 +249,9 @@ export async function sendContentMessageToGroup({
     proto: contentMessage,
     recipients,
     sendLogCallback,
+    story,
     timestamp,
+    urgent,
   });
 }
 
@@ -230,12 +263,14 @@ export async function sendToGroupViaSenderKey(options: {
   isPartialSend?: boolean;
   messageId: string | undefined;
   online?: boolean;
-  recipients: Array<string>;
+  recipients: ReadonlyArray<ServiceIdString>;
   recursionCount: number;
   sendOptions?: SendOptionsType;
   sendTarget: SenderKeyTargetType;
   sendType: SendTypesType;
+  story?: boolean;
   timestamp: number;
+  urgent: boolean;
 }): Promise<CallbackResultType> {
   const {
     contentHint,
@@ -248,7 +283,9 @@ export async function sendToGroupViaSenderKey(options: {
     sendOptions,
     sendTarget,
     sendType,
+    story,
     timestamp,
+    urgent,
   } = options;
   const { ContentHint } = Proto.UnidentifiedSenderMessage.Message;
 
@@ -297,7 +334,7 @@ export async function sendToGroupViaSenderKey(options: {
     );
     await sendTarget.saveSenderKeyInfo({
       createdAtDate: Date.now(),
-      distributionId: UUID.generate().toString(),
+      distributionId: generateUuid(),
       memberDevices: [],
     });
 
@@ -322,21 +359,18 @@ export async function sendToGroupViaSenderKey(options: {
   }
 
   // 2. Fetch all devices we believe we'll be sending to
-  const ourUuid = window.textsecure.storage.user.getCheckedUuid();
-  const { devices: currentDevices, emptyIdentifiers } =
-    await window.textsecure.storage.protocol.getOpenDevices(
-      ourUuid,
-      recipients
-    );
+  const ourAci = window.textsecure.storage.user.getCheckedAci();
+  const { devices: currentDevices, emptyServiceIds } =
+    await window.textsecure.storage.protocol.getOpenDevices(ourAci, recipients);
 
   // 3. If we have no open sessions with people we believe we are sending to, and we
   //   believe that any have signal accounts, fetch their prekey bundle and start
   //   sessions with them.
   if (
-    emptyIdentifiers.length > 0 &&
-    emptyIdentifiers.some(isIdentifierRegistered)
+    emptyServiceIds.length > 0 &&
+    emptyServiceIds.some(isServiceIdRegistered)
   ) {
-    await fetchKeysForIdentifiers(emptyIdentifiers);
+    await fetchKeysForServiceIds(emptyServiceIds);
 
     // Restart here to capture devices for accounts we just started sessions with
     return sendToGroupViaSenderKey({
@@ -351,11 +385,11 @@ export async function sendToGroupViaSenderKey(options: {
   // 4. Partition devices into sender key and non-sender key groups
   const [devicesForSenderKey, devicesForNormalSend] = partition(
     currentDevices,
-    device => isValidSenderKeyRecipient(memberSet, device.identifier)
+    device => isValidSenderKeyRecipient(memberSet, device.serviceId, { story })
   );
 
-  const senderKeyRecipients = getUuidsFromDevices(devicesForSenderKey);
-  const normalSendRecipients = getUuidsFromDevices(devicesForNormalSend);
+  const senderKeyRecipients = getServiceIdsFromDevices(devicesForSenderKey);
+  const normalSendRecipients = getServiceIdsFromDevices(devicesForNormalSend);
   log.info(
     `sendToGroupViaSenderKey/${logId}:` +
       ` ${senderKeyRecipients.length} accounts for sender key (${devicesForSenderKey.length} devices),` +
@@ -372,9 +406,9 @@ export async function sendToGroupViaSenderKey(options: {
   // 6. Analyze target devices for sender key, determine which have been added or removed
   const {
     newToMemberDevices,
-    newToMemberUuids,
+    newToMemberServiceIds,
     removedFromMemberDevices,
-    removedFromMemberUuids,
+    removedFromMemberServiceIds,
   } = _analyzeSenderKeyDevices(
     memberDevices,
     devicesForSenderKey,
@@ -383,8 +417,8 @@ export async function sendToGroupViaSenderKey(options: {
 
   // 7. If members have been removed from the group, we need to reset our sender key, then
   //   start over to get a fresh set of target devices.
-  const keyNeedsReset = Array.from(removedFromMemberUuids).some(
-    uuid => !sendTarget.hasMember(uuid)
+  const keyNeedsReset = Array.from(removedFromMemberServiceIds).some(
+    serviceId => !sendTarget.hasMember(serviceId)
   );
   if (keyNeedsReset) {
     await resetSenderKey(sendTarget);
@@ -399,24 +433,40 @@ export async function sendToGroupViaSenderKey(options: {
 
   // 8. If there are new members or new devices in the group, we need to ensure that they
   //   have our sender key before we send sender key messages to them.
-  if (newToMemberUuids.length > 0) {
+  if (newToMemberServiceIds.length > 0) {
     log.info(
       `sendToGroupViaSenderKey/${logId}: Sending sender key to ${
-        newToMemberUuids.length
-      } members: ${JSON.stringify(newToMemberUuids)}`
+        newToMemberServiceIds.length
+      } members: ${JSON.stringify(newToMemberServiceIds)}`
     );
-    await handleMessageSend(
-      window.textsecure.messaging.sendSenderKeyDistributionMessage(
-        {
-          contentHint: ContentHint.RESENDABLE,
-          distributionId,
-          groupId,
-          identifiers: newToMemberUuids,
-        },
-        sendOptions ? { ...sendOptions, online: false } : undefined
-      ),
-      { messageIds: [], sendType: 'senderKeyDistributionMessage' }
-    );
+    try {
+      await handleMessageSend(
+        window.textsecure.messaging.sendSenderKeyDistributionMessage(
+          {
+            contentHint,
+            distributionId,
+            groupId,
+            serviceIds: newToMemberServiceIds,
+            // SKDMs should only have story=true if we're sending to a distribution list
+            story: sendTarget.getGroupId() ? false : story,
+            urgent,
+          },
+          sendOptions ? { ...sendOptions, online: false } : undefined
+        ),
+        { messageIds: [], sendType: 'senderKeyDistributionMessage' }
+      );
+    } catch (error) {
+      // If we partially fail to send the sender key distribution message (SKDM), we don't
+      //   want the successful SKDM sends to be considered an overall success.
+      if (error instanceof SendMessageProtoError) {
+        throw new SendMessageProtoError({
+          ...error,
+          sendIsNotFinal: true,
+        });
+      }
+
+      throw error;
+    }
 
     // Update memberDevices with new devices
     const updatedMemberDevices = [...memberDevices, ...newToMemberDevices];
@@ -457,11 +507,14 @@ export async function sendToGroupViaSenderKey(options: {
 
   // 10. Send the Sender Key message!
   let sendLogId: number;
-  let senderKeyRecipientsWithDevices: Record<string, Array<number>> = {};
+  let senderKeyRecipientsWithDevices: Record<
+    ServiceIdString,
+    Array<number>
+  > = {};
   devicesForSenderKey.forEach(item => {
-    const { id, identifier } = item;
-    senderKeyRecipientsWithDevices[identifier] ||= [];
-    senderKeyRecipientsWithDevices[identifier].push(id);
+    const { id, serviceId } = item;
+    senderKeyRecipientsWithDevices[serviceId] ||= [];
+    senderKeyRecipientsWithDevices[serviceId].push(id);
   });
 
   try {
@@ -472,22 +525,22 @@ export async function sendToGroupViaSenderKey(options: {
       contentMessage: Proto.Content.encode(contentMessage).finish(),
       groupId,
     });
-    const accessKeys = getXorOfAccessKeys(devicesForSenderKey);
+    const accessKeys = getXorOfAccessKeys(devicesForSenderKey, { story });
 
-    const result = await window.textsecure.messaging.sendWithSenderKey(
+    const result = await window.textsecure.messaging.server.sendWithSenderKey(
       messageBuffer,
       accessKeys,
       timestamp,
-      online
+      { online, story, urgent }
     );
 
     const parsed = multiRecipient200ResponseSchema.safeParse(result);
     if (parsed.success) {
       const { uuids404 } = parsed.data;
       if (uuids404 && uuids404.length > 0) {
-        await _waitForAll({
+        await waitForAll({
           tasks: uuids404.map(
-            uuid => async () => markIdentifierUnregistered(uuid)
+            serviceId => async () => markServiceIdUnregistered(serviceId)
           ),
         });
       }
@@ -505,11 +558,13 @@ export async function sendToGroupViaSenderKey(options: {
     }
 
     if (shouldSaveProto(sendType)) {
-      sendLogId = await window.Signal.Data.insertSentProto(
+      sendLogId = await DataWriter.insertSentProto(
         {
           contentHint,
           proto: Buffer.from(Proto.Content.encode(contentMessage).finish()),
           timestamp,
+          urgent,
+          hasPniSignatureMessage: false,
         },
         {
           recipients: senderKeyRecipientsWithDevices,
@@ -518,6 +573,13 @@ export async function sendToGroupViaSenderKey(options: {
       );
     }
   } catch (error) {
+    if (error.code === UNKNOWN_RECIPIENT) {
+      throw new UnknownRecipientError();
+    }
+    if (error.code === INCORRECT_AUTH_KEY) {
+      throw new IncorrectSenderKeyAuthError();
+    }
+
     if (error.code === ERROR_EXPIRED_OR_MISSING_DEVICES) {
       await handle409Response(logId, error);
 
@@ -537,7 +599,10 @@ export async function sendToGroupViaSenderKey(options: {
         recursionCount: recursionCount + 1,
       });
     }
-    if (error.code === ErrorCode.InvalidRegistrationId && error.addr) {
+    if (
+      error instanceof LibSignalErrorBase &&
+      error.code === ErrorCode.InvalidRegistrationId
+    ) {
       const address = error.addr as ProtocolAddress;
       const name = address.name();
 
@@ -547,7 +612,7 @@ export async function sendToGroupViaSenderKey(options: {
           `sendToGroupViaSenderKey/${logId}: Disabling sealed sender for ${brokenAccount.idForLogging()}`
         );
         brokenAccount.set({ sealedSender: SEALED_SENDER.DISABLED });
-        window.Signal.Data.updateConversation(brokenAccount.attributes);
+        await DataWriter.updateConversation(brokenAccount.attributes);
 
         // Now that we've eliminate this problematic account, we can try the send again.
         return sendToGroupViaSenderKey({
@@ -557,11 +622,13 @@ export async function sendToGroupViaSenderKey(options: {
       }
     }
 
-    throw new Error(
-      `sendToGroupViaSenderKey/${logId}: Returned unexpected error ${
+    log.error(
+      `sendToGroupViaSenderKey/${logId}: Returned unexpected error code: ${
         error.code
-      }. Failing over. ${error.stack || error}`
+      }, error class: ${typeof error}`
     );
+
+    throw error;
   }
 
   // 11. Return early if there are no normal send recipients
@@ -570,13 +637,17 @@ export async function sendToGroupViaSenderKey(options: {
       dataMessage: contentMessage.dataMessage
         ? Proto.DataMessage.encode(contentMessage.dataMessage).finish()
         : undefined,
-      successfulIdentifiers: senderKeyRecipients,
+      editMessage: contentMessage.editMessage
+        ? Proto.EditMessage.encode(contentMessage.editMessage).finish()
+        : undefined,
+      successfulServiceIds: senderKeyRecipients,
       unidentifiedDeliveries: senderKeyRecipients,
 
       contentHint,
       timestamp,
       contentProto: Buffer.from(Proto.Content.encode(contentMessage).finish()),
       recipients: senderKeyRecipientsWithDevices,
+      urgent,
     };
   }
 
@@ -586,34 +657,34 @@ export async function sendToGroupViaSenderKey(options: {
   // We don't want to use a normal send log callback here, because the proto has already
   //   been saved as part of the Sender Key send. We're just adding recipients here.
   const sendLogCallback: SendLogCallbackType = async ({
-    identifier,
+    serviceId,
     deviceIds,
   }: {
-    identifier: string;
+    serviceId: ServiceIdString;
     deviceIds: Array<number>;
   }) => {
     if (!shouldSaveProto(sendType)) {
       return;
     }
 
-    const sentToConversation = window.ConversationController.get(identifier);
+    const sentToConversation = window.ConversationController.get(serviceId);
     if (!sentToConversation) {
       log.warn(
-        `sendToGroupViaSenderKey/callback: Unable to find conversation for identifier ${identifier}`
+        `sendToGroupViaSenderKey/callback: Unable to find conversation for serviceId ${serviceId}`
       );
       return;
     }
-    const recipientUuid = sentToConversation.get('uuid');
-    if (!recipientUuid) {
+    const recipientServiceId = sentToConversation.getServiceId();
+    if (!recipientServiceId) {
       log.warn(
-        `sendToGroupViaSenderKey/callback: Conversation ${sentToConversation.idForLogging()} had no UUID`
+        `sendToGroupViaSenderKey/callback: Conversation ${sentToConversation.idForLogging()} had no service id`
       );
       return;
     }
 
-    await window.Signal.Data.insertProtoRecipients({
+    await DataWriter.insertProtoRecipients({
       id: sendLogId,
-      recipientUuid,
+      recipientServiceId,
       deviceIds,
     });
   };
@@ -627,6 +698,7 @@ export async function sendToGroupViaSenderKey(options: {
       recipients: normalSendRecipients,
       sendLogCallback,
       timestamp,
+      urgent,
     });
 
     return mergeSendResult({
@@ -648,6 +720,37 @@ export async function sendToGroupViaSenderKey(options: {
   }
 }
 
+// Public utility methods
+
+export async function resetSenderKey(
+  sendTarget: SenderKeyTargetType
+): Promise<void> {
+  const logId = sendTarget.idForLogging();
+
+  log.info(`resetSenderKey/${logId}: Sender key needs reset. Clearing data...`);
+  const senderKeyInfo = sendTarget.getSenderKeyInfo();
+  if (!senderKeyInfo) {
+    log.warn(`resetSenderKey/${logId}: No sender key info`);
+    return;
+  }
+
+  const { distributionId } = senderKeyInfo;
+  const ourAddress = getOurAddress();
+
+  // Note: We preserve existing distributionId to minimize space for sender key storage
+  await sendTarget.saveSenderKeyInfo({
+    createdAtDate: Date.now(),
+    distributionId,
+    memberDevices: [],
+  });
+
+  const ourAci = window.storage.user.getCheckedAci();
+  await window.textsecure.storage.protocol.removeSenderKey(
+    new QualifiedAddress(ourAci, ourAddress),
+    distributionId
+  );
+}
+
 // Utility Methods
 
 function mergeSendResult({
@@ -656,13 +759,13 @@ function mergeSendResult({
   senderKeyRecipientsWithDevices,
 }: {
   result: CallbackResultType | SendMessageProtoError;
-  senderKeyRecipients: Array<string>;
-  senderKeyRecipientsWithDevices: Record<string, Array<number>>;
+  senderKeyRecipients: Array<ServiceIdString>;
+  senderKeyRecipientsWithDevices: Record<ServiceIdString, Array<number>>;
 }): CallbackResultType {
   return {
     ...result,
-    successfulIdentifiers: [
-      ...(result.successfulIdentifiers || []),
+    successfulServiceIds: [
+      ...(result.successfulServiceIds || []),
       ...senderKeyRecipients,
     ],
     unidentifiedDeliveries: [
@@ -681,7 +784,7 @@ const MAX_SENDER_KEY_EXPIRE_DURATION = 90 * DAY;
 function getSenderKeyExpireDuration(): number {
   try {
     const parsed = parseIntOrThrow(
-      window.Signal.RemoteConfig.getValue('desktop.senderKeyMaxAge'),
+      getValue('desktop.senderKeyMaxAge'),
       'getSenderKeyExpireDuration'
     );
 
@@ -694,7 +797,7 @@ function getSenderKeyExpireDuration(): number {
   } catch (error) {
     log.warn(
       `getSenderKeyExpireDuration: Failed to parse integer. Using default of ${MAX_SENDER_KEY_EXPIRE_DURATION}.`,
-      error && error.stack ? error.stack : error
+      Errors.toLogFormat(error)
     );
     return MAX_SENDER_KEY_EXPIRE_DURATION;
   }
@@ -705,7 +808,18 @@ export function _shouldFailSend(error: unknown, logId: string): boolean {
     log.error(`_shouldFailSend/${logId}: ${message}`);
   };
 
-  if (error instanceof Error && error.message.includes('untrusted identity')) {
+  // We need to fail over to a normal send if multi_recipient/ endpoint returns 404 or 401
+  if (error instanceof UnknownRecipientError) {
+    return false;
+  }
+  if (error instanceof IncorrectSenderKeyAuthError) {
+    return false;
+  }
+
+  if (
+    error instanceof LibSignalErrorBase &&
+    error.code === ErrorCode.UntrustedIdentity
+  ) {
     logError("'untrusted identity' error, failing.");
     return true;
   }
@@ -732,13 +846,18 @@ export function _shouldFailSend(error: unknown, logId: string): boolean {
   //   SendMessageChallengeError
   //   MessageError
   if (isRecord(error) && typeof error.code === 'number') {
-    if (error.code === 401) {
-      logError('Permissions error, failing.');
+    if (error.code === -1) {
+      logError("We don't have connectivity. Failing.");
+      return true;
+    }
+
+    if (error.code === 400) {
+      logError('Invalid request, failing.');
       return true;
     }
 
     if (error.code === 404) {
-      logError('Missing user or endpoint error, failing.');
+      logError('Failed to fetch metadata before send, failing.');
       return true;
     }
 
@@ -765,7 +884,14 @@ export function _shouldFailSend(error: unknown, logId: string): boolean {
 
   if (error instanceof SendMessageProtoError) {
     if (!error.errors || !error.errors.length) {
-      logError('SendMessageProtoError had no errors, failing.');
+      logError('SendMessageProtoError had no errors but was thrown! Failing.');
+      return true;
+    }
+
+    if (error.successfulServiceIds && error.successfulServiceIds.length > 0) {
+      logError(
+        'SendMessageProtoError had successful sends; no further sends needed. Failing.'
+      );
       return true;
     }
 
@@ -780,53 +906,31 @@ export function _shouldFailSend(error: unknown, logId: string): boolean {
   return false;
 }
 
-export async function _waitForAll<T>({
-  tasks,
-  maxConcurrency = MAX_CONCURRENCY,
-}: {
-  tasks: Array<() => Promise<T>>;
-  maxConcurrency?: number;
-}): Promise<Array<T>> {
-  const queue = new PQueue({
-    concurrency: maxConcurrency,
-    timeout: 2 * 60 * 1000,
-    throwOnTimeout: true,
-  });
-  return queue.addAll(tasks);
-}
-
-function getRecipients(options: GroupSendOptionsType): Array<string> {
+function getRecipients(
+  options: GroupSendOptionsType
+): ReadonlyArray<ServiceIdString> {
   if (options.groupV2) {
     return options.groupV2.members;
-  }
-  if (options.groupV1) {
-    return options.groupV1.members;
   }
 
   throw new Error('getRecipients: Unable to extract recipients!');
 }
 
-async function markIdentifierUnregistered(identifier: string) {
+async function markServiceIdUnregistered(serviceId: ServiceIdString) {
   const conversation = window.ConversationController.getOrCreate(
-    identifier,
+    serviceId,
     'private'
   );
 
   conversation.setUnregistered();
-  window.Signal.Data.updateConversation(conversation.attributes);
+  await DataWriter.updateConversation(conversation.attributes);
 
-  const uuid = UUID.lookup(identifier);
-  if (!uuid) {
-    log.warn(`No uuid found for ${identifier}`);
-    return;
-  }
-
-  await window.textsecure.storage.protocol.archiveAllSessions(uuid);
+  await window.textsecure.storage.protocol.archiveAllSessions(serviceId);
 }
 
-function isIdentifierRegistered(identifier: string) {
+function isServiceIdRegistered(serviceId: ServiceIdString) {
   const conversation = window.ConversationController.getOrCreate(
-    identifier,
+    serviceId,
     'private'
   );
   const isUnregistered = conversation.isUnregistered();
@@ -837,22 +941,22 @@ function isIdentifierRegistered(identifier: string) {
 async function handle409Response(logId: string, error: HTTPError) {
   const parsed = multiRecipient409ResponseSchema.safeParse(error.response);
   if (parsed.success) {
-    await _waitForAll({
+    await waitForAll({
       tasks: parsed.data.map(item => async () => {
         const { uuid, devices } = item;
         // Start new sessions with devices we didn't know about before
         if (devices.missingDevices && devices.missingDevices.length > 0) {
-          await fetchKeysForIdentifier(uuid, devices.missingDevices);
+          await fetchKeysForServiceId(uuid, devices.missingDevices);
         }
 
         // Archive sessions with devices that have been removed
         if (devices.extraDevices && devices.extraDevices.length > 0) {
-          const ourUuid = window.textsecure.storage.user.getCheckedUuid();
+          const ourAci = window.textsecure.storage.user.getCheckedAci();
 
-          await _waitForAll({
+          await waitForAll({
             tasks: devices.extraDevices.map(deviceId => async () => {
               await window.textsecure.storage.protocol.archiveSession(
-                new QualifiedAddress(ourUuid, Address.create(uuid, deviceId))
+                new QualifiedAddress(ourAci, Address.create(uuid, deviceId))
               );
             }),
           });
@@ -878,30 +982,30 @@ async function handle410Response(
 
   const parsed = multiRecipient410ResponseSchema.safeParse(error.response);
   if (parsed.success) {
-    await _waitForAll({
+    await waitForAll({
       tasks: parsed.data.map(item => async () => {
         const { uuid, devices } = item;
         if (devices.staleDevices && devices.staleDevices.length > 0) {
-          const ourUuid = window.textsecure.storage.user.getCheckedUuid();
+          const ourAci = window.textsecure.storage.user.getCheckedAci();
 
           // First, archive our existing sessions with these devices
-          await _waitForAll({
+          await waitForAll({
             tasks: devices.staleDevices.map(deviceId => async () => {
               await window.textsecure.storage.protocol.archiveSession(
-                new QualifiedAddress(ourUuid, Address.create(uuid, deviceId))
+                new QualifiedAddress(ourAci, Address.create(uuid, deviceId))
               );
             }),
           });
 
           // Start new sessions with these devices
-          await fetchKeysForIdentifier(uuid, devices.staleDevices);
+          await fetchKeysForServiceId(uuid, devices.staleDevices);
 
           // Forget that we've sent our sender key to these devices, since they've
           //   been re-registered or re-linked.
           const senderKeyInfo = sendTarget.getSenderKeyInfo();
           if (senderKeyInfo) {
             const devicesToRemove: Array<PartialDeviceType> =
-              devices.staleDevices.map(id => ({ id, identifier: uuid }));
+              devices.staleDevices.map(id => ({ id, serviceId: uuid }));
             await sendTarget.saveSenderKeyInfo({
               ...senderKeyInfo,
               memberDevices: differenceWith(
@@ -925,8 +1029,11 @@ async function handle410Response(
   }
 }
 
-function getXorOfAccessKeys(devices: Array<DeviceType>): Buffer {
-  const uuids = getUuidsFromDevices(devices);
+function getXorOfAccessKeys(
+  devices: Array<DeviceType>,
+  { story }: { story?: boolean } = {}
+): Buffer {
+  const uuids = getServiceIdsFromDevices(devices);
 
   const result = Buffer.alloc(ACCESS_KEY_LENGTH);
   strictAssert(
@@ -942,7 +1049,7 @@ function getXorOfAccessKeys(devices: Array<DeviceType>): Buffer {
       );
     }
 
-    const accessKey = getAccessKey(conversation.attributes);
+    const accessKey = getAccessKey(conversation.attributes, { story });
     if (!accessKey) {
       throw new Error(`getXorOfAccessKeys: No accessKey for UUID ${uuid}`);
     }
@@ -976,7 +1083,7 @@ async function encryptForSenderKey({
   distributionId: string;
   groupId?: string;
 }): Promise<Buffer> {
-  const ourUuid = window.textsecure.storage.user.getCheckedUuid();
+  const ourAci = window.textsecure.storage.user.getCheckedAci();
   const ourDeviceId = window.textsecure.storage.user.getDeviceId();
   if (!ourDeviceId) {
     throw new Error(
@@ -985,16 +1092,19 @@ async function encryptForSenderKey({
   }
 
   const sender = ProtocolAddress.new(
-    ourUuid.toString(),
+    ourAci,
     parseIntOrThrow(ourDeviceId, 'encryptForSenderKey, ourDeviceId')
   );
   const ourAddress = getOurAddress();
-  const senderKeyStore = new SenderKeys({ ourUuid, zone: GLOBAL_ZONE });
+  const senderKeyStore = new SenderKeys({
+    ourServiceId: ourAci,
+    zone: GLOBAL_ZONE,
+  });
   const message = Buffer.from(padMessage(contentMessage));
 
   const ciphertextMessage =
     await window.textsecure.storage.protocol.enqueueSenderKeyJob(
-      new QualifiedAddress(ourUuid, ourAddress),
+      new QualifiedAddress(ourAci, ourAddress),
       () => groupEncrypt(sender, distributionId, senderKeyStore, message)
     );
 
@@ -1019,24 +1129,21 @@ async function encryptForSenderKey({
   const recipients = devices
     .slice()
     .sort((a, b): number => {
-      if (a.identifier === b.identifier) {
+      if (a.serviceId === b.serviceId) {
         return 0;
       }
 
-      if (a.identifier < b.identifier) {
+      if (a.serviceId < b.serviceId) {
         return -1;
       }
 
       return 1;
     })
     .map(device => {
-      return ProtocolAddress.new(
-        UUID.checkedLookup(device.identifier).toString(),
-        device.id
-      );
+      return ProtocolAddress.new(device.serviceId, device.id);
     });
-  const identityKeyStore = new IdentityKeys({ ourUuid });
-  const sessionStore = new Sessions({ ourUuid });
+  const identityKeyStore = new IdentityKeys({ ourServiceId: ourAci });
+  const sessionStore = new Sessions({ ourServiceId: ourAci });
   return sealedSenderMultiRecipientEncrypt(
     content,
     recipients,
@@ -1047,34 +1154,30 @@ async function encryptForSenderKey({
 
 function isValidSenderKeyRecipient(
   members: Set<ConversationModel>,
-  uuid: string
+  serviceId: ServiceIdString,
+  { story }: { story?: boolean } = {}
 ): boolean {
-  const memberConversation = window.ConversationController.get(uuid);
+  const memberConversation = window.ConversationController.get(serviceId);
   if (!memberConversation) {
     log.warn(
-      `isValidSenderKeyRecipient: Missing conversation model for member ${uuid}`
+      `isValidSenderKeyRecipient: Missing conversation model for member ${serviceId}`
     );
     return false;
   }
 
   if (!members.has(memberConversation)) {
     log.info(
-      `isValidSenderKeyRecipient: Sending to ${uuid}, not a group member`
+      `isValidSenderKeyRecipient: Sending to ${serviceId}, not a group member`
     );
     return false;
   }
 
-  const capabilities = memberConversation.get('capabilities');
-  if (!capabilities?.senderKey) {
-    return false;
-  }
-
-  if (!getAccessKey(memberConversation.attributes)) {
+  if (!getAccessKey(memberConversation.attributes, { story })) {
     return false;
   }
 
   if (memberConversation.isUnregistered()) {
-    log.warn(`isValidSenderKeyRecipient: Member ${uuid} is unregistered`);
+    log.warn(`isValidSenderKeyRecipient: Member ${serviceId} is unregistered`);
     return false;
   }
 
@@ -1086,7 +1189,7 @@ function deviceComparator(left?: DeviceType, right?: DeviceType): boolean {
     left &&
       right &&
       left.id === right.id &&
-      left.identifier === right.identifier &&
+      left.serviceId === right.serviceId &&
       left.registrationId === right.registrationId
   );
 }
@@ -1098,20 +1201,14 @@ function partialDeviceComparator(
   right?: PartialDeviceType
 ): boolean {
   return Boolean(
-    left &&
-      right &&
-      left.id === right.id &&
-      left.identifier === right.identifier
+    left && right && left.id === right.id && left.serviceId === right.serviceId
   );
 }
 
-function getUuidsFromDevices(devices: Array<DeviceType>): Array<string> {
-  const uuids = new Set<string>();
-  devices.forEach(device => {
-    uuids.add(device.identifier);
-  });
-
-  return Array.from(uuids);
+function getServiceIdsFromDevices(
+  devices: Array<DeviceType>
+): Array<ServiceIdString> {
+  return [...new Set(devices.map(({ serviceId }) => serviceId))];
 }
 
 export function _analyzeSenderKeyDevices(
@@ -1120,24 +1217,24 @@ export function _analyzeSenderKeyDevices(
   isPartialSend?: boolean
 ): {
   newToMemberDevices: Array<DeviceType>;
-  newToMemberUuids: Array<string>;
+  newToMemberServiceIds: Array<ServiceIdString>;
   removedFromMemberDevices: Array<DeviceType>;
-  removedFromMemberUuids: Array<string>;
+  removedFromMemberServiceIds: Array<ServiceIdString>;
 } {
   const newToMemberDevices = differenceWith<DeviceType, DeviceType>(
     devicesForSend,
     memberDevices,
     deviceComparator
   );
-  const newToMemberUuids = getUuidsFromDevices(newToMemberDevices);
+  const newToMemberServiceIds = getServiceIdsFromDevices(newToMemberDevices);
 
   // If this is a partial send, we won't do anything with device removals
   if (isPartialSend) {
     return {
       newToMemberDevices,
-      newToMemberUuids,
+      newToMemberServiceIds,
       removedFromMemberDevices: [],
-      removedFromMemberUuids: [],
+      removedFromMemberServiceIds: [],
     };
   }
 
@@ -1146,133 +1243,122 @@ export function _analyzeSenderKeyDevices(
     devicesForSend,
     deviceComparator
   );
-  const removedFromMemberUuids = getUuidsFromDevices(removedFromMemberDevices);
+  const removedFromMemberServiceIds = getServiceIdsFromDevices(
+    removedFromMemberDevices
+  );
 
   return {
     newToMemberDevices,
-    newToMemberUuids,
+    newToMemberServiceIds,
     removedFromMemberDevices,
-    removedFromMemberUuids,
+    removedFromMemberServiceIds,
   };
 }
 
 function getOurAddress(): Address {
-  const ourUuid = window.textsecure.storage.user.getCheckedUuid();
+  const ourAci = window.textsecure.storage.user.getCheckedAci();
   const ourDeviceId = window.textsecure.storage.user.getDeviceId();
   if (!ourDeviceId) {
     throw new Error('getOurAddress: Unable to fetch our deviceId');
   }
-  return new Address(ourUuid, ourDeviceId);
-}
-
-async function resetSenderKey(sendTarget: SenderKeyTargetType): Promise<void> {
-  const logId = sendTarget.idForLogging();
-
-  log.info(`resetSenderKey/${logId}: Sender key needs reset. Clearing data...`);
-  const senderKeyInfo = sendTarget.getSenderKeyInfo();
-  if (!senderKeyInfo) {
-    log.warn(`resetSenderKey/${logId}: No sender key info`);
-    return;
-  }
-
-  const { distributionId } = senderKeyInfo;
-  const ourAddress = getOurAddress();
-
-  // Note: We preserve existing distributionId to minimize space for sender key storage
-  await sendTarget.saveSenderKeyInfo({
-    createdAtDate: Date.now(),
-    distributionId,
-    memberDevices: [],
-  });
-
-  const ourUuid = window.storage.user.getCheckedUuid();
-  await window.textsecure.storage.protocol.removeSenderKey(
-    new QualifiedAddress(ourUuid, ourAddress),
-    distributionId
-  );
+  return new Address(ourAci, ourDeviceId);
 }
 
 function getAccessKey(
-  attributes: ConversationAttributesType
+  attributes: ConversationAttributesType,
+  { story }: { story?: boolean }
 ): string | undefined {
   const { sealedSender, accessKey } = attributes;
+
+  if (story) {
+    return accessKey || ZERO_ACCESS_KEY;
+  }
 
   if (sealedSender === SEALED_SENDER.ENABLED) {
     return accessKey || undefined;
   }
 
-  if (
-    sealedSender === SEALED_SENDER.UNKNOWN ||
-    sealedSender === SEALED_SENDER.UNRESTRICTED
-  ) {
+  if (sealedSender === SEALED_SENDER.UNKNOWN) {
+    return accessKey || ZERO_ACCESS_KEY;
+  }
+
+  if (sealedSender === SEALED_SENDER.UNRESTRICTED) {
     return ZERO_ACCESS_KEY;
   }
 
   return undefined;
 }
 
-async function fetchKeysForIdentifiers(
-  identifiers: Array<string>
+async function fetchKeysForServiceIds(
+  serviceIds: Array<ServiceIdString>
 ): Promise<void> {
   log.info(
-    `fetchKeysForIdentifiers: Fetching keys for ${identifiers.length} identifiers`
+    `fetchKeysForServiceIds: Fetching keys for ${serviceIds.length} serviceIds`
   );
 
   try {
-    await _waitForAll({
-      tasks: identifiers.map(
-        identifier => async () => fetchKeysForIdentifier(identifier)
+    await waitForAll({
+      tasks: serviceIds.map(
+        serviceId => async () => fetchKeysForServiceId(serviceId)
       ),
     });
   } catch (error) {
     log.error(
-      'fetchKeysForIdentifiers: Failed to fetch keys:',
-      error && error.stack ? error.stack : error
+      'fetchKeysForServiceIds: Failed to fetch keys:',
+      Errors.toLogFormat(error)
     );
     throw error;
   }
 }
 
-async function fetchKeysForIdentifier(
-  identifier: string,
+async function fetchKeysForServiceId(
+  serviceId: ServiceIdString,
   devices?: Array<number>
 ): Promise<void> {
   log.info(
-    `fetchKeysForIdentifier: Fetching ${
+    `fetchKeysForServiceId: Fetching ${
       devices || 'all'
-    } devices for ${identifier}`
+    } devices for ${serviceId}`
   );
 
   if (!window.textsecure?.messaging?.server) {
-    throw new Error('fetchKeysForIdentifier: No server available!');
+    throw new Error('fetchKeysForServiceId: No server available!');
   }
 
   const emptyConversation = window.ConversationController.getOrCreate(
-    identifier,
+    serviceId,
     'private'
   );
 
   try {
-    const { accessKeyFailed } = await getKeysForIdentifier(
-      identifier,
+    // Note: we have no way to make an unrestricted unauthenticated key fetch as part of a
+    //   story send, so we hardcode story=false.
+    const { accessKeyFailed } = await getKeysForServiceId(
+      serviceId,
       window.textsecure?.messaging?.server,
       devices,
-      getAccessKey(emptyConversation.attributes)
+      getAccessKey(emptyConversation.attributes, { story: false })
     );
     if (accessKeyFailed) {
       log.info(
-        `fetchKeysForIdentifiers: Setting sealedSender to DISABLED for conversation ${emptyConversation.idForLogging()}`
+        `fetchKeysForServiceIds: Setting sealedSender to DISABLED for conversation ${emptyConversation.idForLogging()}`
       );
       emptyConversation.set({
         sealedSender: SEALED_SENDER.DISABLED,
       });
-      window.Signal.Data.updateConversation(emptyConversation.attributes);
+      await DataWriter.updateConversation(emptyConversation.attributes);
     }
   } catch (error: unknown) {
     if (error instanceof UnregisteredUserError) {
-      await markIdentifierUnregistered(identifier);
+      await markServiceIdUnregistered(serviceId);
       return;
     }
+    log.error(
+      `fetchKeysForServiceId: Error fetching ${
+        devices || 'all'
+      } devices for ${serviceId}`,
+      Errors.toLogFormat(error)
+    );
     throw error;
   }
 }

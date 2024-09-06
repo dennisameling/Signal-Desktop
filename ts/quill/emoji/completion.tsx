@@ -1,25 +1,22 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import Quill from 'quill';
 import Delta from 'quill-delta';
 import React from 'react';
-import _ from 'lodash';
+import _, { isNumber } from 'lodash';
 
 import { Popper } from 'react-popper';
 import classNames from 'classnames';
 import { createPortal } from 'react-dom';
-import type { EmojiData } from '../../components/emoji/lib';
-import {
-  search,
-  convertShortName,
-  isShortName,
-  convertShortNameToData,
-} from '../../components/emoji/lib';
+import type { VirtualElement } from '@popperjs/core';
+import { convertShortName, isShortName } from '../../components/emoji/lib';
+import type { SearchFnType } from '../../components/emoji/lib';
 import { Emoji } from '../../components/emoji/Emoji';
 import type { EmojiPickDataType } from '../../components/emoji/EmojiPicker';
 import { getBlotTextPartitions, matchBlotTextPartitions } from '../util';
-import { sameWidthModifier } from '../../util/popperUtil';
+import { handleOutsideClick } from '../../util/handleOutsideClick';
+import * as log from '../../logging/log';
 
 const Keyboard = Quill.import('modules/keyboard');
 
@@ -27,10 +24,19 @@ type EmojiPickerOptions = {
   onPickEmoji: (emoji: EmojiPickDataType) => void;
   setEmojiPickerElement: (element: JSX.Element | null) => void;
   skinTone: number;
+  search: SearchFnType;
 };
 
+export type InsertEmojiOptionsType = Readonly<{
+  shortName: string;
+  index: number;
+  range: number;
+  withTrailingSpace?: boolean;
+  justPressedColon?: boolean;
+}>;
+
 export class EmojiCompletion {
-  results: Array<EmojiData>;
+  results: Array<string>;
 
   index: number;
 
@@ -39,6 +45,8 @@ export class EmojiCompletion {
   root: HTMLDivElement;
 
   quill: Quill;
+
+  outsideClickDestructor?: () => void;
 
   constructor(quill: Quill, options: EmojiPickerOptions) {
     this.results = [];
@@ -84,14 +92,19 @@ export class EmojiCompletion {
       () => this.onTextChange(true)
     );
 
-    this.quill.on(
-      'text-change',
-      _.debounce(() => this.onTextChange(), 100)
-    );
+    const debouncedOnTextChange = _.debounce(() => this.onTextChange(), 100);
+
+    this.quill.on('text-change', (_now, _before, source) => {
+      if (source === 'user') {
+        debouncedOnTextChange();
+      }
+    });
     this.quill.on('selection-change', this.onSelectionChange.bind(this));
   }
 
   destroy(): void {
+    this.outsideClickDestructor?.();
+    this.outsideClickDestructor = undefined;
     this.root.remove();
   }
 
@@ -118,14 +131,16 @@ export class EmojiCompletion {
 
     const range = this.quill.getSelection();
 
-    if (!range) return PASS_THROUGH;
+    if (!range) {
+      return PASS_THROUGH;
+    }
 
     const [blot, index] = this.quill.getLeaf(range.index);
     const [leftTokenTextMatch, rightTokenTextMatch] = matchBlotTextPartitions(
       blot,
       index,
-      /(?<=^|\s):([-+0-9a-zA-Z_]*)(:?)$/,
-      /^([-+0-9a-zA-Z_]*):/
+      /(?<=^|\s):([-+0-9\p{Alpha}_]*)(:?)$/iu,
+      /^([-+0-9\p{Alpha}_]*):/iu
     );
 
     if (leftTokenTextMatch) {
@@ -133,25 +148,18 @@ export class EmojiCompletion {
 
       if (isSelfClosing || justPressedColon) {
         if (isShortName(leftTokenText)) {
-          const emojiData = convertShortNameToData(
-            leftTokenText,
-            this.options.skinTone
-          );
-
           const numberOfColons = isSelfClosing ? 2 : 1;
 
-          if (emojiData) {
-            this.insertEmoji(
-              emojiData,
-              range.index - leftTokenText.length - numberOfColons,
-              leftTokenText.length + numberOfColons
-            );
-            return INTERCEPT;
-          }
-        } else {
-          this.reset();
-          return PASS_THROUGH;
+          this.insertEmoji({
+            shortName: leftTokenText,
+            index: range.index - leftTokenText.length - numberOfColons,
+            range: leftTokenText.length + numberOfColons,
+            justPressedColon,
+          });
+          return INTERCEPT;
         }
+        this.reset();
+        return PASS_THROUGH;
       }
 
       if (rightTokenTextMatch) {
@@ -159,28 +167,22 @@ export class EmojiCompletion {
         const tokenText = leftTokenText + rightTokenText;
 
         if (isShortName(tokenText)) {
-          const emojiData = convertShortNameToData(
-            tokenText,
-            this.options.skinTone
-          );
-
-          if (emojiData) {
-            this.insertEmoji(
-              emojiData,
-              range.index - leftTokenText.length - 1,
-              tokenText.length + 2
-            );
-            return INTERCEPT;
-          }
+          this.insertEmoji({
+            shortName: tokenText,
+            index: range.index - leftTokenText.length - 1,
+            range: tokenText.length + 2,
+            justPressedColon,
+          });
+          return INTERCEPT;
         }
       }
 
-      if (leftTokenText.length < 3) {
+      if (leftTokenText.length < 2) {
         this.reset();
         return PASS_THROUGH;
       }
 
-      const showEmojiResults = search(leftTokenText, 10);
+      const showEmojiResults = this.options.search(leftTokenText, 10);
 
       if (showEmojiResults.length > 0) {
         this.results = showEmojiResults;
@@ -196,40 +198,66 @@ export class EmojiCompletion {
     return PASS_THROUGH;
   }
 
+  getAttributesForInsert(index: number): Record<string, unknown> {
+    const character = index > 0 ? index - 1 : 0;
+    const contents = this.quill.getContents(character, 1);
+    return contents.ops.reduce(
+      (acc, op) => ({ acc, ...op.attributes }),
+      {} as Record<string, unknown>
+    );
+  }
+
   completeEmoji(): void {
     const range = this.quill.getSelection();
 
-    if (range === null) return;
+    if (range == null) {
+      return;
+    }
 
     const emoji = this.results[this.index];
     const [leafText] = this.getCurrentLeafTextPartitions();
 
-    const tokenTextMatch = /:([-+0-9a-z_]*)(:?)$/.exec(leafText);
+    const tokenTextMatch = /:([-+0-9\p{Alpha}_]*)(:?)$/iu.exec(leafText);
 
-    if (tokenTextMatch === null) return;
+    if (tokenTextMatch == null) {
+      return;
+    }
 
     const [, tokenText] = tokenTextMatch;
 
-    this.insertEmoji(
-      emoji,
-      range.index - tokenText.length - 1,
-      tokenText.length + 1,
-      true
-    );
+    this.insertEmoji({
+      shortName: emoji,
+      index: range.index - tokenText.length - 1,
+      range: tokenText.length + 1,
+      withTrailingSpace: true,
+    });
   }
 
-  insertEmoji(
-    emojiData: EmojiData,
-    index: number,
-    range: number,
-    withTrailingSpace = false
-  ): void {
-    const emoji = convertShortName(emojiData.short_name, this.options.skinTone);
+  insertEmoji({
+    shortName,
+    index,
+    range,
+    withTrailingSpace = false,
+    justPressedColon = false,
+  }: InsertEmojiOptionsType): void {
+    const emoji = convertShortName(shortName, this.options.skinTone);
 
-    const delta = new Delta().retain(index).delete(range).insert({ emoji });
+    let source = this.quill.getText(index, range);
+    if (justPressedColon) {
+      source += ':';
+    }
+
+    const delta = new Delta()
+      .retain(index)
+      .delete(range)
+      .insert({
+        emoji: { value: emoji, source },
+      });
 
     if (withTrailingSpace) {
-      this.quill.updateContents(delta.insert(' '), 'user');
+      // The extra space we add won't be formatted unless we manually provide attributes
+      const attributes = this.getAttributesForInsert(range - 1);
+      this.quill.updateContents(delta.insert(' ', attributes), 'user');
       this.quill.setSelection(index + 2, 0, 'user');
     } else {
       this.quill.updateContents(delta, 'user');
@@ -237,7 +265,7 @@ export class EmojiCompletion {
     }
 
     this.options.onPickEmoji({
-      shortName: emojiData.short_name,
+      shortName,
       skinTone: this.options.skinTone,
     });
 
@@ -254,19 +282,60 @@ export class EmojiCompletion {
   }
 
   onUnmount(): void {
-    document.body.removeChild(this.root);
+    this.outsideClickDestructor?.();
+    this.outsideClickDestructor = undefined;
+    this.options.setEmojiPickerElement(null);
   }
 
   render(): void {
     const { results: emojiResults, index: emojiResultsIndex } = this;
 
     if (emojiResults.length === 0) {
-      this.options.setEmojiPickerElement(null);
+      this.onUnmount();
       return;
     }
 
+    // a virtual reference to the text we are trying to auto-complete
+    const reference: VirtualElement = {
+      getBoundingClientRect() {
+        const selection = window.getSelection();
+        // there's a selection and at least one range
+        if (selection != null && selection.rangeCount !== 0) {
+          // grab the first range, the one the user is actually on right now
+          // clone it so we don't actually modify the user's selection/caret position
+          const range = selection.getRangeAt(0).cloneRange();
+
+          // if for any reason the range is a selection (not just a caret)
+          // collapse it to just a caret, so we can walk it back to the :word
+          range.collapse(true);
+
+          // if we can, position the popper at the beginning of the emoji text (:word)
+          const textBeforeCursor = range.endContainer.textContent?.slice(
+            0,
+            range.startOffset
+          );
+          const startOfEmojiText = textBeforeCursor?.lastIndexOf(':');
+
+          if (
+            textBeforeCursor &&
+            isNumber(startOfEmojiText) &&
+            startOfEmojiText !== -1
+          ) {
+            range.setStart(range.endContainer, startOfEmojiText);
+          } else {
+            log.warn(
+              `Could not find the beginning of the emoji word to be completed. startOfEmojiText=${startOfEmojiText}, textBeforeCursor.length=${textBeforeCursor?.length}, range.offsets=${range.startOffset}-${range.endOffset}`
+            );
+          }
+          return range.getClientRects()[0];
+        }
+        log.warn('No selection range when auto-completing emoji');
+        return new DOMRect(); // don't crash just because we couldn't get a rectangle
+      },
+    };
+
     const element = createPortal(
-      <Popper placement="top-start" modifiers={[sameWidthModifier]}>
+      <Popper placement="top-start" referenceElement={reference}>
         {({ ref, style }) => (
           <div
             ref={ref}
@@ -275,17 +344,15 @@ export class EmojiCompletion {
             role="listbox"
             aria-expanded
             aria-activedescendant={`emoji-result--${
-              emojiResults.length
-                ? emojiResults[emojiResultsIndex].short_name
-                : ''
+              emojiResults.length ? emojiResults[emojiResultsIndex] : ''
             }`}
             tabIndex={0}
           >
             {emojiResults.map((emoji, index) => (
               <button
                 type="button"
-                key={emoji.short_name}
-                id={`emoji-result--${emoji.short_name}`}
+                key={emoji}
+                id={`emoji-result--${emoji}`}
                 role="option button"
                 aria-selected={emojiResultsIndex === index}
                 onClick={() => {
@@ -300,12 +367,12 @@ export class EmojiCompletion {
                 )}
               >
                 <Emoji
-                  shortName={emoji.short_name}
+                  shortName={emoji}
                   size={16}
                   skinTone={this.options.skinTone}
                 />
                 <div className="module-composition-input__suggestions__row__short-name">
-                  :{emoji.short_name}:
+                  :{emoji}:
                 </div>
               </button>
             ))}
@@ -313,6 +380,20 @@ export class EmojiCompletion {
         )}
       </Popper>,
       this.root
+    );
+
+    // Just to make sure that we don't propagate outside clicks until this
+    // is closed.
+    this.outsideClickDestructor?.();
+    this.outsideClickDestructor = handleOutsideClick(
+      () => {
+        this.onUnmount();
+        return true;
+      },
+      {
+        name: 'quill.emoji.completion',
+        containerElements: [this.root],
+      }
     );
 
     this.options.setEmojiPickerElement(element);

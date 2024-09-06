@@ -1,14 +1,22 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { AudioDevice } from 'ringrtc';
+import type { AudioDevice, Reaction as CallReaction } from '@signalapp/ringrtc';
 import type { ConversationType } from '../state/ducks/conversations';
+import type { AciString, ServiceIdString } from './ServiceId';
+import type { CallLinkConversationType } from './CallLink';
+import type { CallMode } from './CallDisposition';
 
-// These are strings (1) for the database (2) for Storybook.
-export enum CallMode {
-  None = 'None',
-  Direct = 'Direct',
-  Group = 'Group',
+export const MAX_CALLING_REACTIONS = 5;
+export const CALLING_REACTIONS_LIFETIME = 4000;
+// Speaker and Presentation mode have the same UI, but Presentation is only set
+// automatically when someone starts to present, and will revert to the previous view mode
+// once presentation is complete
+export enum CallViewMode {
+  Paginated = 'Paginated',
+  Overflow = 'Overflow',
+  Speaker = 'Speaker',
+  Presentation = 'Presentation',
 }
 
 export type PresentableSource = {
@@ -24,14 +32,25 @@ export type PresentedSource = {
   name: string;
 };
 
-type ActiveCallBaseType = {
-  conversation: ConversationType;
+// export type ActiveCallReactionsType = {
+//   [timestamp: number]: ReadonlyArray<CallReaction>;
+// };
+
+export type ActiveCallReaction = {
+  timestamp: number;
+} & CallReaction;
+
+export type ActiveCallReactionsType = ReadonlyArray<ActiveCallReaction>;
+
+export type ActiveCallBaseType = {
+  conversation: CallingConversationType;
   hasLocalAudio: boolean;
   hasLocalVideo: boolean;
-  amISpeaking: boolean;
-  isInSpeakerView: boolean;
+  localAudioLevel: number;
+  viewMode: CallViewMode;
+  viewModeBeforePresentation?: CallViewMode;
   isSharingScreen?: boolean;
-  joinedAt?: number;
+  joinedAt: number | null;
   outgoingRing: boolean;
   pip: boolean;
   presentingSource?: PresentedSource;
@@ -39,9 +58,10 @@ type ActiveCallBaseType = {
   settingsDialogOpen: boolean;
   showNeedsScreenRecordingPermissionsWarning?: boolean;
   showParticipantsList: boolean;
+  reactions?: ActiveCallReactionsType;
 };
 
-type ActiveDirectCallType = ActiveCallBaseType & {
+export type ActiveDirectCallType = ActiveCallBaseType & {
   callMode: CallMode.Direct;
   callState?: CallState;
   callEndedReason?: CallEndedReason;
@@ -51,22 +71,29 @@ type ActiveDirectCallType = ActiveCallBaseType & {
       hasRemoteVideo: boolean;
       presenting: boolean;
       title: string;
-      uuid?: string;
-    }
+      // Note that the field name/type has to match the
+      //   GroupCallRemoteParticipantType below (which is based on
+      //   ConversationType).
+      serviceId?: ServiceIdString;
+    },
   ];
 };
 
-type ActiveGroupCallType = ActiveCallBaseType & {
-  callMode: CallMode.Group;
+export type ActiveGroupCallType = ActiveCallBaseType & {
+  callMode: CallMode.Group | CallMode.Adhoc;
   connectionState: GroupCallConnectionState;
-  conversationsWithSafetyNumberChanges: Array<ConversationType>;
+  conversationsByDemuxId: ConversationsByDemuxIdType;
   joinState: GroupCallJoinState;
+  localDemuxId: number | undefined;
   maxDevices: number;
   deviceCount: number;
   groupMembers: Array<Pick<ConversationType, 'id' | 'firstName' | 'title'>>;
+  isConversationTooBigToRing: boolean;
   peekedParticipants: Array<ConversationType>;
+  pendingParticipants: Array<ConversationType>;
+  raisedHands: Set<number>;
   remoteParticipants: Array<GroupCallRemoteParticipantType>;
-  speakingDemuxIds: Set<number>;
+  remoteAudioLevels: Map<number, number>;
 };
 
 export type ActiveCallType = ActiveDirectCallType | ActiveGroupCallType;
@@ -104,7 +131,6 @@ export enum CallEndedReason {
   AcceptedOnAnotherDevice = 'AcceptedOnAnotherDevice',
   DeclinedOnAnotherDevice = 'DeclinedOnAnotherDevice',
   BusyOnAnotherDevice = 'BusyOnAnotherDevice',
-  CallerIsNotMultiring = 'CallerIsNotMultiring',
 }
 
 // Must be kept in sync with RingRTC's ConnectionState
@@ -119,18 +145,25 @@ export enum GroupCallConnectionState {
 export enum GroupCallJoinState {
   NotJoined = 0,
   Joining = 1,
-  Joined = 2,
+  Pending = 2,
+  Joined = 3,
 }
 
 export type GroupCallRemoteParticipantType = ConversationType & {
+  aci: AciString;
+  addedTime?: number;
   demuxId: number;
   hasRemoteAudio: boolean;
   hasRemoteVideo: boolean;
+  isHandRaised: boolean;
+  mediaKeysReceived: boolean;
   presenting: boolean;
   sharingScreen: boolean;
   speakerTime?: number;
   videoAspectRatio: number;
 };
+
+export type ConversationsByDemuxIdType = Map<number, ConversationType>;
 
 // Similar to RingRTC's `VideoRequest` but without the `framerate` property.
 export type GroupCallVideoRequest = {
@@ -157,39 +190,17 @@ export type MediaDeviceSettings = AvailableIODevicesType & {
   selectedCamera: string | undefined;
 };
 
-type DirectCallHistoryDetailsType = {
-  callMode: CallMode.Direct;
-  wasIncoming: boolean;
-  wasVideoCall: boolean;
-  wasDeclined: boolean;
-  acceptedTime?: number;
-  endedTime: number;
-};
-
-type GroupCallHistoryDetailsType = {
-  callMode: CallMode.Group;
-  creatorUuid: string;
-  eraId: string;
-  startedTime: number;
-};
-
-export type CallHistoryDetailsType =
-  | DirectCallHistoryDetailsType
-  | GroupCallHistoryDetailsType;
-
-// Old messages weren't saved with a `callMode`.
-export type CallHistoryDetailsFromDiskType =
-  | (Omit<DirectCallHistoryDetailsType, 'callMode'> &
-      Partial<Pick<DirectCallHistoryDetailsType, 'callMode'>>)
-  | GroupCallHistoryDetailsType;
-
 export type ChangeIODevicePayloadType =
   | { type: CallingDeviceType.CAMERA; selectedDevice: string }
   | { type: CallingDeviceType.MICROPHONE; selectedDevice: AudioDevice }
   | { type: CallingDeviceType.SPEAKER; selectedDevice: AudioDevice };
 
-export enum ProcessGroupCallRingRequestResult {
-  ShouldRing,
-  RingWasPreviouslyCanceled,
-  ThereIsAnotherActiveRing,
+export type CallingConversationType =
+  | ConversationType
+  | CallLinkConversationType;
+
+export enum ScreenShareStatus {
+  Connected = 'Connected',
+  Reconnecting = 'Reconnecting',
+  Disconnected = 'Disconnected',
 }

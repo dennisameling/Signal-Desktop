@@ -3,8 +3,8 @@
 
 import React from 'react';
 
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
+import type { Meta } from '@storybook/react';
 import { setupI18n } from '../util/setupI18n';
 import enMessages from '../../_locales/en/messages.json';
 
@@ -18,7 +18,7 @@ const i18n = setupI18n('en', enMessages);
 
 const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   avatarColor: overrideProps.avatarColor || AvatarColors[9],
-  avatarPath: overrideProps.avatarPath,
+  avatarUrl: overrideProps.avatarUrl,
   conversationId: '123',
   conversationTitle: overrideProps.conversationTitle || 'Default Title',
   deleteAvatarFromDisk: action('deleteAvatarFromDisk'),
@@ -79,21 +79,33 @@ const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   ],
 });
 
-const story = storiesOf('Components/AvatarEditor', module);
+export default {
+  title: 'Components/AvatarEditor',
+} satisfies Meta<PropsType>;
 
-story.add('No Avatar (group)', () => (
-  <AvatarEditor
-    {...createProps({ isGroup: true, userAvatarData: getDefaultAvatars(true) })}
-  />
-));
-story.add('No Avatar (me)', () => (
-  <AvatarEditor {...createProps({ userAvatarData: getDefaultAvatars() })} />
-));
+export function NoAvatarGroup(): JSX.Element {
+  return (
+    <AvatarEditor
+      {...createProps({
+        isGroup: true,
+        userAvatarData: getDefaultAvatars(true),
+      })}
+    />
+  );
+}
 
-story.add('Has Avatar', () => (
-  <AvatarEditor
-    {...createProps({
-      avatarPath: '/fixtures/kitten-3-64-64.jpg',
-    })}
-  />
-));
+export function NoAvatarMe(): JSX.Element {
+  return (
+    <AvatarEditor {...createProps({ userAvatarData: getDefaultAvatars() })} />
+  );
+}
+
+export function HasAvatar(): JSX.Element {
+  return (
+    <AvatarEditor
+      {...createProps({
+        avatarUrl: '/fixtures/kitten-3-64-64.jpg',
+      })}
+    />
+  );
+}

@@ -1,42 +1,37 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
 import classNames from 'classnames';
-import type { AvatarColorType } from '../types/Colors';
 
 export type PropsType = {
-  avatarPath?: string;
+  avatarUrl?: string;
   children?: React.ReactNode;
   className?: string;
-  color?: AvatarColorType;
 };
 
-export const CallBackgroundBlur = ({
-  avatarPath,
+export function CallBackgroundBlur({
+  avatarUrl,
   children,
   className,
-  color,
-}: PropsType): JSX.Element => {
+}: PropsType): JSX.Element {
   return (
     <div
       className={classNames(
         'module-calling__background',
-        {
-          [`module-background-color__${color || 'default'}`]: !avatarPath,
-        },
+        !avatarUrl && 'module-calling__background--no-avatar',
         className
       )}
     >
-      {avatarPath && (
+      {avatarUrl && (
         <div
           className="module-calling__background--blur"
           style={{
-            backgroundImage: `url('${encodeURI(avatarPath)}')`,
+            backgroundImage: `url('${avatarUrl}')`,
           }}
         />
       )}
       {children}
     </div>
   );
-};
+}

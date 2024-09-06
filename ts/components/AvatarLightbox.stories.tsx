@@ -2,11 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import React from 'react';
-
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
-import { select } from '@storybook/addon-knobs';
-
+import type { Meta } from '@storybook/react';
 import enMessages from '../../_locales/en/messages.json';
 import { AvatarColors } from '../types/Colors';
 import type { PropsType } from './AvatarLightbox';
@@ -16,45 +13,37 @@ import { getDefaultConversation } from '../test-both/helpers/getDefaultConversat
 
 const i18n = setupI18n('en', enMessages);
 
-const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
-  avatarColor: select(
-    'Color',
-    AvatarColors,
-    overrideProps.avatarColor || AvatarColors[0]
-  ),
-  avatarPath: overrideProps.avatarPath,
-  conversationTitle: overrideProps.conversationTitle,
-  i18n,
-  isGroup: Boolean(overrideProps.isGroup),
-  onClose: action('onClose'),
-});
+export default {
+  title: 'Components/AvatarLightbox',
+  component: AvatarLightbox,
+  argTypes: {
+    avatarColor: {
+      control: { type: 'select' },
+      options: AvatarColors,
+    },
+  },
+  args: {
+    i18n,
+    avatarColor: AvatarColors[0],
+    onClose: action('onClose'),
+  },
+} satisfies Meta<PropsType>;
 
-const story = storiesOf('Components/AvatarLightbox', module);
+export function Group(args: PropsType): JSX.Element {
+  return <AvatarLightbox {...args} isGroup />;
+}
 
-story.add('Group', () => (
-  <AvatarLightbox
-    {...createProps({
-      isGroup: true,
-    })}
-  />
-));
-
-story.add('Person', () => {
+export function Person(args: PropsType): JSX.Element {
   const conversation = getDefaultConversation();
   return (
     <AvatarLightbox
-      {...createProps({
-        avatarColor: conversation.color,
-        conversationTitle: conversation.title,
-      })}
+      {...args}
+      avatarColor={conversation.color}
+      conversationTitle={conversation.title}
     />
   );
-});
+}
 
-story.add('Photo', () => (
-  <AvatarLightbox
-    {...createProps({
-      avatarPath: '/fixtures/kitten-1-64-64.jpg',
-    })}
-  />
-));
+export function Photo(args: PropsType): JSX.Element {
+  return <AvatarLightbox {...args} avatarUrl="/fixtures/kitten-1-64-64.jpg" />;
+}

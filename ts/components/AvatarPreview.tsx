@@ -15,12 +15,13 @@ import { imagePathToBytes } from '../util/imagePathToBytes';
 
 export type PropsType = {
   avatarColor?: AvatarColorType;
-  avatarPath?: string;
+  avatarUrl?: string;
   avatarValue?: Uint8Array;
   conversationTitle?: string;
   i18n: LocalizerType;
   isEditable?: boolean;
   isGroup?: boolean;
+  noteToSelf?: boolean;
   onAvatarLoaded?: (avatarBuffer: Uint8Array) => unknown;
   onClear?: () => unknown;
   onClick?: () => unknown;
@@ -33,38 +34,39 @@ enum ImageStatus {
   HasImage = 'has-image',
 }
 
-export const AvatarPreview = ({
+export function AvatarPreview({
   avatarColor = AvatarColors[0],
-  avatarPath,
+  avatarUrl,
   avatarValue,
   conversationTitle,
   i18n,
   isEditable,
   isGroup,
+  noteToSelf,
   onAvatarLoaded,
   onClear,
   onClick,
   style = {},
-}: PropsType): JSX.Element => {
+}: PropsType): JSX.Element {
   const [avatarPreview, setAvatarPreview] = useState<Uint8Array | undefined>();
 
-  // Loads the initial avatarPath if one is provided, but only if we're in editable mode.
-  //   If we're not editable, we assume that we either have an avatarPath or we show a
+  // Loads the initial avatarUrl if one is provided, but only if we're in editable mode.
+  //   If we're not editable, we assume that we either have an avatarUrl or we show a
   //   default avatar.
   useEffect(() => {
     if (!isEditable) {
       return;
     }
 
-    if (!avatarPath) {
+    if (!avatarUrl) {
       return noop;
     }
 
     let shouldCancel = false;
 
-    (async () => {
+    void (async () => {
       try {
-        const buffer = await imagePathToBytes(avatarPath);
+        const buffer = await imagePathToBytes(avatarUrl);
         if (shouldCancel) {
           return;
         }
@@ -85,7 +87,7 @@ export const AvatarPreview = ({
     return () => {
       shouldCancel = true;
     };
-  }, [avatarPath, onAvatarLoaded, isEditable]);
+  }, [avatarUrl, onAvatarLoaded, isEditable]);
 
   // Ensures that when avatarValue changes we generate new URLs
   useEffect(() => {
@@ -117,11 +119,13 @@ export const AvatarPreview = ({
   let encodedPath: string | undefined;
   if (avatarValue && !objectUrl) {
     imageStatus = ImageStatus.Loading;
+  } else if (noteToSelf) {
+    imageStatus = ImageStatus.Nothing;
   } else if (objectUrl) {
     encodedPath = objectUrl;
     imageStatus = ImageStatus.HasImage;
-  } else if (avatarPath) {
-    encodedPath = encodeURI(avatarPath);
+  } else if (avatarUrl) {
+    encodedPath = avatarUrl;
     imageStatus = ImageStatus.HasImage;
   } else {
     imageStatus = ImageStatus.Nothing;
@@ -149,6 +153,23 @@ export const AvatarPreview = ({
   }
 
   if (imageStatus === ImageStatus.Nothing) {
+    let content: JSX.Element | string | undefined;
+    if (isGroup) {
+      content = (
+        <div
+          className={`BetterAvatarBubble--${avatarColor}--icon AvatarPreview__group`}
+        />
+      );
+    } else if (noteToSelf) {
+      content = (
+        <div
+          className={`BetterAvatarBubble--${avatarColor}--icon AvatarPreview__note_to_self`}
+        />
+      );
+    } else {
+      content = getInitials(conversationTitle);
+    }
+
     return (
       <div className="AvatarPreview">
         <div
@@ -156,13 +177,7 @@ export const AvatarPreview = ({
           {...clickProps}
           style={componentStyle}
         >
-          {isGroup ? (
-            <div
-              className={`BetterAvatarBubble--${avatarColor}--icon AvatarPreview__group`}
-            />
-          ) : (
-            getInitials(conversationTitle)
-          )}
+          {content}
           {isEditable && <div className="AvatarPreview__upload" />}
         </div>
       </div>
@@ -188,7 +203,7 @@ export const AvatarPreview = ({
         )}
         {imageStatus === ImageStatus.HasImage && onClear && (
           <button
-            aria-label={i18n('delete')}
+            aria-label={i18n('icu:delete')}
             className="AvatarPreview__clear"
             onClick={onClear}
             tabIndex={-1}
@@ -199,4 +214,4 @@ export const AvatarPreview = ({
       </div>
     </div>
   );
-};
+}

@@ -1,4 +1,4 @@
-// Copyright 2019-2022 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
@@ -21,8 +21,11 @@ import {
 import FocusTrap from 'focus-trap-react';
 
 import { Emoji } from './Emoji';
-import { dataByCategory, search } from './lib';
+import { dataByCategory } from './lib';
 import type { LocalizerType } from '../../types/Util';
+import { isSingleGrapheme } from '../../util/grapheme';
+import { missingCaseError } from '../../util/missingCaseError';
+import { useEmojiSearch } from '../../hooks/useEmojiSearch';
 
 export type EmojiPickDataType = {
   skinTone?: number;
@@ -31,16 +34,27 @@ export type EmojiPickDataType = {
 
 export type OwnProps = {
   readonly i18n: LocalizerType;
-  readonly onPickEmoji: (o: EmojiPickDataType) => unknown;
-  readonly doSend?: () => unknown;
+  readonly recentEmojis?: ReadonlyArray<string>;
   readonly skinTone?: number;
-  readonly onSetSkinTone: (tone: number) => unknown;
-  readonly recentEmojis?: Array<string>;
   readonly onClickSettings?: () => unknown;
   readonly onClose?: () => unknown;
+  readonly onPickEmoji: (o: EmojiPickDataType) => unknown;
+  readonly onSetSkinTone?: (tone: number) => unknown;
+  readonly wasInvokedFromKeyboard: boolean;
 };
 
 export type Props = OwnProps & Pick<React.HTMLProps<HTMLDivElement>, 'style'>;
+
+function isEventFromMouse(
+  event:
+    | React.MouseEvent<HTMLButtonElement>
+    | React.KeyboardEvent<HTMLButtonElement>
+): boolean {
+  return (
+    ('clientX' in event && event.clientX !== 0) ||
+    ('clientY' in event && event.clientY !== 0)
+  );
+}
 
 function focusOnRender(el: HTMLElement | null) {
   if (el) {
@@ -60,14 +74,15 @@ const categories = [
   'object',
   'symbol',
   'flag',
-];
+] as const;
+
+type Category = (typeof categories)[number];
 
 export const EmojiPicker = React.memo(
   React.forwardRef<HTMLDivElement, Props>(
     (
       {
         i18n,
-        doSend,
         onPickEmoji,
         skinTone = 0,
         onSetSkinTone,
@@ -75,11 +90,18 @@ export const EmojiPicker = React.memo(
         style,
         onClickSettings,
         onClose,
+        wasInvokedFromKeyboard,
       }: Props,
       ref
     ) => {
+      const isRTL = i18n.getLocaleDirection() === 'rtl';
+
+      const [isUsingKeyboard, setIsUsingKeyboard] = React.useState(
+        wasInvokedFromKeyboard
+      );
+
       const [firstRecent] = React.useState(recentEmojis);
-      const [selectedCategory, setSelectedCategory] = React.useState(
+      const [selectedCategory, setSelectedCategory] = React.useState<Category>(
         categories[0]
       );
       const [searchMode, setSearchMode] = React.useState(false);
@@ -87,9 +109,20 @@ export const EmojiPicker = React.memo(
       const [scrollToRow, setScrollToRow] = React.useState(0);
       const [selectedTone, setSelectedTone] = React.useState(skinTone);
 
+      const search = useEmojiSearch(i18n.getLocale());
+
       const handleToggleSearch = React.useCallback(
-        (e: React.MouseEvent) => {
+        (
+          e:
+            | React.MouseEvent<HTMLButtonElement>
+            | React.KeyboardEvent<HTMLButtonElement>
+        ) => {
+          if (isEventFromMouse(e)) {
+            setIsUsingKeyboard(false);
+          }
           e.stopPropagation();
+          e.preventDefault();
+
           setSearchText('');
           setSelectedCategory(categories[0]);
           setSearchMode(m => !m);
@@ -114,7 +147,14 @@ export const EmojiPicker = React.memo(
       );
 
       const handlePickTone = React.useCallback(
-        (e: React.MouseEvent<HTMLButtonElement>) => {
+        (
+          e:
+            | React.MouseEvent<HTMLButtonElement>
+            | React.KeyboardEvent<HTMLButtonElement>
+        ) => {
+          if (isEventFromMouse(e)) {
+            setIsUsingKeyboard(false);
+          }
           e.preventDefault();
           e.stopPropagation();
 
@@ -134,53 +174,82 @@ export const EmojiPicker = React.memo(
             | React.MouseEvent<HTMLButtonElement>
             | React.KeyboardEvent<HTMLButtonElement>
         ) => {
+          const { shortName } = e.currentTarget.dataset;
           if ('key' in e) {
-            if (e.key === 'Enter' && doSend) {
-              e.stopPropagation();
-              e.preventDefault();
-              doSend();
+            if (e.key === 'Enter') {
+              if (shortName && isUsingKeyboard) {
+                onPickEmoji({ skinTone: selectedTone, shortName });
+                e.stopPropagation();
+                e.preventDefault();
+              } else if (onClose) {
+                onClose();
+                e.stopPropagation();
+                e.preventDefault();
+              }
             }
-          } else {
-            const { shortName } = e.currentTarget.dataset;
-            if (shortName) {
-              e.stopPropagation();
-              e.preventDefault();
-              onPickEmoji({ skinTone: selectedTone, shortName });
+          } else if (shortName) {
+            if (isEventFromMouse(e)) {
+              setIsUsingKeyboard(false);
             }
+            e.stopPropagation();
+            e.preventDefault();
+            onPickEmoji({ skinTone: selectedTone, shortName });
           }
         },
-        [doSend, onPickEmoji, selectedTone]
+        [
+          onClose,
+          onPickEmoji,
+          isUsingKeyboard,
+          selectedTone,
+          setIsUsingKeyboard,
+        ]
       );
 
-      // Handle escape key
+      // Handle key presses, particularly Escape
       React.useEffect(() => {
         const handler = (event: KeyboardEvent) => {
-          if (searchMode && event.key === 'Escape') {
-            setScrollToRow(0);
-            setSearchText('');
-            setSearchMode(false);
-
-            event.preventDefault();
-            event.stopPropagation();
-          } else if (
-            !searchMode &&
-            !event.ctrlKey &&
-            ![
-              'ArrowUp',
-              'ArrowDown',
-              'ArrowLeft',
-              'ArrowRight',
-              'Shift',
-              'Tab',
-              ' ', // Space
-            ].includes(event.key)
-          ) {
-            if (onClose) {
+          if (event.key === 'Tab') {
+            // We do NOT prevent default here to allow Tab to be used normally
+            setIsUsingKeyboard(true);
+            return;
+          }
+          if (event.key === 'Escape') {
+            if (searchMode) {
+              event.preventDefault();
+              event.stopPropagation();
+              setScrollToRow(0);
+              setSearchText('');
+              setSearchMode(false);
+            } else if (onClose) {
+              event.preventDefault();
+              event.stopPropagation();
               onClose();
             }
-
-            event.preventDefault();
-            event.stopPropagation();
+          } else if (!searchMode && !event.ctrlKey && !event.metaKey) {
+            if (
+              [
+                'ArrowUp',
+                'ArrowDown',
+                'ArrowLeft',
+                'ArrowRight',
+                'Enter',
+                'Shift',
+                ' ', // Space
+              ].includes(event.key)
+            ) {
+              // Do nothing, these can be used to navigate around the picker.
+            } else if (isSingleGrapheme(event.key)) {
+              // A single grapheme means the user is typing text. Switch to search mode.
+              setSelectedCategory(categories[0]);
+              setSearchMode(true);
+              // Continue propagation, typing the first letter for search.
+            } else {
+              // For anything else, assume it's a special key that isn't one of the ones
+              // above (such as Delete or ContextMenu).
+              onClose?.();
+              event.preventDefault();
+              event.stopPropagation();
+            }
           }
         };
 
@@ -189,16 +258,13 @@ export const EmojiPicker = React.memo(
         return () => {
           document.removeEventListener('keydown', handler);
         };
-      }, [onClose, searchMode]);
+      }, [onClose, setIsUsingKeyboard, searchMode, setSearchMode]);
 
       const [, ...renderableCategories] = categories;
 
       const emojiGrid = React.useMemo(() => {
         if (searchText) {
-          return chunk(
-            search(searchText).map(e => e.short_name),
-            COL_COUNT
-          );
+          return chunk(search(searchText), COL_COUNT);
         }
 
         const chunks = flatMap(renderableCategories, cat =>
@@ -209,7 +275,7 @@ export const EmojiPicker = React.memo(
         );
 
         return [...chunk(firstRecent, COL_COUNT), ...chunks];
-      }, [firstRecent, renderableCategories, searchText]);
+      }, [firstRecent, renderableCategories, searchText, search]);
 
       const rowCount = emojiGrid.length;
 
@@ -240,11 +306,17 @@ export const EmojiPicker = React.memo(
       );
 
       const handleSelectCategory = React.useCallback(
-        (e: React.MouseEvent<HTMLButtonElement>) => {
+        (
+          e:
+            | React.MouseEvent<HTMLButtonElement>
+            | React.KeyboardEvent<HTMLButtonElement>
+        ) => {
           e.stopPropagation();
+          e.preventDefault();
+
           const { category } = e.currentTarget.dataset;
           if (category) {
-            setSelectedCategory(category);
+            setSelectedCategory(category as Category);
             setScrollToRow(catToRowOffsets[category]);
           }
         },
@@ -299,10 +371,35 @@ export const EmojiPicker = React.memo(
               findLast(catOffsetEntries, ([, row]) => rowStartIndex >= row) ||
               categories;
 
-            setSelectedCategory(cat);
+            setSelectedCategory(cat as Category);
           }, 10),
         [catOffsetEntries]
       );
+
+      function getCategoryButtonLabel(category: Category): string {
+        switch (category) {
+          case 'recents':
+            return i18n('icu:EmojiPicker__button--recents');
+          case 'emoji':
+            return i18n('icu:EmojiPicker__button--emoji');
+          case 'animal':
+            return i18n('icu:EmojiPicker__button--animal');
+          case 'food':
+            return i18n('icu:EmojiPicker__button--food');
+          case 'activity':
+            return i18n('icu:EmojiPicker__button--activity');
+          case 'travel':
+            return i18n('icu:EmojiPicker__button--travel');
+          case 'object':
+            return i18n('icu:EmojiPicker__button--object');
+          case 'symbol':
+            return i18n('icu:EmojiPicker__button--symbol');
+          case 'flag':
+            return i18n('icu:EmojiPicker__button--flag');
+          default:
+            throw missingCaseError(category);
+        }
+      }
 
       return (
         <FocusTrap
@@ -315,7 +412,16 @@ export const EmojiPicker = React.memo(
               <button
                 type="button"
                 onClick={handleToggleSearch}
-                title={i18n('EmojiPicker--search-placeholder')}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === 'Select') {
+                    handleToggleSearch(event);
+                  }
+                }}
+                title={
+                  searchMode
+                    ? i18n('icu:EmojiPicker--search-close')
+                    : i18n('icu:EmojiPicker--search-placeholder')
+                }
                 className={classNames(
                   'module-emoji-picker__button',
                   'module-emoji-picker__button--icon',
@@ -323,26 +429,33 @@ export const EmojiPicker = React.memo(
                     ? 'module-emoji-picker__button--icon--close'
                     : 'module-emoji-picker__button--icon--search'
                 )}
-                aria-label={i18n('EmojiPicker--search-placeholder')}
+                aria-label={i18n('icu:EmojiPicker--search-placeholder')}
               />
               {searchMode ? (
                 <div className="module-emoji-picker__header__search-field">
                   <input
                     ref={focusOnRender}
                     className="module-emoji-picker__header__search-field__input"
-                    placeholder={i18n('EmojiPicker--search-placeholder')}
+                    placeholder={i18n('icu:EmojiPicker--search-placeholder')}
                     onChange={handleSearchChange}
+                    dir="auto"
                   />
                 </div>
               ) : (
                 categories.map(cat =>
                   cat === 'recents' && firstRecent.length === 0 ? null : (
                     <button
+                      aria-pressed={selectedCategory === cat}
                       type="button"
                       key={cat}
                       data-category={cat}
                       title={cat}
                       onClick={handleSelectCategory}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter' || event.key === 'Space') {
+                          handleSelectCategory(event);
+                        }
+                      }}
                       className={classNames(
                         'module-emoji-picker__button',
                         'module-emoji-picker__button--icon',
@@ -351,7 +464,7 @@ export const EmojiPicker = React.memo(
                           ? 'module-emoji-picker__button--selected'
                           : null
                       )}
-                      aria-label={i18n(`EmojiPicker__button--${cat}`)}
+                      aria-label={getCategoryButtonLabel(cat)}
                     />
                   )
                 )
@@ -368,6 +481,8 @@ export const EmojiPicker = React.memo(
                       height={height}
                       columnCount={COL_COUNT}
                       columnWidth={38}
+                      // react-virtualized Grid default style has direction: 'ltr'
+                      style={{ direction: isRTL ? 'rtl' : 'ltr' }}
                       rowHeight={getRowHeight}
                       rowCount={rowCount}
                       cellRenderer={cellRenderer}
@@ -388,44 +503,72 @@ export const EmojiPicker = React.memo(
                   'module-emoji-picker__body--empty'
                 )}
               >
-                {i18n('EmojiPicker--empty')}
+                {i18n('icu:EmojiPicker--empty')}
                 <Emoji
                   shortName="slightly_frowning_face"
                   size={16}
-                  style={{ marginLeft: '4px' }}
+                  style={{ marginInlineStart: '4px' }}
                 />
               </div>
             )}
             <footer className="module-emoji-picker__footer">
               {Boolean(onClickSettings) && (
                 <button
-                  aria-label={i18n('CustomizingPreferredReactions__title')}
+                  aria-label={i18n('icu:CustomizingPreferredReactions__title')}
                   className="module-emoji-picker__button module-emoji-picker__button--footer module-emoji-picker__button--settings"
-                  onClick={onClickSettings}
-                  title={i18n('CustomizingPreferredReactions__title')}
+                  onClick={event => {
+                    if (onClickSettings) {
+                      event.preventDefault();
+                      event.stopPropagation();
+
+                      onClickSettings();
+                    }
+                  }}
+                  onKeyDown={event => {
+                    if (
+                      onClickSettings &&
+                      (event.key === 'Enter' || event.key === 'Space')
+                    ) {
+                      event.preventDefault();
+                      event.stopPropagation();
+
+                      onClickSettings();
+                    }
+                  }}
+                  title={i18n('icu:CustomizingPreferredReactions__title')}
                   type="button"
                 />
               )}
-              <div className="module-emoji-picker__footer__skin-tones">
-                {[0, 1, 2, 3, 4, 5].map(tone => (
-                  <button
-                    type="button"
-                    key={tone}
-                    data-tone={tone}
-                    onClick={handlePickTone}
-                    title={i18n('EmojiPicker--skin-tone', [`${tone}`])}
-                    className={classNames(
-                      'module-emoji-picker__button',
-                      'module-emoji-picker__button--footer',
-                      selectedTone === tone
-                        ? 'module-emoji-picker__button--selected'
-                        : null
-                    )}
-                  >
-                    <Emoji shortName="hand" skinTone={tone} size={20} />
-                  </button>
-                ))}
-              </div>
+              {onSetSkinTone ? (
+                <div className="module-emoji-picker__footer__skin-tones">
+                  {[0, 1, 2, 3, 4, 5].map(tone => (
+                    <button
+                      aria-pressed={selectedTone === tone}
+                      type="button"
+                      key={tone}
+                      data-tone={tone}
+                      onClick={handlePickTone}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter' || event.key === 'Space') {
+                          handlePickTone(event);
+                        }
+                      }}
+                      title={i18n('icu:EmojiPicker--skin-tone', {
+                        tone: `${tone}`,
+                      })}
+                      className={classNames(
+                        'module-emoji-picker__button',
+                        'module-emoji-picker__button--footer',
+                        selectedTone === tone
+                          ? 'module-emoji-picker__button--selected'
+                          : null
+                      )}
+                    >
+                      <Emoji shortName="hand" skinTone={tone} size={20} />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {Boolean(onClickSettings) && (
                 <div className="module-emoji-picker__footer__settings-spacer" />
               )}

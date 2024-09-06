@@ -1,39 +1,50 @@
-// Copyright 2020-2022 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { get, throttle } from 'lodash';
 
 import type { WebAPIType } from './textsecure/WebAPI';
 import * as log from './logging/log';
+import type { AciString } from './types/ServiceId';
+import { parseIntOrThrow } from './util/parseIntOrThrow';
+import { SECOND, HOUR } from './util/durations';
+import * as Bytes from './Bytes';
+import { uuidToBytes } from './util/uuidToBytes';
+import { dropNull } from './util/dropNull';
+import { HashType } from './types/Crypto';
+import { getCountryCode } from './types/PhoneNumber';
 
 export type ConfigKeyType =
-  | 'desktop.announcementGroup'
-  | 'desktop.calling.audioLevelForSpeaking'
+  | 'desktop.calling.adhoc'
+  | 'desktop.calling.adhoc.create'
+  | 'desktop.calling.raiseHand'
   | 'desktop.clientExpiration'
-  | 'desktop.groupCallOutboundRing'
+  | 'desktop.backup.credentialFetch'
   | 'desktop.internalUser'
-  | 'desktop.mandatoryProfileSharing'
   | 'desktop.mediaQuality.levels'
   | 'desktop.messageCleanup'
-  | 'desktop.messageRequests'
-  | 'desktop.retryReceiptLifespan'
   | 'desktop.retryRespondMaxAge'
   | 'desktop.senderKey.retry'
-  | 'desktop.senderKey.send'
   | 'desktop.senderKeyMaxAge'
-  | 'desktop.sendSenderKey3'
-  | 'desktop.showUserBadges.beta'
-  | 'desktop.showUserBadges2'
-  | 'desktop.stories'
-  | 'desktop.usernames'
+  | 'desktop.experimentalTransport.enableAuth'
+  | 'desktop.experimentalTransportEnabled.alpha'
+  | 'desktop.experimentalTransportEnabled.beta'
+  | 'desktop.experimentalTransportEnabled.prod'
+  | 'desktop.cdsiViaLibsignal'
+  | 'global.attachments.maxBytes'
+  | 'global.attachments.maxReceiveBytes'
   | 'global.calling.maxGroupCallRingSize'
   | 'global.groupsv2.groupSizeHardLimit'
-  | 'global.groupsv2.maxGroupSize';
+  | 'global.groupsv2.maxGroupSize'
+  | 'global.nicknames.max'
+  | 'global.nicknames.min'
+  | 'global.textAttachmentLimitBytes';
+
 type ConfigValueType = {
   name: ConfigKeyType;
   enabled: boolean;
   enabledAt?: number;
-  value?: unknown;
+  value?: string;
 };
 export type ConfigMapType = {
   [key in ConfigKeyType]?: ConfigValueType;
@@ -46,8 +57,12 @@ type ConfigListenersMapType = {
 let config: ConfigMapType = {};
 const listeners: ConfigListenersMapType = {};
 
-export async function initRemoteConfig(server: WebAPIType): Promise<void> {
+export function restoreRemoteConfigFromStorage(): void {
   config = window.storage.get('remoteConfig') || {};
+}
+
+export async function initRemoteConfig(server: WebAPIType): Promise<void> {
+  restoreRemoteConfigFromStorage();
   await maybeRefreshRemoteConfig(server);
 }
 
@@ -68,7 +83,16 @@ export const refreshRemoteConfig = async (
   server: WebAPIType
 ): Promise<void> => {
   const now = Date.now();
-  const newConfig = await server.getConfig();
+  const { config: newConfig, serverEpochTime } = await server.getConfig();
+
+  const serverTimeSkew = serverEpochTime * SECOND - now;
+
+  if (Math.abs(serverTimeSkew) > HOUR) {
+    log.warn(
+      'Remote Config: sever clock skew detected. ' +
+        `Server time ${serverEpochTime * SECOND}, local time ${now}`
+    );
+  }
 
   // Process new configuration in light of the old configuration
   // The old configuration is not set as the initial value in reduce because
@@ -76,7 +100,11 @@ export const refreshRemoteConfig = async (
   const oldConfig = config;
   config = newConfig.reduce((acc, { name, enabled, value }) => {
     const previouslyEnabled: boolean = get(oldConfig, [name, 'enabled'], false);
-    const previousValue: unknown = get(oldConfig, [name, 'value'], undefined);
+    const previousValue: string | undefined = get(
+      oldConfig,
+      [name, 'value'],
+      undefined
+    );
     // If a flag was previously not enabled and is now enabled,
     // record the time it was enabled
     const enabledAt: number | undefined =
@@ -86,7 +114,7 @@ export const refreshRemoteConfig = async (
       name: name as ConfigKeyType,
       enabled,
       enabledAt,
-      value,
+      value: dropNull(value),
     };
 
     const hasChanged =
@@ -108,7 +136,17 @@ export const refreshRemoteConfig = async (
     };
   }, {});
 
-  window.storage.put('remoteConfig', config);
+  // If remote configuration fetch worked - we are not expired anymore.
+  if (
+    !getValue('desktop.clientExpiration') &&
+    window.storage.get('remoteBuildExpiration') != null
+  ) {
+    log.warn('Remote Config: clearing remote expiration on successful fetch');
+    await window.storage.remove('remoteBuildExpiration');
+  }
+
+  await window.storage.put('remoteConfig', config);
+  await window.storage.put('serverTimeSkew', serverTimeSkew);
 };
 
 export const maybeRefreshRemoteConfig = throttle(
@@ -124,4 +162,89 @@ export function isEnabled(name: ConfigKeyType): boolean {
 
 export function getValue(name: ConfigKeyType): string | undefined {
   return get(config, [name, 'value'], undefined);
+}
+
+// See isRemoteConfigBucketEnabled in selectors/items.ts
+export function isBucketValueEnabled(
+  name: ConfigKeyType,
+  e164: string | undefined,
+  aci: AciString | undefined
+): boolean {
+  return innerIsBucketValueEnabled(name, getValue(name), e164, aci);
+}
+
+export function innerIsBucketValueEnabled(
+  name: ConfigKeyType,
+  flagValue: unknown,
+  e164: string | undefined,
+  aci: AciString | undefined
+): boolean {
+  if (e164 == null || aci == null) {
+    return false;
+  }
+
+  const countryCode = getCountryCode(e164);
+  if (countryCode == null) {
+    return false;
+  }
+
+  if (typeof flagValue !== 'string') {
+    return false;
+  }
+
+  const remoteConfigValue = getCountryCodeValue(countryCode, flagValue, name);
+  if (remoteConfigValue == null) {
+    return false;
+  }
+
+  const bucketValue = getBucketValue(aci, name);
+  return bucketValue < remoteConfigValue;
+}
+
+export function getCountryCodeValue(
+  countryCode: number,
+  flagValue: string,
+  flagName: string
+): number | undefined {
+  const logId = `getCountryCodeValue/${flagName}`;
+  if (flagValue.length === 0) {
+    return undefined;
+  }
+
+  const countryCodeString = countryCode.toString();
+  const items = flagValue.split(',');
+
+  let wildcard: number | undefined;
+  for (const item of items) {
+    const [code, value] = item.split(':');
+    if (code == null || value == null) {
+      log.warn(`${logId}: '${code}:${value}' entry was invalid`);
+      continue;
+    }
+
+    const parsedValue = parseIntOrThrow(
+      value,
+      `${logId}: Country code '${code}' had an invalid number '${value}'`
+    );
+    if (code === '*') {
+      wildcard = parsedValue;
+    } else if (countryCodeString === code) {
+      return parsedValue;
+    }
+  }
+
+  return wildcard;
+}
+
+export function getBucketValue(aci: AciString, flagName: string): number {
+  const hashInput = Bytes.concatenate([
+    Bytes.fromString(`${flagName}.`),
+    uuidToBytes(aci),
+  ]);
+  const hashResult = window.SignalContext.crypto.hash(
+    HashType.size256,
+    hashInput
+  );
+
+  return Number(Bytes.readBigUint64BE(hashResult.slice(0, 8)) % 1_000_000n);
 }

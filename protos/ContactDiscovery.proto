@@ -1,4 +1,4 @@
-// Copyright 2021-2021 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 package signalservice;
@@ -21,6 +21,14 @@ message CDSClientRequest {
   // the request's prev_e164s, only counting new_e164s.  If not set, then
   // rate limiting considers both prev_e164s' and new_e164s' size.
   optional bytes token = 6;
+
+  // After receiving a new token from the server, send back a message just
+  // containing a token_ack.
+  optional bool token_ack = 7;
+
+  // Request that, if the server allows, both ACI and PNI be returned even
+  // if the aci_uak_pairs don't match.
+  optional bool return_acis_without_uaks = 8;
 }
 
 message CDSClientResponse {
@@ -37,13 +45,6 @@ message CDSClientResponse {
   // protobuf marshaling added to each byte array.  This avoids any data
   // leakage based on the size of the encrypted output.
   optional bytes e164_pni_aci_triples = 1;
-
-  // If the user has run out of quota for lookups, they will receive
-  // a response with just the following field set, followed by a websocket
-  // closure of type 4008 (RESOURCE_EXHAUSTED).  Should they retry exactly
-  // the same request after the provided number of seconds has passed,
-  // we expect it should work.
-  optional int32 retry_after_secs = 2;
 
   // A token which allows subsequent calls' rate limiting to discount the
   // e164s sent up in this request, only counting those in the next

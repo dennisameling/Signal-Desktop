@@ -1,7 +1,7 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { assert } from '../util/assert';
+import { assertDev } from '../util/assert';
 import * as log from '../logging/log';
 
 import type { StorageInterface } from '../types/Storage.d';
@@ -21,6 +21,7 @@ export class OurProfileKeyService {
         resolve();
       });
     });
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     this.promisesBlockingGet = [storageReadyPromise];
 
     this.storage = storage;
@@ -40,7 +41,7 @@ export class OurProfileKeyService {
 
   async set(newValue: undefined | Uint8Array): Promise<void> {
     log.info('Our profile key service: updating profile key');
-    assert(this.storage, 'OurProfileKeyService was not initialized');
+    assertDev(this.storage, 'OurProfileKeyService was not initialized');
     if (newValue) {
       await this.storage.put('profileKey', newValue);
     } else {
@@ -62,7 +63,7 @@ export class OurProfileKeyService {
 
     delete this.getPromise;
 
-    assert(this.storage, 'OurProfileKeyService was not initialized');
+    assertDev(this.storage, 'OurProfileKeyService was not initialized');
 
     log.info('Our profile key service: fetching profile key from storage');
     const result = this.storage.get('profileKey');
@@ -70,7 +71,7 @@ export class OurProfileKeyService {
       return result;
     }
 
-    assert(
+    assertDev(
       false,
       'Profile key in storage was defined, but not an Uint8Array. Returning undefined'
     );

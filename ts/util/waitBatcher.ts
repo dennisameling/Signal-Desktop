@@ -1,11 +1,15 @@
-// Copyright 2019-2022 Signal Messenger, LLC
+// Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import PQueue from 'p-queue';
 
 import { sleep } from './sleep';
 import * as log from '../logging/log';
+import * as Errors from '../types/errors';
 import { clearTimeoutIfNecessary } from './clearTimeoutIfNecessary';
+import { MINUTE } from './durations';
+import { drop } from './drop';
+import { explodePromise } from './explodePromise';
 
 declare global {
   // We want to extend `window`'s properties, so we need an interface.
@@ -22,24 +26,32 @@ window.waitBatchers = [];
 
 window.flushAllWaitBatchers = async () => {
   log.info('waitBatcher#flushAllWaitBatchers');
-  await Promise.all(window.waitBatchers.map(item => item.flushAndWait()));
+  try {
+    await Promise.all(window.waitBatchers.map(item => item.flushAndWait()));
+  } catch (error) {
+    log.error(
+      'flushAllWaitBatchers: Error flushing all',
+      Errors.toLogFormat(error)
+    );
+  }
 };
 
 window.waitForAllWaitBatchers = async () => {
   log.info('waitBatcher#waitForAllWaitBatchers');
-  await Promise.all(window.waitBatchers.map(item => item.onIdle()));
+  try {
+    await Promise.all(window.waitBatchers.map(item => item.onIdle()));
+  } catch (error) {
+    log.error(
+      'waitForAllWaitBatchers: Error waiting for all',
+      Errors.toLogFormat(error)
+    );
+  }
 };
 
 type ItemHolderType<ItemType> = {
   resolve?: (value?: unknown) => void;
   reject?: (error: Error) => void;
   item: ItemType;
-};
-
-type ExplodedPromiseType = {
-  resolve?: (value?: unknown) => void;
-  reject?: (error: Error) => void;
-  promise: Promise<unknown>;
 };
 
 type BatcherOptionsType<ItemType> = {
@@ -54,7 +66,8 @@ type BatcherType<ItemType> = {
   anyPending: () => boolean;
   onIdle: () => Promise<void>;
   unregister: () => void;
-  flushAndWait: () => void;
+  flushAndWait: () => Promise<void>;
+  pushNoopAndWait: () => Promise<void>;
 };
 
 export function createWaitBatcher<ItemType>(
@@ -65,11 +78,15 @@ export function createWaitBatcher<ItemType>(
   let items: Array<ItemHolderType<ItemType>> = [];
   const queue = new PQueue({
     concurrency: 1,
-    timeout: 1000 * 60 * 2,
+    timeout: MINUTE * 30,
     throwOnTimeout: true,
   });
 
   async function _kickBatchOff() {
+    if (items.length === 0) {
+      return;
+    }
+
     const itemsRef = items;
     items = [];
     await queue.add(async () => {
@@ -90,20 +107,8 @@ export function createWaitBatcher<ItemType>(
     });
   }
 
-  function _makeExplodedPromise(): ExplodedPromiseType {
-    let resolve;
-    let reject;
-
-    const promise = new Promise((resolveParam, rejectParam) => {
-      resolve = resolveParam;
-      reject = rejectParam;
-    });
-
-    return { promise, resolve, reject };
-  }
-
   async function add(item: ItemType) {
-    const { promise, resolve, reject } = _makeExplodedPromise();
+    const { promise, resolve, reject } = explodePromise();
 
     items.push({
       resolve,
@@ -116,14 +121,14 @@ export function createWaitBatcher<ItemType>(
       // time is bounded by `options.wait` and not extended by further pushes.
       timeout = setTimeout(() => {
         timeout = null;
-        _kickBatchOff();
+        drop(_kickBatchOff());
       }, options.wait);
     }
     if (items.length >= options.maxSize) {
       clearTimeoutIfNecessary(timeout);
       timeout = null;
 
-      _kickBatchOff();
+      drop(_kickBatchOff());
     }
 
     await promise;
@@ -153,6 +158,7 @@ export function createWaitBatcher<ItemType>(
     );
   }
 
+  // Meant for a full shutdown of the queue
   async function flushAndWait() {
     log.info(
       `Flushing start ${options.name} for waitBatcher ` +
@@ -174,12 +180,30 @@ export function createWaitBatcher<ItemType>(
     log.info(`Flushing complete ${options.name} for waitBatcher`);
   }
 
+  // Meant to let us know that we've processed jobs up to a point
+  async function pushNoopAndWait() {
+    log.info(
+      `Pushing no-op to ${options.name} for waitBatcher ` +
+        `items.length=${items.length}`
+    );
+
+    clearTimeoutIfNecessary(timeout);
+    timeout = null;
+
+    drop(_kickBatchOff());
+
+    return queue.add(() => {
+      /* noop */
+    });
+  }
+
   waitBatcher = {
     add,
     anyPending,
     onIdle,
     unregister,
     flushAndWait,
+    pushNoopAndWait,
   };
 
   window.waitBatchers.push(waitBatcher);

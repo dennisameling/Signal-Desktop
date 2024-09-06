@@ -2,99 +2,98 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-
-import { text } from '@storybook/addon-knobs';
-import { storiesOf } from '@storybook/react';
-
+import type { Meta } from '@storybook/react';
 import type { Props } from './Emojify';
 import { Emojify } from './Emojify';
 
-const story = storiesOf('Components/Conversation/Emojify', module);
+export default {
+  title: 'Components/Conversation/Emojify',
+} satisfies Meta<Props>;
 
 const createProps = (overrideProps: Partial<Props> = {}): Props => ({
   renderNonEmoji: overrideProps.renderNonEmoji,
   sizeClass: overrideProps.sizeClass,
-  text: text('text', overrideProps.text || ''),
+  text: overrideProps.text || '',
 });
 
-story.add('Emoji Only', () => {
+export function EmojiOnly(): JSX.Element {
   const props = createProps({
     text: '😹😹😹',
   });
 
   return <Emojify {...props} />;
-});
+}
 
-story.add('Skin Color Modifier', () => {
+export function SkinColorModifier(): JSX.Element {
   const props = createProps({
     text: '👍🏾',
   });
 
   return <Emojify {...props} />;
-});
+}
 
-story.add('Jumbo', () => {
+export function Jumbo(): JSX.Element {
   const props = createProps({
     text: '😹😹😹',
     sizeClass: 'max',
   });
 
   return <Emojify {...props} />;
-});
+}
 
-story.add('Extra Large', () => {
+export function ExtraLarge(): JSX.Element {
   const props = createProps({
     text: '😹😹😹',
     sizeClass: 'extra-large',
   });
 
   return <Emojify {...props} />;
-});
+}
 
-story.add('Large', () => {
+export function Large(): JSX.Element {
   const props = createProps({
     text: '😹😹😹',
     sizeClass: 'large',
   });
 
   return <Emojify {...props} />;
-});
+}
 
-story.add('Medium', () => {
+export function Medium(): JSX.Element {
   const props = createProps({
     text: '😹😹😹',
     sizeClass: 'medium',
   });
 
   return <Emojify {...props} />;
-});
+}
 
-story.add('Small', () => {
+export function Small(): JSX.Element {
   const props = createProps({
     text: '😹😹😹',
     sizeClass: 'small',
   });
 
   return <Emojify {...props} />;
-});
+}
 
-story.add('Plus Text', () => {
+export function PlusText(): JSX.Element {
   const props = createProps({
     text: 'this 😹 cat 😹 is 😹 so 😹 joyful',
   });
 
   return <Emojify {...props} />;
-});
+}
 
-story.add('All Text, No Emoji', () => {
+export function AllTextNoEmoji(): JSX.Element {
   const props = createProps({
     text: 'this cat is so joyful',
   });
 
   return <Emojify {...props} />;
-});
+}
 
-story.add('Custom Text Render', () => {
+export function CustomTextRender(): JSX.Element {
   const props = createProps({
     text: 'this 😹 cat 😹 is 😹 so 😹 joyful',
     renderNonEmoji: ({ text: theText, key }) => (
@@ -105,20 +104,20 @@ story.add('Custom Text Render', () => {
   });
 
   return <Emojify {...props} />;
-});
+}
 
-story.add('Tens of thousands of emoji', () => {
+export function TensOfThousandsOfEmoji(): JSX.Element {
   const props = createProps({
     text: '💅'.repeat(40000),
   });
 
   return <Emojify {...props} />;
-});
+}
 
-story.add('Tens of thousands of emoji, interspersed with text', () => {
+export function TensOfThousandsOfEmojiInterspersedWithText(): JSX.Element {
   const props = createProps({
     text: '💅 hi '.repeat(40000),
   });
 
   return <Emojify {...props} />;
-});
+}

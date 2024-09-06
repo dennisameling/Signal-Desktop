@@ -1,4 +1,4 @@
-// Copyright 2021-2022 Signal Messenger, LLC
+// Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ReactChild } from 'react';
@@ -12,7 +12,10 @@ import type { Row } from '../ConversationList';
 import { RowType } from '../ConversationList';
 import type { PropsData as ConversationListItemPropsType } from '../conversationList/ConversationListItem';
 import type { LocalizerType } from '../../types/Util';
-import type { ConversationType } from '../../state/ducks/conversations';
+import type {
+  ConversationType,
+  ShowConversationType,
+} from '../../state/ducks/conversations';
 import { LeftPaneSearchInput } from '../LeftPaneSearchInput';
 import type { LeftPaneSearchPropsType } from './LeftPaneSearchHelper';
 import { LeftPaneSearchHelper } from './LeftPaneSearchHelper';
@@ -20,6 +23,7 @@ import * as KeyboardLayout from '../../services/keyboardLayout';
 
 type LeftPaneArchiveBasePropsType = {
   archivedConversations: ReadonlyArray<ConversationListItemPropsType>;
+  isSearchingGlobally: boolean;
   searchConversation: undefined | ConversationType;
   searchTerm: string;
   startSearchCounter: number;
@@ -31,6 +35,8 @@ export type LeftPaneArchivePropsType =
 
 export class LeftPaneArchiveHelper extends LeftPaneHelper<LeftPaneArchivePropsType> {
   private readonly archivedConversations: ReadonlyArray<ConversationListItemPropsType>;
+
+  private readonly isSearchingGlobally: boolean;
 
   private readonly searchConversation: undefined | ConversationType;
 
@@ -44,6 +50,7 @@ export class LeftPaneArchiveHelper extends LeftPaneHelper<LeftPaneArchivePropsTy
     super();
 
     this.archivedConversations = props.archivedConversations;
+    this.isSearchingGlobally = props.isSearchingGlobally;
     this.searchConversation = props.searchConversation;
     this.searchTerm = props.searchTerm;
     this.startSearchCounter = props.startSearchCounter;
@@ -65,12 +72,12 @@ export class LeftPaneArchiveHelper extends LeftPaneHelper<LeftPaneArchivePropsTy
         <button
           onClick={this.getBackAction({ showInbox })}
           className="module-left-pane__header__contents__back-button"
-          title={i18n('backToInbox')}
-          aria-label={i18n('backToInbox')}
+          title={i18n('icu:backToInbox')}
+          aria-label={i18n('icu:backToInbox')}
           type="button"
         />
         <div className="module-left-pane__header__contents__text">
-          {i18n('archivedConversations')}
+          {i18n('icu:archivedConversations')}
         </div>
       </div>
     );
@@ -79,13 +86,19 @@ export class LeftPaneArchiveHelper extends LeftPaneHelper<LeftPaneArchivePropsTy
   override getSearchInput({
     clearConversationSearch,
     clearSearch,
+    endConversationSearch,
+    endSearch,
     i18n,
     updateSearchTerm,
+    showConversation,
   }: Readonly<{
     clearConversationSearch: () => unknown;
     clearSearch: () => unknown;
+    endConversationSearch: () => unknown;
+    endSearch: () => unknown;
     i18n: LocalizerType;
     updateSearchTerm: (searchTerm: string) => unknown;
+    showConversation: ShowConversationType;
   }>): ReactChild | null {
     if (!this.searchConversation) {
       return null;
@@ -95,9 +108,13 @@ export class LeftPaneArchiveHelper extends LeftPaneHelper<LeftPaneArchivePropsTy
       <LeftPaneSearchInput
         clearConversationSearch={clearConversationSearch}
         clearSearch={clearSearch}
+        endConversationSearch={endConversationSearch}
+        endSearch={endSearch}
         i18n={i18n}
+        isSearchingGlobally={this.isSearchingGlobally}
         searchConversation={this.searchConversation}
         searchTerm={this.searchTerm}
+        showConversation={showConversation}
         startSearchCounter={this.startSearchCounter}
         updateSearchTerm={updateSearchTerm}
       />
@@ -117,7 +134,9 @@ export class LeftPaneArchiveHelper extends LeftPaneHelper<LeftPaneArchivePropsTy
 
     return (
       <div className="module-left-pane__archive-helper-text">
-        {i18n('archiveHelperText')}
+        {this.getRowCount() > 0
+          ? i18n('icu:archiveHelperText')
+          : i18n('icu:noArchivedConversations')}
       </div>
     );
   }
@@ -175,13 +194,13 @@ export class LeftPaneArchiveHelper extends LeftPaneHelper<LeftPaneArchivePropsTy
   getConversationAndMessageInDirection(
     toFind: Readonly<ToFindType>,
     selectedConversationId: undefined | string,
-    selectedMessageId: unknown
+    targetedMessageId: unknown
   ): undefined | { conversationId: string } {
     if (this.searchHelper) {
       return this.searchHelper.getConversationAndMessageInDirection(
         toFind,
         selectedConversationId,
-        selectedMessageId
+        targetedMessageId
       );
     }
 

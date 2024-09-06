@@ -1,19 +1,21 @@
-// Copyright 2018-2021 Signal Messenger, LLC
+// Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-/* eslint-disable camelcase */
-
+import type { DurationInSeconds } from '../util/durations';
 import type { AttachmentType } from './Attachment';
 import type { EmbeddedContactType } from './EmbeddedContact';
 import type { IndexableBoolean, IndexablePresence } from './IndexedDB';
 
+export const LONG_ATTACHMENT_LIMIT = 2048;
+
+export function getMentionsRegex(): RegExp {
+  return /\uFFFC/g;
+}
+
 export type Message = (
-  | UserMessage
   | VerifiedChangeMessage
-  | MessageHistoryUnsyncedMessage
   | ProfileChangeNotificationMessage
 ) & { deletedForEveryone?: boolean };
-export type UserMessage = IncomingMessage | OutgoingMessage;
 
 export type IncomingMessage = Readonly<
   {
@@ -27,7 +29,7 @@ export type IncomingMessage = Readonly<
     body?: string;
     decrypted_at?: number;
     errors?: Array<Error>;
-    expireTimer?: number;
+    expireTimer?: DurationInSeconds;
     messageTimer?: number; // deprecated
     isViewOnce?: number;
     flags?: number;
@@ -51,7 +53,7 @@ export type OutgoingMessage = Readonly<
 
     // Optional
     body?: string;
-    expireTimer?: number;
+    expireTimer?: DurationInSeconds;
     messageTimer?: number; // deprecated
     isViewOnce?: number;
     synced: boolean;
@@ -68,14 +70,6 @@ export type VerifiedChangeMessage = Readonly<
     ExpirationTimerUpdate
 >;
 
-export type MessageHistoryUnsyncedMessage = Readonly<
-  {
-    type: 'message-history-unsynced';
-  } & SharedMessageProperties &
-    MessageSchemaVersion5 &
-    ExpirationTimerUpdate
->;
-
 export type ProfileChangeNotificationMessage = Readonly<
   {
     type: 'profile-change';
@@ -84,23 +78,23 @@ export type ProfileChangeNotificationMessage = Readonly<
     ExpirationTimerUpdate
 >;
 
-type SharedMessageProperties = Readonly<{
+export type SharedMessageProperties = Readonly<{
   conversationId: string;
   sent_at: number;
   timestamp: number;
 }>;
 
-type ExpirationTimerUpdate = Partial<
+export type ExpirationTimerUpdate = Partial<
   Readonly<{
     expirationTimerUpdate: Readonly<{
-      expireTimer: number;
+      expireTimer: DurationInSeconds;
       fromSync: boolean;
       source: string; // PhoneNumber
     }>;
   }>
 >;
 
-type MessageSchemaVersion5 = Partial<
+export type MessageSchemaVersion5 = Partial<
   Readonly<{
     hasAttachments: IndexableBoolean;
     hasVisualMediaAttachments: IndexablePresence;
@@ -108,21 +102,8 @@ type MessageSchemaVersion5 = Partial<
   }>
 >;
 
-type MessageSchemaVersion6 = Partial<
+export type MessageSchemaVersion6 = Partial<
   Readonly<{
     contact: Array<EmbeddedContactType>;
   }>
 >;
-
-export const isUserMessage = (message: Message): message is UserMessage =>
-  message.type === 'incoming' || message.type === 'outgoing';
-
-export const hasExpiration = (message: Message): boolean => {
-  if (!isUserMessage(message)) {
-    return false;
-  }
-
-  const { expireTimer } = message;
-
-  return typeof expireTimer === 'number' && expireTimer > 0;
-};

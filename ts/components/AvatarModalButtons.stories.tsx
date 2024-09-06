@@ -3,9 +3,9 @@
 
 import React from 'react';
 
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
 
+import type { Meta } from '@storybook/react';
 import enMessages from '../../_locales/en/messages.json';
 import type { PropsType } from './AvatarModalButtons';
 import { AvatarModalButtons } from './AvatarModalButtons';
@@ -20,14 +20,20 @@ const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
   onSave: action('onSave'),
 });
 
-const story = storiesOf('Components/AvatarModalButtons', module);
+export default {
+  title: 'Components/AvatarModalButtons',
+} satisfies Meta<PropsType>;
 
-story.add('Has changes', () => (
-  <AvatarModalButtons
-    {...createProps({
-      hasChanges: true,
-    })}
-  />
-));
+export function HasChanges(): JSX.Element {
+  return (
+    <AvatarModalButtons
+      {...createProps({
+        hasChanges: true,
+      })}
+    />
+  );
+}
 
-story.add('No changes', () => <AvatarModalButtons {...createProps()} />);
+export function NoChanges(): JSX.Element {
+  return <AvatarModalButtons {...createProps()} />;
+}

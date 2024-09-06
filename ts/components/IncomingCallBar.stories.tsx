@@ -1,12 +1,12 @@
-// Copyright 2020-2021 Signal Messenger, LLC
+// Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import { storiesOf } from '@storybook/react';
 import { action } from '@storybook/addon-actions';
-
+import type { Meta } from '@storybook/react';
+import type { PropsType } from './IncomingCallBar';
 import { IncomingCallBar } from './IncomingCallBar';
-import { CallMode } from '../types/Calling';
+import { CallMode } from '../types/CallDisposition';
 import { setupI18n } from '../util/setupI18n';
 import enMessages from '../../_locales/en/messages.json';
 import { getDefaultConversation } from '../test-both/helpers/getDefaultConversation';
@@ -25,7 +25,7 @@ const commonProps = {
   },
   conversation: getDefaultConversation({
     id: '3051234567',
-    avatarPath: undefined,
+    avatarUrl: undefined,
     name: 'Rick Sanchez',
     phoneNumber: '3051234567',
     profileName: 'Rick Sanchez',
@@ -38,7 +38,7 @@ const commonProps = {
 
 const directConversation = getDefaultConversation({
   id: '3051234567',
-  avatarPath: undefined,
+  avatarUrl: undefined,
   name: 'Rick Sanchez',
   phoneNumber: '3051234567',
   profileName: 'Rick Sanchez',
@@ -46,30 +46,40 @@ const directConversation = getDefaultConversation({
 });
 
 const groupConversation = getDefaultConversation({
-  avatarPath: undefined,
+  avatarUrl: undefined,
   name: 'Tahoe Trip',
   title: 'Tahoe Trip',
   type: 'group',
 });
 
-storiesOf('Components/IncomingCallBar', module)
-  .add('Incoming direct call (video)', () => (
+export default {
+  title: 'Components/IncomingCallBar',
+} satisfies Meta<PropsType>;
+
+export function IncomingDirectCallVideo(): JSX.Element {
+  return (
     <IncomingCallBar
       {...commonProps}
       conversation={directConversation}
       callMode={CallMode.Direct}
       isVideoCall
     />
-  ))
-  .add('Incoming direct call (audio)', () => (
+  );
+}
+
+export function IncomingDirectCallAudio(): JSX.Element {
+  return (
     <IncomingCallBar
       {...commonProps}
       conversation={directConversation}
       callMode={CallMode.Direct}
       isVideoCall={false}
     />
-  ))
-  .add('Incoming group call (only calling you)', () => (
+  );
+}
+
+export function IncomingGroupCallOnlyCallingYou(): JSX.Element {
+  return (
     <IncomingCallBar
       {...commonProps}
       conversation={groupConversation}
@@ -77,8 +87,11 @@ storiesOf('Components/IncomingCallBar', module)
       otherMembersRung={[]}
       ringer={{ firstName: 'Rick', title: 'Rick Sanchez' }}
     />
-  ))
-  .add('Incoming group call (calling you and 1 other)', () => (
+  );
+}
+
+export function IncomingGroupCallCallingYouAnd1Other(): JSX.Element {
+  return (
     <IncomingCallBar
       {...commonProps}
       conversation={groupConversation}
@@ -86,8 +99,11 @@ storiesOf('Components/IncomingCallBar', module)
       otherMembersRung={[{ firstName: 'Morty', title: 'Morty Smith' }]}
       ringer={{ firstName: 'Rick', title: 'Rick Sanchez' }}
     />
-  ))
-  .add('Incoming group call (calling you and 2 others)', () => (
+  );
+}
+
+export function IncomingGroupCallCallingYouAnd2Others(): JSX.Element {
+  return (
     <IncomingCallBar
       {...commonProps}
       conversation={groupConversation}
@@ -98,8 +114,11 @@ storiesOf('Components/IncomingCallBar', module)
       ]}
       ringer={{ firstName: 'Rick', title: 'Rick Sanchez' }}
     />
-  ))
-  .add('Incoming group call (calling you and 3 others)', () => (
+  );
+}
+
+export function IncomingGroupCallCallingYouAnd3Others(): JSX.Element {
+  return (
     <IncomingCallBar
       {...commonProps}
       conversation={groupConversation}
@@ -111,8 +130,11 @@ storiesOf('Components/IncomingCallBar', module)
       ]}
       ringer={{ firstName: 'Rick', title: 'Rick Sanchez' }}
     />
-  ))
-  .add('Incoming group call (calling you and 4 others)', () => (
+  );
+}
+
+export function IncomingGroupCallCallingYouAnd4Others(): JSX.Element {
+  return (
     <IncomingCallBar
       {...commonProps}
       conversation={groupConversation}
@@ -125,4 +147,5 @@ storiesOf('Components/IncomingCallBar', module)
       ]}
       ringer={{ firstName: 'Rick', title: 'Rick Sanchez' }}
     />
-  ));
+  );
+}

@@ -578,6 +578,12 @@
   "icu:decryptionErrorToastAction": {
     "messageformat": "ਲਾਗ ਭੇਜੋ"
   },
+  "icu:Toast__ActionLabel--SubmitLog": {
+    "messageformat": "ਲਾਗ ਭੇਜੋ"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements"
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "ਤੁਸੀਂ ਫ਼ਾਈਲਾਂ ਦੇ ਨਾਲ-ਨਾਲ ਫ਼ੋਟੋੋਆਂ ਅਤੇ ਵੀਡੀਓ ਚੁਣ ਨਹੀਂ ਸਕਦੇ ਹੋ।"
   },
@@ -940,6 +946,9 @@
   },
   "icu:viewRecentMedia": {
     "messageformat": "ਹਾਲੀਆ ਮੀਡੀਆ ਨੂੰ ਵੇਖੋ"
+  },
+  "icu:allMediaMenuItem": {
+    "messageformat": "ਸਾਰਾ ਮੀਡੀਆ"
   },
   "icu:back": {
     "messageformat": "ਵਾਪਸ"
@@ -2702,6 +2711,9 @@
   "icu:CallControls__InfoDisplay--adhoc-call": {
     "messageformat": "ਕਾਲ ਦਾ ਲਿੰਕ"
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "ਗਰੁੱਪ ਕਾਲ"
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "ਕਾਲ ਦੇ ਵਿੱਚ ਸ਼ਾਮਲ ਕੀਤੇ ਜਾਣ ਦੀ ਉਡੀਕ ਕੀਤੀ ਜਾ ਰਹੀ ਹੈ"
   },
@@ -3335,12 +3347,6 @@
   "icu:GroupV2--admin-approval-remove-one--other--unknown": {
     "messageformat": "{joinerName} ਤੋਂ ਗਰੁੱਪ ਵਿੱਚ ਸ਼ਾਮਲ ਹੋਣ ਦੀ ਬੇਨਤੀ ਮਨਜ਼ੂਰ ਕਰ ਲਈ ਗਈ ਹੈ।"
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "{joinerName} ਨੇ ਗਰੁੱਪ ਲਿੰਕ ਰਾਹੀਂ ਸ਼ਾਮਲ ਹੋਣ ਦੀ ਬੇਨਤੀ ਕੀਤੀ ਅਤੇ ਬੇਨਤੀ ਰੱਦ ਕੀਤੀ"
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "{joinerName} ਨੇ ਗਰੁੱਪ ਲਿੰਕ ਰਾਹੀਂ ਸ਼ਾਮਲ ਹੋਣ ਦੀਆਂ {numberOfRequests,number} ਬੇਨਤੀਆਂ ਕੀਤੀਆਂ ਅਤੇ ਬੇਨਤੀਆਂ ਰੱਦ ਕੀਤੀਆਂ"
-  },
   "icu:GroupV2--admin-approval-bounce--pluralized": {
     "messageformat": "{numberOfRequests, plural, one {{joinerName} ਨੇ ਗਰੁੱਪ ਲਿੰਕ ਰਾਹੀਂ ਸ਼ਾਮਲ ਹੋਣ ਦੀ ਬੇਨਤੀ ਕੀਤੀ ਅਤੇ ਆਪਣੀ ਬੇਨਤੀ ਰੱਦ ਕੀਤੀ} other {{joinerName} ਨੇ ਗਰੁੱਪ ਲਿੰਕ ਰਾਹੀਂ ਸ਼ਾਮਲ ਹੋਣ ਦੀ ਬੇਨਤੀ ਕੀਤੀ ਅਤੇ ਆਪਣੀ {numberOfRequests,number} ਬੇਨਤੀਆਂ ਨੂੰ ਰੱਦ ਕੀਤਾ}}"
   },
@@ -3524,14 +3530,62 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "{totalSize} ਵਿੱਚੋਂ {currentSize} ({fractionComplete,number,percent}) ਨੂੰ ਡਾਊਨਲੋਡ ਕੀਤਾ ਜਾ ਰਿਹਾ ਹੈ..."
   },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "ਡਾਊਨਲੋਡ ਕਰਨ ਦੀ ਤਿਆਰੀ ਕੀਤੀ ਜਾ ਰਹੀ ਹੈ..."
+  },
   "icu:BackupImportScreen__description": {
     "messageformat": "ਤੁਹਾਡੇ ਬੈਕਅੱਪ ਦੇ ਆਕਾਰ 'ਤੇ ਨਿਰਭਰ ਕਰਦੇ ਹੋਏ ਇਸ ਵਿੱਚ ਕੁਝ ਮਿੰਟ ਲੱਗ ਸਕਦੇ ਹਨ"
   },
-  "icu:BackupMediaDownloadProgress__title": {
-    "messageformat": "Restoring media"
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "ਟ੍ਰਾਂਸਫਰ ਰੱਦ ਕਰੋ"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "ਕੀ ਟ੍ਰਾਂਸਫਰ ਰੱਦ ਕਰਨਾ ਹੈ?"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "ਤੁਹਾਡੇ ਸੁਨੇਹਿਆਂ ਅਤੇ ਮੀਡੀਆ ਨੂੰ ਰੀਸਟੋਰ ਕਰਨਾ ਮੁਕੰਮਲ ਨਹੀਂ ਹੋਇਆ ਹੈ। ਜੇਕਰ ਤੁਸੀਂ ਰੱਦ ਕਰਦੇ ਹੋ, ਤਾਂ ਤੁਸੀਂ ਸੈਟਿੰਗਾਂ ਵਿੱਚ ਜਾ ਕੇ ਦੁਬਾਰਾ ਟ੍ਰਾਂਸਫਰ ਕਰ ਸਕਦੇ ਹੋ।"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "ਟ੍ਰਾਂਸਫਰ ਜਾਰੀ ਰੱਖੋ"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "ਟ੍ਰਾਂਸਫਰ ਰੱਦ ਕਰੋ"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
+    "messageformat": "ਮੀਡੀਆ ਰੀਸਟੋਰ ਕੀਤਾ ਜਾ ਰਿਹਾ ਹੈ"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "Restore paused"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "Pause transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "Resume transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "ਟ੍ਰਾਂਸਫਰ ਰੱਦ ਕਰੋ"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "ਹੋਰ ਵਿਕਲਪ"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "ਬਹਾਲ ਕਰਨ ਦਾ ਕਾਰਜ ਪੂਰਾ ਹੋਇਆ"
   },
   "icu:BackupMediaDownloadProgress__progressbar-hint": {
-    "messageformat": "{currentSize} of {totalSize} ({fractionComplete,number,percent})"
+    "messageformat": "{totalSize} ਚੋਂ {currentSize}"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "Cancel media transfer?"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "ਤੁਹਾਡੇ ਸੁਨੇਹਿਆਂ ਅਤੇ ਮੀਡੀਆ ਨੂੰ ਰੀਸਟੋਰ ਕਰਨਾ ਮੁਕੰਮਲ ਨਹੀਂ ਹੋਇਆ ਹੈ। ਜੇਕਰ ਤੁਸੀਂ ਰੱਦ ਕਰਦੇ ਹੋ, ਤਾਂ ਤੁਸੀਂ ਸੈਟਿੰਗਾਂ ਵਿੱਚ ਜਾ ਕੇ ਦੁਬਾਰਾ ਟ੍ਰਾਂਸਫਰ ਕਰ ਸਕਦੇ ਹੋ।"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "ਟ੍ਰਾਂਸਫਰ ਜਾਰੀ ਰੱਖੋ"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "ਟ੍ਰਾਂਸਫਰ ਰੱਦ ਕਰੋ"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "ਫੈਲਾਓ"
@@ -3583,6 +3637,9 @@
   },
   "icu:ContactModal--already-in-call": {
     "messageformat": "ਤੁਸੀਂ ਪਹਿਲਾਂ ਹੀ ਕਾਲ ਵਿੱਚ ਹੋ"
+  },
+  "icu:ContactModal--voice": {
+    "messageformat": "ਵੌਇਸ"
   },
   "icu:showChatColorEditor": {
     "messageformat": "ਚੈਟ ਦਾ ਰੰਗ"
@@ -3765,7 +3822,7 @@
     "messageformat": "ਲਿੰਕ ਰੀਸੈੱਟ ਕਰੋ"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "ਨਵੇਂ ਮੈਂਬਰਾਂ ਨੂੰ ਮਨਜ਼ੂਰੀ ਦਿਓ"
+    "messageformat": "ਐਡਮਿਨ ਦੀ ਮਨਜ਼ੂਰੀ ਲੋੜੀਂਦੀ ਹੈ"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "ਗਰੁੱਪ ਲਿੰਕ ਦੇ ਰਾਹੀਂ ਸ਼ਾਮਲ ਹੋ ਰਹੇ ਨਵੇ ਮੈਂਬਰਾਂ ਨੂੰ ਮਨਜ਼ੂਰ ਕਰਨ ਲਈ ਇੱਕ ਐਡਮਿਨ ਦੀ ਲੋੜ ਹੈ"
@@ -5418,9 +5475,6 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "ਕਾਲ ਇਤਿਹਾਸ ਮਿਟਾਇਆ ਗਿਆ"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "ਕਾਲ ਦੇਖਣ ਜਾਂ ਸ਼ੁਰੂ ਕਰਨ ਲਈ ਕਲਿੱਕ ਕਰੋ"
-  },
   "icu:CallsTab__EmptyStateText--with-icon": {
     "messageformat": "ਇੱਕ ਨਵੀਂ ਵੌਇਸ ਜਾਂ ਵੀਡੀਓ ਕਾਲ ਸ਼ੁਰੂ ਕਰਨ ਲਈ <newCallIcon>ਨਵੀਂ ਕਾਲ</newCallIcon> ਉੱਤੇ ਕਲਿੱਕ ਕਰੋ।"
   },
@@ -5435,9 +5489,6 @@
   },
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "ਬਦਲੋ"
-  },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "ਕੋਈ ਹਾਲੀਆ ਕਾਲਾਂ ਮੌਜੂਦ ਨਹੀਂ ਹਨ। ਕਿਸੇ ਦੋਸਤ ਨੂੰ ਕਾਲ ਕਰਕੇ ਸ਼ੁਰੂਆਤ ਕਰੋ।"
   },
   "icu:CallsList__EmptyState--noQuery__title": {
     "messageformat": "ਕੋਈ ਕਾਲ ਮੌਜੂਦ ਨਹੀਂ ਹੈ"
@@ -5518,7 +5569,10 @@
     "messageformat": "ਕਾਲ ਦਾ ਨਾਮ ਸੋਧੋ"
   },
   "icu:CallLinkDetails__ApproveAllMembersLabel": {
-    "messageformat": "ਸਾਰੇ ਮੈਂਬਰਾਂ ਨੂੰ ਮਨਜ਼ੂਰੀ ਦਿਓ"
+    "messageformat": "ਐਡਮਿਨ ਦੀ ਮਨਜ਼ੂਰੀ ਲੋੜੀਂਦੀ ਹੈ"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "ਕਾਲ ਚੱਲਣ ਦੌਰਾਨ ਇਸ ਸੈਟਿੰਗ ਨੂੰ ਬਦਲਿਆ ਨਹੀਂ ਜਾ ਸਕਦਾ ਹੈ"
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "ਲਿੰਕ ਕਾਪੀ ਕਰੋ"
@@ -5541,6 +5595,9 @@
   "icu:CallLinkDetails__DeleteLinkModal__Delete": {
     "messageformat": "ਮਿਟਾਓ"
   },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "ਕਾਲ ਦੇ ਚੱਲਣ ਦੌਰਾਨ ਇਸ ਲਿੰਕ ਨੂੰ ਮਿਟਾਇਆ ਨਹੀਂ ਜਾ ਸਕਦਾ"
+  },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "ਕਾਲ ਲਿੰਕ ਵੇਰਵੇ"
   },
@@ -5554,7 +5611,13 @@
     "messageformat": "ਕਾਲ ਦਾ ਨਾਮ ਸੋਧੋ"
   },
   "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "ਸਾਰੇ ਮੈਂਬਰਾਂ ਨੂੰ ਮਨਜ਼ੂਰੀ ਦਿਓ"
+    "messageformat": "ਐਡਮਿਨ ਦੀ ਮਨਜ਼ੂਰੀ ਲੋੜੀਂਦੀ ਹੈ"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "ਦਾਖ਼ਲਾ ਮਨਜ਼ੂਰ ਕਰੋ"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "ਦਾਖ਼ਲਾ ਨਾਮਨਜ਼ੂਰ ਕਰੋ"
   },
   "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "ਬੰਦ"
@@ -5618,6 +5681,12 @@
     "messageformat": "ਅਸੀਂ ਕੁਝ ਖ਼ਰਾਬੀਆਂ ਨੂੰ ਦਰੁਸਤ ਕੀਤਾ ਹੈ, ਜਿਸ ਵਿੱਚ ਕਈ ਵਾਰ ਤੁਹਾਡੇ ਦੁਆਰਾ ਕਾਲ ਸ਼ੁਰੂ ਕਰਨ ਤੋਂ ਬਾਅਦ ਚੈਟ ਸੂਚੀ ਦੇ ਸੰਖੇਪ ਵਿੱਚ \"ਅਣਜਾਣ ਸੰਪਰਕ ਨੇ ਇੱਕ ਵੀਡੀਓ ਕਾਲ ਸ਼ੁਰੂ ਕੀਤੀ\" ਦਿਖਾਈ ਦਿੰਦਾ ਸੀ।"
   },
   "icu:WhatsNew__v7.24--0": {
-    "messageformat": "This update fixes a bug where viewing a missed call on one device wouldn't automatically clear the indicator for that missed call on your other devices, which was a missed opportunity for your missed call list to better coexist."
+    "messageformat": "ਪਹਿਲਾਂ ਇੱਕ ਡਿਵਾਈਸ 'ਤੇ ਮਿਸਡ ਕਾਲ ਦੀ ਸੂਚਨਾ ਦੇਖਣ ਤੋਂ ਬਾਅਦ ਤੁਹਾਡੇ ਦੂਜੇ ਡਿਵਾਈਸਾਂ 'ਤੇ ਮਿਸਡ ਕਾਲ ਦੀ ਸੂਚਨਾ ਆਪਣੇ-ਆਪ ਕਲੀਅਰ ਨਹੀਂ ਹੁੰਦੀ ਸੀ, ਇਹ ਅੱਪਡੇਟ ਉਸ ਖ਼ਰਾਬੀ ਨੂੰ ਠੀਕ ਕਰਦੀ ਹੈ।"
+  },
+  "icu:WhatsNew__v7.25--0": {
+    "messageformat": "ਹੁਣ ਜਦੋਂ ਤੁਸੀਂ ਚੈਟ ਦੇ ਹੈੱਡਰ 'ਤੇ ਕਲਿੱਕ ਕਰਦੇ ਹੋ ਅਤੇ ਸ਼ੇਅਰ ਕੀਤੇ ਮੀਡੀਆ ਵਾਲੇ ਸੈਕਸ਼ਨ ਵਿੱਚ \"ਸਭ ਦੇਖੋ\" ਨੂੰ ਚੁਣਦੇ ਹੋ, ਤਾਂ ਤੁਹਾਡੇ ਵੱਲੋਂ ਸਕ੍ਰੋਲ ਕਰਨ 'ਤੇ, ਤੁਹਾਨੂੰ ਸਭ ਤੋਂ ਤਾਜ਼ਾ ਸਮੱਗਰੀ ਤੱਕ ਸੀਮਿਤ ਰੱਖਣ ਦੀ ਬਜਾਏ ਤੁਹਾਨੂੰ ਪੁਰਾਣੀਆਂ ਵੀਡੀਓ ਅਤੇ ਫ਼ੋਟੋਆਂ ਆਪਣੇ-ਆਪ ਦਿਖਾਈਆਂ ਜਾਣਗੀਆਂ।"
+  },
+  "icu:WhatsNew__v7.26--0": {
+    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
   }
 }

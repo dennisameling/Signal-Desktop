@@ -181,7 +181,7 @@ import {
   updateCallLinkState,
   beginDeleteAllCallLinks,
   getAllCallLinkRecordsWithAdminKey,
-  getAllMarkedDeletedCallLinks,
+  getAllMarkedDeletedCallLinkRoomIds,
   finalizeDeleteCallLink,
   beginDeleteCallLink,
   deleteCallLinkFromSync,
@@ -191,7 +191,9 @@ import {
   replaceAllEndorsementsForGroup,
   deleteAllEndorsementsForGroup,
   getGroupSendCombinedEndorsementExpiration,
-} from './server/groupEndorsements';
+  getGroupSendEndorsementsData,
+  getGroupSendMemberEndorsement,
+} from './server/groupSendEndorsements';
 import {
   attachmentDownloadJobSchema,
   type AttachmentDownloadJobType,
@@ -265,6 +267,8 @@ export const DataReader: ServerReadableInterface = {
   getAllGroupsInvolvingServiceId,
 
   getGroupSendCombinedEndorsementExpiration,
+  getGroupSendEndorsementsData,
+  getGroupSendMemberEndorsement,
 
   searchMessages,
 
@@ -309,7 +313,7 @@ export const DataReader: ServerReadableInterface = {
   getCallLinkByRoomId,
   getCallLinkRecordByRoomId,
   getAllCallLinkRecordsWithAdminKey,
-  getAllMarkedDeletedCallLinks,
+  getAllMarkedDeletedCallLinkRoomIds,
   getMessagesBetween,
   getNearbyMessageFromDeletedSet,
   getMostRecentAddressableMessages,
@@ -336,8 +340,6 @@ export const DataReader: ServerReadableInterface = {
   _getAllStoryReads,
   getLastStoryReadsForAuthor,
   getMessagesNeedingUpgrade,
-  getMessagesWithVisualMediaAttachments,
-  getMessagesWithFileAttachments,
   getMessageServerGuidsForSpam,
 
   getJobsInQueue,
@@ -484,6 +486,7 @@ export const DataWriter: ServerWritableInterface = {
   saveBackupCdnObjectMetadata,
 
   createOrUpdateStickerPack,
+  createOrUpdateStickerPacks,
   updateStickerPackStatus,
   updateStickerPackInfo,
   createOrUpdateSticker,
@@ -493,6 +496,7 @@ export const DataWriter: ServerWritableInterface = {
   deleteStickerPackReference,
   deleteStickerPack,
   addUninstalledStickerPack,
+  addUninstalledStickerPacks,
   removeUninstalledStickerPack,
   installStickerPack,
   uninstallStickerPack,
@@ -694,6 +698,19 @@ function openAndSetUpSQLCipher(
       // Best effort
     }
     throw error;
+  }
+
+  try {
+    // fullfsync is only supported on macOS
+    db.pragma('fullfsync = false');
+
+    // a lower-impact approach, if fullfsync is too impactful
+    db.pragma('checkpoint_fullfsync = true');
+  } catch (error) {
+    logger.warn(
+      'openAndSetUpSQLCipher: Unable to set fullfsync',
+      Errors.toLogFormat(error)
+    );
   }
 
   return db;
@@ -2872,6 +2889,7 @@ function getAdjacentMessagesByConversation(
     receivedAt = direction === AdjacentDirection.Older ? Number.MAX_VALUE : 0,
     sentAt = direction === AdjacentDirection.Older ? Number.MAX_VALUE : 0,
     requireVisualMediaAttachments,
+    requireFileAttachments,
     storyId,
   }: AdjacentMessagesByConversationOptionsType
 ): Array<MessageTypeUnhydrated> {
@@ -2893,7 +2911,9 @@ function getAdjacentMessagesByConversation(
   }
 
   const requireDifferentMessage =
-    direction === AdjacentDirection.Older || requireVisualMediaAttachments;
+    direction === AdjacentDirection.Older ||
+    requireVisualMediaAttachments ||
+    requireFileAttachments;
 
   const createQuery = (timeFilter: QueryFragment): QueryFragment => sqlFragment`
     SELECT json FROM messages WHERE
@@ -2906,6 +2926,11 @@ function getAdjacentMessagesByConversation(
       ${
         requireVisualMediaAttachments
           ? sqlFragment`hasVisualMediaAttachments IS 1 AND`
+          : sqlFragment``
+      }
+      ${
+        requireFileAttachments
+          ? sqlFragment`hasFileAttachments IS 1 AND`
           : sqlFragment``
       }
       isStory IS 0 AND
@@ -2933,6 +2958,20 @@ function getAdjacentMessagesByConversation(
           FROM json_each(messages.json ->> 'attachments') AS attachment
           WHERE
             attachment.value ->> 'thumbnail' IS NOT NULL AND
+            attachment.value ->> 'pending' IS NOT 1 AND
+            attachment.value ->> 'error' IS NULL
+        ) > 0
+      LIMIT ${limit};
+    `;
+  } else if (requireFileAttachments) {
+    template = sqlFragment`
+      SELECT json
+      FROM (${template}) as messages
+      WHERE
+        (
+          SELECT COUNT(*)
+          FROM json_each(messages.json ->> 'attachments') AS attachment
+          WHERE
             attachment.value ->> 'pending' IS NOT 1 AND
             attachment.value ->> 'error' IS NULL
         ) > 0
@@ -4142,20 +4181,24 @@ function saveCallHistory(
       callId,
       peerId,
       ringerId,
+      startedById,
       mode,
       type,
       direction,
       status,
-      timestamp
+      timestamp,
+      endedTimestamp
     ) VALUES (
       ${callHistory.callId},
       ${callHistory.peerId},
       ${callHistory.ringerId},
+      ${callHistory.startedById},
       ${callHistory.mode},
       ${callHistory.type},
       ${callHistory.direction},
       ${callHistory.status},
-      ${callHistory.timestamp}
+      ${callHistory.timestamp},
+      ${callHistory.endedTimestamp}
     );
   `;
 
@@ -4761,17 +4804,27 @@ function getNextAttachmentDownloadJobs(
   db: WritableDB,
   {
     limit = 3,
+    sources,
     prioritizeMessageIds,
     timestamp = Date.now(),
     maxLastAttemptForPrioritizedMessages,
   }: {
     limit: number;
     prioritizeMessageIds?: Array<string>;
+    sources?: Array<AttachmentDownloadSource>;
     timestamp?: number;
     maxLastAttemptForPrioritizedMessages?: number;
   }
 ): Array<AttachmentDownloadJobType> {
   let priorityJobs = [];
+
+  const sourceWhereFragment = sources
+    ? sqlFragment`
+      source IN (${sqlJoin(sources)})
+    `
+    : sqlFragment`
+      TRUE
+    `;
 
   // First, try to get jobs for prioritized messages (e.g. those currently user-visible)
   if (prioritizeMessageIds?.length) {
@@ -4789,6 +4842,8 @@ function getNextAttachmentDownloadJobs(
         })
       AND
         messageId IN (${sqlJoin(prioritizeMessageIds)})
+      AND 
+        ${sourceWhereFragment}
       -- for priority messages, let's load them oldest first; this helps, e.g. for stories where we
       -- want the oldest one first
       ORDER BY receivedAt ASC
@@ -4807,6 +4862,8 @@ function getNextAttachmentDownloadJobs(
         active = 0
       AND
         (retryAfter is NULL OR retryAfter <= ${timestamp})
+      AND 
+        ${sourceWhereFragment}
       ORDER BY receivedAt DESC
       LIMIT ${numJobsRemaining}
     `;
@@ -5197,6 +5254,16 @@ function createOrUpdateStickerPack(
     )
     `
   ).run(payload);
+}
+function createOrUpdateStickerPacks(
+  db: WritableDB,
+  packs: ReadonlyArray<StickerPackType>
+): void {
+  db.transaction(() => {
+    for (const pack of packs) {
+      createOrUpdateStickerPack(db, pack);
+    }
+  })();
 }
 function updateStickerPackStatus(
   db: WritableDB,
@@ -5591,6 +5658,16 @@ function addUninstalledStickerPack(
     unknownFields: pack.storageUnknownFields ?? null,
     storageNeedsSync: pack.storageNeedsSync ? 1 : 0,
   });
+}
+function addUninstalledStickerPacks(
+  db: WritableDB,
+  packs: ReadonlyArray<UninstalledStickerPackType>
+): void {
+  return db.transaction(() => {
+    for (const pack of packs) {
+      addUninstalledStickerPack(db, pack);
+    }
+  })();
 }
 function removeUninstalledStickerPack(db: WritableDB, packId: string): void {
   db.prepare<Query>(
@@ -6513,60 +6590,6 @@ export function incrementMessagesMigrationAttempts(
       `;
     db.prepare(sqlQuery).run(sqlParams);
   });
-}
-
-function getMessagesWithVisualMediaAttachments(
-  db: ReadableDB,
-  conversationId: string,
-  { limit }: { limit: number }
-): Array<MessageType> {
-  const rows: JSONRows = db
-    .prepare<Query>(
-      `
-      SELECT json FROM messages
-      INDEXED BY messages_hasVisualMediaAttachments
-      WHERE
-        isStory IS 0 AND
-        storyId IS NULL AND
-        conversationId = $conversationId AND
-        -- Note that this check has to use 'IS' to utilize
-        -- 'messages_hasVisualMediaAttachments' INDEX
-        hasVisualMediaAttachments IS 1
-      ORDER BY received_at DESC, sent_at DESC
-      LIMIT $limit;
-      `
-    )
-    .all({
-      conversationId,
-      limit,
-    });
-
-  return rows.map(row => jsonToObject(row.json));
-}
-
-function getMessagesWithFileAttachments(
-  db: ReadableDB,
-  conversationId: string,
-  { limit }: { limit: number }
-): Array<MessageType> {
-  const rows = db
-    .prepare<Query>(
-      `
-      SELECT json FROM messages WHERE
-        isStory IS 0 AND
-        storyId IS NULL AND
-        conversationId = $conversationId AND
-        hasFileAttachments = 1
-      ORDER BY received_at DESC, sent_at DESC
-      LIMIT $limit;
-      `
-    )
-    .all({
-      conversationId,
-      limit,
-    });
-
-  return map(rows, row => jsonToObject(row.json));
 }
 
 function getMessageServerGuidsForSpam(

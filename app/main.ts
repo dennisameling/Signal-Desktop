@@ -709,7 +709,7 @@ async function createWindow() {
       preload: join(
         __dirname,
         usePreloadBundle
-          ? '../preload.bundle.js'
+          ? '../preload.wrapper.js'
           : '../ts/windows/main/preload.js'
       ),
       spellcheck: await getSpellCheckSetting(),
@@ -735,25 +735,32 @@ async function createWindow() {
     (await systemTraySettingCache.get()) ===
       SystemTraySetting.MinimizeToAndStartInSystemTray;
 
-  const visibleOnAnyScreen = some(screen.getAllDisplays(), display => {
-    if (
-      isNumber(windowOptions.x) &&
-      isNumber(windowOptions.y) &&
-      isNumber(windowOptions.width) &&
-      isNumber(windowOptions.height)
-    ) {
-      return isVisible(windowOptions as BoundsType, get(display, 'bounds'));
-    }
-
-    getLogger().error(
-      "visibleOnAnyScreen: windowOptions didn't have valid bounds fields"
+  const haveFullWindowsBounds =
+    isNumber(windowOptions.x) &&
+    isNumber(windowOptions.y) &&
+    isNumber(windowOptions.width) &&
+    isNumber(windowOptions.height);
+  if (haveFullWindowsBounds) {
+    getLogger().info(
+      `visibleOnAnyScreen(window): x=${windowOptions.x}, y=${windowOptions.y}, ` +
+        `width=${windowOptions.width}, height=${windowOptions.height}`
     );
-    return false;
-  });
-  if (!visibleOnAnyScreen) {
-    getLogger().info('Location reset needed');
-    delete windowOptions.x;
-    delete windowOptions.y;
+
+    const visibleOnAnyScreen = some(screen.getAllDisplays(), display => {
+      const displayBounds = get(display, 'bounds');
+      getLogger().info(
+        `visibleOnAnyScreen(display #${display.id}): ` +
+          `x=${displayBounds.x}, y=${displayBounds.y}, ` +
+          `width=${displayBounds.width}, height=${displayBounds.height}`
+      );
+
+      return isVisible(windowOptions as BoundsType, displayBounds);
+    });
+    if (!visibleOnAnyScreen) {
+      getLogger().info('visibleOnAnyScreen: Location reset needed');
+      delete windowOptions.x;
+      delete windowOptions.y;
+    }
   }
 
   getLogger().info(
@@ -997,7 +1004,9 @@ async function createWindow() {
     mainWindow.webContents.send('ci:event', 'db-initialized', {});
 
     const shouldShowWindow =
-      !app.getLoginItemSettings().wasOpenedAsHidden && !startInTray;
+      !app.getLoginItemSettings().wasOpenedAsHidden &&
+      !startInTray &&
+      !config.get<boolean>('ciIsBackupIntegration');
 
     if (shouldShowWindow) {
       getLogger().info('showing main window');
@@ -2567,6 +2576,9 @@ ipc.on('restart', () => {
   app.quit();
 });
 ipc.on('shutdown', () => {
+  if (process.env.GENERATE_PRELOAD_CACHE) {
+    windowState.markReadyForShutdown();
+  }
   app.quit();
 });
 
@@ -2721,7 +2733,7 @@ ipc.on('get-config', async event => {
     dnsFallback: await getDNSFallback(),
     disableIPv6: DISABLE_IPV6,
     ciBackupPath: config.get<string | null>('ciBackupPath') || undefined,
-    ciIsPlaintextBackup: config.get<boolean>('ciIsPlaintextBackup'),
+    ciIsBackupIntegration: config.get<boolean>('ciIsBackupIntegration'),
     nodeVersion: process.versions.node,
     hostname: os.hostname(),
     osRelease: os.release(),

@@ -1,9 +1,9 @@
 // Copyright 2022 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ElectronApplication, Locator, Page } from 'playwright';
+import type { ElectronApplication, Page } from 'playwright';
 import { _electron as electron } from 'playwright';
-import { EventEmitter } from 'events';
+import { EventEmitter, once } from 'events';
 import pTimeout from 'p-timeout';
 
 import type {
@@ -12,6 +12,7 @@ import type {
 } from '../challenge';
 import type { ReceiptType } from '../types/Receipt';
 import { SECOND } from '../util/durations';
+import { drop } from '../util/drop';
 
 export type AppLoadedInfoType = Readonly<{
   loadTime: number;
@@ -87,19 +88,8 @@ export class App extends EventEmitter {
     }
 
     this.privApp.on('close', () => this.emit('close'));
-  }
 
-  public async waitForEnabledComposer(): Promise<Locator> {
-    const window = await this.getWindow();
-    const composeArea = window.locator(
-      '.composition-area-wrapper, .Inbox__conversation .ConversationView'
-    );
-    const composeContainer = composeArea.locator(
-      '[data-testid=CompositionInput][data-enabled=true]'
-    );
-    await composeContainer.waitFor();
-
-    return composeContainer.locator('.ql-editor');
+    drop(this.printLoop());
   }
 
   public async waitForProvisionURL(): Promise<string> {
@@ -157,8 +147,24 @@ export class App extends EventEmitter {
     );
   }
 
+  private async checkForFatalTestErrors(): Promise<void> {
+    const count = await this.getPendingEventCount('fatalTestError');
+    if (count === 0) {
+      return;
+    }
+    for (let i = 0; i < count; i += 1) {
+      // eslint-disable-next-line no-await-in-loop, no-console
+      console.error(await this.waitForEvent('fatalTestError'));
+    }
+    throw new Error('App had fatal test errors');
+  }
+
   public async close(): Promise<void> {
-    await this.app.close();
+    try {
+      await this.checkForFatalTestErrors();
+    } finally {
+      await this.app.close();
+    }
   }
 
   public async getWindow(): Promise<Page> {
@@ -218,6 +224,15 @@ export class App extends EventEmitter {
     return super.emit(type, ...args);
   }
 
+  public async getPendingEventCount(event: string): Promise<number> {
+    const window = await this.getWindow();
+    const result = await window.evaluate(
+      `window.SignalCI.getPendingEventCount(${JSON.stringify(event)})`
+    );
+
+    return Number(result);
+  }
+
   //
   // Private
   //
@@ -242,5 +257,37 @@ export class App extends EventEmitter {
     }
 
     return this.privApp;
+  }
+
+  private async printLoop(): Promise<void> {
+    const kClosed: unique symbol = Symbol('kClosed');
+    const onClose = (async (): Promise<typeof kClosed> => {
+      try {
+        await once(this, 'close');
+      } catch {
+        // Ignore
+      }
+      return kClosed;
+    })();
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const value = await Promise.race([
+          this.waitForEvent<string>('print', 0),
+          onClose,
+        ]);
+
+        if (value === kClosed) {
+          break;
+        }
+
+        // eslint-disable-next-line no-console
+        console.error(`CI.print: ${value}`);
+      } catch {
+        // Ignore errors
+      }
+    }
   }
 }

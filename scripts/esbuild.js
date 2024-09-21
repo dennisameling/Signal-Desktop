@@ -13,7 +13,7 @@ const isProd = process.argv.some(argv => argv === '-prod' || argv === '--prod');
 
 const nodeDefaults = {
   platform: 'node',
-  target: 'esnext',
+  target: 'es2023',
   // Disabled even in dev because the debugger is broken
   sourcemap: false,
   // Otherwise React components get renamed
@@ -103,12 +103,15 @@ async function main() {
       ...nodeDefaults,
       format: 'cjs',
       mainFields: ['browser', 'main'],
-      entryPoints: glob
-        .sync('{app,ts}/**/*.{ts,tsx}', {
-          nodir: true,
-          root: ROOT_DIR,
-        })
-        .filter(file => !file.endsWith('.d.ts')),
+      entryPoints: [
+        'preload.wrapper.ts',
+        ...glob
+          .sync('{app,ts}/**/*.{ts,tsx}', {
+            nodir: true,
+            root: ROOT_DIR,
+          })
+          .filter(file => !file.endsWith('.d.ts')),
+      ],
       outdir: path.join(ROOT_DIR),
     },
     preloadConfig: {

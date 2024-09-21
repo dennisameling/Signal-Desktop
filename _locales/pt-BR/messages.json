@@ -84,7 +84,7 @@
     "messageformat": "Não foi possível acessar a chave de criptografia do banco de dados porque o backend do chaveiro de criptografia do sistema operacional foi alterado de {previousBackend} para {currentBackend}. Isso pode ocorrer se o ambiente de desktop for alterado, por exemplo, entre GNOME e KDE.\n\nPor favor, volte para o ambiente de desktop anterior."
   },
   "icu:databaseError__safeStorageBackendChangeWithPreviousFlag": {
-    "messageformat": "Não foi possível acessar a chave de criptografia do banco de dados porque o backend do chaveiro de criptografia do sistema operacional mudou de {previousBackend} para {currentBackend}.  Isso pode ocorrer se o ambiente de desktop mudar, por exemplo, entre GNOME e KDE.  .\n\nTroque para o ambiente de desktop anterior ou tente veicular o Signal com a bandeira da linha de comando --password-store=\"{previousBackendFlag}\""
+    "messageformat": "Não foi possível acessar a chave de criptografia do banco de dados porque o backend do chaveiro de criptografia do sistema operacional mudou de {previousBackend} para {currentBackend}.  Isso pode ocorrer se o ambiente de desktop mudar, por exemplo, entre GNOME e KDE.  .\n\nTroque para o ambiente de desktop anterior ou tente veicular o Signal com a flag da linha de comando --password-store=\"{previousBackendFlag}\""
   },
   "icu:mainMenuFile": {
     "messageformat": "&Arquivo"
@@ -578,6 +578,12 @@
   "icu:decryptionErrorToastAction": {
     "messageformat": "Enviar um registro de depuração"
   },
+  "icu:Toast__ActionLabel--SubmitLog": {
+    "messageformat": "Enviar um registro de depuração"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements"
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "Não é possível selecionar fotos e vídeos juntamente com arquivos."
   },
@@ -940,6 +946,9 @@
   },
   "icu:viewRecentMedia": {
     "messageformat": "Ver mídia recente"
+  },
+  "icu:allMediaMenuItem": {
+    "messageformat": "Todos os arquivos de mídia"
   },
   "icu:back": {
     "messageformat": "Voltar"
@@ -2702,6 +2711,9 @@
   "icu:CallControls__InfoDisplay--adhoc-call": {
     "messageformat": "Link da chamada"
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "Chamada em grupo"
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "Esperando pra entrar"
   },
@@ -3335,12 +3347,6 @@
   "icu:GroupV2--admin-approval-remove-one--other--unknown": {
     "messageformat": "O pedido de {joinerName} para entrar no grupo foi recusado."
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "{joinerName} solicitou e cancelou o pedido de participação via o link do grupo"
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "{joinerName} solicitou e cancelou {numberOfRequests,number} pedidos de participação via o link do grupo"
-  },
   "icu:GroupV2--admin-approval-bounce--pluralized": {
     "messageformat": "{numberOfRequests, plural, one {{joinerName} solicitou e cancelou a própria solicitação para participar pelo link do grupo} other {{joinerName} solicitou e cancelou {numberOfRequests,number} solicitações para participar pelo link do grupo}}"
   },
@@ -3524,14 +3530,62 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "Baixando {currentSize} de {totalSize} ({fractionComplete,number,percent})..."
   },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "Preparando para download…"
+  },
   "icu:BackupImportScreen__description": {
     "messageformat": "Isso pode demorar alguns minutos, dependendo do tamanho do seu backup"
   },
-  "icu:BackupMediaDownloadProgress__title": {
-    "messageformat": "Restoring media"
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "Cancelar transferência"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "Cancelar transferência?"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "Suas mensagens e arquivos de mídia não foram totalmente restauradas. Se cancelar, você pode transferir novamente em Configurações."
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "Continuar transferência"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "Cancelar transferência"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
+    "messageformat": "Restaurando arquivos de mídia"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "Restore paused"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "Pause transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "Resume transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "Cancelar transferência"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "Mais opções"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "Restauração concluída"
   },
   "icu:BackupMediaDownloadProgress__progressbar-hint": {
-    "messageformat": "{currentSize} of {totalSize} ({fractionComplete,number,percent})"
+    "messageformat": "{currentSize} de {totalSize}"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "Cancel media transfer?"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "Suas mensagens e arquivos de mídia não foram totalmente restauradas. Se cancelar, você pode transferir novamente em Configurações."
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "Continuar transferência"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "Cancelar transferência"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "Expandir"
@@ -3583,6 +3637,9 @@
   },
   "icu:ContactModal--already-in-call": {
     "messageformat": "Você já está em uma chamada"
+  },
+  "icu:ContactModal--voice": {
+    "messageformat": "Voz"
   },
   "icu:showChatColorEditor": {
     "messageformat": "Cor do chat"
@@ -3765,7 +3822,7 @@
     "messageformat": "Redefinir o link"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "Aprovar novos membros"
+    "messageformat": "Requer aprovação do admin"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "Exigir que uma pessoa admin aprove pedidos de novos membros via link do grupo"
@@ -5418,9 +5475,6 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "Histórico de Chamadas Apagado"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "Clique para ver ou iniciar uma chamada"
-  },
   "icu:CallsTab__EmptyStateText--with-icon": {
     "messageformat": "Clique em <newCallIcon>Nova chamada</newCallIcon> para iniciar uma nova chamada de voz ou vídeo."
   },
@@ -5435,9 +5489,6 @@
   },
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "Alternar"
-  },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "Sem chamadas recentes. Comece ligando para um amigo."
   },
   "icu:CallsList__EmptyState--noQuery__title": {
     "messageformat": "Nenhuma chamada"
@@ -5518,7 +5569,10 @@
     "messageformat": "Editar nome da chamada"
   },
   "icu:CallLinkDetails__ApproveAllMembersLabel": {
-    "messageformat": "Aprovar todos os membros"
+    "messageformat": "Requer aprovação do admin"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "Essa configuração não pode ser alterada enquanto a chamada estiver ativa"
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "Copiar link"
@@ -5541,6 +5595,9 @@
   "icu:CallLinkDetails__DeleteLinkModal__Delete": {
     "messageformat": "Excluir"
   },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "Este link não pode ser apagado enquanto a chamada estiver ativa"
+  },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "Detalhes do link de chamada"
   },
@@ -5554,7 +5611,13 @@
     "messageformat": "Editar nome da chamada"
   },
   "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "Aprovar todos os membros"
+    "messageformat": "Requer aprovação do admin"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "Aprovar entrada"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "Recusar entrada"
   },
   "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "Desligado"
@@ -5618,6 +5681,12 @@
     "messageformat": "Também resolvemos alguns problemas, incluindo um que, em algumas ocasiões, exibia “Contato desconhecido iniciou uma chamada de vídeo” no resumo da lista de conversas após você ter iniciado a chamada."
   },
   "icu:WhatsNew__v7.24--0": {
-    "messageformat": "This update fixes a bug where viewing a missed call on one device wouldn't automatically clear the indicator for that missed call on your other devices, which was a missed opportunity for your missed call list to better coexist."
+    "messageformat": "Essa atualização corrige um erro de visualização de chamadas perdidas. Antes, você via o indicador dessa chamada em todos os dispositivos. Agora, ao visualizar em um, o indicador desaparece em todos."
+  },
+  "icu:WhatsNew__v7.25--0": {
+    "messageformat": "Entre em um túnel do tempo ao  visualizar o novo layout de \"todos os arquivos de mídia\". Ao tocar no nome da conversa, selecione 'Ver tudo' na seção de mídia compartilhada. Fotos e vídeos mais antigos aparecerão automaticamente conforme você rola a tela, sem limitar sua visualização apenas às últimas trocas. "
+  },
+  "icu:WhatsNew__v7.26--0": {
+    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
   }
 }

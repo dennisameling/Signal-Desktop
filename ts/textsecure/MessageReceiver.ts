@@ -49,8 +49,7 @@ import { parseIntOrThrow } from '../util/parseIntOrThrow';
 import { clearTimeoutIfNecessary } from '../util/clearTimeoutIfNecessary';
 import { Zone } from '../util/Zone';
 import * as durations from '../util/durations';
-import { DurationInSeconds, SECOND } from '../util/durations';
-import type { AttachmentType } from '../types/Attachment';
+import { DurationInSeconds } from '../util/durations';
 import { Address } from '../types/Address';
 import { QualifiedAddress } from '../types/QualifiedAddress';
 import { normalizeStoryDistributionId } from '../types/StoryDistributionId';
@@ -82,11 +81,8 @@ import {
 import { processSyncMessage } from './processSyncMessage';
 import type { EventHandler } from './EventTarget';
 import EventTarget from './EventTarget';
-import { downloadAttachment } from './downloadAttachment';
 import type { IncomingWebSocketRequest } from './WebsocketResources';
 import { ServerRequestType } from './WebsocketResources';
-import { parseContactsV2 } from './ContactsParser';
-import type { WebAPIType } from './WebAPI';
 import type { Storage } from './Storage';
 import { WarnOnlyError } from './Errors';
 import * as Bytes from '../Bytes';
@@ -215,7 +211,6 @@ enum TaskType {
 }
 
 export type MessageReceiverOptions = {
-  server: WebAPIType;
   storage: Storage;
   serverTrustRoot: string;
 };
@@ -287,8 +282,6 @@ export default class MessageReceiver
 {
   /* eslint-enable @typescript-eslint/brace-style */
 
-  private server: WebAPIType;
-
   private storage: Storage;
 
   private appQueue: PQueue;
@@ -319,10 +312,9 @@ export default class MessageReceiver
 
   private isAppReadyForProcessing: boolean = false;
 
-  constructor({ server, storage, serverTrustRoot }: MessageReceiverOptions) {
+  constructor({ storage, serverTrustRoot }: MessageReceiverOptions) {
     super();
 
-    this.server = server;
     this.storage = storage;
 
     this.count = 0;
@@ -407,15 +399,15 @@ export default class MessageReceiver
     }
 
     const job = async () => {
-      if (!request.body) {
-        throw new Error(
-          'MessageReceiver.handleRequest: request.body was falsey!'
-        );
-      }
-
-      const plaintext = request.body;
-
       try {
+        if (!request.body) {
+          throw new Error(
+            'MessageReceiver.handleRequest: request.body was falsey!'
+          );
+        }
+
+        const plaintext = request.body;
+
         const decoded = Proto.Envelope.decode(plaintext);
         const serverTimestamp = decoded.serverTimestamp?.toNumber() ?? 0;
 
@@ -1572,7 +1564,7 @@ export default class MessageReceiver
         !isDeleteForEveryone
       ) {
         log.warn(
-          `${logId}: Dropping story message - story=true on envelope, but message was not a group story send or delete`
+          `${logId}: Dropping story message - story=true on envelope, but message was not a story send or delete`
         );
         this.removeFromCache(envelope);
         return { plaintext: undefined, envelope };
@@ -1580,7 +1572,7 @@ export default class MessageReceiver
 
       if (!envelope.story && (isGroupStoryReply || isStory)) {
         log.warn(
-          `${logId}: Malformed story - story=false on envelope, but was a group story send`
+          `${logId}: Malformed story - story=false on envelope, but was a story send`
         );
       }
 
@@ -2290,7 +2282,7 @@ export default class MessageReceiver
     };
 
     if (sentMessage && message.groupV2) {
-      log.warn(`${logId}: envelope is a sent group story`);
+      log.info(`${logId}: envelope is a sent group story`);
       const ev = new SentEvent(
         {
           envelopeId: envelope.id,
@@ -2322,7 +2314,7 @@ export default class MessageReceiver
     }
 
     if (sentMessage) {
-      log.warn(`${logId}: envelope is a sent distribution list story`);
+      log.info(`${logId}: envelope is a sent distribution list story`);
       const { storyMessageRecipients } = sentMessage;
       const recipients = storyMessageRecipients ?? [];
 
@@ -2389,7 +2381,7 @@ export default class MessageReceiver
       return;
     }
 
-    log.warn(`${logId}: envelope is a received story`);
+    log.info(`${logId}: envelope is a received story`);
     const ev = new MessageEvent(
       {
         envelopeId: envelope.id,
@@ -3823,34 +3815,13 @@ export default class MessageReceiver
 
     this.removeFromCache(envelope);
 
-    let attachment: AttachmentType | undefined;
-    try {
-      attachment = await this.handleAttachmentV2(blob, {
-        disableRetries: true,
-        timeout: 90 * SECOND,
-      });
-
-      const { path } = attachment;
-      if (!path) {
-        throw new Error('Failed no path field in returned attachment');
-      }
-
-      const contacts = await parseContactsV2(attachment);
-
-      const contactSync = new ContactSyncEvent(
-        contacts,
-        Boolean(contactSyncProto.complete),
-        envelope.receivedAtCounter,
-        envelope.timestamp
-      );
-      await this.dispatchAndWait(logId, contactSync);
-
-      log.info('handleContacts: finished');
-    } finally {
-      if (attachment?.path) {
-        await window.Signal.Migrations.deleteAttachmentData(attachment.path);
-      }
-    }
+    const contactSync = new ContactSyncEvent(
+      processAttachment(blob),
+      Boolean(contactSyncProto.complete),
+      envelope.receivedAtCounter,
+      envelope.timestamp
+    );
+    await this.dispatchAndWait(logId, contactSync);
   }
 
   private async handleBlocked(
@@ -3935,18 +3906,6 @@ export default class MessageReceiver
 
   private isGroupBlocked(groupId: string): boolean {
     return this.storage.blocked.isGroupBlocked(groupId);
-  }
-
-  private async handleAttachmentV2(
-    attachment: Proto.IAttachmentPointer,
-    options?: { timeout?: number; disableRetries?: boolean }
-  ): Promise<AttachmentType> {
-    const cleaned = processAttachment(attachment);
-    const downloaded = await downloadAttachment(this.server, cleaned, options);
-    return {
-      ...cleaned,
-      ...downloaded,
-    };
   }
 
   private async handleEndSession(

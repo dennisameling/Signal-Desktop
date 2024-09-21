@@ -1932,25 +1932,15 @@ export class ConversationModel extends window.Backbone
         `cleanAttributes: Eliminated ${eliminated} messages without an id`
       );
     }
-    const ourAci = window.textsecure.storage.user.getCheckedAci();
 
     let upgraded = 0;
     const hydrated = await Promise.all(
       present.map(async message => {
-        const { schemaVersion } = message;
-
-        const model = window.MessageCache.__DEPRECATED$register(
-          message.id,
+        const upgradedMessage = await window.MessageCache.upgradeSchema(
           message,
-          'cleanAttributes'
+          Message.VERSION_NEEDED_FOR_DISPLAY
         );
-
-        let upgradedMessage = message;
-        if ((schemaVersion || 0) < Message.VERSION_NEEDED_FOR_DISPLAY) {
-          // Yep, we really do want to wait for each of these
-          upgradedMessage = await upgradeMessageSchema(model.attributes);
-          model.set(upgradedMessage);
-          await DataWriter.saveMessage(upgradedMessage, { ourAci });
+        if (upgradedMessage !== message) {
           upgraded += 1;
         }
 
@@ -4923,8 +4913,12 @@ export class ConversationModel extends window.Backbone
 
   async setProfileKey(
     profileKey: string | undefined,
-    { viaStorageServiceSync = false } = {}
+    {
+      viaStorageServiceSync = false,
+      reason,
+    }: { viaStorageServiceSync?: boolean; reason: string }
   ): Promise<boolean> {
+    const logId = `setProfileKey(${this.idForLogging()}/${reason})`;
     const oldProfileKey = this.get('profileKey');
 
     // profileKey is a string so we can compare it directly
@@ -4932,9 +4926,7 @@ export class ConversationModel extends window.Backbone
       return false;
     }
 
-    log.info(
-      `Setting sealedSender to UNKNOWN for conversation ${this.idForLogging()}`
-    );
+    log.info(`${logId}: Profile key changed. Setting sealedSender to UNKNOWN`);
     this.set({
       profileKeyCredential: null,
       profileKeyCredentialExpiration: null,
@@ -4945,10 +4937,7 @@ export class ConversationModel extends window.Backbone
     // We messaged the contact when it had either phone number or username
     // title.
     if (this.get('needsTitleTransition')) {
-      log.info(
-        `setProfileKey(${this.idForLogging()}): adding a ` +
-          'title transition notification'
-      );
+      log.info(`${logId}: adding a title transition notification`);
 
       const { type, e164, username } = this.attributes;
 
@@ -5050,7 +5039,7 @@ export class ConversationModel extends window.Backbone
         'deriveProfileKeyVersion: Failed to derive profile key version, ' +
           'clearing profile key.'
       );
-      void this.setProfileKey(undefined);
+      void this.setProfileKey(undefined, { reason: 'deriveProfileKeyVersion' });
       return;
     }
 

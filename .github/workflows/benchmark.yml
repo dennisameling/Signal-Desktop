@@ -54,6 +54,8 @@ jobs:
       run: npm run generate
     - name: Bundle
       run: npm run build:esbuild:prod
+    - name: Create preload cache
+      run: xvfb-run --auto-servernum npm run build:preload-cache
 
     - name: Run startup benchmarks
       run: |
@@ -98,6 +100,26 @@ jobs:
         # DEBUG: 'mock:benchmarks'
         ARTIFACTS_DIR: artifacts/group-send
 
+    - name: Run large group send benchmarks with blocks
+      run: |
+        set -o pipefail
+        rm -rf /tmp/mock
+        xvfb-run --auto-servernum node \
+          ts/test-mock/benchmarks/group_send_bench.js | \
+          tee benchmark-large-group-send-with-blocks.log
+      timeout-minutes: 10
+      env:
+        NODE_ENV: production
+        GROUP_SIZE: 500
+        CONTACT_COUNT: 500
+        BLOCKED_COUNT: 10
+        DISCARD_COUNT: 2
+        RUN_COUNT: 50
+        CONVERSATION_SIZE: 500
+        ELECTRON_ENABLE_STACK_DUMPING: on
+        # DEBUG: 'mock:benchmarks'
+        ARTIFACTS_DIR: artifacts/group-send
+
     - name: Run large group send benchmarks with delivery receipts
       run: |
         set -o pipefail
@@ -133,6 +155,21 @@ jobs:
         # DEBUG: 'mock:benchmarks'
         ARTIFACTS_DIR: artifacts/convo-open
 
+    - name: Run call history search benchmarks
+      run: |
+        set -o pipefail
+        rm -rf /tmp/mock
+        xvfb-run --auto-servernum node \
+          ts/test-mock/benchmarks/call_history_search_bench.js | \
+          tee benchmark-call-history-search.log
+      timeout-minutes: 10
+      env:
+        NODE_ENV: production
+        RUN_COUNT: 100
+        ELECTRON_ENABLE_STACK_DUMPING: on
+        # DEBUG: 'mock:benchmarks'
+        ARTIFACTS_DIR: artifacts/call-history-search
+
     - name: Upload benchmark logs on failure
       if: failure()
       uses: actions/upload-artifact@v4
@@ -159,7 +196,9 @@ jobs:
         node ./bin/publish.js ../benchmark-startup.log desktop.ci.performance.startup
         node ./bin/publish.js ../benchmark-send.log desktop.ci.performance.send
         node ./bin/publish.js ../benchmark-group-send.log desktop.ci.performance.groupSend
+        node ./bin/publish.js ../benchmark-large-group-send-with-blocks.log desktop.ci.performance.largeGroupSendWithBlocks
         node ./bin/publish.js ../benchmark-large-group-send.log desktop.ci.performance.largeGroupSend
         node ./bin/publish.js ../benchmark-convo-open.log desktop.ci.performance.convoOpen
+        node ./bin/publish.js ../benchmark-call-history-search.log desktop.ci.performance.callHistorySearch
       env:
         DD_API_KEY: ${{ secrets.DATADOG_API_KEY }}

@@ -164,7 +164,7 @@ export class Bootstrap {
   private readonly randomId = crypto.randomBytes(8).toString('hex');
 
   constructor(options: BootstrapOptions = {}) {
-    this.cdn3Path = path.join(os.tmpdir(), 'mock-signal-cdn3-');
+    this.cdn3Path = path.join(os.tmpdir(), `mock-signal-cdn3-${this.randomId}`);
     this.server = new Server({
       // Limit number of storage read keys for easier testing
       maxStorageReadKeys: MAX_STORAGE_READ_KEYS,
@@ -258,6 +258,15 @@ export class Bootstrap {
     );
 
     return path.join(this.storagePath, 'logs');
+  }
+
+  public get ephemeralConfigPath(): string {
+    assert(
+      this.storagePath !== undefined,
+      'Bootstrap has to be initialized first, see: bootstrap.init()'
+    );
+
+    return path.join(this.storagePath, 'ephemeral.json');
   }
 
   public getBackupPath(fileName: string): string {

@@ -542,7 +542,6 @@ export async function startApp(): Promise<void> {
 
     log.info('Initializing MessageReceiver');
     messageReceiver = new MessageReceiver({
-      server,
       storage: window.storage,
       serverTrustRoot: window.getServerTrustRoot(),
     });
@@ -1744,7 +1743,9 @@ export async function startApp(): Promise<void> {
       if (firstRun && profileKey) {
         const me = window.ConversationController.getOurConversation();
         strictAssert(me !== undefined, "Didn't find newly created ourselves");
-        await me.setProfileKey(Bytes.toBase64(profileKey));
+        await me.setProfileKey(Bytes.toBase64(profileKey), {
+          reason: 'connect/firstRun',
+        });
       }
 
       if (isBackupEnabled()) {
@@ -2092,7 +2093,9 @@ export async function startApp(): Promise<void> {
         storage,
       });
 
-      void routineProfileRefresher.start();
+      if (!window.SignalCI?.isBackupIntegration) {
+        void routineProfileRefresher.start();
+      }
     }
 
     drop(usernameIntegrity.start());
@@ -2127,6 +2130,10 @@ export async function startApp(): Promise<void> {
 
   async function onConfiguration(ev: ConfigurationEvent): Promise<void> {
     ev.confirm();
+
+    if (window.SignalCI?.isBackupIntegration) {
+      return;
+    }
 
     const { configuration } = ev;
     const {
@@ -2290,7 +2297,9 @@ export async function startApp(): Promise<void> {
 
     if (sender) {
       // Will do the save for us
-      await sender.setProfileKey(profileKey);
+      await sender.setProfileKey(profileKey, {
+        reason: 'handleMessageReceivedProfileUpdate',
+      });
     }
 
     return confirm();
@@ -2572,13 +2581,9 @@ export async function startApp(): Promise<void> {
       return;
     }
 
-    log.info(
-      `${logId}: updating profileKey for ${idForLogging}`,
-      data.sourceAci,
-      data.source
-    );
-
-    const hasChanged = await conversation.setProfileKey(data.profileKey);
+    const hasChanged = await conversation.setProfileKey(data.profileKey, {
+      reason: `onProfileKey/${reason}`,
+    });
 
     if (hasChanged) {
       drop(conversation.getProfiles());
@@ -2615,7 +2620,9 @@ export async function startApp(): Promise<void> {
     );
 
     // Will do the save for us if needed
-    await me.setProfileKey(profileKey);
+    await me.setProfileKey(profileKey, {
+      reason: 'handleMessageSentProfileUpdate',
+    });
 
     return confirm();
   }
@@ -3192,6 +3199,10 @@ export async function startApp(): Promise<void> {
 
   async function onKeysSync(ev: KeysEvent) {
     ev.confirm();
+
+    if (window.SignalCI?.isBackupIntegration) {
+      return;
+    }
 
     const { masterKey } = ev;
     let { storageServiceKey } = ev;

@@ -578,6 +578,12 @@
   "icu:decryptionErrorToastAction": {
     "messageformat": "Υποβολή αρχείου"
   },
+  "icu:Toast__ActionLabel--SubmitLog": {
+    "messageformat": "Υποβολή αρχείου"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements"
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "Δεν μπορείς να επιλέξεις φωτογραφίες και βίντεο μαζί με αρχεία."
   },
@@ -940,6 +946,9 @@
   },
   "icu:viewRecentMedia": {
     "messageformat": "Προβολή πρόσφατων πολυμέσων"
+  },
+  "icu:allMediaMenuItem": {
+    "messageformat": "Όλα τα πολυμέσα"
   },
   "icu:back": {
     "messageformat": "Πίσω"
@@ -2702,6 +2711,9 @@
   "icu:CallControls__InfoDisplay--adhoc-call": {
     "messageformat": "Σύνδεσμος κλήσης"
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "Ομαδική κλήση"
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "Σε αναμονή για προσθήκη"
   },
@@ -3335,12 +3347,6 @@
   "icu:GroupV2--admin-approval-remove-one--other--unknown": {
     "messageformat": "Το αίτημα του/της {joinerName} να μπει στην ομάδα απορρίφθηκε."
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "Ο/Η {joinerName} έκανε και ακύρωσε το αίτημα να μπει μέσω του συνδέσμου της ομάδας."
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "Ο/Η {joinerName} έκανε και ακύρωσε {numberOfRequests,number} αιτήματα να μπει μέσω του συνδέσμου της ομάδας."
-  },
   "icu:GroupV2--admin-approval-bounce--pluralized": {
     "messageformat": "{numberOfRequests, plural, one {Ο/Η {joinerName} έστειλε αίτημα και το ακύρωσε, για συμμετοχή μέσω του συνδέσμου της ομάδας} other {Ο/Η {joinerName} έστειλε και ακύρωσε {numberOfRequests,number} αιτήματα για συμμετοχή μέσω του συνδέσμου της ομάδας}}"
   },
@@ -3524,14 +3530,62 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "Λήψη {currentSize} από {totalSize} ({fractionComplete,number,percent})..."
   },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "Προετοιμασία για λήψη..."
+  },
   "icu:BackupImportScreen__description": {
     "messageformat": "Μπορεί να διαρκέσει μερικά λεπτά, ανάλογα με το μέγεθος του αντιγράφου ασφαλείας σου"
   },
-  "icu:BackupMediaDownloadProgress__title": {
-    "messageformat": "Restoring media"
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "Ακύρωση μεταφοράς"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "Ακύρωση μεταφοράς;"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "Η επαναφορά των μηνυμάτων και των πολυμέσων σου δεν έχει ολοκληρωθεί. Εάν επιλέξεις να την ακυρώσεις, μπορείς να τα μεταφέρεις ξανά από τις Ρυθμίσεις."
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "Συνέχεια μεταφοράς"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "Ακύρωση μεταφοράς"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
+    "messageformat": "Επαναφορά πολυμέσων"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "Restore paused"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "Pause transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "Resume transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "Ακύρωση μεταφοράς"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "Περισσότερες επιλογές"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "Η ανάκτηση ολοκληρώθηκε"
   },
   "icu:BackupMediaDownloadProgress__progressbar-hint": {
-    "messageformat": "{currentSize} of {totalSize} ({fractionComplete,number,percent})"
+    "messageformat": "{currentSize} από {totalSize}"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "Cancel media transfer?"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "Η επαναφορά των μηνυμάτων και των πολυμέσων σου δεν έχει ολοκληρωθεί. Εάν επιλέξεις να την ακυρώσεις, μπορείς να τα μεταφέρεις ξανά από τις Ρυθμίσεις."
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "Συνέχεια μεταφοράς"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "Ακύρωση μεταφοράς"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "Ανάπτυξη"
@@ -3583,6 +3637,9 @@
   },
   "icu:ContactModal--already-in-call": {
     "messageformat": "Είσαι ήδη σε κάποια κλήση"
+  },
+  "icu:ContactModal--voice": {
+    "messageformat": "Φωνή"
   },
   "icu:showChatColorEditor": {
     "messageformat": "Χρώμα συνομιλίας"
@@ -3765,7 +3822,7 @@
     "messageformat": "Επαναφορά συνδέσμου"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "Έγκριση νέων μελών"
+    "messageformat": "Απαιτείται έγκριση διαχειριστή"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "Να απαιτείται η έγκριση απο διαχειριστή/τρια για νέα μέλη που μπαίνουν από το σύνδεσμο της ομάδας."
@@ -5418,9 +5475,6 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "Το ιστορικό κλήσεων διαγράφηκε"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "Κάνε κλικ για να δεις ή να ξεκινήσεις μια κλήση"
-  },
   "icu:CallsTab__EmptyStateText--with-icon": {
     "messageformat": "Πάτα <newCallIcon>Νέα κλήση</newCallIcon> για να ξεκινήσεις μια νέα φωνητική κλήση ή μια βιντεοκλήση."
   },
@@ -5435,9 +5489,6 @@
   },
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "Ενεργοποίηση"
-  },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "Δεν υπάρχουν πρόσφατες κλήσεις. Ξεκίνα καλώντας κάποιο φιλαράκι."
   },
   "icu:CallsList__EmptyState--noQuery__title": {
     "messageformat": "Καμία κλήση"
@@ -5518,7 +5569,10 @@
     "messageformat": "Επεξεργασία ονόματος κλήσης"
   },
   "icu:CallLinkDetails__ApproveAllMembersLabel": {
-    "messageformat": "Έγκριση όλων των μελών"
+    "messageformat": "Απαιτείται έγκριση διαχειριστή"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "Αυτή η ρύθμιση δεν μπορεί να αλλάξει όσο η κλήση είναι ενεργή"
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "Αντιγραφή συνδέσμου"
@@ -5541,6 +5595,9 @@
   "icu:CallLinkDetails__DeleteLinkModal__Delete": {
     "messageformat": "Διαγραφή"
   },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "Αυτός ο σύνδεσμος δεν μπορεί να διαγραφεί όσο η κλήση είναι ενεργή"
+  },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "Λεπτομέρειες συνδέσμου κλήσης"
   },
@@ -5554,7 +5611,13 @@
     "messageformat": "Επεξεργασία ονόματος κλήσης"
   },
   "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "Έγκριση όλων των μελών"
+    "messageformat": "Απαιτείται έγκριση διαχειριστή"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "Έγκριση εισόδου"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "Απαγόρευση εισόδου"
   },
   "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "Ανενεργό"
@@ -5618,6 +5681,12 @@
     "messageformat": "Διορθώσαμε επίσης ορισμένα σφάλματα, συμπεριλαμβανομένου ενός που μερικές φορές προκαλούσε την εμφάνιση της ειδοποίησης «Άγνωστη επαφή ξεκίνησε βιντεοκλήση» στη σύνοψη της λίστας συνομιλιών μετά την έναρξη της κλήσης."
   },
   "icu:WhatsNew__v7.24--0": {
-    "messageformat": "This update fixes a bug where viewing a missed call on one device wouldn't automatically clear the indicator for that missed call on your other devices, which was a missed opportunity for your missed call list to better coexist."
+    "messageformat": "Αυτή η ενημέρωση διορθώνει ένα σφάλμα κατά το οποίο η προβολή μιας αναπάντητης κλήσης σε μια συσκευή δεν εκκαθάριζε αυτόματα την ένδειξη για την εν λόγω αναπάντητη κλήση στις άλλες συσκευές σου."
+  },
+  "icu:WhatsNew__v7.25--0": {
+    "messageformat": "Τώρα, όταν κάνεις κλικ στην κεφαλίδα μιας συνομιλίας και επιλέγεις «Προβολή όλων» στην ενότητα των κοινόχρηστων πολυμέσων, οι παλαιότερες φωτογραφίες και τα βίντεο θα εμφανίζονται αυτόματα καθώς κάνεις κύλιση, αντί να περιορίζεσαι στις πιο πρόσφατες καταχωρήσεις."
+  },
+  "icu:WhatsNew__v7.26--0": {
+    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
   }
 }

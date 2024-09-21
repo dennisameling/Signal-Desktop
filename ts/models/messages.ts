@@ -18,7 +18,7 @@ import type {
   MessageAttributesType,
   MessageReactionType,
 } from '../model-types.d';
-import { filter, find, map, repeat, zipObject } from '../util/iterables';
+import { filter, map, repeat, zipObject } from '../util/iterables';
 import * as GoogleChrome from '../util/GoogleChrome';
 import type { DeleteAttributesType } from '../messageModifiers/Deletes';
 import type { SentEventData } from '../textsecure/messageReceiverEvents';
@@ -158,6 +158,7 @@ import {
 } from '../messages/copyQuote';
 import { getRoomIdFromCallLink } from '../util/callLinksRingrtc';
 import { explodePromise } from '../util/explodePromise';
+import { GiftBadgeStates } from '../components/conversation/Message';
 
 /* eslint-disable more/no-then */
 
@@ -454,25 +455,11 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
         quoteAttachment: quote.attachments.at(0),
       })
     ) {
-      const inMemoryMessages = window.MessageCache.__DEPRECATED$filterBySentAt(
-        Number(sentAt)
+      const matchingMessage = await window.MessageCache.findBySentAt(
+        Number(sentAt),
+        attributes =>
+          isQuoteAMatch(attributes, this.get('conversationId'), quote)
       );
-      let matchingMessage = find(inMemoryMessages, message =>
-        isQuoteAMatch(message.attributes, this.get('conversationId'), quote)
-      );
-      if (!matchingMessage) {
-        const messages = await DataReader.getMessagesBySentAt(Number(sentAt));
-        const found = messages.find(item =>
-          isQuoteAMatch(item, this.get('conversationId'), quote)
-        );
-        if (found) {
-          matchingMessage = window.MessageCache.__DEPRECATED$register(
-            found.id,
-            found,
-            'doubleCheckMissingQuoteReference'
-          );
-        }
-      }
 
       if (!matchingMessage) {
         log.info(
@@ -1728,6 +1715,14 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
           `${storyContext.authorAci})`;
       }
 
+      // Ensure that quote author's conversation exist
+      if (initialMessage.quote) {
+        window.ConversationController.lookupOrCreate({
+          serviceId: initialMessage.quote.authorAci,
+          reason: 'handleDataMessage.quote.author',
+        });
+      }
+
       const [quote, storyQuotes] = await Promise.all([
         initialMessage.quote
           ? copyFromQuotedMessage(initialMessage.quote, conversation.id)
@@ -1737,11 +1732,11 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
 
       const storyQuote = storyQuotes.find(candidateQuote => {
         const sendStateByConversationId =
-          candidateQuote.get('sendStateByConversationId') || {};
+          candidateQuote.sendStateByConversationId || {};
         const sendState = sendStateByConversationId[sender.id];
 
         const storyQuoteIsFromSelf =
-          candidateQuote.get('sourceServiceId') ===
+          candidateQuote.sourceServiceId ===
           window.storage.user.getCheckedAci();
 
         if (!storyQuoteIsFromSelf) {
@@ -1776,9 +1771,7 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
       }
 
       if (storyQuote) {
-        const storyDistributionListId = storyQuote.get(
-          'storyDistributionListId'
-        );
+        const { storyDistributionListId } = storyQuote;
 
         if (storyDistributionListId) {
           const storyDistribution =
@@ -1904,7 +1897,7 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
         });
 
         if (storyQuote) {
-          await this.hydrateStoryContext(storyQuote.attributes, {
+          await this.hydrateStoryContext(storyQuote, {
             shouldSave: true,
           });
         }
@@ -1940,10 +1933,8 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
           // expiration timer
           if (isGroupStoryReply && storyQuote) {
             message.set({
-              expireTimer: storyQuote.get('expireTimer'),
-              expirationStartTimestamp: storyQuote.get(
-                'expirationStartTimestamp'
-              ),
+              expireTimer: storyQuote.expireTimer,
+              expirationStartTimestamp: storyQuote.expirationStartTimestamp,
             });
           }
 
@@ -2018,14 +2009,22 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
             ) {
               conversation.set({ profileSharing: true });
             } else if (isDirectConversation(conversation.attributes)) {
-              void conversation.setProfileKey(profileKey);
+              drop(
+                conversation.setProfileKey(profileKey, {
+                  reason: 'handleDataMessage',
+                })
+              );
             } else {
               const local = window.ConversationController.lookupOrCreate({
                 e164: source,
                 serviceId: sourceServiceId,
                 reason: 'handleDataMessage:setProfileKey',
               });
-              void local?.setProfileKey(profileKey);
+              drop(
+                local?.setProfileKey(profileKey, {
+                  reason: 'handleDataMessage',
+                })
+              );
             }
           }
 
@@ -2078,7 +2077,7 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
         await DataWriter.updateConversation(conversation.attributes);
 
         const giftBadge = message.get('giftBadge');
-        if (giftBadge) {
+        if (giftBadge && giftBadge.state !== GiftBadgeStates.Failed) {
           const { level } = giftBadge;
           const { updatesUrl } = window.SignalContext.config;
           strictAssert(
@@ -2267,7 +2266,6 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
       fromId: reaction.fromId,
       targetTimestamp: reaction.targetTimestamp,
       timestamp: reaction.timestamp,
-      receivedAtDate: reaction.receivedAtDate,
       isSentByConversationId: isFromThisDevice
         ? zipObject(conversation.getMemberConversationIds(), repeat(false))
         : undefined,

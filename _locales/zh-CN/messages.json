@@ -578,6 +578,12 @@
   "icu:decryptionErrorToastAction": {
     "messageformat": "调试日志"
   },
+  "icu:Toast__ActionLabel--SubmitLog": {
+    "messageformat": "调试日志"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements"
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "您无法在选择文件的同时选择照片和视频。"
   },
@@ -940,6 +946,9 @@
   },
   "icu:viewRecentMedia": {
     "messageformat": "查看最近媒体"
+  },
+  "icu:allMediaMenuItem": {
+    "messageformat": "全部媒体"
   },
   "icu:back": {
     "messageformat": "返回"
@@ -2702,6 +2711,9 @@
   "icu:CallControls__InfoDisplay--adhoc-call": {
     "messageformat": "通话链接"
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "群组通话"
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "正在等待通过"
   },
@@ -3335,12 +3347,6 @@
   "icu:GroupV2--admin-approval-remove-one--other--unknown": {
     "messageformat": "{joinerName} 的入群申请未通过。"
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "{joinerName}发起和取消了通过群组链接加入群组的请求。"
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "{joinerName}发起和取消了通过群组链接加入群组的{numberOfRequests,number}个请求"
-  },
   "icu:GroupV2--admin-approval-bounce--pluralized": {
     "messageformat": "{numberOfRequests, plural, other {{joinerName}发起和取消了通过群组链接加入群组的 {numberOfRequests,number} 个请求}}"
   },
@@ -3524,14 +3530,62 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "正在下载 {currentSize}/{totalSize} ({fractionComplete,number,percent})…"
   },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "正在准备下载…"
+  },
   "icu:BackupImportScreen__description": {
     "messageformat": "这可能需要几分钟时间，视您的备份大小而定"
   },
-  "icu:BackupMediaDownloadProgress__title": {
-    "messageformat": "Restoring media"
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "取消转移"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "要取消转移吗？"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "您的消息和媒体未完成恢复。如果您选择取消，您可以在设置中再次进行转移。"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "继续转移"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "取消转移"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
+    "messageformat": "正在恢复媒体"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "Restore paused"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "Pause transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "Resume transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "取消转移"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "更多选项"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "还原完成"
   },
   "icu:BackupMediaDownloadProgress__progressbar-hint": {
-    "messageformat": "{currentSize} of {totalSize} ({fractionComplete,number,percent})"
+    "messageformat": "{currentSize} / {totalSize} 匹配"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "Cancel media transfer?"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "您的消息和媒体未完成恢复。如果您选择取消，您可以在设置中再次进行转移。"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "继续转移"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "取消转移"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "扩展"
@@ -3583,6 +3637,9 @@
   },
   "icu:ContactModal--already-in-call": {
     "messageformat": "您已在通话中"
+  },
+  "icu:ContactModal--voice": {
+    "messageformat": "语音"
   },
   "icu:showChatColorEditor": {
     "messageformat": "聊天颜色"
@@ -3765,7 +3822,7 @@
     "messageformat": "重置链接"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "批准新成员"
+    "messageformat": "需要管理员批准"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "新成员通过群组链接加入时，需管理员批准。"
@@ -5418,9 +5475,6 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "通话记录已清空"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "点击查看或发起通话"
-  },
   "icu:CallsTab__EmptyStateText--with-icon": {
     "messageformat": "点击<newCallIcon>新通话</newCallIcon>来发起一个新的语音或视频通话。"
   },
@@ -5435,9 +5489,6 @@
   },
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "切换"
-  },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "没有最近呼叫。 呼叫朋友开始互动吧。"
   },
   "icu:CallsList__EmptyState--noQuery__title": {
     "messageformat": "没有通话"
@@ -5518,7 +5569,10 @@
     "messageformat": "编辑通话名称"
   },
   "icu:CallLinkDetails__ApproveAllMembersLabel": {
-    "messageformat": "批准所有成员"
+    "messageformat": "需要管理员批准"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "通话期间此设置无法更改"
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "复制链接"
@@ -5541,6 +5595,9 @@
   "icu:CallLinkDetails__DeleteLinkModal__Delete": {
     "messageformat": "删除"
   },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "通话期间此链接无法删除"
+  },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "通话链接详情"
   },
@@ -5554,7 +5611,13 @@
     "messageformat": "编辑通话名称"
   },
   "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "批准所有成员"
+    "messageformat": "需要管理员批准"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "同意加入"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "拒绝加入"
   },
   "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "关"
@@ -5618,6 +5681,12 @@
     "messageformat": "我们还修复了一些错误，包括一个有时会导致“未知联系人发起了一个视频通话”在您开始通话后出现在聊天列表摘要中的错误。"
   },
   "icu:WhatsNew__v7.24--0": {
-    "messageformat": "This update fixes a bug where viewing a missed call on one device wouldn't automatically clear the indicator for that missed call on your other devices, which was a missed opportunity for your missed call list to better coexist."
+    "messageformat": "此次更新修复了一个漏洞：当用户在一台设备上查看未接来电时，该操作不会自动清除其他设备上的未接来电提示。"
+  },
+  "icu:WhatsNew__v7.25--0": {
+    "messageformat": "现在当您点击聊天标头并在共享媒体部分中选择“查看全部”时，旧照片和视频将会在您滚动屏幕时自动出现，而不仅限于最近的照片和视频。"
+  },
+  "icu:WhatsNew__v7.26--0": {
+    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
   }
 }

@@ -578,6 +578,12 @@
   "icu:decryptionErrorToastAction": {
     "messageformat": "Günlüğü gönder"
   },
+  "icu:Toast__ActionLabel--SubmitLog": {
+    "messageformat": "Günlüğü gönder"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements"
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "Dosyalarla birlikte fotoğrafları ve videoları seçemezsin."
   },
@@ -940,6 +946,9 @@
   },
   "icu:viewRecentMedia": {
     "messageformat": "Son içerikleri görüntüle"
+  },
+  "icu:allMediaMenuItem": {
+    "messageformat": "Tüm medya"
   },
   "icu:back": {
     "messageformat": "Geri"
@@ -2702,6 +2711,9 @@
   "icu:CallControls__InfoDisplay--adhoc-call": {
     "messageformat": "Arama bağlantısı"
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "Grup görüşmesi"
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "İçeri alınmayı bekliyor"
   },
@@ -3335,12 +3347,6 @@
   "icu:GroupV2--admin-approval-remove-one--other--unknown": {
     "messageformat": "{joinerName} kişisinin gruba katılma isteği reddedildi."
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "{joinerName}, grup bağlantısı aracılığıyla katılma isteğini talep etti ve iptal etti"
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "{joinerName}, grup bağlantısı aracılığıyla {numberOfRequests,number} katılma isteği talep etti ve iptal etti"
-  },
   "icu:GroupV2--admin-approval-bounce--pluralized": {
     "messageformat": "{numberOfRequests, plural, one {{joinerName} grup bağlantısı üzerinden katılma talebinde bulundu, ancak talebini iptal etti} other {{joinerName}, grup bağlantısı aracılığıyla {numberOfRequests,number} katılma isteğini talep etti ve iptal etti}}"
   },
@@ -3524,14 +3530,62 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "{currentSize} / {totalSize} ({fractionComplete,number,percent}) indiriliyor..."
   },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "İndirmeye hazırlanıyor..."
+  },
   "icu:BackupImportScreen__description": {
     "messageformat": "Yedeklemenin boyutuna bağlı olarak birkaç dakika sürebilir"
   },
-  "icu:BackupMediaDownloadProgress__title": {
-    "messageformat": "Restoring media"
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "Transferi iptal et"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "Transfer iptal edilsin mi?"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "Mesajlarının ve medyanın geri yüklenmesi tamamlanmadı. İptal etmeyi seçersen, Ayarlar'dan tekrar transfer yapabilirsin."
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "Transfere devam et"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "Transferi iptal et"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
+    "messageformat": "Medya geri yükleniyor"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "Restore paused"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "Pause transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "Resume transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "Transferi iptal et"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "Daha fazla seçenek"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "Geri yükleme tamamlandı"
   },
   "icu:BackupMediaDownloadProgress__progressbar-hint": {
-    "messageformat": "{currentSize} of {totalSize} ({fractionComplete,number,percent})"
+    "messageformat": "{currentSize} / {totalSize}"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "Cancel media transfer?"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "Mesajlarının ve medyanın geri yüklenmesi tamamlanmadı. İptal etmeyi seçersen, Ayarlar'dan tekrar transfer yapabilirsin."
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "Transfere devam et"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "Transferi iptal et"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "Genişlet"
@@ -3583,6 +3637,9 @@
   },
   "icu:ContactModal--already-in-call": {
     "messageformat": "Zaten bir aramadasınız"
+  },
+  "icu:ContactModal--voice": {
+    "messageformat": "Sesli"
   },
   "icu:showChatColorEditor": {
     "messageformat": "Sohbet rengi"
@@ -3765,7 +3822,7 @@
     "messageformat": "Bağlantıyı sıfırla"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "Yeni üyeleri onayla"
+    "messageformat": "Yönetici onayı iste"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "Grup bağlantısı üzerinden katılan yeni üyelerin yönetici tarafından onaylanması gereksin"
@@ -5418,9 +5475,6 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "Arama geçmişi temizlendi"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "Bir aramayı görüntülemek veya başlatmak için tıkla"
-  },
   "icu:CallsTab__EmptyStateText--with-icon": {
     "messageformat": "Yeni bir sesli veya görüntülü arama başlatmak için <newCallIcon>Yeni Arama</newCallIcon> ögesine tıklayın."
   },
@@ -5435,9 +5489,6 @@
   },
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "Değiştir"
-  },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "Güncel arama yok. Bir arkadaşını arayarak başla."
   },
   "icu:CallsList__EmptyState--noQuery__title": {
     "messageformat": "Arama yok"
@@ -5518,7 +5569,10 @@
     "messageformat": "Arama adını düzenle"
   },
   "icu:CallLinkDetails__ApproveAllMembersLabel": {
-    "messageformat": "Tüm üyeleri onayla"
+    "messageformat": "Yönetici onayı iste"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "Arama etkinken bu ayar değiştirilemez"
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "Bağlantıyı kopyala"
@@ -5541,6 +5595,9 @@
   "icu:CallLinkDetails__DeleteLinkModal__Delete": {
     "messageformat": "Sil"
   },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "Arama etkinken bu bağlantı silinemez"
+  },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "Arama bağlantısı detayları"
   },
@@ -5554,7 +5611,13 @@
     "messageformat": "Arama adını düzenle"
   },
   "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "Tüm üyeleri onayla"
+    "messageformat": "Yönetici onayı iste"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "Girişi onayla"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "Girişi reddet"
   },
   "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "Kapalı"
@@ -5618,6 +5681,12 @@
     "messageformat": "Aramayı başlattıktan sonra bazen sohbet listesi özetinde \"Bilinmeyen bir kişi görüntülü arama başlattı\" hatasının görünmesine neden olan bir hata da dahil olmak üzere birkaç hatayı düzelttik. Böylece kafan karışmadan, rahatça görüşmelerini yapabileceksin."
   },
   "icu:WhatsNew__v7.24--0": {
-    "messageformat": "This update fixes a bug where viewing a missed call on one device wouldn't automatically clear the indicator for that missed call on your other devices, which was a missed opportunity for your missed call list to better coexist."
+    "messageformat": "Bu güncellemede, cevapsız bir aramanın bir cihazda görüntülenmesinin, diğer cihazlarındaki cevapsız arama göstergesini otomatik olarak silmemesine neden olan bir hatayı düzelttik."
+  },
+  "icu:WhatsNew__v7.25--0": {
+    "messageformat": "Yeni ve geliştirilmiş \"Tüm Medya\" görünümüyle anılarında bir yolculuğa çık. Artık bir sohbet başlığına tıkladığında ve paylaşılan medya bölümünde \"Tümünü gör\" öğesini seçtiğinde, en son girdilerle sınırlı kalmak yerine eski fotoğraflar ve videolar sen kaydırdıkça otomatik olarak görünür."
+  },
+  "icu:WhatsNew__v7.26--0": {
+    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
   }
 }

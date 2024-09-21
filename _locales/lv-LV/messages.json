@@ -578,6 +578,12 @@
   "icu:decryptionErrorToastAction": {
     "messageformat": "Ieniegt žurnālu"
   },
+  "icu:Toast__ActionLabel--SubmitLog": {
+    "messageformat": "Ieniegt žurnālu"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements"
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "Jūs nevarat kopā ar failiem atlasīt attēlus un video."
   },
@@ -940,6 +946,9 @@
   },
   "icu:viewRecentMedia": {
     "messageformat": "Skatīt jaunāko multivides saturu"
+  },
+  "icu:allMediaMenuItem": {
+    "messageformat": "Visa multivide"
   },
   "icu:back": {
     "messageformat": "Atpakaļ"
@@ -2702,6 +2711,9 @@
   "icu:CallControls__InfoDisplay--adhoc-call": {
     "messageformat": "Zvana saite"
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "Grupas zvans"
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "Gaida pievienošanu"
   },
@@ -3335,12 +3347,6 @@
   "icu:GroupV2--admin-approval-remove-one--other--unknown": {
     "messageformat": "{joinerName} pieprasījums pievienoties šai grupai tika noraidīts."
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "{joinerName} pieprasīja un atcēla savu pieprasījumu pievienoties grupai ar saiti"
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "{joinerName} pieprasīja un atcēla {numberOfRequests,number} pieprasījumus pievienoties grupai ar saiti"
-  },
   "icu:GroupV2--admin-approval-bounce--pluralized": {
     "messageformat": "{numberOfRequests, plural, zero {{joinerName} pieprasīja un atcēla {numberOfRequests,number} pieprasījumus pievienoties, izmantojot grupas saiti} one {{joinerName} pieprasīja un atcēla pieprasījumu pievienoties, izmantojot grupas saiti} other {{joinerName} nosūtīja un atcēla {numberOfRequests,number} pieprasījumus pievienoties, izmantojot grupas saiti}}"
   },
@@ -3524,14 +3530,62 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "Lejupielādē {currentSize} no {totalSize} ({fractionComplete,number,percent})..."
   },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "Gatavo lejupielādi…"
+  },
   "icu:BackupImportScreen__description": {
     "messageformat": "Process var aizņemt dažas minūtes atkarībā no rezerves kopijas izmēra"
   },
-  "icu:BackupMediaDownloadProgress__title": {
-    "messageformat": "Restoring media"
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "Atcelt pārsūtīšanu"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "Vai atcelt pārsūtīšanu?"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "Ziņu un multivides atjaunošana nav pabeigta. Ja atcelsiet to, pārsūtīšanu varēsiet veikt vēlreiz iestatījumos."
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "Turpināt pārsūtīšanu"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "Atcelt pārsūtīšanu"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
+    "messageformat": "Multivide tiek atjaunota"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "Restore paused"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "Pause transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "Resume transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "Atcelt pārsūtīšanu"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "Papildu iespējas"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "Atjaunošana pabeigta"
   },
   "icu:BackupMediaDownloadProgress__progressbar-hint": {
-    "messageformat": "{currentSize} of {totalSize} ({fractionComplete,number,percent})"
+    "messageformat": "{currentSize} no {totalSize}"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "Cancel media transfer?"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "Ziņu un multivides atjaunošana nav pabeigta. Ja atcelsiet to, pārsūtīšanu varēsiet veikt vēlreiz iestatījumos."
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "Turpināt pārsūtīšanu"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "Atcelt pārsūtīšanu"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "Izvērst"
@@ -3583,6 +3637,9 @@
   },
   "icu:ContactModal--already-in-call": {
     "messageformat": "Jūs jau esat zvanā"
+  },
+  "icu:ContactModal--voice": {
+    "messageformat": "Balss"
   },
   "icu:showChatColorEditor": {
     "messageformat": "Sarunas krāsa"
@@ -3765,7 +3822,7 @@
     "messageformat": "Atstatīt saiti"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "Apstiprināt jaunos dalībniekus"
+    "messageformat": "Administratora apstiprinājuma pieprasīšana"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "Pieprasiet, lai administrators apstiprina jaunu dalībnieku pievienošanos, izmantojot grupas saiti."
@@ -5418,9 +5475,6 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "Zvanu vēsture izdzēsta"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "Noklikšķiniet, lai skatītu vai sāktu zvanu"
-  },
   "icu:CallsTab__EmptyStateText--with-icon": {
     "messageformat": "Piespiediet <newCallIcon>Jauns zvans</newCallIcon>, lai sāktu jaunu balss vai video zvanu."
   },
@@ -5435,9 +5489,6 @@
   },
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "Pārslēgt"
-  },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "Nav neseno zvanu. Sāciet ar zvanu draugam."
   },
   "icu:CallsList__EmptyState--noQuery__title": {
     "messageformat": "Nav zvanu"
@@ -5518,7 +5569,10 @@
     "messageformat": "Rediģēt zvana nosaukumu"
   },
   "icu:CallLinkDetails__ApproveAllMembersLabel": {
-    "messageformat": "Apstiprināt visus dalībniekus"
+    "messageformat": "Administratora apstiprinājuma pieprasīšana"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "Šo iestatījumu nevar mainīt, kamēr zvans ir aktīvs"
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "Kopēt saiti"
@@ -5541,6 +5595,9 @@
   "icu:CallLinkDetails__DeleteLinkModal__Delete": {
     "messageformat": "Dzēst"
   },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "Šo saiti nevar dzēst, kamēr zvans ir aktīvs"
+  },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "Zvana saites informācija"
   },
@@ -5554,7 +5611,13 @@
     "messageformat": "Rediģēt zvana nosaukumu"
   },
   "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "Apstiprināt visus dalībniekus"
+    "messageformat": "Administratora apstiprinājuma pieprasīšana"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "Apstiprināt pieeju"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "Noraidīt pieeju"
   },
   "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "Izslēgts"
@@ -5618,6 +5681,12 @@
     "messageformat": "Tāpat novērsām saujiņu kļūdu, tostarp vienu, kuras dēļ pēc zvana uzsākšanas sarunas saraksta kopsavilkumā reizēm parādījās paziņojums \"Nezināma kontaktpersona uzsāka video zvanu\". Pat tad ja joprojām esat sevis iepazīšanas procesā, vismaz video zvanu ietvaros jums šādu jautājumu vairs nebūs."
   },
   "icu:WhatsNew__v7.24--0": {
-    "messageformat": "This update fixes a bug where viewing a missed call on one device wouldn't automatically clear the indicator for that missed call on your other devices, which was a missed opportunity for your missed call list to better coexist."
+    "messageformat": "Šajā atjauninājumā ir novērsta kļūda, kuras dēļ, apskatot neatbildētu zvanu vienā ierīcē, neatbildētā zvana indikators netika automātiski notīrīts citās ierīcēs. Tagad jūsu neatbildēto zvanu saraksti darbosies unisonā."
+  },
+  "icu:WhatsNew__v7.25--0": {
+    "messageformat": "Pakavējieties atmiņās ar jauno un uzlaboto skatu \"Visa multivide\". Tagad, noklikšķinot uz sarunas galvenes un kopīgotās multivides sadaļā atlasot \"Skatīt visu\", vairs netiks rādīta tikai jaunākā multivide, bet arī vecāki fotoattēli un videoklipi."
+  },
+  "icu:WhatsNew__v7.26--0": {
+    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
   }
 }

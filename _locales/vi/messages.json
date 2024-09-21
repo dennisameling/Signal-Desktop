@@ -578,6 +578,12 @@
   "icu:decryptionErrorToastAction": {
     "messageformat": "Gửi nhật ký"
   },
+  "icu:Toast__ActionLabel--SubmitLog": {
+    "messageformat": "Gửi nhật ký"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements"
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "Bạn không thể chọn ảnh và video cùng các tập tin."
   },
@@ -940,6 +946,9 @@
   },
   "icu:viewRecentMedia": {
     "messageformat": "Xem các tập đa phương tiện gần đây"
+  },
+  "icu:allMediaMenuItem": {
+    "messageformat": "Tất cả tập tin đa phương tiện"
   },
   "icu:back": {
     "messageformat": "Trở lại"
@@ -2702,6 +2711,9 @@
   "icu:CallControls__InfoDisplay--adhoc-call": {
     "messageformat": "Đường dẫn cuộc gọi"
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "Cuộc gọi nhóm"
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "Đang chờ để được tham gia"
   },
@@ -3335,12 +3347,6 @@
   "icu:GroupV2--admin-approval-remove-one--other--unknown": {
     "messageformat": "Yêu cầu tham gia nhóm từ {joinerName} đã bị từ chối."
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "{joinerName} đã yêu cầu và hủy yêu cầu tham gia qua đường dẫn nhóm"
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "{joinerName} đã yêu cầu và hủy {numberOfRequests,number} yêu cầu tham gia qua đường dẫn nhóm"
-  },
   "icu:GroupV2--admin-approval-bounce--pluralized": {
     "messageformat": "{numberOfRequests, plural, other {{joinerName} đã yêu cầu và hủy {numberOfRequests,number} yêu cầu tham gia qua đường dẫn nhóm}}"
   },
@@ -3524,14 +3530,62 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "Hiện tải được {currentSize} của tổng {totalSize} ({fractionComplete,number,percent})..."
   },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "Đang chuẩn bị tải xuống..."
+  },
   "icu:BackupImportScreen__description": {
     "messageformat": "Quá trình này có thể mất vài phút tùy vào dung lượng của bản sao lưu"
   },
-  "icu:BackupMediaDownloadProgress__title": {
-    "messageformat": "Restoring media"
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "Hủy chuyển"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "Hủy chuyển?"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "Tin nhắn và tập tin đa phương tiện của bạn chưa được hoàn tất khôi phục. Nếu bạn chọn hủy, bạn có thể tiến hành chuyển dữ liệu lại từ mục Cài đặt."
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "Tiếp tục chuyển"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "Hủy chuyển"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
+    "messageformat": "Đang khôi phục tập tin đa phương tiện"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "Restore paused"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "Pause transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "Resume transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "Hủy chuyển"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "Tùy chọn khác"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "Hoàn tất khôi phục"
   },
   "icu:BackupMediaDownloadProgress__progressbar-hint": {
-    "messageformat": "{currentSize} of {totalSize} ({fractionComplete,number,percent})"
+    "messageformat": "{currentSize} trên tổng số {totalSize}"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "Cancel media transfer?"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "Tin nhắn và tập tin đa phương tiện của bạn chưa được hoàn tất khôi phục. Nếu bạn chọn hủy, bạn có thể tiến hành chuyển dữ liệu lại từ mục Cài đặt."
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "Tiếp tục chuyển"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "Hủy chuyển"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "Mở rộng"
@@ -3583,6 +3637,9 @@
   },
   "icu:ContactModal--already-in-call": {
     "messageformat": "Bạn đã đang ở trong một cuộc gọi"
+  },
+  "icu:ContactModal--voice": {
+    "messageformat": "Thoại"
   },
   "icu:showChatColorEditor": {
     "messageformat": "Màu cuộc trò chuyện"
@@ -3765,7 +3822,7 @@
     "messageformat": "Đặt lại đường dẫn"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "Chấp nhận thành viên mới"
+    "messageformat": "Cần chấp thuận từ quản trị viên"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "Yêu cầu người quản lý chấp duyệt thành viên mới tham gia qua đường dẫn nhóm"
@@ -5418,9 +5475,6 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "Đã xóa lịch xử cuộc gọi"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "Bấm để xem hoặc bắt đầu cuộc gọi"
-  },
   "icu:CallsTab__EmptyStateText--with-icon": {
     "messageformat": "Bấm <newCallIcon>Cuộc gọi mới</newCallIcon> để bắt đầu một cuộc gọi thoại hoặc cuộc gọi video."
   },
@@ -5435,9 +5489,6 @@
   },
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "Bật tắt"
-  },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "Không cú gọi gần đây Bắt đầu với việc gọi cho một người bạn."
   },
   "icu:CallsList__EmptyState--noQuery__title": {
     "messageformat": "Không có cuộc gọi"
@@ -5518,7 +5569,10 @@
     "messageformat": "Sửa tên cuộc gọi"
   },
   "icu:CallLinkDetails__ApproveAllMembersLabel": {
-    "messageformat": "Chấp nhận tất cả thành viên"
+    "messageformat": "Cần chấp thuận từ quản trị viên"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "Không thể thay đổi cài đặt này khi đang có cuộc gọi"
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "Sao chép đường dẫn"
@@ -5541,6 +5595,9 @@
   "icu:CallLinkDetails__DeleteLinkModal__Delete": {
     "messageformat": "Xóa"
   },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "Không thể xóa đường dẫn này khi đang có cuộc gọi"
+  },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "Chi tiết đường dẫn cuộc gọi"
   },
@@ -5554,7 +5611,13 @@
     "messageformat": "Sửa tên cuộc gọi"
   },
   "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "Chấp nhận tất cả thành viên"
+    "messageformat": "Cần chấp thuận từ quản trị viên"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "Chấp thuận"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "Từ chối"
   },
   "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "Tắt"
@@ -5618,6 +5681,12 @@
     "messageformat": "Chúng tôi cũng đã sửa xong nhiều lỗi, trong đó có lỗi xuất hiện \"Liên hệ không rõ đã bắt đầu một cuộc gọi video\" trong danh sách cuộc trò chuyện sau khi bạn bắt đầu cuộc gọi."
   },
   "icu:WhatsNew__v7.24--0": {
-    "messageformat": "This update fixes a bug where viewing a missed call on one device wouldn't automatically clear the indicator for that missed call on your other devices, which was a missed opportunity for your missed call list to better coexist."
+    "messageformat": "Bản cập nhật này sửa lỗi thông báo cuộc gọi nhỡ không mất đi trên một thiết bị khi bạn đã xem thông báo đó trên các thiết bị khác."
+  },
+  "icu:WhatsNew__v7.25--0": {
+    "messageformat": "Giờ đây khi bạn bấm vào thanh phía trên của cuộc trò chuyện và chọn \"Tất cả\" ở mục tập tin đa phương tiện được chia sẻ, ảnh và video cũ sẽ tự động xuất hiện khi bạn cuộn và không còn bị giới hạn ở những tập tin mới nhất."
+  },
+  "icu:WhatsNew__v7.26--0": {
+    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
   }
 }

@@ -181,7 +181,7 @@ export function Lightbox({
       const mediaItem = media[selectedIndex];
       const { attachment, message, index } = mediaItem;
 
-      saveAttachment(attachment, message.sent_at, index + 1);
+      saveAttachment(attachment, message.sentAt, index + 1);
     },
     [isViewOnce, media, saveAttachment, selectedIndex]
   );
@@ -558,6 +558,7 @@ export function Lightbox({
               <img
                 alt={i18n('icu:lightboxImageAlt')}
                 className="Lightbox__object"
+                data-testid={attachment.fileName}
                 onContextMenu={(ev: React.MouseEvent<HTMLImageElement>) => {
                   // These are the only image types supported by Electron's NativeImage
                   if (
@@ -828,7 +829,7 @@ function LightboxHeader({
       <div className="Lightbox__header--content">
         <div className="Lightbox__header--name">{conversation.title}</div>
         <div className="Lightbox__header--timestamp">
-          {formatDateTimeForAttachment(i18n, message.sent_at ?? now)}
+          {formatDateTimeForAttachment(i18n, message.sentAt ?? now)}
         </div>
       </div>
     </div>

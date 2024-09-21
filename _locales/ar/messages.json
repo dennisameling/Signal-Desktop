@@ -291,7 +291,7 @@
     "messageformat": "‫تحديث سيجنال‬"
   },
   "icu:NavTabs__ItemLabel--Profile": {
-    "messageformat": "الملف الشخصي"
+    "messageformat": "الحساب الشخصي"
   },
   "icu:NavSidebar__BackButtonLabel": {
     "messageformat": "الرجوع"
@@ -577,6 +577,12 @@
   },
   "icu:decryptionErrorToastAction": {
     "messageformat": "إرسال السجل"
+  },
+  "icu:Toast__ActionLabel--SubmitLog": {
+    "messageformat": "إرسال السجل"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements"
   },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "لا يُمكنك تحديد الصور ومقاطع الفيديو مع الملفات."
@@ -940,6 +946,9 @@
   },
   "icu:viewRecentMedia": {
     "messageformat": "رؤية الوسائط الحديثة"
+  },
+  "icu:allMediaMenuItem": {
+    "messageformat": "جميع الوسائط"
   },
   "icu:back": {
     "messageformat": "الرجوع"
@@ -2702,6 +2711,9 @@
   "icu:CallControls__InfoDisplay--adhoc-call": {
     "messageformat": "اتصال بالرابط"
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "المكالمة الجماعية"
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "في انتظار السماح بالانضمام"
   },
@@ -3335,12 +3347,6 @@
   "icu:GroupV2--admin-approval-remove-one--other--unknown": {
     "messageformat": "رُفضَ طلب اِنضمام {joinerName} إلى المجموعة."
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "‫لقد أرسل المستخدم {joinerName} طلب الانضمام بواسطة وصلة المجموعة، ثم ألغى ذلك."
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "‫لقد أرسل المستخدم {joinerName} {numberOfRequests,number} طلب الانضمام بواسطة وصلة المجموعة، ثم ألغى ذلك."
-  },
   "icu:GroupV2--admin-approval-bounce--pluralized": {
     "messageformat": "{numberOfRequests, plural, zero {أرسل {joinerName} {numberOfRequests,number} طلبًا للانضمام وألغاه عبر رابط المجموعة} one {أرسل {joinerName} طلبًا للانضمام وألغاه عبر رابط المجموعة} two {أرسل {joinerName} {numberOfRequests,number} طلبين للانضمام وألغاهما عبر رابط المجموعة} few {أرسل {joinerName} {numberOfRequests,number} طلبات للانضمام وألغاها عبر رابط المجموعة} many {أرسل {joinerName} {numberOfRequests,number} طلبًا للانضمام وألغاها عبر رابط المجموعة} other {أرسل {joinerName} {numberOfRequests,number} طلب للانضمام وألغاها عبر رابط المجموعة}}"
   },
@@ -3524,14 +3530,62 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "يتم تنزيل {currentSize} من أصل {totalSize} ({fractionComplete,number,percent})..."
   },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "جارٍ الإعداد للتنزيل..."
+  },
   "icu:BackupImportScreen__description": {
     "messageformat": "قد يستغرق هذا بضع دقائق حسب حجم نسختك الاحتياطية"
   },
-  "icu:BackupMediaDownloadProgress__title": {
-    "messageformat": "Restoring media"
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "إلغاء التحويل"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "أترغبُ بإلغاء التحويل؟"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "لم تكتمل استعادة رسائلك ووسائطك. إذا اخترتَ الإلغاء، يمكنك تحويلها مجددًا من خلال \"الإعدادات\"."
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "مواصلة التحويل"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "إلغاء التحويل"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
+    "messageformat": "جارٍ استرجاع الوسائط"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "Restore paused"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "Pause transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "Resume transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "إلغاء التحويل"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "خيارات أكثر"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "اكتملَت عملية الاستعادة."
   },
   "icu:BackupMediaDownloadProgress__progressbar-hint": {
-    "messageformat": "{currentSize} of {totalSize} ({fractionComplete,number,percent})"
+    "messageformat": "{currentSize} من {totalSize}"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "Cancel media transfer?"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "لم تكتمل استعادة رسائلك ووسائطك. إذا اخترتَ الإلغاء، يمكنك تحويلها مجددًا من خلال \"الإعدادات\"."
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "مواصلة التحويل"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "إلغاء التحويل"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "عرض المزيد"
@@ -3583,6 +3637,9 @@
   },
   "icu:ContactModal--already-in-call": {
     "messageformat": "إنك بالفعل في مكالمة"
+  },
+  "icu:ContactModal--voice": {
+    "messageformat": "الصوت"
   },
   "icu:showChatColorEditor": {
     "messageformat": "لون الدردشة"
@@ -3765,7 +3822,7 @@
     "messageformat": "إعادة تعيين الوصلة"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "الموافقة على الأعضاء الجدد"
+    "messageformat": "يشترط موافقة المُشرِف"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "إلزام المشرف الموافقة على الأعضاء الطالبين للانضمام عبر وصلة المجموعة."
@@ -4368,7 +4425,7 @@
     "messageformat": "آخُذُ اِستِراحة"
   },
   "icu:ProfileEditorModal--profile": {
-    "messageformat": "الملف الشخصي"
+    "messageformat": "الحساب الشخصي"
   },
   "icu:ProfileEditorModal--name": {
     "messageformat": "اِسمُك"
@@ -4383,7 +4440,7 @@
     "messageformat": "اِسمُ المُستخدِم"
   },
   "icu:ProfileEditorModal--error": {
-    "messageformat": "لقد تعذر تحديث ملفك الشخصي. يُرجى المحاولة مرة أخرى."
+    "messageformat": "لقد تعذر تحديث حسابك الشخصي. يُرجى المحاولة مرة أخرى."
   },
   "icu:AnnouncementsOnlyGroupBanner--modal": {
     "messageformat": "مراسلة مشرف على المجموعة"
@@ -5418,9 +5475,6 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "تم مسح سِّجِلّ الاتصالات"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "انقر لعرض أو بدء مكالمة"
-  },
   "icu:CallsTab__EmptyStateText--with-icon": {
     "messageformat": "انقر على <newCallIcon>مكالمة جديدة</newCallIcon> لبدء مكالمة صوتية أو مكالمة فيديو جديدة."
   },
@@ -5435,9 +5489,6 @@
   },
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "تبديل"
-  },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "لا توجد مكالمات حديثة. ابدأ بالاتصال بصديق."
   },
   "icu:CallsList__EmptyState--noQuery__title": {
     "messageformat": "لا توجد مكالمات"
@@ -5518,7 +5569,10 @@
     "messageformat": "تعديل اسم المكالمة"
   },
   "icu:CallLinkDetails__ApproveAllMembersLabel": {
-    "messageformat": "الموافقة على جميع الأعضاء"
+    "messageformat": "يشترط موافقة المُشرِف"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "لا يمكن تغيير هذا الإعداد أثناء إجراء المكالمة."
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "نسخ الرابط"
@@ -5541,6 +5595,9 @@
   "icu:CallLinkDetails__DeleteLinkModal__Delete": {
     "messageformat": "حذف"
   },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "لا يمكن حذف هذا الرابط أثناء إجراء المكالمة."
+  },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "تفاصيل رابط المكالمة"
   },
@@ -5554,7 +5611,13 @@
     "messageformat": "تعديل اسم المكالمة"
   },
   "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "الموافقة على جميع الأعضاء"
+    "messageformat": "يشترط موافقة المُشرِف"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "الموافقة على الإدخال"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "رفض الإدخال"
   },
   "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "مُعطَّل"
@@ -5618,6 +5681,12 @@
     "messageformat": "لقد أصلحنا عددًا من الأخطاء، بما في ذلك خطأ كان يتسبب في ظهور رسالة \"جهة اتصال غير معروفة بدأت مكالمة بالفيديو\" في مُلخص قائمة الدردشة بعد بدء المكالمة."
   },
   "icu:WhatsNew__v7.24--0": {
-    "messageformat": "This update fixes a bug where viewing a missed call on one device wouldn't automatically clear the indicator for that missed call on your other devices, which was a missed opportunity for your missed call list to better coexist."
+    "messageformat": "يُصلِح هذا التحديث ذلك الخطأ التقني المُتمثِّل في عدم مَسح علامة المُكالمة الفائتة تلقائيًا على أجهزتك الأخرى على الرغم من استعراضك لها سلفًا على أحد أجهزتك، وذلك بحد ذاته يُمثِّل لقائمة المكالمات الفائتة لديك فرصة فائتة للتعايش مع بعضها بشكٍل أفضل."
+  },
+  "icu:WhatsNew__v7.25--0": {
+    "messageformat": "الآن، عندما تنقر أعلى الدردشة وتختار \"عرض الكل\" في قسم الوسائط المشتركة، ستظهر الصور ومقاطع الفيديو القديمة تلقائيًا عند التمرير بدلًا من الاقتصار على رؤية أحدث الإدخالات فقط."
+  },
+  "icu:WhatsNew__v7.26--0": {
+    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
   }
 }

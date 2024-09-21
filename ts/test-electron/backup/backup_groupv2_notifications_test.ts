@@ -34,6 +34,7 @@ const EXPIRATION_TIMER_FLAG = Proto.DataMessage.Flags.EXPIRATION_TIMER_UPDATE;
 
 const CONTACT_A = generateAci();
 const CONTACT_A_PNI = generatePni();
+const CONTACT_A_E164 = '+121355501234';
 const CONTACT_B = generateAci();
 const CONTACT_C = generateAci();
 const ADMIN_A = generateAci();
@@ -72,6 +73,10 @@ function createMessage(
     seenStatus: SeenStatus.Seen,
     type: 'group-v2-change',
     sourceServiceId,
+    source:
+      sourceServiceId === CONTACT_A || sourceServiceId === CONTACT_A_PNI
+        ? CONTACT_A_E164
+        : undefined,
   };
 }
 
@@ -86,32 +91,40 @@ describe('backup/groupv2/notifications', () => {
     await window.ConversationController.getOrCreateAndWait(
       CONTACT_A,
       'private',
-      { pni: CONTACT_A_PNI, systemGivenName: 'CONTACT_A' }
+      {
+        pni: CONTACT_A_PNI,
+        e164: CONTACT_A_E164,
+        systemGivenName: 'CONTACT_A',
+        active_at: 1,
+      }
     );
     await window.ConversationController.getOrCreateAndWait(
       CONTACT_B,
       'private',
-      { systemGivenName: 'CONTACT_B' }
+      { systemGivenName: 'CONTACT_B', active_at: 1 }
     );
     await window.ConversationController.getOrCreateAndWait(
       CONTACT_C,
       'private',
-      { systemGivenName: 'CONTACT_C' }
+      { systemGivenName: 'CONTACT_C', active_at: 1 }
     );
     await window.ConversationController.getOrCreateAndWait(ADMIN_A, 'private', {
       systemGivenName: 'ADMIN_A',
+      active_at: 1,
     });
     await window.ConversationController.getOrCreateAndWait(
       INVITEE_A,
       'private',
       {
         systemGivenName: 'INVITEE_A',
+        active_at: 1,
       }
     );
     await window.ConversationController.getOrCreateAndWait(GROUP_ID, 'group', {
       groupVersion: 2,
       masterKey: Bytes.toBase64(getRandomBytes(32)),
       name: 'Rock Enthusiasts',
+      active_at: 1,
     });
 
     await loadAll();
@@ -2041,6 +2054,7 @@ describe('backup/groupv2/notifications', () => {
         readStatus: ReadStatus.Read,
         seenStatus: SeenStatus.Seen,
         sourceServiceId: CONTACT_A,
+        source: CONTACT_A_E164,
       };
 
       counter += 1;
@@ -2059,6 +2073,7 @@ describe('backup/groupv2/notifications', () => {
         readStatus: ReadStatus.Read,
         seenStatus: SeenStatus.Seen,
         sourceServiceId: CONTACT_A,
+        source: CONTACT_A_E164,
       };
 
       const messages: Array<MessageAttributesType> = [
@@ -2082,6 +2097,7 @@ describe('backup/groupv2/notifications', () => {
           sourceServiceId: CONTACT_A,
         },
         sourceServiceId: CONTACT_A,
+        source: CONTACT_A_E164,
         flags: EXPIRATION_TIMER_FLAG,
         type: 'timer-notification' as const,
         received_at: counter,

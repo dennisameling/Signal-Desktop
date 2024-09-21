@@ -782,7 +782,15 @@
   },
   "icu:decryptionErrorToastAction": {
     "messageformat": "Submit log",
-    "description": "Label for the decryption error toast button"
+    "description": "(Deleted 2024/09/19) Label for the decryption error toast button"
+  },
+  "icu:Toast__ActionLabel--SubmitLog": {
+    "messageformat": "Submit log",
+    "description": "Label for the submit log button in decryption errors or other important error types"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements",
+    "description": "An error popup when we attempted and failed to send a message using endorsements, only for internal users."
   },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "You can't select photos and videos along with files.",
@@ -1252,7 +1260,11 @@
   },
   "icu:viewRecentMedia": {
     "messageformat": "View recent media",
-    "description": "This is a menu item for viewing all media (images + video) in a conversation, using the imperative case, as in a command."
+    "description": "(Deleted 2024/09/03) This is a menu item for viewing all media (images + video) in a conversation, using the imperative case, as in a command."
+  },
+  "icu:allMediaMenuItem": {
+    "messageformat": "All media",
+    "description": "This is a menu item for viewing all media (images + video) in a conversation"
   },
   "icu:back": {
     "messageformat": "Back",
@@ -3583,6 +3595,10 @@
     "messageformat": "Call link",
     "description": "Shown in the call lobby for a call link."
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "Group call",
+    "description": "Shown in the call lobby before starting a group call."
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "Waiting to be let in",
     "description": "Shown in the call lobby for call link calls when requesting to join a call which requires admin approval."
@@ -4427,14 +4443,6 @@
     "messageformat": "A request to join the group from {joinerName} was denied.",
     "description": "Shown in timeline or conversation preview when v2 group changes"
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "{joinerName} requested and cancelled their request to join via the group link",
-    "description": "(Deleted 2024/08/20) Shown in timeline or conversation preview when v2 group changes"
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "{joinerName} requested and cancelled {numberOfRequests, number} requests to join via the group link",
-    "description": "(Deleted 2024/08/20) Shown in timeline or conversation preview when v2 group changes"
-  },
   "icu:GroupV2--admin-approval-bounce--pluralized": {
     "messageformat": "{joinerName} requested and cancelled {numberOfRequests, plural, one {their request} other {# requests}} to join via the group link",
     "description": "Shown in timeline or conversation preview when v2 group changes"
@@ -4679,17 +4687,81 @@
     "messageformat": "Downloading {currentSize} of {totalSize} ({fractionComplete, number, percent})...",
     "description": "Hint under the progressbar in the backup import screen"
   },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "Preparing to download...",
+    "description": "Hint under the progressbar in the backup import screen when download size is not yet known"
+  },
   "icu:BackupImportScreen__description": {
     "messageformat": "This may take a few minutes depending on the size of your backup",
     "description": "Description at the bottom of backup import screen"
   },
-  "icu:BackupMediaDownloadProgress__title": {
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "Cancel transfer",
+    "description": "Text of the cancel button at the bottom of backup import screen"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "Cancel transfer?",
+    "description": "Title of the cancel confirmation modal in the backup import screen"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "Your messages and media have not completed restoring. If you choose to cancel, you can transfer again from Settings.",
+    "description": "Body of the cancel confirmation modal in the backup import screen"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "Continue transfer",
+    "description": "Text of the continue button of the cancel confirmation modal in the backup import screen"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "Cancel transfer",
+    "description": "Text of the confirmation button of the cancel confirmation modal in the backup import screen"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
     "messageformat": "Restoring media",
-    "description": "Label above a progress bar showing media (attachment) download progress after restoring from backup"
+    "description": "Label next to a progress bar showing active media (attachment) download progress after restoring from backup"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "Restore paused",
+    "description": "Label indicating media (attachment) download progress has been paused (due to user interaction)"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "Pause transfer",
+    "description": "Text for button to pause media (attachment) download after backup impor"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "Resume transfer",
+    "description": "Text for button to resume media (attachment) download after backup import"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "Cancel transfer",
+    "description": "Text for button to cancel (pause) media (attachment) download after backup import"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "More options",
+    "description": "Alt text for button that opens menu to allow user to select to pause or cancel media download"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "Restore complete",
+    "description": "Label above a progress bar showing active media (attachment) download progress after restoring from backup"
   },
   "icu:BackupMediaDownloadProgress__progressbar-hint": {
-    "messageformat": "{currentSize} of {totalSize} ({fractionComplete, number, percent})",
+    "messageformat": "{currentSize} of {totalSize}",
     "description": "Hint under the progressbar showing media (attachment) download progress after restoring from backup"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "Cancel media transfer?",
+    "description": "Text for button to cancel (pause) media (attachment) download after backup import"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "Your messages and media have not completed restoring. If you choose to cancel, you can transfer again from Settings.",
+    "description": "Text for button to cancel (pause) media (attachment) download after backup import"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "Continue transfer",
+    "description": "Text for button to close confirmation dialog and continue media (attachment) download"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "Cancel transfer",
+    "description": "Text for button to confirm cancellation of media (attachment) download"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "Expand",
@@ -4758,6 +4830,10 @@
   "icu:ContactModal--already-in-call": {
     "messageformat": "You are already in a call",
     "description": "(Deleted 2024/08/28) Tooltip text for video or voice call button in Contact Details modal"
+  },
+  "icu:ContactModal--voice": {
+    "messageformat": "Voice",
+    "description": "Text for button to start a new voice call in the Contact Details modal"
   },
   "icu:showChatColorEditor": {
     "messageformat": "Chat color",
@@ -5000,12 +5076,12 @@
     "description": "This lets users generate a new group link"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "Approve new members",
-    "description": "Title for the approve new members select area"
+    "messageformat": "Require admin approval",
+    "description": "Title for the require new member admin approval select area"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "Require an admin to approve new members joining via the group link",
-    "description": "Description for the approve new members select area"
+    "description": "Description for the require new member admin approval select area"
   },
   "icu:PendingInvites--tab-requests": {
     "messageformat": "Requests ({count, number})",
@@ -7201,10 +7277,6 @@
     "messageformat": "Call history cleared",
     "description": "Calls Tab > Clear Call History > Toast"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "Click to view or start a call",
-    "description": "(Deleted 2024/08/12) Calls Tab > When no call is selected > Empty state > Call to action text"
-  },
   "icu:CallsTab__EmptyStateText--with-icon": {
     "messageformat": "Click <newCallIcon>New Call</newCallIcon> to start a new voice or video call.",
     "description": "(Deleted 2024/08/22) Calls Tab > When no call is selected > Empty state > Call to action text"
@@ -7224,10 +7296,6 @@
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "Toggle",
     "description": "Calls Tab > Calls List > Toggle search filter by missed > Accessibility role description ('A toggle button')"
-  },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "No recent calls. Get started by calling a friend.",
-    "description": "(Deleted 2024/08/12) Calls Tab > Calls List > When no results found > With no search query"
   },
   "icu:CallsList__EmptyState--noQuery__title": {
     "messageformat": "No calls",
@@ -7334,8 +7402,12 @@
     "description": "Call History > Call Link Details > Edit Call Name Button > Label"
   },
   "icu:CallLinkDetails__ApproveAllMembersLabel": {
-    "messageformat": "Approve all members",
-    "description": "Call History > Call Link Details > Approve All Members > Label"
+    "messageformat": "Require admin approval",
+    "description": "Call History > Call Link Details > Require admin approval > Label"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "This setting can't be changed while the call is active",
+    "description": "Call History > Call Link Details > Approve All Members > Tooltip when disabled due to active call"
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "Copy link",
@@ -7365,6 +7437,10 @@
     "messageformat": "Delete",
     "description": "Call History > Call Link Details > Delete Link Modal > Delete Button"
   },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "This link can't be deleted while the call is active",
+    "description": "Call History > Call Link Details > Delete Link Button > Tooltip when disabled due to active call"
+  },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "Call link details",
     "description": "Call Link Edit Modal > Title"
@@ -7382,16 +7458,24 @@
     "description": "Call Link Edit Modal > Edit Call Name Button > Label"
   },
   "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "Approve all members",
-    "description": "Call Link Edit Modal > Approve All Members Checkbox > Label"
+    "messageformat": "Require admin approval",
+    "description": "Call Link Edit Modal > Require admin approval checkbox > Label"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "Approve entry",
+    "description": "Call Link Pending Participant Modal > Approve Join Request Button Label"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "Deny entry",
+    "description": "Call Link Pending Participant Modal > Deny Join Request Button Label"
   },
   "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "Off",
-    "description": "Call Link Edit Modal > Approve All Members Checkbox > Option > Off"
+    "description": "Call Link Edit Modal > Require admin approval checkbox > Option > Off"
   },
   "icu:CallLinkRestrictionsSelect__Option--On": {
     "messageformat": "On",
-    "description": "Call Link Edit Modal > Approve All Members Checkbox > Option > On"
+    "description": "Call Link Edit Modal > Require admin approval checkbox > Option > On"
   },
   "icu:CallLinkAddNameModal__Title": {
     "messageformat": "Add call name",
@@ -7466,6 +7550,14 @@
   },
   "icu:WhatsNew__v7.24--0": {
     "messageformat": "This update fixes a bug where viewing a missed call on one device wouldn't automatically clear the indicator for that missed call on your other devices, which was a missed opportunity for your missed call list to better coexist.",
-    "description": "Release notes for version 7.24"
+    "description": "(Deleted 2024/09/12) Release notes for version 7.24"
+  },
+  "icu:WhatsNew__v7.25--0": {
+    "messageformat": "Take a trip down memory lane with the new and improved \"All Media\" view. Now when you click on a chat header and select \"See all\" in the shared media section, older photos and videos will automatically appear as you scroll instead of being limited to the most recent entries.",
+    "description": "(Deleted 2024/09/19) Release notes for version 7.25"
+  },
+  "icu:WhatsNew__v7.26--0": {
+    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart).",
+    "description": "Release notes for version 7.26"
   }
 }

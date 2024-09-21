@@ -66,8 +66,8 @@ import type { ConversationType } from '../state/ducks/conversations';
 import type { ConversationModel } from '../models/conversations';
 import { drop } from './drop';
 import { sendCallLinkUpdateSync } from './sendCallLinkUpdateSync';
-import { callLinksDeleteJobQueue } from '../jobs/callLinksDeleteJobQueue';
 import { storageServiceUploadJob } from '../services/storage';
+import { CallLinkDeleteManager } from '../jobs/CallLinkDeleteManager';
 
 // utils
 // -----
@@ -87,17 +87,27 @@ export function formatCallEvent(callEvent: CallEventDetails): string {
     type,
     mode,
     ringerId,
+    startedById,
     timestamp,
   } = callEvent;
   const peerIdLog = peerIdToLog(peerId, mode);
-  return `CallEvent (${callId}, ${peerIdLog}, ${mode}, ${event}, ${direction}, ${type}, ${mode}, ${timestamp}, ${ringerId}, ${eventSource})`;
+  return `CallEvent (${callId}, ${peerIdLog}, ${mode}, ${event}, ${direction}, ${type}, ${mode}, ${timestamp}, ${ringerId}, ${startedById}, ${eventSource})`;
 }
 
 export function formatCallHistory(callHistory: CallHistoryDetails): string {
-  const { callId, peerId, direction, status, type, mode, timestamp, ringerId } =
-    callHistory;
+  const {
+    callId,
+    peerId,
+    direction,
+    status,
+    type,
+    mode,
+    timestamp,
+    ringerId,
+    startedById,
+  } = callHistory;
   const peerIdLog = peerIdToLog(peerId, mode);
-  return `CallHistory (${callId}, ${peerIdLog}, ${mode}, ${status}, ${direction}, ${type}, ${mode}, ${timestamp}, ${ringerId})`;
+  return `CallHistory (${callId}, ${peerIdLog}, ${mode}, ${status}, ${direction}, ${type}, ${mode}, ${timestamp}, ${ringerId}, ${startedById})`;
 }
 
 export function formatCallHistoryGroup(
@@ -245,6 +255,8 @@ export function getCallEventForProto(
     callId,
     peerId,
     ringerId: null,
+    startedById: null,
+    endedTimestamp: null,
     mode,
     type,
     direction,
@@ -483,16 +495,19 @@ export function getCallDetailsFromDirectCall(
   peerId: AciString | string,
   call: Call
 ): CallDetails {
+  const ringerId = call.isIncoming ? call.remoteUserId : null;
   return callDetailsSchema.parse({
     callId: Long.fromValue(call.callId).toString(),
     peerId,
-    ringerId: call.isIncoming ? call.remoteUserId : null,
+    ringerId,
+    startedById: ringerId,
     mode: CallMode.Direct,
     type: call.isVideoCall ? CallType.Video : CallType.Audio,
     direction: call.isIncoming
       ? CallDirection.Incoming
       : CallDirection.Outgoing,
     timestamp: Date.now(),
+    endedTimestamp: null,
   });
 }
 
@@ -507,10 +522,12 @@ export function getCallDetailsFromEndedDirectCall(
     callId,
     peerId,
     ringerId,
+    startedById: ringerId,
     mode: CallMode.Direct,
     type: wasVideoCall ? CallType.Video : CallType.Audio,
     direction: getCallDirectionFromRingerId(ringerId),
     timestamp,
+    endedTimestamp: null,
   });
 }
 
@@ -522,10 +539,12 @@ export function getCallDetailsFromGroupCallMeta(
     callId: groupCallMeta.callId,
     peerId,
     ringerId: groupCallMeta.ringerId,
+    startedById: groupCallMeta.ringerId,
     mode: CallMode.Group,
     type: CallType.Group,
     direction: getCallDirectionFromRingerId(groupCallMeta.ringerId),
     timestamp: Date.now(),
+    endedTimestamp: null,
   });
 }
 
@@ -537,12 +556,14 @@ export function getCallDetailsForAdhocCall(
     callId,
     peerId,
     ringerId: null,
+    startedById: null,
     mode: CallMode.Adhoc,
     type: CallType.Adhoc,
     // Direction is only outgoing when your action causes ringing for others.
     // As Adhoc calls do not support ringing, this is always incoming for now
     direction: CallDirection.Incoming,
     timestamp: Date.now(),
+    endedTimestamp: null,
   });
 }
 
@@ -564,7 +585,16 @@ export function transitionCallHistory(
   callHistory: CallHistoryDetails | null,
   callEvent: CallEventDetails
 ): CallHistoryDetails {
-  const { callId, peerId, ringerId, mode, type, direction, event } = callEvent;
+  const {
+    callId,
+    peerId,
+    ringerId,
+    startedById,
+    mode,
+    type,
+    direction,
+    event,
+  } = callEvent;
 
   if (callHistory != null) {
     strictAssert(callHistory.callId === callId, 'callId must be same');
@@ -574,6 +604,12 @@ export function transitionCallHistory(
         callHistory.ringerId == null ||
         callHistory.ringerId === ringerId,
       'ringerId must be same if it exists'
+    );
+    strictAssert(
+      startedById == null ||
+        callHistory.startedById == null ||
+        callHistory.startedById === startedById,
+      'startedById must be same if it exists'
     );
     strictAssert(callHistory.direction === direction, 'direction must be same');
     strictAssert(callHistory.type === type, 'type must be same');
@@ -614,11 +650,13 @@ export function transitionCallHistory(
     callId,
     peerId,
     ringerId,
+    startedById,
     mode,
     type,
     direction,
     timestamp,
     status,
+    endedTimestamp: null,
   });
 }
 
@@ -1305,14 +1343,13 @@ export async function clearCallHistoryDataAndSync(
     const messageIds = await DataWriter.clearCallHistory(latestCall);
     await DataWriter.beginDeleteAllCallLinks();
     storageServiceUploadJob();
+    // Wait for storage sync before finalizing delete
+    drop(CallLinkDeleteManager.enqueueAllDeletedCallLinks({ delay: 10000 }));
     updateDeletedMessages(messageIds);
     log.info('clearCallHistory: Queueing sync message');
     await singleProtoJobQueue.add(
       MessageSender.getClearCallHistoryMessage(latestCall)
     );
-    await callLinksDeleteJobQueue.add({
-      source: 'clearCallHistoryDataAndSync',
-    });
   } catch (error) {
     log.error('clearCallHistory: Failed to clear call history', error);
   }

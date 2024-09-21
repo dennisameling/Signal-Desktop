@@ -12,7 +12,7 @@ import { Emojify } from './conversation/Emojify';
 import { StoryLinkPreview } from './StoryLinkPreview';
 import { TextAttachmentStyleType } from '../types/Attachment';
 import { count } from '../util/grapheme';
-import { getDomain } from '../types/LinkPreview';
+import { isValidLink, getSafeDomain } from '../types/LinkPreview';
 import { getFontNameByTextScript } from '../util/getFontNameByTextScript';
 import {
   COLOR_WHITE_INT,
@@ -197,7 +197,7 @@ export const TextAttachment = forwardRef<HTMLTextAreaElement, PropsType>(
             the story, but it must be positioned using the scaled offset
             */}
         {textAttachment.preview &&
-          textAttachment.preview.url &&
+          isValidLink(textAttachment.preview.url) &&
           linkPreviewOffsetTop &&
           !isThumbnail && (
             <a
@@ -295,7 +295,7 @@ export const TextAttachment = forwardRef<HTMLTextAreaElement, PropsType>(
               )}
               <StoryLinkPreview
                 {...textAttachment.preview}
-                domain={getDomain(String(textAttachment.preview.url))}
+                domain={getSafeDomain(String(textAttachment.preview.url))}
                 forceCompactMode={getTextSize(textContent) !== TextSize.Large}
                 i18n={i18n}
                 title={textAttachment.preview.title || undefined}

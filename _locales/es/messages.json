@@ -498,7 +498,7 @@
     "messageformat": "Enviar"
   },
   "icu:SafetyNumberViewer__markAsVerified": {
-    "messageformat": "Marcar persona como verificada"
+    "messageformat": "Verificar identidad"
   },
   "icu:SafetyNumberViewer__clearVerification": {
     "messageformat": "Retirar marca de verificación"
@@ -577,6 +577,12 @@
   },
   "icu:decryptionErrorToastAction": {
     "messageformat": "Enviar registro"
+  },
+  "icu:Toast__ActionLabel--SubmitLog": {
+    "messageformat": "Enviar registro"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements"
   },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "No se puede seleccionar fotos y vídeos junto con archivos."
@@ -867,7 +873,7 @@
     "messageformat": "Activado"
   },
   "icu:off": {
-    "messageformat": "Desactivados"
+    "messageformat": "Desactivado"
   },
   "icu:deleteWarning": {
     "messageformat": "Este mensaje se eliminará de este dispositivo."
@@ -940,6 +946,9 @@
   },
   "icu:viewRecentMedia": {
     "messageformat": "Ver archivos multimedia recientes"
+  },
+  "icu:allMediaMenuItem": {
+    "messageformat": "Todos los archivos multimedia"
   },
   "icu:back": {
     "messageformat": "Atrás"
@@ -1635,7 +1644,7 @@
     "messageformat": "{name} ha establecido la duración de los mensajes temporales en {time}."
   },
   "icu:disappearingMessages__off": {
-    "messageformat": "desactivados"
+    "messageformat": "desactivado"
   },
   "icu:disappearingMessages": {
     "messageformat": "Mensajes temporales"
@@ -1758,10 +1767,10 @@
     "messageformat": "{atUsername} no usa Signal. Asegúrate de haber introducido el alias completo."
   },
   "icu:startConversation--phone-number-not-found": {
-    "messageformat": "Persona no encontrada. {phoneNumber} no utiliza Signal."
+    "messageformat": "No se ha encontrado a esta persona. {phoneNumber} no utiliza Signal."
   },
   "icu:startConversation--phone-number-not-valid": {
-    "messageformat": "Persona no encontrada. {phoneNumber} no es un número de teléfono válido."
+    "messageformat": "No se ha encontrado a esta persona. {phoneNumber} no es un número de teléfono válido."
   },
   "icu:chooseGroupMembers__title": {
     "messageformat": "Elegir participantes"
@@ -2702,6 +2711,9 @@
   "icu:CallControls__InfoDisplay--adhoc-call": {
     "messageformat": "Enlace de llamada"
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "Llamada grupal"
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "Esperando para entrar"
   },
@@ -3335,12 +3347,6 @@
   "icu:GroupV2--admin-approval-remove-one--other--unknown": {
     "messageformat": "Se ha rechazado la solicitud de {joinerName} para unirse al grupo."
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "{joinerName} ha solicitado y cancelado su solicitud para unirse al grupo mediante enlace."
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "{joinerName} ha solicitado y cancelado {numberOfRequests,number} veces unirse al grupo mediante enlace."
-  },
   "icu:GroupV2--admin-approval-bounce--pluralized": {
     "messageformat": "{numberOfRequests, plural, one {{joinerName} ha solicitado y cancelado su solicitud para unirse al grupo mediante enlace} other {{joinerName} ha solicitado y cancelado {numberOfRequests,number} veces unirse al grupo mediante enlace}}"
   },
@@ -3524,14 +3530,62 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "Descargando {currentSize} de {totalSize} ({fractionComplete,number,percent})"
   },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "Preparando la descarga…"
+  },
   "icu:BackupImportScreen__description": {
     "messageformat": "Dependiendo del tamaño de tu copia de seguridad, esto puede llevar algunos minutos."
   },
-  "icu:BackupMediaDownloadProgress__title": {
-    "messageformat": "Restoring media"
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "Cancelar transferencia"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "¿Cancelar transferencia?"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "No se ha completado la restauración de tus mensajes y archivos multimedia. Si decides cancelar, puedes volver a transferirlos desde Ajustes."
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "Continuar transferencia"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "Cancelar transferencia"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
+    "messageformat": "Restaurando archivos multimedia"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "Restore paused"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "Pause transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "Resume transfer"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "Cancelar transferencia"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "Más opciones"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "Restauración completada"
   },
   "icu:BackupMediaDownloadProgress__progressbar-hint": {
-    "messageformat": "{currentSize} of {totalSize} ({fractionComplete,number,percent})"
+    "messageformat": "{currentSize} de {totalSize}"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "Cancel media transfer?"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "No se ha completado la restauración de tus mensajes y archivos multimedia. Si decides cancelar, puedes volver a transferirlos desde Ajustes."
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "Continuar transferencia"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "Cancelar transferencia"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "Expandir"
@@ -3583,6 +3637,9 @@
   },
   "icu:ContactModal--already-in-call": {
     "messageformat": "Ya participas en una llamada"
+  },
+  "icu:ContactModal--voice": {
+    "messageformat": "Audio"
   },
   "icu:showChatColorEditor": {
     "messageformat": "Color del chat"
@@ -3765,7 +3822,7 @@
     "messageformat": "Restablecer enlace"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "Aprobar solicitudes"
+    "messageformat": "Solicitar aprobación de admin"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "Alguien que sea admin debe aprobar las solicitudes para unirse al grupo mediante enlace"
@@ -5277,7 +5334,7 @@
     "messageformat": "Estos dígitos te ayudarán a mantener tu alias en privado para así evitar que recibas mensajes no deseados. Comparte tu alias solo con aquellas personas y grupos con los que quieras charlar. Si cambias tu alias, recibirás una nueva serie de dígitos."
   },
   "icu:EditUsernameModalBody__change-confirmation": {
-    "messageformat": "Si cambias tu alias, se restablecerán tu código QR y tu enlace.¿Quieres cambiarlo de todos modos?"
+    "messageformat": "Si cambias tu alias, se restablecerán tu código QR y tu enlace actuales. ¿Quieres cambiarlo de todos modos?"
   },
   "icu:EditUsernameModalBody__change-confirmation__continue": {
     "messageformat": "Adelante"
@@ -5418,9 +5475,6 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "Se borró el historial de llamadas"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "Haz clic para ver o empezar una llamada"
-  },
   "icu:CallsTab__EmptyStateText--with-icon": {
     "messageformat": "Haz clic en <newCallIcon>Nueva llamada</newCallIcon> para iniciar una nueva llamada o videollamada."
   },
@@ -5435,9 +5489,6 @@
   },
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "Mostrar"
-  },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "No hay llamadas recientes. Empieza llamando a alguien."
   },
   "icu:CallsList__EmptyState--noQuery__title": {
     "messageformat": "No hay llamadas"
@@ -5518,7 +5569,10 @@
     "messageformat": "Editar nombre de llamada"
   },
   "icu:CallLinkDetails__ApproveAllMembersLabel": {
-    "messageformat": "Aprobar todas las solicitudes"
+    "messageformat": "Solicitar aprobación de admin"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "Este ajuste no se puede cambiar mientras la llamada está activa"
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "Copiar enlace"
@@ -5541,6 +5595,9 @@
   "icu:CallLinkDetails__DeleteLinkModal__Delete": {
     "messageformat": "Eliminar"
   },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "Este enlace no se puede eliminar mientras la llamada está activa"
+  },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "Detalles del enlace de llamada"
   },
@@ -5554,7 +5611,13 @@
     "messageformat": "Editar nombre de llamada"
   },
   "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "Aprobar todas las solicitudes"
+    "messageformat": "Solicitar aprobación de admin"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "Aprobar solicitud"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "Rechazar solicitud"
   },
   "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "Desactivado"
@@ -5615,9 +5678,15 @@
     "messageformat": "Ahora, los chats se abren más rápido que nunca gracias a nuevas mejoras en el rendimiento de la app. ¡Se acabó el hacer clic y esperar para enterarte de las últimas novedades en tus chats!"
   },
   "icu:WhatsNew__v7.23--1": {
-    "messageformat": "También hemos corregido una serie de errores, incluido uno que a veces hacía que apareciese \"Contacto desconocido ha iniciado una videollamada\" en la lista de chats una vez iniciabas una llamada. Incluso si estás en pleno proceso de autodescubrimiento, eso no significa que no tengas idea de quién eres."
+    "messageformat": "También hemos corregido una serie de errores, incluido uno que a veces hacía que apareciese \"Contacto desconocido ha iniciado una videollamada\" en el resumen de chats una vez iniciabas una llamada. Incluso si estás en pleno proceso de autodescubrimiento, eso no significa que no tengas idea de quién eres."
   },
   "icu:WhatsNew__v7.24--0": {
-    "messageformat": "This update fixes a bug where viewing a missed call on one device wouldn't automatically clear the indicator for that missed call on your other devices, which was a missed opportunity for your missed call list to better coexist."
+    "messageformat": "Esta actualización corrige un error que hacía que cuando veías una llamada perdida en un dispositivo no se borrase automáticamente la notificación de esa llamada en tus otros dispositivos vinculados (sin duda una oportunidad perdida para aligerar tu lista de llamadas perdidas)."
+  },
+  "icu:WhatsNew__v7.25--0": {
+    "messageformat": "Abre el baúl de los recuerdos con la nueva y mejorada vista \"Todos los archivos multimedia\". Ahora, al hacer clic en el encabezado de un chat y seleccionar \"Ver todo\" en la sección de archivos compartidos, las fotos y vídeos más antiguos irán apareciendo automáticamente a medida que te desplaces en lugar de solo mostrar los más recientes."
+  },
+  "icu:WhatsNew__v7.26--0": {
+    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
   }
 }

@@ -40,7 +40,9 @@ export type ViewSyncAttributesType = {
 const viewSyncs = new Map<string, ViewSyncAttributesType>();
 
 async function remove(sync: ViewSyncAttributesType): Promise<void> {
-  await DataWriter.removeSyncTaskById(sync.syncTaskId);
+  const { syncTaskId } = sync;
+  viewSyncs.delete(syncTaskId);
+  await DataWriter.removeSyncTaskById(syncTaskId);
 }
 
 export async function forMessage(
@@ -136,7 +138,7 @@ export async function onSync(sync: ViewSyncAttributesType): Promise<void> {
     }
 
     const giftBadge = message.get('giftBadge');
-    if (giftBadge) {
+    if (giftBadge && giftBadge.state !== GiftBadgeStates.Failed) {
       didChangeMessage = true;
       message.set({
         giftBadge: {

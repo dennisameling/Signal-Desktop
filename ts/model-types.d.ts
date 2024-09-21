@@ -119,7 +119,6 @@ export type MessageReactionType = {
   fromId: string;
   targetTimestamp: number;
   timestamp: number;
-  receivedAtDate: undefined | number;
   isSentByConversationId?: Record<string, boolean>;
 };
 
@@ -137,6 +136,9 @@ export type EditHistoryType = {
   timestamp: number;
   received_at: number;
   received_at_ms?: number;
+  serverTimestamp?: number;
+  readStatus?: ReadStatus;
+  unidentifiedDeliveryReceived?: boolean;
 };
 
 type MessageType =
@@ -226,13 +228,20 @@ export type MessageAttributesType = {
     targetAuthorAci: AciString;
     targetTimestamp: number;
   };
-  giftBadge?: {
-    expiration: number;
-    level: number;
-    id: string | undefined;
-    receiptCredentialPresentation: string;
-    state: GiftBadgeStates;
-  };
+  giftBadge?:
+    | {
+        state:
+          | GiftBadgeStates.Unopened
+          | GiftBadgeStates.Opened
+          | GiftBadgeStates.Redeemed;
+        expiration: number;
+        level: number;
+        id: string | undefined;
+        receiptCredentialPresentation: string;
+      }
+    | {
+        state: GiftBadgeStates.Failed;
+      };
 
   expirationTimerUpdate?: {
     expireTimer?: DurationInSeconds;
@@ -337,6 +346,7 @@ export type ConversationAttributesType = {
   wallpaperPhotoPointerBase64?: string;
   wallpaperPreset?: number;
   dimWallpaperInDarkMode?: boolean;
+  autoBubbleColor?: boolean;
 
   discoveredUnregisteredAt?: number;
   firstUnregisteredAt?: number;
@@ -374,6 +384,10 @@ export type ConversationAttributesType = {
   lastProfile?: ConversationLastProfileType;
   needsTitleTransition?: boolean;
   quotedMessageId?: string | null;
+  /**
+   * TODO: Rename this key to be specific to the accessKey on the conversation
+   * It's not used for group endorsements.
+   */
   sealedSender?: unknown;
   sentMessageCount?: number;
   sharedGroupNames?: ReadonlyArray<string>;

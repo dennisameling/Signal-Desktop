@@ -23,7 +23,7 @@ import {
 import { Address } from '../types/Address';
 import { QualifiedAddress } from '../types/QualifiedAddress';
 import * as Errors from '../types/errors';
-import { DataWriter, DataReader } from '../sql/Client';
+import { DataWriter } from '../sql/Client';
 import { getValue } from '../RemoteConfig';
 import type { ServiceIdString } from '../types/ServiceId';
 import { ServiceIdKind } from '../types/ServiceId';
@@ -66,13 +66,14 @@ import { strictAssert } from './assert';
 import * as log from '../logging/log';
 import { GLOBAL_ZONE } from '../SignalProtocolStore';
 import { waitForAll } from './waitForAll';
+import type { GroupSendEndorsementState } from './groupSendEndorsements';
 import {
-  GroupSendEndorsementState,
+  maybeCreateGroupSendEndorsementState,
   onFailedToSendWithEndorsements,
 } from './groupSendEndorsements';
-import { maybeUpdateGroup } from '../groups';
 import type { GroupSendToken } from '../types/GroupSendEndorsements';
 import { isAciString } from './isAciString';
+import { safeParseStrict, safeParseUnknown } from './schemas';
 
 const UNKNOWN_RECIPIENT = 404;
 const INCORRECT_AUTH_KEY = 401;
@@ -212,11 +213,11 @@ export async function sendContentMessageToGroup(
 
   if (sendTarget.isValid()) {
     try {
-      return await sendToGroupViaSenderKey(
-        options,
-        0,
-        'init (sendContentMessageToGroup)'
-      );
+      return await sendToGroupViaSenderKey(options, {
+        count: 0,
+        didRefreshGroupState: false,
+        reason: 'init (sendContentMessageToGroup)',
+      });
     } catch (error: unknown) {
       if (!(error instanceof Error)) {
         throw error;
@@ -258,11 +259,27 @@ export async function sendContentMessageToGroup(
 
 // The Primary Sender Key workflow
 
+type SendRecursion = {
+  count: number;
+  didRefreshGroupState: boolean;
+  reason: string;
+};
+
 export async function sendToGroupViaSenderKey(
   options: SendToGroupOptions,
-  recursionCount: number,
-  recursionReason: string
+  recursion: SendRecursion
 ): Promise<CallbackResultType> {
+  function startOver(
+    reason: string,
+    didRefreshGroupState = recursion.didRefreshGroupState
+  ) {
+    return sendToGroupViaSenderKey(options, {
+      count: recursion.count + 1,
+      didRefreshGroupState,
+      reason,
+    });
+  }
+
   const {
     contentHint,
     contentMessage,
@@ -279,22 +296,20 @@ export async function sendToGroupViaSenderKey(
   } = options;
   const { ContentHint } = Proto.UnidentifiedSenderMessage.Message;
 
-  const logId = sendTarget.idForLogging();
+  const logId = `sendToGroupViaSenderKey/${sendTarget.idForLogging()}`;
   log.info(
-    `sendToGroupViaSenderKey/${logId}: Starting ${timestamp}, recursion count ${recursionCount}, reason: ${recursionReason}...`
+    `${logId}: Starting ${timestamp}, recursion count ${recursion.count}, reason: ${recursion.reason}...`
   );
 
-  if (recursionCount > MAX_RECURSION) {
+  if (recursion.count > MAX_RECURSION) {
     throw new Error(
-      `sendToGroupViaSenderKey/${logId}: Too much recursion! Count is at ${recursionCount}`
+      `${logId}: Too much recursion! Count is at ${recursion.count}`
     );
   }
 
   const groupId = sendTarget.getGroupId();
   if (!sendTarget.isValid()) {
-    throw new Error(
-      `sendToGroupViaSenderKey/${logId}: sendTarget is not valid!`
-    );
+    throw new Error(`${logId}: sendTarget is not valid!`);
   }
 
   if (
@@ -302,9 +317,7 @@ export async function sendToGroupViaSenderKey(
     contentHint !== ContentHint.RESENDABLE &&
     contentHint !== ContentHint.IMPLICIT
   ) {
-    throw new Error(
-      `sendToGroupViaSenderKey/${logId}: Invalid contentHint ${contentHint}`
-    );
+    throw new Error(`${logId}: Invalid contentHint ${contentHint}`);
   }
 
   strictAssert(
@@ -317,9 +330,7 @@ export async function sendToGroupViaSenderKey(
   const senderKeyInfo = sendTarget.getSenderKeyInfo();
 
   if (!senderKeyInfo) {
-    log.info(
-      `sendToGroupViaSenderKey/${logId}: Adding initial sender key info`
-    );
+    log.info(`${logId}: Adding initial sender key info`);
     await sendTarget.saveSenderKeyInfo({
       createdAtDate: Date.now(),
       distributionId: generateUuid(),
@@ -327,27 +338,17 @@ export async function sendToGroupViaSenderKey(
     });
 
     // Restart here because we updated senderKeyInfo
-    return sendToGroupViaSenderKey(
-      options,
-      recursionCount + 1,
-      'Added missing sender key info'
-    );
+    return startOver('Added missing sender key info');
   }
 
   const EXPIRE_DURATION = getSenderKeyExpireDuration();
   if (isOlderThan(senderKeyInfo.createdAtDate, EXPIRE_DURATION)) {
     const { createdAtDate } = senderKeyInfo;
-    log.info(
-      `sendToGroupViaSenderKey/${logId}: Resetting sender key; ${createdAtDate} is too old`
-    );
+    log.info(`${logId}: Resetting sender key; ${createdAtDate} is too old`);
     await resetSenderKey(sendTarget);
 
     // Restart here because we updated senderKeyInfo
-    return sendToGroupViaSenderKey(
-      options,
-      recursionCount + 1,
-      'sender key info expired'
-    );
+    return startOver('sender key info expired');
   }
 
   // 2. Fetch all devices we believe we'll be sending to
@@ -355,49 +356,20 @@ export async function sendToGroupViaSenderKey(
   const { devices: currentDevices, emptyServiceIds } =
     await window.textsecure.storage.protocol.getOpenDevices(ourAci, recipients);
 
-  const conversation =
-    groupId != null
-      ? (window.ConversationController.get(groupId) ?? null)
-      : null;
-
   let groupSendEndorsementState: GroupSendEndorsementState | null = null;
-  if (groupId != null) {
-    strictAssert(conversation, 'Must have conversation for endorsements');
-
-    const data = await DataReader.getGroupSendEndorsementsData(groupId);
-    if (data == null) {
-      if (conversation.isMember(ourAci)) {
-        onFailedToSendWithEndorsements(
-          new Error(
-            `sendToGroupViaSenderKey/${logId}: Missing all endorsements for group`
-          )
-        );
-      }
-    } else {
-      log.info(
-        `sendToGroupViaSenderKey/${logId}: Loaded endorsements for ${data.memberEndorsements.length} members`
+  if (groupId != null && !story) {
+    const { state, didRefreshGroupState } =
+      await maybeCreateGroupSendEndorsementState(
+        groupId,
+        recursion.didRefreshGroupState
       );
-      const groupSecretParamsBase64 = conversation.get('secretParams');
-      strictAssert(groupSecretParamsBase64, 'Must have secret params');
-      groupSendEndorsementState = new GroupSendEndorsementState(
-        data,
-        groupSecretParamsBase64
+    if (state != null) {
+      groupSendEndorsementState = state;
+    } else if (didRefreshGroupState) {
+      return startOver(
+        'group send endorsements outside expiration range',
+        true
       );
-
-      if (
-        groupSendEndorsementState != null &&
-        !groupSendEndorsementState.isSafeExpirationRange()
-      ) {
-        log.info(
-          `sendToGroupViaSenderKey/${logId}: Endorsements close to expiration (${groupSendEndorsementState.getExpiration().getTime()}, ${Date.now()}), refreshing group`
-        );
-        await maybeUpdateGroup({ conversation });
-        return sendToGroupViaSenderKey(
-          options,
-          recursionCount + 1,
-          'group send endorsements outside expiration range'
-        );
-      }
     }
   }
 
@@ -411,11 +383,7 @@ export async function sendToGroupViaSenderKey(
     await fetchKeysForServiceIds(emptyServiceIds, groupSendEndorsementState);
 
     // Restart here to capture devices for accounts we just started sessions with
-    return sendToGroupViaSenderKey(
-      options,
-      recursionCount + 1,
-      'fetched prekey bundles'
-    );
+    return startOver('fetched prekey bundles');
   }
 
   const { memberDevices, distributionId, createdAtDate } = senderKeyInfo;
@@ -443,7 +411,7 @@ export async function sendToGroupViaSenderKey(
   const senderKeyRecipients = getServiceIdsFromDevices(devicesForSenderKey);
   const normalSendRecipients = getServiceIdsFromDevices(devicesForNormalSend);
   log.info(
-    `sendToGroupViaSenderKey/${logId}:` +
+    `${logId}:` +
       ` ${senderKeyRecipients.length} accounts for sender key (${devicesForSenderKey.length} devices),` +
       ` ${normalSendRecipients.length} accounts for normal send (${devicesForNormalSend.length} devices)`
   );
@@ -451,7 +419,7 @@ export async function sendToGroupViaSenderKey(
   // 5. Ensure we have enough recipients
   if (senderKeyRecipients.length < 2) {
     throw new Error(
-      `sendToGroupViaSenderKey/${logId}: Not enough recipients for Sender Key message. Failing over.`
+      `${logId}: Not enough recipients for Sender Key message. Failing over.`
     );
   }
 
@@ -477,18 +445,14 @@ export async function sendToGroupViaSenderKey(
 
     // Restart here to start over; empty memberDevices means we'll send distribution
     //   message to everyone.
-    return sendToGroupViaSenderKey(
-      options,
-      recursionCount + 1,
-      'removed members in send target'
-    );
+    return startOver('removed members in send target');
   }
 
   // 8. If there are new members or new devices in the group, we need to ensure that they
   //   have our sender key before we send sender key messages to them.
   if (newToMemberServiceIds.length > 0) {
     log.info(
-      `sendToGroupViaSenderKey/${logId}: Sending sender key to ${
+      `${logId}: Sending sender key to ${
         newToMemberServiceIds.length
       } members: ${JSON.stringify(newToMemberServiceIds)}`
     );
@@ -532,11 +496,7 @@ export async function sendToGroupViaSenderKey(
 
     // Restart here because we might have discovered new or dropped devices as part of
     //   distributing our sender key.
-    return sendToGroupViaSenderKey(
-      options,
-      recursionCount + 1,
-      'sent skdm to new members'
-    );
+    return startOver('sent skdm to new members');
   }
 
   // 9. Update memberDevices with removals which didn't require a reset.
@@ -571,17 +531,12 @@ export async function sendToGroupViaSenderKey(
     senderKeyRecipientsWithDevices[serviceId].push(id);
   });
 
-  let groupSendToken: GroupSendToken | undefined;
-  let accessKeys: Buffer | undefined;
+  let groupSendToken: GroupSendToken | null = null;
+  let accessKeys: Buffer | null = null;
   if (groupSendEndorsementState != null) {
-    strictAssert(conversation, 'Must have conversation for endorsements');
-    try {
-      groupSendToken = groupSendEndorsementState.buildToken(
-        new Set(senderKeyRecipients)
-      );
-    } catch (error) {
-      onFailedToSendWithEndorsements(error);
-    }
+    groupSendToken = groupSendEndorsementState.buildToken(
+      new Set(senderKeyRecipients)
+    );
   } else {
     accessKeys = getXorOfAccessKeys(devicesForSenderKey, { story });
   }
@@ -603,7 +558,7 @@ export async function sendToGroupViaSenderKey(
       { online, story, urgent }
     );
 
-    const parsed = multiRecipient200ResponseSchema.safeParse(result);
+    const parsed = safeParseStrict(multiRecipient200ResponseSchema, result);
     if (parsed.success) {
       const { uuids404 } = parsed.data;
       if (uuids404 && uuids404.length > 0) {
@@ -620,7 +575,7 @@ export async function sendToGroupViaSenderKey(
       );
     } else {
       log.error(
-        `sendToGroupViaSenderKey/${logId}: Server returned unexpected 200 response ${JSON.stringify(
+        `${logId}: Server returned unexpected 200 response ${JSON.stringify(
           parsed.error.flatten()
         )}`
       );
@@ -655,22 +610,14 @@ export async function sendToGroupViaSenderKey(
       await handle409Response(sendTarget, groupSendEndorsementState, error);
 
       // Restart here to capture the right set of devices for our next send.
-      return sendToGroupViaSenderKey(
-        options,
-        recursionCount + 1,
-        'error: expired or missing devices'
-      );
+      return startOver('error: expired or missing devices');
     }
     if (error.code === ERROR_STALE_DEVICES) {
       await handle410Response(sendTarget, groupSendEndorsementState, error);
 
       // Restart here to use the right registrationIds for devices we already knew about,
       //   as well as send our sender key to these re-registered or re-linked devices.
-      return sendToGroupViaSenderKey(
-        options,
-        recursionCount + 1,
-        'error: stale devices'
-      );
+      return startOver('error: stale devices');
     }
     if (
       error instanceof LibSignalErrorBase &&
@@ -682,17 +629,13 @@ export async function sendToGroupViaSenderKey(
       const brokenAccount = window.ConversationController.get(name);
       if (brokenAccount) {
         log.warn(
-          `sendToGroupViaSenderKey/${logId}: Disabling sealed sender for ${brokenAccount.idForLogging()}`
+          `${logId}: Disabling sealed sender for ${brokenAccount.idForLogging()}`
         );
         brokenAccount.set({ sealedSender: SEALED_SENDER.DISABLED });
         await DataWriter.updateConversation(brokenAccount.attributes);
 
         // Now that we've eliminate this problematic account, we can try the send again.
-        return sendToGroupViaSenderKey(
-          options,
-          recursionCount + 1,
-          'error: invalid registration id'
-        );
+        return startOver('error: invalid registration id');
       }
     }
 
@@ -701,7 +644,7 @@ export async function sendToGroupViaSenderKey(
     }
 
     log.error(
-      `sendToGroupViaSenderKey/${logId}: Returned unexpected error code: ${
+      `${logId}: Returned unexpected error code: ${
         error.code
       }, error class: ${typeof error}`
     );
@@ -1022,7 +965,10 @@ async function handle409Response(
   error: HTTPError
 ) {
   const logId = sendTarget.idForLogging();
-  const parsed = multiRecipient409ResponseSchema.safeParse(error.response);
+  const parsed = safeParseUnknown(
+    multiRecipient409ResponseSchema,
+    error.response
+  );
   if (parsed.success) {
     await waitForAll({
       tasks: parsed.data.map(item => async () => {
@@ -1068,7 +1014,10 @@ async function handle410Response(
 ) {
   const logId = sendTarget.idForLogging();
 
-  const parsed = multiRecipient410ResponseSchema.safeParse(error.response);
+  const parsed = safeParseUnknown(
+    multiRecipient410ResponseSchema,
+    error.response
+  );
   if (parsed.success) {
     await waitForAll({
       tasks: parsed.data.map(item => async () => {
@@ -1424,11 +1373,8 @@ async function fetchKeysForServiceId(
   devices: Array<number> | null,
   groupSendEndorsementState: GroupSendEndorsementState | null
 ): Promise<void> {
-  log.info(
-    `fetchKeysForServiceId: Fetching ${
-      devices || 'all'
-    } devices for ${serviceId}`
-  );
+  const logId = `fetchKeysForServiceId/${serviceId}`;
+  log.info(`${logId}: Fetching ${devices || 'all'} devices`);
 
   if (!window.textsecure?.messaging?.server) {
     throw new Error('fetchKeysForServiceId: No server available!');
@@ -1485,9 +1431,7 @@ async function fetchKeysForServiceId(
       onFailedToSendWithEndorsements(error as Error);
     }
     log.error(
-      `fetchKeysForServiceId: Error fetching ${
-        devices || 'all'
-      } devices for ${serviceId}`,
+      `${logId}: Error fetching ${devices || 'all'} devices`,
       Errors.toLogFormat(error)
     );
     throw error;

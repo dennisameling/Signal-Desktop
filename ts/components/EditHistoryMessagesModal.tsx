@@ -55,6 +55,7 @@ const MESSAGE_DEFAULT_PROPS = {
   renderAudioAttachment: () => <div />,
   renderingContext: 'EditHistoryMessagesModal',
   saveAttachment: shouldNeverBeCalled,
+  saveAttachments: shouldNeverBeCalled,
   scrollToQuotedMessage: shouldNeverBeCalled,
   shouldCollapseAbove: false,
   shouldCollapseBelow: false,
@@ -62,6 +63,7 @@ const MESSAGE_DEFAULT_PROPS = {
   showContactModal: shouldNeverBeCalled,
   showConversation: noop,
   showEditHistoryModal: noop,
+  showAttachmentDownloadStillInProgressToast: shouldNeverBeCalled,
   showExpiredIncomingTapToViewToast: shouldNeverBeCalled,
   showExpiredOutgoingTapToViewToast: shouldNeverBeCalled,
   showLightboxForViewOnceMedia: shouldNeverBeCalled,
@@ -125,7 +127,12 @@ export function EditHistoryMessagesModal({
           isEditedMessage
           isSpoilerExpanded={revealedSpoilersById[currentMessageId] || {}}
           key={currentMessage.timestamp}
-          kickOffAttachmentDownload={kickOffAttachmentDownload}
+          kickOffAttachmentDownload={({ attachment }) =>
+            kickOffAttachmentDownload({
+              attachment,
+              messageId: currentMessage.id,
+            })
+          }
           messageExpanded={(messageId, displayLimit) => {
             const update = {
               ...displayLimitById,
@@ -188,7 +195,12 @@ export function EditHistoryMessagesModal({
                 getPreferredBadge={getPreferredBadge}
                 i18n={i18n}
                 isSpoilerExpanded={revealedSpoilersById[syntheticId] || {}}
-                kickOffAttachmentDownload={kickOffAttachmentDownload}
+                kickOffAttachmentDownload={({ attachment }) =>
+                  kickOffAttachmentDownload({
+                    attachment,
+                    messageId: messageAttributes.id,
+                  })
+                }
                 messageExpanded={(messageId, displayLimit) => {
                   const update = {
                     ...displayLimitById,

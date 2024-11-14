@@ -17,7 +17,7 @@ import type {
   SessionResetsType,
   StorageServiceCredentials,
 } from '../textsecure/Types.d';
-import type { BackupCredentialType } from './backups';
+import type { BackupCredentialWrapperType } from './backups';
 import type { ServiceIdString } from './ServiceId';
 
 import type { RegisteredChallengeType } from '../challenge';
@@ -87,8 +87,10 @@ export type StorageAccessType = {
   lastResortKeyUpdateTime: number;
   lastResortKeyUpdateTimePNI: number;
   localDeleteWarningShown: boolean;
+  accountEntropyPool: string;
   masterKey: string;
-  masterKeyLastRequestTime: number;
+
+  accountEntropyPoolLastRequestTime: number;
   maxPreKeyId: number;
   maxPreKeyIdPNI: number;
   maxKyberPreKeyId: number;
@@ -110,6 +112,7 @@ export type StorageAccessType = {
   synced_at: number;
   userAgent: string;
   uuid_id: string;
+  useRingrtcAdm: boolean;
   pni: string;
   version: string;
   linkPreviews: boolean;
@@ -128,6 +131,7 @@ export type StorageAccessType = {
   storageFetchComplete: boolean;
   avatarUrl: string | undefined;
   manifestVersion: number;
+  manifestRecordIkm: Uint8Array;
   storageCredentials: StorageServiceCredentials;
   'storage-service-error-records': ReadonlyArray<UnknownRecord>;
   'storage-service-unknown-records': ReadonlyArray<UnknownRecord>;
@@ -140,13 +144,16 @@ export type StorageAccessType = {
   unidentifiedDeliveryIndicators: boolean;
   groupCredentials: ReadonlyArray<GroupCredentialType>;
   callLinkAuthCredentials: ReadonlyArray<GroupCredentialType>;
-  backupCredentials: ReadonlyArray<BackupCredentialType>;
-  backupCredentialsLastRequestTime: number;
+  backupCombinedCredentials: ReadonlyArray<BackupCredentialWrapperType>;
+  backupCombinedCredentialsLastRequestTime: number;
+  backupMediaRootKey: Uint8Array;
   backupMediaDownloadTotalBytes: number;
   backupMediaDownloadCompletedBytes: number;
   backupMediaDownloadPaused: boolean;
   backupMediaDownloadBannerDismissed: boolean;
-  setBackupSignatureKey: boolean;
+  backupMediaDownloadIdle: boolean;
+  setBackupMessagesSignatureKey: boolean;
+  setBackupMediaSignatureKey: boolean;
   lastReceivedAtCounter: number;
   preferredReactionEmoji: ReadonlyArray<string>;
   skinTone: number;
@@ -183,6 +190,7 @@ export type StorageAccessType = {
   observedCapabilities: {
     deleteSync?: true;
     versionedExpirationTimer?: true;
+    ssre2?: true;
 
     // Note: Upon capability deprecation - change the value type to `never` and
     // remove it in `ts/background.ts`
@@ -190,6 +198,13 @@ export type StorageAccessType = {
 
   // If present - we are downloading backup
   backupDownloadPath: string;
+
+  // If present together with backupDownloadPath - we are downloading
+  // link-and-sync backup
+  backupEphemeralKey: Uint8Array;
+
+  // If true Desktop message history was restored from backup
+  isRestoredFromBackup: boolean;
 
   // Deprecated
   'challenge:retry-message-ids': never;
@@ -203,6 +218,7 @@ export type StorageAccessType = {
   sendEditWarningShown: never;
   formattingWarningShown: never;
   hasRegisterSupportForUnauthenticatedDelivery: never;
+  masterKeyLastRequestTime: never;
 };
 
 export type StorageInterface = {

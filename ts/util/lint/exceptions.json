@@ -17,6 +17,34 @@
   },
   {
     "rule": "eval",
+    "path": "node_modules/@cspotcode/source-map-support/source-map-support.js",
+    "line": "  // Most eval() calls are in this format",
+    "reasonCategory": "usageTrusted",
+    "updated": "2024-09-26T18:39:25.816Z"
+  },
+  {
+    "rule": "eval",
+    "path": "node_modules/@cspotcode/source-map-support/source-map-support.js",
+    "line": "  // Parse nested eval() calls using recursion",
+    "reasonCategory": "usageTrusted",
+    "updated": "2024-09-26T18:39:25.816Z"
+  },
+  {
+    "rule": "eval",
+    "path": "node_modules/@cspotcode/source-map-support/source-map-support.js",
+    "line": "  // passed to eval() ending in \"//# sourceURL=...\" will return the source file",
+    "reasonCategory": "usageTrusted",
+    "updated": "2024-09-26T18:39:25.816Z"
+  },
+  {
+    "rule": "eval",
+    "path": "node_modules/@cspotcode/source-map-support/source-map-support.js",
+    "line": "  // Code called using eval() needs special handling",
+    "reasonCategory": "usageTrusted",
+    "updated": "2024-09-26T18:39:25.816Z"
+  },
+  {
+    "rule": "eval",
     "path": "node_modules/@jest/fake-timers/node_modules/@sinonjs/commons/lib/function-name.test.js",
     "line": "                fn = eval(\"(function*() {})\")().constructor;",
     "reasonCategory": "testCode",
@@ -2035,13 +2063,6 @@
   {
     "rule": "React-useRef",
     "path": "ts/components/CallScreen.tsx",
-    "line": "  const localVideoRef = useRef<HTMLVideoElement | null>(null);",
-    "reasonCategory": "usageTrusted",
-    "updated": "2021-12-01T01:31:12.757Z"
-  },
-  {
-    "rule": "React-useRef",
-    "path": "ts/components/CallScreen.tsx",
     "line": "  const toastRegionRef = useRef<HTMLDivElement>(null);",
     "reasonCategory": "usageTrusted",
     "updated": "2023-11-14T23:29:51.425Z",
@@ -2087,13 +2108,6 @@
   },
   {
     "rule": "React-useRef",
-    "path": "ts/components/CallingLobby.tsx",
-    "line": "  const localVideoRef = React.useRef<null | HTMLVideoElement>(null);",
-    "reasonCategory": "usageTrusted",
-    "updated": "2021-07-30T16:57:33.618Z"
-  },
-  {
-    "rule": "React-useRef",
     "path": "ts/components/CallingPendingParticipants.tsx",
     "line": "  const expandedListRef = useRef<HTMLDivElement>(null);",
     "reasonCategory": "usageTrusted",
@@ -2102,11 +2116,11 @@
   },
   {
     "rule": "React-useRef",
-    "path": "ts/components/CallingPip.tsx",
-    "line": "  const localVideoRef = React.useRef(null);",
+    "path": "ts/components/CallingPendingParticipants.tsx",
+    "line": "  const lastParticipantRef = React.useRef<ConversationType | undefined>();",
     "reasonCategory": "usageTrusted",
-    "updated": "2020-10-26T19:12:24.410Z",
-    "reasonDetail": "Used to get the local video element for rendering."
+    "updated": "2024-09-20T02:11:27.851Z",
+    "reasonDetail": "For fading out, to keep showing the last known participant"
   },
   {
     "rule": "React-useRef",

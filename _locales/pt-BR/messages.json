@@ -53,6 +53,15 @@
   "icu:appleSilicon": {
     "messageformat": "Apple silicon"
   },
+  "icu:About__AppEnvironment": {
+    "messageformat": "{appEnv}"
+  },
+  "icu:About__AppEnvironment--AppleSilicon": {
+    "messageformat": "{appEnv} (Apple silicon)"
+  },
+  "icu:About__AppEnvironment--AppleIntel": {
+    "messageformat": "{appEnv} (Intel)"
+  },
   "icu:copyErrorAndQuit": {
     "messageformat": "Copiar erro e sair"
   },
@@ -575,9 +584,6 @@
   "icu:decryptionErrorToast": {
     "messageformat": "Signal encontrou um erro ao descriptografar uma mensagem de {name}, aparelho {deviceId}."
   },
-  "icu:decryptionErrorToastAction": {
-    "messageformat": "Enviar um registro de depuração"
-  },
   "icu:Toast__ActionLabel--SubmitLog": {
     "messageformat": "Enviar um registro de depuração"
   },
@@ -680,6 +686,9 @@
   "icu:search": {
     "messageformat": "Pesquisar"
   },
+  "icu:searchUnreadChats": {
+    "messageformat": "Search unread chats"
+  },
   "icu:clearSearch": {
     "messageformat": "Limpar os resultados da pesquisa"
   },
@@ -689,11 +698,26 @@
   "icu:noSearchResults": {
     "messageformat": "Nenhum resultado para \"{searchTerm}\""
   },
+  "icu:noSearchResultsWithUnreadFilter": {
+    "messageformat": "No results for \"{searchTerm}\" in unread chats"
+  },
+  "icu:noSearchResultsOnlyUnreadFilter": {
+    "messageformat": "No unread chats"
+  },
   "icu:noSearchResults--sms-only": {
     "messageformat": "Contatos SMS/MMS não estão disponíveis no Signal para Desktop."
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "Nenhum resultado para \"{searchTerm}\" em {conversationName}"
+  },
+  "icu:conversationsUnreadHeader": {
+    "messageformat": "Filtered by unread"
+  },
+  "icu:filterByUnreadButtonLabel": {
+    "messageformat": "Filter by unread"
+  },
+  "icu:clearFilterButton": {
+    "messageformat": "Clear filter"
   },
   "icu:conversationsHeader": {
     "messageformat": "Chats"
@@ -791,8 +815,14 @@
   "icu:attachmentSaved": {
     "messageformat": "Anexo salvo."
   },
+  "icu:attachmentSavedPlural": {
+    "messageformat": "{count, plural, one {Anexo salvo} other {{count,number} anexos salvos}}"
+  },
   "icu:attachmentSavedShow": {
     "messageformat": "Mostrar na pasta"
+  },
+  "icu:attachmentStillDownloading": {
+    "messageformat": "{count, plural, one {Não é possível salvar o anexo, pois o download ainda não foi concluído} other {Não é possível salvar anexos, pois {count,number} downloads ainda não foram concluídos}}"
   },
   "icu:you": {
     "messageformat": "Você"
@@ -944,9 +974,6 @@
   "icu:NotePreviewModal__Title": {
     "messageformat": "Nota"
   },
-  "icu:viewRecentMedia": {
-    "messageformat": "Ver mídia recente"
-  },
   "icu:allMediaMenuItem": {
     "messageformat": "Todos os arquivos de mídia"
   },
@@ -1006,6 +1033,18 @@
   },
   "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
     "messageformat": "Todas as mensagens nesta conversa serão excluídas em todos os seus dispositivos. Você ainda poderá pesquisar nesta conversa após excluir as mensagens."
+  },
+  "icu:deleteConversation": {
+    "messageformat": "Excluir"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__title": {
+    "messageformat": "Quer excluir o chat?"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description": {
+    "messageformat": "Todas as mensagens neste chat serão excluídas deste dispositivo."
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description-with-sync": {
+    "messageformat": "Todas as mensagens nesta conversa serão excluídas em todos os seus dispositivos."
   },
   "icu:ConversationHeader__ContextMenu__LeaveGroupAction__title": {
     "messageformat": "Sair do grupo"
@@ -1232,6 +1271,9 @@
   "icu:calling__call-link-default-title": {
     "messageformat": "Chamada Signal"
   },
+  "icu:calling__call-link-delete-failed": {
+    "messageformat": "Não foi possível apagar o link. Verifique a sua conexão e tente novamente."
+  },
   "icu:calling__join-request-denied": {
     "messageformat": "Sua solicitação para participar desta chamada foi negada."
   },
@@ -1415,6 +1457,9 @@
   "icu:calling__missing-media-keys": {
     "messageformat": "Não é possível receber áudio e vídeo de {name}"
   },
+  "icu:calling__missing-media-keys--unknown-contact": {
+    "messageformat": "Não é possível receber áudio e vídeo"
+  },
   "icu:calling__missing-media-keys-info": {
     "messageformat": "Isso pode acontecer porque: essa pessoa não verificou a alteração do seu número de segurança; há um problema com o dispositivo dela; ela bloqueou você."
   },
@@ -1438,6 +1483,9 @@
   },
   "icu:calling__presenting--info": {
     "messageformat": "Signal está apresentando {window}."
+  },
+  "icu:calling__presenting--info--unknown": {
+    "messageformat": "O compartilhamento de tela do Signal está ativo"
   },
   "icu:calling__presenting--reconnecting": {
     "messageformat": "Reconectando…"
@@ -1621,6 +1669,9 @@
   },
   "icu:timestampFormat__long--yesterday": {
     "messageformat": "Ontem, {time}"
+  },
+  "icu:messageLoop": {
+    "messageformat": "O Signal pode estar falhando ao processar uma mensagem recebida."
   },
   "icu:messageBodyTooLong": {
     "messageformat": "Mensagem muito longa."
@@ -2970,7 +3021,7 @@
     "messageformat": "Você não pode entrar nesse grupo por meio do link porque um admin excluiu você."
   },
   "icu:GroupV2--join--prompt-with-approval": {
-    "messageformat": "Um admin desse grupo deve aprovar a sua solicitação antes que você possa participar. Se você entrar no grupo, seu nome e foto serão compartilhados com os membros."
+    "messageformat": "Um administrador deste grupo precisa aprovar seu pedido antes que você possa participar. Ao solicitar a entrada, seu nome e foto serão compartilhados com os membros do grupo."
   },
   "icu:GroupV2--join--join-button": {
     "messageformat": "Entrar"
@@ -3530,6 +3581,9 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "Baixando {currentSize} de {totalSize} ({fractionComplete,number,percent})..."
   },
+  "icu:BackupImportScreen__progressbar-hint--processing": {
+    "messageformat": "Finalizando a transferência de mensagens…"
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "Preparando para download…"
   },
@@ -3538,6 +3592,9 @@
   },
   "icu:BackupImportScreen__cancel": {
     "messageformat": "Cancelar transferência"
+  },
+  "icu:BackupImportScreen__security-description": {
+    "messageformat": "Messages and chat info are protected by end-to-end encryption, including the sync process. <learnMoreLink>Learn more</learnMoreLink>"
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
     "messageformat": "Cancelar transferência?"
@@ -3551,17 +3608,44 @@
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
     "messageformat": "Cancelar transferência"
   },
+  "icu:BackupImportScreen__error__title": {
+    "messageformat": "Erro ao transferir suas mensagens"
+  },
+  "icu:BackupImportScreen__error__body": {
+    "messageformat": "Não foi possível transferir suas mensagens. Verifique sua conexão à Internet e tente novamente."
+  },
+  "icu:BackupImportScreen__error__confirm": {
+    "messageformat": "Tente novamente"
+  },
+  "icu:BackupImportScreen__skip": {
+    "messageformat": "Ignorar"
+  },
+  "icu:BackupImportScreen__skip-confirmation__title": {
+    "messageformat": "Pular a transferência de mensagens?"
+  },
+  "icu:BackupImportScreen__skip-confirmation__body": {
+    "messageformat": "Se você optar por pular, não terá acesso a nenhuma de suas mensagens ou mídias neste dispositivo. Você pode iniciar uma nova transferência depois de pular em Configurações > Conversas > Transferência."
+  },
+  "icu:BackupImportScreen__skip-confirmation__cancel": {
+    "messageformat": "Cancelar"
+  },
   "icu:BackupMediaDownloadProgress__title-in-progress": {
     "messageformat": "Restaurando arquivos de mídia"
   },
   "icu:BackupMediaDownloadProgress__title-paused": {
-    "messageformat": "Restore paused"
+    "messageformat": "Restauração interrompida"
+  },
+  "icu:BackupMediaDownloadProgress__title-idle": {
+    "messageformat": "{currentSize} de {totalSize} restaurado"
+  },
+  "icu:BackupMediaDownloadProgress__description-idle": {
+    "messageformat": "O download de mídia continuará em segundo plano"
   },
   "icu:BackupMediaDownloadProgress__button-pause": {
-    "messageformat": "Pause transfer"
+    "messageformat": "Interromper transferência"
   },
   "icu:BackupMediaDownloadProgress__button-resume": {
-    "messageformat": "Resume transfer"
+    "messageformat": "Retomar transferência"
   },
   "icu:BackupMediaDownloadProgress__button-cancel": {
     "messageformat": "Cancelar transferência"
@@ -3576,7 +3660,7 @@
     "messageformat": "{currentSize} de {totalSize}"
   },
   "icu:BackupMediaDownloadCancelConfirmation__title": {
-    "messageformat": "Cancel media transfer?"
+    "messageformat": "Cancelar transferência do arquivo de mídia?"
   },
   "icu:BackupMediaDownloadCancelConfirmation__description": {
     "messageformat": "Suas mensagens e arquivos de mídia não foram totalmente restauradas. Se cancelar, você pode transferir novamente em Configurações."
@@ -3634,9 +3718,6 @@
   },
   "icu:ContactModal--remove-from-group": {
     "messageformat": "Excluir do grupo"
-  },
-  "icu:ContactModal--already-in-call": {
-    "messageformat": "Você já está em uma chamada"
   },
   "icu:ContactModal--voice": {
     "messageformat": "Voz"
@@ -4643,6 +4724,15 @@
   "icu:DialogNetworkStatus__outage": {
     "messageformat": "O Signal está com dificuldades técnicas. Estamos fazendo o possível para restaurar o serviço o quanto antes."
   },
+  "icu:InstallScreenUpdateDialog--update-required__title": {
+    "messageformat": "Update Required"
+  },
+  "icu:InstallScreenUpdateDialog--update-required__body": {
+    "messageformat": "To complete syncing your messages, update Signal desktop now."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__action-update": {
+    "messageformat": "Update"
+  },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "Update necessário"
   },
@@ -4925,9 +5015,6 @@
   "icu:Stories__placeholder--text": {
     "messageformat": "Clique para ver um story"
   },
-  "icu:Stories__placeholder-with-icon--text": {
-    "messageformat": "Clique em <newStoryIcon>Adicionar um story</newStoryIcon> para postar uma atualização."
-  },
   "icu:Stories__placeholder-with-icon--text-2": {
     "messageformat": "Clique em <newStoryButtonIcon></newStoryButtonIcon> para adicionar uma atualização."
   },
@@ -5171,9 +5258,6 @@
   "icu:StoryViewsNRepliesModal__tab--replies": {
     "messageformat": "Respostas"
   },
-  "icu:StoryViewsNRepliesModal__reacted": {
-    "messageformat": "Reagiu ao story"
-  },
   "icu:StoryViewsNRepliesModal__reacted--you": {
     "messageformat": "Reagiu ao story"
   },
@@ -5196,7 +5280,7 @@
     "messageformat": "Story"
   },
   "icu:StoryListItem__unhide": {
-    "messageformat": "Mostrar Stories"
+    "messageformat": "Mostrar story"
   },
   "icu:StoryListItem__hide": {
     "messageformat": "Ocultar story"
@@ -5467,7 +5551,10 @@
     "messageformat": "Limpar histórico de chamadas?"
   },
   "icu:CallsTab__ConfirmClearCallHistory__Body": {
-    "messageformat": "Esta ação excluirá permanentemente o histórico de chamadas"
+    "messageformat": "Esta ação excluirá permanentemente o histórico de chamadas."
+  },
+  "icu:CallsTab__ConfirmClearCallHistory__Body--call-links": {
+    "messageformat": "Esta ação apagará permanentemente o histórico de chamadas. Os links de chamada que você criou não funcionarão mais. "
   },
   "icu:CallsTab__ConfirmClearCallHistory__ConfirmButton": {
     "messageformat": "Limpar"
@@ -5475,14 +5562,23 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "Histórico de Chamadas Apagado"
   },
-  "icu:CallsTab__EmptyStateText--with-icon": {
-    "messageformat": "Clique em <newCallIcon>Nova chamada</newCallIcon> para iniciar uma nova chamada de voz ou vídeo."
+  "icu:CallsTab__ClearCallHistoryError--call-links": {
+    "messageformat": "Não foi possível apagar todos os links de chamada. Verifique a sua conexão e tente novamente."
+  },
+  "icu:CallsTab__ClearCallHistoryError": {
+    "messageformat": "Não foi possível apagar o histórico de chamadas. Verifique a sua conexão e tente novamente."
   },
   "icu:CallsTab__EmptyStateText--with-icon-2": {
     "messageformat": "Clique em <newCallButtonIcon></newCallButtonIcon> para iniciar uma nova chamada de voz ou de vídeo."
   },
+  "icu:CallsList__SearchInputPlaceholder--missed-calls": {
+    "messageformat": "Search missed calls"
+  },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "Pesquisar"
+  },
+  "icu:CallsList__FilteredByMissedHeader": {
+    "messageformat": "Filtered by missed"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "Filtrar por chamadas perdidas"
@@ -5496,14 +5592,14 @@
   "icu:CallsList__EmptyState--noQuery__subtitle": {
     "messageformat": "As chamadas recentes aparecerão aqui."
   },
-  "icu:CallsList__EmptyState--noQuery--missed__title": {
-    "messageformat": "Nenhuma chamada perdida"
-  },
-  "icu:CallsList__EmptyState--noQuery--missed__subtitle": {
-    "messageformat": "As chamadas perdidas aparecerão aqui."
-  },
   "icu:CallsList__EmptyState--hasQuery": {
     "messageformat": "Nenhum resultado encontrado para “{query}”"
+  },
+  "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
+    "messageformat": "No results for “{query}” in missed calls"
+  },
+  "icu:CallsList__EmptyState--missedCalls": {
+    "messageformat": "No missed calls"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "Criar um link de chamada"
@@ -5674,19 +5770,16 @@
     "messageformat": "Pequenas alterações adicionais, correções de bugs e melhorias de desempenho. Agradecemos por usar o Signal!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.23--0": {
-    "messageformat": "As conversas agora abrem ainda mais rápido, graças a mais uma série de melhorias de desempenho que implementamos."
+  "icu:WhatsNew__v7.33--0": {
+    "messageformat": "Esta atualização corrige um erro onde o menu de contexto errado aparecia ao clicar com o botão direito em um emoji durante a seleção do texto."
   },
-  "icu:WhatsNew__v7.23--1": {
-    "messageformat": "Também resolvemos alguns problemas, incluindo um que, em algumas ocasiões, exibia “Contato desconhecido iniciou uma chamada de vídeo” no resumo da lista de conversas após você ter iniciado a chamada."
+  "icu:WhatsNew__v7.34--0": {
+    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say."
   },
-  "icu:WhatsNew__v7.24--0": {
-    "messageformat": "Essa atualização corrige um erro de visualização de chamadas perdidas. Antes, você via o indicador dessa chamada em todos os dispositivos. Agora, ao visualizar em um, o indicador desaparece em todos."
+  "icu:WhatsNew__v7.34--1": {
+    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore."
   },
-  "icu:WhatsNew__v7.25--0": {
-    "messageformat": "Entre em um túnel do tempo ao  visualizar o novo layout de \"todos os arquivos de mídia\". Ao tocar no nome da conversa, selecione 'Ver tudo' na seção de mídia compartilhada. Fotos e vídeos mais antigos aparecerão automaticamente conforme você rola a tela, sem limitar sua visualização apenas às últimas trocas. "
-  },
-  "icu:WhatsNew__v7.26--0": {
-    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
+  "icu:WhatsNew__v7.34--2": {
+    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality."
   }
 }

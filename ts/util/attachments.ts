@@ -78,7 +78,16 @@ export const downscaleOutgoingAttachment = async (
 
 export type CdnFieldsType = Pick<
   AttachmentType,
-  'cdnId' | 'cdnKey' | 'cdnNumber' | 'key' | 'digest' | 'iv' | 'plaintextHash'
+  | 'cdnId'
+  | 'cdnKey'
+  | 'cdnNumber'
+  | 'digest'
+  | 'incrementalMac'
+  | 'incrementalMacChunkSize'
+  | 'isReencryptableToSameDigest'
+  | 'iv'
+  | 'key'
+  | 'plaintextHash'
 >;
 
 export function copyCdnFields(
@@ -91,9 +100,14 @@ export function copyCdnFields(
     cdnId: dropNull(uploaded.cdnId)?.toString(),
     cdnKey: uploaded.cdnKey,
     cdnNumber: dropNull(uploaded.cdnNumber),
-    key: Bytes.toBase64(uploaded.key),
-    iv: Bytes.toBase64(uploaded.iv),
     digest: Bytes.toBase64(uploaded.digest),
+    incrementalMac: uploaded.incrementalMac
+      ? Bytes.toBase64(uploaded.incrementalMac)
+      : undefined,
+    incrementalMacChunkSize: dropNull(uploaded.chunkSize),
+    isReencryptableToSameDigest: uploaded.isReencryptableToSameDigest,
+    iv: Bytes.toBase64(uploaded.iv),
+    key: Bytes.toBase64(uploaded.key),
     plaintextHash: uploaded.plaintextHash,
   };
 }

@@ -66,6 +66,8 @@ import type {
 } from '../state/ducks/calling';
 import { DAY, MINUTE, SECOND } from '../util/durations';
 import type { StartCallData } from './ConfirmLeaveCallModal';
+import { Button, ButtonVariant } from './Button';
+import type { ICUJSXMessageParamsByKeyType } from '../types/Util';
 
 function Timestamp({
   i18n,
@@ -153,6 +155,7 @@ type CallsListProps = Readonly<{
   togglePip: () => void;
 }>;
 
+const FILTER_HEADER_ROW_HEIGHT = 50;
 const CALL_LIST_ITEM_ROW_HEIGHT = 62;
 const INACTIVE_CALL_LINKS_TO_PEEK = 10;
 const INACTIVE_CALL_LINK_AGE_THRESHOLD = 10 * DAY;
@@ -167,7 +170,11 @@ function isSameOptions(
   return a.query === b.query && a.status === b.status;
 }
 
-type SpecialRows = 'CreateCallLink' | 'EmptyState';
+type SpecialRows =
+  | 'CreateCallLink'
+  | 'EmptyState'
+  | 'FilterHeader'
+  | 'ClearFilterButton';
 type Row = CallHistoryGroup | SpecialRows;
 
 export function CallsList({
@@ -206,25 +213,34 @@ export function CallsList({
   const searchStateStatus =
     searchState.options?.status ?? CallHistoryFilterStatus.All;
   const hasSearchStateQuery = searchStateQuery !== '';
-  const searchFiltering =
-    hasSearchStateQuery || searchStateStatus !== CallHistoryFilterStatus.All;
+  const hasMissedCallFilter =
+    searchStateStatus === CallHistoryFilterStatus.Missed;
+  const searchFiltering = hasSearchStateQuery || hasMissedCallFilter;
   const searchPending = searchState.state === 'pending';
   const isEmpty = !searchState.results?.items?.length;
 
-  const rows = useMemo(() => {
-    let results: ReadonlyArray<Row> = searchState.results?.items ?? [];
-    if (results.length === 0 && hasSearchStateQuery) {
-      results = ['EmptyState'];
+  const rows = useMemo<ReadonlyArray<Row>>(() => {
+    const results: ReadonlyArray<Row> = searchState.results?.items ?? [];
+
+    if (results.length === 0 && searchFiltering) {
+      return hasMissedCallFilter
+        ? ['FilterHeader', 'EmptyState', 'ClearFilterButton']
+        : ['EmptyState'];
     }
+
     if (!searchFiltering && canCreateCallLinks) {
-      results = ['CreateCallLink', ...results];
+      return ['CreateCallLink', ...results];
+    }
+
+    if (hasMissedCallFilter) {
+      return ['FilterHeader', ...results, 'ClearFilterButton'];
     }
     return results;
   }, [
     searchState.results?.items,
-    hasSearchStateQuery,
     searchFiltering,
     canCreateCallLinks,
+    hasMissedCallFilter,
   ]);
 
   const rowCount = rows.length;
@@ -311,32 +327,49 @@ export function CallsList({
 
       const { mode, peerId } = callHistoryGroup;
       const call = getCallByPeerId({ mode, peerId });
-      if (!call) {
+      if (!call || !isGroupOrAdhocCallState(call)) {
+        // We can't tell from CallHistory alone whether a 1:1 call is active
         return false;
       }
 
-      if (isGroupOrAdhocCallState(call)) {
-        if (!isAnybodyInGroupCall(call.peekInfo)) {
-          return false;
-        }
-
-        if (mode === CallMode.Group) {
-          const eraId = call.peekInfo?.eraId;
-          if (!eraId) {
-            return false;
-          }
-
-          const callId = getCallIdFromEra(eraId);
-          return callHistoryGroup.children.some(
-            groupItem => groupItem.callId === callId
-          );
-        }
-
-        return true;
+      // eraId indicates a group/call link call is active.
+      const eraId = call.peekInfo?.eraId;
+      if (!eraId) {
+        return false;
       }
 
-      // We can't tell from CallHistory alone whether a 1:1 call is active
-      return false;
+      // Group calls have multiple entries sharing a peerId. To distinguish them we need
+      // to compare the active callId (derived from eraId) with this item's callId set.
+      if (mode === CallMode.Group) {
+        const callId = getCallIdFromEra(eraId);
+        return callHistoryGroup.children.some(
+          groupItem => groupItem.callId === callId
+        );
+      }
+
+      // Call links only show once in the calls list, so we can just return active.
+      return true;
+    },
+    [getCallByPeerId]
+  );
+
+  const getIsAnybodyInCall = useCallback(
+    ({
+      callHistoryGroup,
+    }: {
+      callHistoryGroup: CallHistoryGroup | null;
+    }): boolean => {
+      if (!callHistoryGroup) {
+        return false;
+      }
+
+      const { mode, peerId } = callHistoryGroup;
+      const call = getCallByPeerId({ mode, peerId });
+      if (!call || !isGroupOrAdhocCallState(call)) {
+        return false;
+      }
+
+      return isAnybodyInGroupCall(call.peekInfo);
     },
     [getCallByPeerId]
   );
@@ -370,7 +403,7 @@ export function CallsList({
         );
       }
 
-      // For group and adhoc calls, a call has to have members in it (see getIsCallActive)
+      // For group and adhoc calls
       return Boolean(
         isActive &&
           conversation &&
@@ -433,8 +466,9 @@ export function CallsList({
       for (const item of callItems) {
         const { mode } = item;
         if (isGroupOrAdhocCallMode(mode)) {
-          const isActive = getIsCallActive({ callHistoryGroup: item });
-
+          const isActive = getIsCallActive({
+            callHistoryGroup: item,
+          });
           if (isActive) {
             // Don't peek if you're already in the call.
             const activeCallConversationId = activeCall?.conversationId;
@@ -657,10 +691,8 @@ export function CallsList({
     ({ index }: Index) => {
       const item = rows.at(index) ?? null;
 
-      if (item === 'EmptyState') {
-        // arbitary large number so the empty state can be as big as it wants,
-        // scrolling should always be locked when the list is empty
-        return 9999;
+      if (item === 'FilterHeader') {
+        return FILTER_HEADER_ROW_HEIGHT;
       }
 
       return CALL_LIST_ITEM_ROW_HEIGHT;
@@ -692,15 +724,53 @@ export function CallsList({
       }
 
       if (item === 'EmptyState') {
+        let i18nId: keyof ICUJSXMessageParamsByKeyType;
+
+        if (hasSearchStateQuery && hasMissedCallFilter) {
+          i18nId = 'icu:CallsList__EmptyState--hasQueryAndMissedCalls';
+        } else if (hasSearchStateQuery) {
+          i18nId = 'icu:CallsList__EmptyState--hasQuery';
+        } else if (hasMissedCallFilter) {
+          i18nId = 'icu:CallsList__EmptyState--missedCalls';
+        } else {
+          // This should never happen
+          i18nId = 'icu:CallsList__EmptyState--hasQuery';
+        }
         return (
           <div key={key} className="CallsList__EmptyState" style={style}>
             <I18n
               i18n={i18n}
-              id="icu:CallsList__EmptyState--hasQuery"
+              id={i18nId}
               components={{
                 query: <UserText text={searchStateQuery} />,
               }}
             />
+          </div>
+        );
+      }
+
+      if (item === 'FilterHeader') {
+        return (
+          <div key={key} style={style} className="CallsList__FilterHeader">
+            {i18n('icu:CallsList__FilteredByMissedHeader')}
+          </div>
+        );
+      }
+
+      if (item === 'ClearFilterButton') {
+        return (
+          <div key={key} style={style} className="ClearFilterButton">
+            <Button
+              variant={ButtonVariant.SecondaryAffirmative}
+              className={classNames('ClearFilterButton__inner', {
+                // The clear filter button should be closer to the emty state
+                // text than to the search results.
+                'ClearFilterButton__inner-vertical-center': !isEmpty,
+              })}
+              onClick={() => setStatusInput(CallHistoryFilterStatus.All)}
+            >
+              {i18n('icu:clearFilterButton')}
+            </Button>
           </div>
         );
       }
@@ -711,6 +781,13 @@ export function CallsList({
       const isActive = getIsCallActive({
         callHistoryGroup: item,
       });
+      // After everyone leaves a call, it remains active on the server for a little bit.
+      // We don't need to show the active call join button in this case.
+      const isAnybodyInCall =
+        isActive &&
+        getIsAnybodyInCall({
+          callHistoryGroup: item,
+        });
       const isInCall = getIsInCall({
         activeCallConversationId,
         callHistoryGroup: item,
@@ -722,7 +799,9 @@ export function CallsList({
       const isCallButtonVisible = Boolean(
         !isAdhoc || (isAdhoc && getCallLink(item.peerId))
       );
-      const isActiveVisible = Boolean(isCallButtonVisible && item && isActive);
+      const isActiveVisible = Boolean(
+        isCallButtonVisible && item && isAnybodyInCall
+      );
 
       if (searchPending || item == null || conversation == null) {
         return (
@@ -812,6 +891,7 @@ export function CallsList({
           key={key}
           style={style}
           data-type={item.type}
+          data-testid={item.peerId}
           className={classNames('CallsList__Item', {
             'CallsList__Item--selected': isSelected,
             'CallsList__Item--missed': wasMissed,
@@ -887,8 +967,11 @@ export function CallsList({
       searchPending,
       getCallLink,
       getConversationForItem,
+      getIsAnybodyInCall,
       getIsCallActive,
       getIsInCall,
+      hasMissedCallFilter,
+      hasSearchStateQuery,
       selectedCallHistoryGroup,
       onChangeCallsTabSelectedView,
       onCreateCallLink,
@@ -898,6 +981,7 @@ export function CallsList({
       toggleConfirmLeaveCallModal,
       togglePip,
       i18n,
+      isEmpty,
     ]
   );
 
@@ -928,20 +1012,14 @@ export function CallsList({
           subtitle={i18n('icu:CallsList__EmptyState--noQuery__subtitle')}
         />
       )}
-      {isEmpty &&
-        statusInput === CallHistoryFilterStatus.Missed &&
-        !hasSearchStateQuery && (
-          <NavSidebarEmpty
-            title={i18n('icu:CallsList__EmptyState--noQuery--missed__title')}
-            subtitle={i18n(
-              'icu:CallsList__EmptyState--noQuery--missed__subtitle'
-            )}
-          />
-        )}
       <NavSidebarSearchHeader>
         <SearchInput
           i18n={i18n}
-          placeholder={i18n('icu:CallsList__SearchInputPlaceholder')}
+          placeholder={
+            searchFiltering
+              ? i18n('icu:CallsList__SearchInputPlaceholder--missed-calls')
+              : i18n('icu:CallsList__SearchInputPlaceholder')
+          }
           onChange={handleSearchInputChange}
           onClear={handleSearchInputClear}
           value={queryInput}
@@ -954,11 +1032,10 @@ export function CallsList({
         >
           <button
             className={classNames('CallsList__ToggleFilterByMissed', {
-              'CallsList__ToggleFilterByMissed--pressed':
-                statusInput === CallHistoryFilterStatus.Missed,
+              'CallsList__ToggleFilterByMissed--pressed': hasMissedCallFilter,
             })}
             type="button"
-            aria-pressed={statusInput === CallHistoryFilterStatus.Missed}
+            aria-pressed={hasMissedCallFilter}
             aria-roledescription={i18n(
               'icu:CallsList__ToggleFilterByMissed__RoleDescription'
             )}

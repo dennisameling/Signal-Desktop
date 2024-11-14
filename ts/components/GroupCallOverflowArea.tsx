@@ -22,6 +22,7 @@ export type PropsType = {
   i18n: LocalizerType;
   imageDataCache: React.RefObject<CallingImageDataCache>;
   isCallReconnecting: boolean;
+  joinedAt: number | null;
   onClickRaisedHand?: () => void;
   onParticipantVisibilityChanged: (
     demuxId: number,
@@ -38,6 +39,7 @@ export function GroupCallOverflowArea({
   imageDataCache,
   i18n,
   isCallReconnecting,
+  joinedAt,
   onClickRaisedHand,
   onParticipantVisibilityChanged,
   overflowedParticipants,
@@ -137,6 +139,8 @@ export function GroupCallOverflowArea({
             remoteParticipantsCount={remoteParticipantsCount}
             isActiveSpeakerInSpeakerView={false}
             isCallReconnecting={isCallReconnecting}
+            isInOverflow
+            joinedAt={joinedAt}
           />
         ))}
       </div>

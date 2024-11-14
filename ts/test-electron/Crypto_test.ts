@@ -1,11 +1,13 @@
 // Copyright 2015 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { assert } from 'chai';
 import { readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
-
 import { createCipheriv } from 'crypto';
+
+import { assert } from 'chai';
+import { isNumber } from 'lodash';
+
 import * as log from '../logging/log';
 import * as Bytes from '../Bytes';
 import * as Curve from '../Curve';
@@ -45,6 +47,7 @@ import {
   getAttachmentCiphertextLength,
   splitKeys,
   generateAttachmentKeys,
+  type DecryptedAttachmentV2,
 } from '../AttachmentCrypto';
 import { createTempDir, deleteTempDir } from '../updater/common';
 import { uuidToBytes, bytesToUuid } from '../util/uuidToBytes';
@@ -583,6 +586,8 @@ describe('Crypto', () => {
           ...splitKeys(keys),
           size: FILE_CONTENTS.byteLength,
           theirDigest: encryptedAttachment.digest,
+          theirIncrementalMac: undefined,
+          theirChunkSize: undefined,
           getAbsoluteAttachmentPath:
             window.Signal.Migrations.getAbsoluteAttachmentPath,
         });
@@ -610,13 +615,17 @@ describe('Crypto', () => {
         plaintextHash,
         encryptionKeys,
         dangerousIv,
+        modifyIncrementalMac,
+        overrideSize,
       }: {
         path?: string;
         data: Uint8Array;
-        plaintextHash: Uint8Array;
+        plaintextHash?: Uint8Array;
         encryptionKeys?: Uint8Array;
         dangerousIv?: HardcodedIVForEncryptionType;
-      }): Promise<void> {
+        modifyIncrementalMac?: boolean;
+        overrideSize?: number;
+      }): Promise<DecryptedAttachmentV2> {
         let plaintextPath;
         let ciphertextPath;
         const keys = encryptionKeys ?? generateAttachmentKeys();
@@ -628,19 +637,31 @@ describe('Crypto', () => {
             dangerousIv,
             getAbsoluteAttachmentPath:
               window.Signal.Migrations.getAbsoluteAttachmentPath,
+            needIncrementalMac: true,
           });
 
           ciphertextPath = window.Signal.Migrations.getAbsoluteAttachmentPath(
             encryptedAttachment.path
           );
 
+          const macLength = encryptedAttachment.incrementalMac?.length;
+          if (
+            modifyIncrementalMac &&
+            isNumber(macLength) &&
+            encryptedAttachment.incrementalMac
+          ) {
+            encryptedAttachment.incrementalMac[macLength / 2] += 1;
+          }
+
           const decryptedAttachment = await decryptAttachmentV2({
             type: 'standard',
             ciphertextPath,
             idForLogging: 'test',
             ...splitKeys(keys),
-            size: data.byteLength,
+            size: overrideSize ?? data.byteLength,
             theirDigest: encryptedAttachment.digest,
+            theirIncrementalMac: encryptedAttachment.incrementalMac,
+            theirChunkSize: encryptedAttachment.chunkSize,
             getAbsoluteAttachmentPath:
               window.Signal.Migrations.getAbsoluteAttachmentPath,
           });
@@ -664,19 +685,27 @@ describe('Crypto', () => {
             }
           }
 
-          assert.isTrue(constantTimeEqual(data, plaintext));
           assert.strictEqual(
             encryptedAttachment.ciphertextSize,
             getAttachmentCiphertextLength(data.byteLength)
           );
-          assert.strictEqual(
-            encryptedAttachment.plaintextHash,
-            Bytes.toHex(plaintextHash)
-          );
-          assert.strictEqual(
-            decryptedAttachment.plaintextHash,
-            encryptedAttachment.plaintextHash
-          );
+
+          if (overrideSize == null) {
+            assert.isTrue(constantTimeEqual(data, plaintext));
+            assert.strictEqual(
+              decryptedAttachment.plaintextHash,
+              encryptedAttachment.plaintextHash
+            );
+          }
+
+          if (plaintextHash) {
+            assert.strictEqual(
+              encryptedAttachment.plaintextHash,
+              Bytes.toHex(plaintextHash)
+            );
+          }
+
+          return decryptedAttachment;
         } finally {
           if (plaintextPath) {
             unlinkSync(plaintextPath);
@@ -725,6 +754,25 @@ describe('Crypto', () => {
           unlinkSync(sourcePath);
         }
       });
+      it('v2 fails decrypt for large disk file if incrementalMac is wrong', async () => {
+        const sourcePath = join(tempDir, 'random');
+        const data = getRandomBytes(5 * 1024 * 1024);
+        const plaintextHash = sha256(data);
+        writeFileSync(sourcePath, data);
+        try {
+          await assert.isRejected(
+            testV2RoundTripData({
+              path: sourcePath,
+              data,
+              plaintextHash,
+              modifyIncrementalMac: true,
+            }),
+            /Corrupted/
+          );
+        } finally {
+          unlinkSync(sourcePath);
+        }
+      });
 
       it('v2 roundtrips large file from memory', async () => {
         // Get sufficient large data to have more than 64kb of padding and
@@ -734,6 +782,25 @@ describe('Crypto', () => {
         await testV2RoundTripData({
           data,
           plaintextHash,
+        });
+      });
+
+      describe('isPaddingAllZeros', () => {
+        it('detects all zeros', async () => {
+          const decryptedResult = await testV2RoundTripData({
+            data: FILE_CONTENTS,
+          });
+          assert.isTrue(decryptedResult.isReencryptableToSameDigest);
+        });
+        it('detects non-zero padding', async () => {
+          const modifiedData = Buffer.concat([FILE_CONTENTS, Buffer.from([1])]);
+          const decryptedResult = await testV2RoundTripData({
+            data: modifiedData,
+            overrideSize: FILE_CONTENTS.byteLength,
+            // setting the size as one less than the actual file size will cause the last
+            // byte (`1`) to be considered padding during decryption
+          });
+          assert.isFalse(decryptedResult.isReencryptableToSameDigest);
         });
       });
       describe('dangerousIv', () => {
@@ -755,6 +822,7 @@ describe('Crypto', () => {
             plaintext: { data: FILE_CONTENTS },
             getAbsoluteAttachmentPath:
               window.Signal.Migrations.getAbsoluteAttachmentPath,
+            needIncrementalMac: true,
           });
 
           await testV2RoundTripData({
@@ -796,6 +864,7 @@ describe('Crypto', () => {
           plaintext: { absolutePath: FILE_PATH },
           getAbsoluteAttachmentPath:
             window.Signal.Migrations.getAbsoluteAttachmentPath,
+          needIncrementalMac: false,
         });
         ciphertextPath = window.Signal.Migrations.getAbsoluteAttachmentPath(
           encryptedAttachment.path
@@ -852,6 +921,7 @@ describe('Crypto', () => {
           dangerousIv: { iv: dangerousTestOnlyIv, reason: 'test' },
           getAbsoluteAttachmentPath:
             window.Signal.Migrations.getAbsoluteAttachmentPath,
+          needIncrementalMac: false,
         });
         ciphertextPath = window.Signal.Migrations.getAbsoluteAttachmentPath(
           encryptedAttachmentV2.path
@@ -888,6 +958,7 @@ describe('Crypto', () => {
             plaintext: { absolutePath: plaintextAbsolutePath },
             getAbsoluteAttachmentPath:
               window.Signal.Migrations.getAbsoluteAttachmentPath,
+            needIncrementalMac: true,
           });
           innerCiphertextPath =
             window.Signal.Migrations.getAbsoluteAttachmentPath(
@@ -901,6 +972,7 @@ describe('Crypto', () => {
             dangerousTestOnlySkipPadding: true,
             getAbsoluteAttachmentPath:
               window.Signal.Migrations.getAbsoluteAttachmentPath,
+            needIncrementalMac: false,
           });
 
           outerCiphertextPath =
@@ -939,6 +1011,9 @@ describe('Crypto', () => {
             ...splitKeys(innerKeys),
             size: FILE_CONTENTS.byteLength,
             theirDigest: encryptResult.innerEncryptedAttachment.digest,
+            theirIncrementalMac:
+              encryptResult.innerEncryptedAttachment.incrementalMac,
+            theirChunkSize: encryptResult.innerEncryptedAttachment.chunkSize,
             outerEncryption: splitKeys(outerKeys),
             getAbsoluteAttachmentPath:
               window.Signal.Migrations.getAbsoluteAttachmentPath,
@@ -995,6 +1070,9 @@ describe('Crypto', () => {
             ...splitKeys(innerKeys),
             size: data.byteLength,
             theirDigest: encryptResult.innerEncryptedAttachment.digest,
+            theirIncrementalMac:
+              encryptResult.innerEncryptedAttachment.incrementalMac,
+            theirChunkSize: encryptResult.innerEncryptedAttachment.chunkSize,
             outerEncryption: splitKeys(outerKeys),
             getAbsoluteAttachmentPath:
               window.Signal.Migrations.getAbsoluteAttachmentPath,
@@ -1045,6 +1123,9 @@ describe('Crypto', () => {
               ...splitKeys(innerKeys),
               size: data.byteLength,
               theirDigest: encryptResult.innerEncryptedAttachment.digest,
+              theirIncrementalMac:
+                encryptResult.innerEncryptedAttachment.incrementalMac,
+              theirChunkSize: encryptResult.innerEncryptedAttachment.chunkSize,
               outerEncryption: {
                 aesKey: splitKeys(outerKeys).aesKey,
                 macKey: splitKeys(innerKeys).macKey, // wrong mac!

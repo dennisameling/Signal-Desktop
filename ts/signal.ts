@@ -79,6 +79,9 @@ type MigrationsModuleType = {
   deleteSticker: (path: string) => Promise<void>;
   deleteTempFile: (path: string) => Promise<void>;
   doesAttachmentExist: (path: string) => Promise<boolean>;
+  ensureAttachmentIsReencryptable: (
+    attachment: TypesAttachment.LocallySavedAttachment
+  ) => Promise<TypesAttachment.ReencryptableAttachment>;
   getAbsoluteAttachmentPath: (path: string) => string;
   getAbsoluteAvatarPath: (src: string) => string;
   getAbsoluteBadgeImageFilePath: (path: string) => string;
@@ -112,6 +115,7 @@ type MigrationsModuleType = {
   saveAttachmentToDisk: (options: {
     data: Uint8Array;
     name: string;
+    baseDir?: string;
   }) => Promise<null | { fullPath: string; name: string }>;
   processNewAttachment: (attachment: AttachmentType) => Promise<AttachmentType>;
   processNewSticker: (stickerData: Uint8Array) => Promise<
@@ -161,6 +165,7 @@ export function initializeMigrations({
     createPlaintextReader,
     createWriterForNew,
     createDoesExist,
+    ensureAttachmentIsReencryptable,
     getAvatarsPath,
     getDraftPath,
     getDownloadsPath,
@@ -291,6 +296,7 @@ export function initializeMigrations({
     deleteSticker,
     deleteTempFile,
     doesAttachmentExist,
+    ensureAttachmentIsReencryptable,
     getAbsoluteAttachmentPath,
     getAbsoluteAvatarPath,
     getAbsoluteBadgeImageFilePath,
@@ -313,6 +319,7 @@ export function initializeMigrations({
     processNewAttachment: (attachment: AttachmentType) =>
       MessageType.processNewAttachment(attachment, {
         writeNewAttachmentData,
+        ensureAttachmentIsReencryptable,
         makeObjectUrl,
         revokeObjectUrl,
         getImageDimensions,
@@ -341,6 +348,8 @@ export function initializeMigrations({
 
       return MessageType.upgradeSchema(message, {
         deleteOnDisk,
+        doesAttachmentExist,
+        ensureAttachmentIsReencryptable,
         getImageDimensions,
         getRegionCode,
         makeImageThumbnail,
@@ -350,7 +359,6 @@ export function initializeMigrations({
         revokeObjectUrl,
         writeNewAttachmentData,
         writeNewStickerData,
-
         logger,
         maxVersion,
       });
@@ -399,11 +407,16 @@ type AttachmentsModuleType = {
   saveAttachmentToDisk: ({
     data,
     name,
+    dirName,
   }: {
     data: Uint8Array;
     name: string;
+    dirName?: string;
   }) => Promise<null | { fullPath: string; name: string }>;
 
+  ensureAttachmentIsReencryptable: (
+    attachment: TypesAttachment.LocallySavedAttachment
+  ) => Promise<TypesAttachment.ReencryptableAttachment>;
   readAndDecryptDataFromDisk: (options: {
     absolutePath: string;
     keysBase64: string;

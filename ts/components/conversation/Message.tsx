@@ -24,6 +24,7 @@ import type {
   InteractionModeType,
   PushPanelForConversationActionType,
   SaveAttachmentActionCreatorType,
+  SaveAttachmentsActionCreatorType,
   ShowConversationType,
 } from '../../state/ducks/conversations';
 import type { ViewStoryActionCreatorType } from '../../state/ducks/stories';
@@ -352,6 +353,7 @@ export type PropsActions = {
     messageId: string;
   }) => void;
   saveAttachment: SaveAttachmentActionCreatorType;
+  saveAttachments: SaveAttachmentsActionCreatorType;
   showLightbox: (options: {
     attachment: AttachmentType;
     messageId: string;
@@ -366,6 +368,7 @@ export type PropsActions = {
   targetMessage?: (messageId: string, conversationId: string) => unknown;
 
   showEditHistoryModal?: (id: string) => unknown;
+  showAttachmentDownloadStillInProgressToast: (count: number) => unknown;
   showExpiredIncomingTapToViewToast: () => unknown;
   showExpiredOutgoingTapToViewToast: () => unknown;
   viewStory: ViewStoryActionCreatorType;
@@ -1087,9 +1090,6 @@ export class Message extends React.PureComponent<Props, State> {
             : null,
           withContentAbove
             ? 'module-message__generic-attachment--with-content-above'
-            : null,
-          !firstAttachment.url
-            ? 'module-message__generic-attachment--not-active'
             : null
         )}
         // There's only ever one of these, so we don't want users to tab into it
@@ -1188,6 +1188,16 @@ export class Message extends React.PureComponent<Props, State> {
     const isFullSizeImage = shouldUseFullSizeLinkPreviewImage(first);
 
     const linkPreviewDate = first.date || null;
+    const title =
+      first.title ||
+      (first.isCallLink
+        ? i18n('icu:calling__call-link-default-title')
+        : undefined);
+    const description =
+      first.description ||
+      (first.isCallLink
+        ? i18n('icu:message--call-link-description')
+        : undefined);
 
     const isClickable = this.areLinksEnabled();
 
@@ -1266,9 +1276,7 @@ export class Message extends React.PureComponent<Props, State> {
                 isMe={false}
                 sharedGroupNames={[]}
                 size={64}
-                title={
-                  first.title ?? i18n('icu:calling__call-link-default-title')
-                }
+                title={title ?? i18n('icu:calling__call-link-default-title')}
               />
             </div>
           )}
@@ -1280,12 +1288,10 @@ export class Message extends React.PureComponent<Props, State> {
                 : null
             )}
           >
-            <div className="module-message__link-preview__title">
-              {first.title}
-            </div>
-            {first.description && (
+            <div className="module-message__link-preview__title">{title}</div>
+            {description && (
               <div className="module-message__link-preview__description">
-                {unescape(first.description)}
+                {unescape(description)}
               </div>
             )}
             <div className="module-message__link-preview__footer">
@@ -1958,6 +1964,9 @@ export class Message extends React.PureComponent<Props, State> {
           isSpoilerExpanded={isSpoilerExpanded || {}}
           kickOffBodyDownload={() => {
             if (!textAttachment) {
+              return;
+            }
+            if (isDownloaded(textAttachment)) {
               return;
             }
             kickOffAttachmentDownload({

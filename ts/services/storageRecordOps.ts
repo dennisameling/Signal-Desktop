@@ -1,10 +1,9 @@
 // Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { isEqual, isNumber } from 'lodash';
+import { isEqual } from 'lodash';
 import Long from 'long';
 
-import { CallLinkRootKey } from '@signalapp/ringrtc';
 import { uuidToBytes, bytesToUuid } from '../util/uuidToBytes';
 import { deriveMasterKeyFromGroupV1 } from '../Crypto';
 import * as Bytes from '../Bytes';
@@ -66,18 +65,20 @@ import { findAndDeleteOnboardingStoryIfExists } from '../util/findAndDeleteOnboa
 import { downloadOnboardingStory } from '../util/downloadOnboardingStory';
 import { drop } from '../util/drop';
 import { redactExtendedStorageID } from '../util/privacy';
-import type { CallLinkRecord } from '../types/CallLink';
+import type {
+  CallLinkRecord,
+  DefunctCallLinkType,
+  PendingCallLinkType,
+} from '../types/CallLink';
 import {
   callLinkFromRecord,
   fromRootKeyBytes,
-  getRoomIdFromRootKey,
+  getRoomIdFromRootKeyString,
+  toRootKeyBytes,
 } from '../util/callLinksRingrtc';
-import {
-  CALL_LINK_DELETED_STORAGE_RECORD_TTL,
-  fromAdminKeyBytes,
-  toCallHistoryFromUnusedCallLink,
-} from '../util/callLinks';
+import { fromAdminKeyBytes, toAdminKeyBytes } from '../util/callLinks';
 import { isOlderThan } from '../util/timestamp';
+import { getMessageQueueTime } from '../util/getMessageQueueTime';
 import { callLinkRefreshJobQueue } from '../jobs/callLinkRefreshJobQueue';
 
 const MY_STORY_BYTES = uuidToBytes(MY_STORY_ID);
@@ -646,6 +647,29 @@ export function toCallLinkRecord(
   return callLinkRecord;
 }
 
+export function toDefunctOrPendingCallLinkRecord(
+  callLink: DefunctCallLinkType | PendingCallLinkType
+): Proto.CallLinkRecord {
+  const rootKey = toRootKeyBytes(callLink.rootKey);
+  const adminKey = callLink.adminKey
+    ? toAdminKeyBytes(callLink.adminKey)
+    : null;
+
+  strictAssert(rootKey, 'toDefunctOrPendingCallLinkRecord: no rootKey');
+  strictAssert(adminKey, 'toDefunctOrPendingCallLinkRecord: no adminPasskey');
+
+  const callLinkRecord = new Proto.CallLinkRecord();
+
+  callLinkRecord.rootKey = rootKey;
+  callLinkRecord.adminPasskey = adminKey;
+
+  if (callLink.storageUnknownFields) {
+    callLinkRecord.$unknownFields = [callLink.storageUnknownFields];
+  }
+
+  return callLinkRecord;
+}
+
 type MessageRequestCapableRecord = Proto.IContactRecord | Proto.IGroupV1Record;
 
 function applyMessageRequestState(
@@ -673,7 +697,10 @@ function applyMessageRequestState(
   }
 
   if (record.whitelisted === false) {
-    conversation.disableProfileSharing({ viaStorageServiceSync: true });
+    conversation.disableProfileSharing({
+      reason: 'storage record not whitelisted',
+      viaStorageServiceSync: true,
+    });
   }
 }
 
@@ -1019,32 +1046,31 @@ export async function mergeGroupV2Record(
 
   details = details.concat(extraDetails);
 
-  const isGroupNewToUs = !isNumber(conversation.get('revision'));
-  const isFirstSync = !window.storage.get('storageFetchComplete');
-  const dropInitialJoinMessage = isFirstSync;
-
   if (isGroupV1(conversation.attributes)) {
     // If we found a GroupV1 conversation from this incoming GroupV2 record, we need to
     //   migrate it!
 
     // We don't await this because this could take a very long time, waiting for queues to
     //   empty, etc.
-    void waitThenRespondToGroupV2Migration({
-      conversation,
-    });
-  } else if (isGroupNewToUs) {
-    // We don't need to update GroupV2 groups all the time. We fetch group state the first
-    //   time we hear about these groups, from then on we rely on incoming messages or
-    //   the user opening that conversation.
+    drop(
+      waitThenRespondToGroupV2Migration({
+        conversation,
+      })
+    );
+  } else {
+    const isFirstSync = !window.storage.get('storageFetchComplete');
+    const dropInitialJoinMessage = isFirstSync;
 
     // We don't await this because this could take a very long time, waiting for queues to
     //   empty, etc.
-    void waitThenMaybeUpdateGroup(
-      {
-        conversation,
-        dropInitialJoinMessage,
-      },
-      { viaFirstStorageSync: isFirstSync }
+    drop(
+      waitThenMaybeUpdateGroup(
+        {
+          conversation,
+          dropInitialJoinMessage,
+        },
+        { viaFirstStorageSync: isFirstSync }
+      )
     );
   }
 
@@ -1396,7 +1422,7 @@ export async function mergeAccountRecord(
     : PhoneNumberDiscoverability.Discoverable;
   await window.storage.put('phoneNumberDiscoverability', discoverability);
 
-  if (profileKey) {
+  if (profileKey && profileKey.byteLength > 0) {
     void ourProfileKeyService.set(profileKey);
   }
 
@@ -1658,14 +1684,14 @@ export async function mergeAccountRecord(
   });
 
   let needsProfileFetch = false;
-  if (profileKey && profileKey.length > 0) {
+  if (profileKey && profileKey.byteLength > 0) {
     needsProfileFetch = await conversation.setProfileKey(
       Bytes.toBase64(profileKey),
       { viaStorageServiceSync: true, reason: 'mergeAccountRecord' }
     );
 
     const avatarUrl = dropNull(accountRecord.avatarUrl);
-    await conversation.setProfileAvatar(avatarUrl, profileKey);
+    await conversation.setAndMaybeFetchProfileAvatar(avatarUrl, profileKey);
     await window.storage.put('avatarUrl', avatarUrl);
   }
 
@@ -1971,22 +1997,22 @@ export async function mergeCallLinkRecord(
     ? fromAdminKeyBytes(callLinkRecord.adminPasskey)
     : null;
 
-  const callLinkRootKey = CallLinkRootKey.parse(rootKeyString);
-  const roomId = getRoomIdFromRootKey(callLinkRootKey);
+  const roomId = getRoomIdFromRootKeyString(rootKeyString);
   const logId = `mergeCallLinkRecord(${redactedStorageID}, ${roomId})`;
 
   const localCallLinkDbRecord =
     await DataReader.getCallLinkRecordByRoomId(roomId);
 
-  const deletedAt: number | null =
-    callLinkRecord.deletedAtTimestampMs != null
-      ? getTimestampFromLong(callLinkRecord.deletedAtTimestampMs)
-      : null;
-  const shouldDrop =
-    deletedAt != null &&
-    isOlderThan(deletedAt, CALL_LINK_DELETED_STORAGE_RECORD_TTL);
+  // Note deletedAtTimestampMs can be 0
+  const deletedAtTimestampMs = callLinkRecord.deletedAtTimestampMs?.toNumber();
+  const deletedAt = deletedAtTimestampMs || null;
+  const shouldDrop = Boolean(
+    deletedAt && isOlderThan(deletedAt, getMessageQueueTime())
+  );
   if (shouldDrop) {
-    details.push('expired deleted call link; scheduling for removal');
+    details.push(
+      `expired deleted call link deletedAt=${deletedAt}; scheduling for removal`
+    );
   }
 
   const callLinkDbRecord: CallLinkRecord = {
@@ -2010,23 +2036,39 @@ export async function mergeCallLinkRecord(
 
   if (!localCallLinkDbRecord) {
     if (deletedAt) {
-      log.info(
-        `${logId}: Found deleted call link with no matching local record, skipping`
+      details.push(
+        `skipping deleted call link with no matching local record deletedAt=${deletedAt}`
+      );
+    } else if (await DataReader.defunctCallLinkExists(roomId)) {
+      details.push('skipping known defunct call link');
+    } else if (callLinkRefreshJobQueue.hasPendingCallLink(storageID)) {
+      details.push('pending call link refresh, updating storage fields');
+      callLinkRefreshJobQueue.updatePendingCallLinkStorageFields(
+        rootKeyString,
+        {
+          storageID,
+          storageVersion,
+          storageUnknownFields: callLinkDbRecord.storageUnknownFields,
+          storageNeedsSync: false,
+        }
       );
     } else {
-      log.info(`${logId}: Discovered new call link, creating locally`);
-      details.push('creating call link');
+      details.push('new call link, enqueueing call link refresh and create');
 
-      // Create CallLink and call history item
+      // Queue a job to refresh the call link to confirm its existence.
+      // Include the bundle of call link data so we can insert the call link
+      // after confirmation.
       const callLink = callLinkFromRecord(callLinkDbRecord);
-      const callHistory = toCallHistoryFromUnusedCallLink(callLink);
-      await Promise.all([
-        DataWriter.insertCallLink(callLink),
-        DataWriter.saveCallHistory(callHistory),
-      ]);
-
-      drop(callLinkRefreshJobQueue.add({ roomId: callLink.roomId }));
-      window.reduxActions.callHistory.addCallHistory(callHistory);
+      drop(
+        callLinkRefreshJobQueue.add({
+          rootKey: callLink.rootKey,
+          adminKey: callLink.adminKey,
+          storageID: callLink.storageID,
+          storageVersion: callLink.storageVersion,
+          storageUnknownFields: callLink.storageUnknownFields,
+          source: `storage.mergeCallLinkRecord(${redactedStorageID})`,
+        })
+      );
     }
 
     return {
@@ -2068,12 +2110,8 @@ export async function mergeCallLinkRecord(
     // Another device deleted the link and uploaded to storage, and we learned about it
     log.info(`${logId}: Discovered deleted call link, deleting locally`);
     details.push('deleting locally');
-    await DataWriter.beginDeleteCallLink(roomId, {
-      storageNeedsSync: false,
-      deletedAt,
-    });
     // No need to delete via RingRTC as we assume the originating device did that already
-    await DataWriter.finalizeDeleteCallLink(roomId);
+    await DataWriter.deleteCallLinkAndHistory(roomId);
     window.reduxActions.calling.handleCallLinkDelete({ roomId });
   } else if (!deletedAt && localCallLinkDbRecord.deleted === 1) {
     // Not deleted in storage, but we've marked it as deleted locally.

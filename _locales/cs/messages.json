@@ -53,6 +53,15 @@
   "icu:appleSilicon": {
     "messageformat": "Apple Silicon"
   },
+  "icu:About__AppEnvironment": {
+    "messageformat": "{appEnv}"
+  },
+  "icu:About__AppEnvironment--AppleSilicon": {
+    "messageformat": "{appEnv} (Apple silicon)"
+  },
+  "icu:About__AppEnvironment--AppleIntel": {
+    "messageformat": "{appEnv} (Intel)"
+  },
   "icu:copyErrorAndQuit": {
     "messageformat": "Zkopírovat chybu a ukončit"
   },
@@ -575,9 +584,6 @@
   "icu:decryptionErrorToast": {
     "messageformat": "Signal narazil na chybu při dešifrování od {name}, zařízení {deviceId}"
   },
-  "icu:decryptionErrorToastAction": {
-    "messageformat": "Odeslat log"
-  },
   "icu:Toast__ActionLabel--SubmitLog": {
     "messageformat": "Odeslat log"
   },
@@ -680,6 +686,9 @@
   "icu:search": {
     "messageformat": "Hledat"
   },
+  "icu:searchUnreadChats": {
+    "messageformat": "Search unread chats"
+  },
   "icu:clearSearch": {
     "messageformat": "Vymazat hledání"
   },
@@ -689,11 +698,26 @@
   "icu:noSearchResults": {
     "messageformat": "\"{searchTerm}\" nenalezeno"
   },
+  "icu:noSearchResultsWithUnreadFilter": {
+    "messageformat": "No results for \"{searchTerm}\" in unread chats"
+  },
+  "icu:noSearchResultsOnlyUnreadFilter": {
+    "messageformat": "No unread chats"
+  },
   "icu:noSearchResults--sms-only": {
     "messageformat": "SMS/MMS kontakty nejsou na Desktopu dostupné"
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "Žádné výsledky pro „{searchTerm}“ v  {conversationName}"
+  },
+  "icu:conversationsUnreadHeader": {
+    "messageformat": "Filtered by unread"
+  },
+  "icu:filterByUnreadButtonLabel": {
+    "messageformat": "Filter by unread"
+  },
+  "icu:clearFilterButton": {
+    "messageformat": "Clear filter"
   },
   "icu:conversationsHeader": {
     "messageformat": "Chaty"
@@ -791,8 +815,14 @@
   "icu:attachmentSaved": {
     "messageformat": "Příloha uložena"
   },
+  "icu:attachmentSavedPlural": {
+    "messageformat": "{count, plural, one {Příloha uložena} few {{count,number} přílohy uloženy} many {{count,number} příloh uloženo} other {{count,number} příloh uloženo}}"
+  },
   "icu:attachmentSavedShow": {
     "messageformat": "Zobrazit ve složce"
+  },
+  "icu:attachmentStillDownloading": {
+    "messageformat": "{count, plural, one {Nelze uložit přílohu, protože se ještě nestáhla.} few {Nelze uložit přílohy, protože se {count,number} ještě nestáhly.} many {Nelze uložit přílohy, protože se jich {count,number} ještě nestáhlo.} other {Nelze uložit přílohy, protože se jich {count,number} ještě nestáhlo.}}"
   },
   "icu:you": {
     "messageformat": "Vy"
@@ -944,9 +974,6 @@
   "icu:NotePreviewModal__Title": {
     "messageformat": "Poznámka"
   },
-  "icu:viewRecentMedia": {
-    "messageformat": "Zobrazit nedávná média"
-  },
   "icu:allMediaMenuItem": {
     "messageformat": "Všechna média"
   },
@@ -1006,6 +1033,18 @@
   },
   "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
     "messageformat": "Všechny zprávy v tomto chatu budou odstraněny ze všech vašich zařízení. Po odstranění zpráv můžete tento chat nadále používat."
+  },
+  "icu:deleteConversation": {
+    "messageformat": "Odstranit"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__title": {
+    "messageformat": "Odstranit chat?"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description": {
+    "messageformat": "Všechny zprávy v tomto chatu budou odstraněny z tohoto zařízení."
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description-with-sync": {
+    "messageformat": "Všechny zprávy v tomto chatu budou odstraněny ze všech vašich zařízení."
   },
   "icu:ConversationHeader__ContextMenu__LeaveGroupAction__title": {
     "messageformat": "Opustit skupinu"
@@ -1232,6 +1271,9 @@
   "icu:calling__call-link-default-title": {
     "messageformat": "Hovor Signal"
   },
+  "icu:calling__call-link-delete-failed": {
+    "messageformat": "Odkaz nelze odstranit. Zkontrolujte připojení k internetu a zkuste to znovu."
+  },
   "icu:calling__join-request-denied": {
     "messageformat": "Vaše žádost o připojení k tomuto hovoru byla zamítnuta."
   },
@@ -1415,6 +1457,9 @@
   "icu:calling__missing-media-keys": {
     "messageformat": "Nemohu přijmout audio ani video od {name}"
   },
+  "icu:calling__missing-media-keys--unknown-contact": {
+    "messageformat": "Nelze přijímat audiohovor ani video"
+  },
   "icu:calling__missing-media-keys-info": {
     "messageformat": "Důvodem může být to, že uživatel neověřil změnu vašeho bezpečnostního čísla, vyskytl se problém s jeho zařízením nebo vás zablokoval."
   },
@@ -1438,6 +1483,9 @@
   },
   "icu:calling__presenting--info": {
     "messageformat": "Signal sdílí {window}."
+  },
+  "icu:calling__presenting--info--unknown": {
+    "messageformat": "Funkce sdílení obrazovky aplikace Signal je aktivní"
   },
   "icu:calling__presenting--reconnecting": {
     "messageformat": "Opětovné připojování…"
@@ -1621,6 +1669,9 @@
   },
   "icu:timestampFormat__long--yesterday": {
     "messageformat": "Včera v {time}"
+  },
+  "icu:messageLoop": {
+    "messageformat": "Aplikaci Signal se pravděpodobně nedaří zpracovat příchozí zprávu."
   },
   "icu:messageBodyTooLong": {
     "messageformat": "Text zprávy je příliš dlouhý."
@@ -2970,7 +3021,7 @@
     "messageformat": "K této skupině se nemůžete připojit přes odkaz na skupinu, protože vás odebral správce."
   },
   "icu:GroupV2--join--prompt-with-approval": {
-    "messageformat": "Správce skupiny musí schválit vaši žádost, abyste se mohli k této skupině připojit. V případě schválení budou vaše jméno a fotografie sdíleny s jejími členy."
+    "messageformat": "Správce této skupiny musí schválit váš požadavek na přístup, než budete moci do této skupiny vstoupit. Součástí požadavku je poskytnutí vašeho jména a fotografie členům skupiny."
   },
   "icu:GroupV2--join--join-button": {
     "messageformat": "Připojit"
@@ -3530,6 +3581,9 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "Stahování {currentSize} z {totalSize} ({fractionComplete,number,percent})…"
   },
+  "icu:BackupImportScreen__progressbar-hint--processing": {
+    "messageformat": "Dokončuje se přenos zpráv…"
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "Příprava ke stažení…"
   },
@@ -3538,6 +3592,9 @@
   },
   "icu:BackupImportScreen__cancel": {
     "messageformat": "Zrušit přenos"
+  },
+  "icu:BackupImportScreen__security-description": {
+    "messageformat": "Messages and chat info are protected by end-to-end encryption, including the sync process. <learnMoreLink>Learn more</learnMoreLink>"
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
     "messageformat": "Zrušit přenos?"
@@ -3551,23 +3608,50 @@
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
     "messageformat": "Zrušit přenos"
   },
+  "icu:BackupImportScreen__error__title": {
+    "messageformat": "Chyba při přenosu zpráv"
+  },
+  "icu:BackupImportScreen__error__body": {
+    "messageformat": "Vaše zprávy se nepodařilo přenést. Zkontrolujte připojení k internetu a zkuste to znovu."
+  },
+  "icu:BackupImportScreen__error__confirm": {
+    "messageformat": "Zkusit znovu"
+  },
+  "icu:BackupImportScreen__skip": {
+    "messageformat": "Přeskočit"
+  },
+  "icu:BackupImportScreen__skip-confirmation__title": {
+    "messageformat": "Přeskočit přenos zpráv?"
+  },
+  "icu:BackupImportScreen__skip-confirmation__body": {
+    "messageformat": "Pokud se rozhodnete pro přeskočení, nebudete mít v tomto zařízení přístup k žádným svým zprávám ani médiím. Nový přenos můžete po přeskočení spustit v Nastavení > Chaty > Přenos."
+  },
+  "icu:BackupImportScreen__skip-confirmation__cancel": {
+    "messageformat": "Zrušit"
+  },
   "icu:BackupMediaDownloadProgress__title-in-progress": {
     "messageformat": "Obnovování médií"
   },
   "icu:BackupMediaDownloadProgress__title-paused": {
-    "messageformat": "Restore paused"
+    "messageformat": "Obnovení pozastaveno"
+  },
+  "icu:BackupMediaDownloadProgress__title-idle": {
+    "messageformat": "{currentSize} z {totalSize} obnoveno"
+  },
+  "icu:BackupMediaDownloadProgress__description-idle": {
+    "messageformat": "Média se budou nadále stahovat na pozadí"
   },
   "icu:BackupMediaDownloadProgress__button-pause": {
-    "messageformat": "Pause transfer"
+    "messageformat": "Pozastavit přenos"
   },
   "icu:BackupMediaDownloadProgress__button-resume": {
-    "messageformat": "Resume transfer"
+    "messageformat": "Obnovit přenos"
   },
   "icu:BackupMediaDownloadProgress__button-cancel": {
     "messageformat": "Zrušit přenos"
   },
   "icu:BackupMediaDownloadProgress__button-more": {
-    "messageformat": "Více možností"
+    "messageformat": "Další možnosti"
   },
   "icu:BackupMediaDownloadProgress__title-complete": {
     "messageformat": "Obnova dokončena"
@@ -3576,7 +3660,7 @@
     "messageformat": "{currentSize} z {totalSize}"
   },
   "icu:BackupMediaDownloadCancelConfirmation__title": {
-    "messageformat": "Cancel media transfer?"
+    "messageformat": "Zrušit přenos médií?"
   },
   "icu:BackupMediaDownloadCancelConfirmation__description": {
     "messageformat": "Obnova vašich zpráv a médií nebyla dokončena. Pokud jste se rozhodli přenos zrušit, můžete jej znovu spustit v Nastavení."
@@ -3634,9 +3718,6 @@
   },
   "icu:ContactModal--remove-from-group": {
     "messageformat": "Odebrat ze skupiny"
-  },
-  "icu:ContactModal--already-in-call": {
-    "messageformat": "Již jste v hovoru"
   },
   "icu:ContactModal--voice": {
     "messageformat": "Hlasový"
@@ -4643,6 +4724,15 @@
   "icu:DialogNetworkStatus__outage": {
     "messageformat": "Signal se potýká s technickými problémy. Usilovně pracujeme na co nejrychlejším obnovení služby."
   },
+  "icu:InstallScreenUpdateDialog--update-required__title": {
+    "messageformat": "Update Required"
+  },
+  "icu:InstallScreenUpdateDialog--update-required__body": {
+    "messageformat": "To complete syncing your messages, update Signal desktop now."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__action-update": {
+    "messageformat": "Update"
+  },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "Je vyžadována aktualizace"
   },
@@ -4925,9 +5015,6 @@
   "icu:Stories__placeholder--text": {
     "messageformat": "Kliknutím zobrazíte příběh"
   },
-  "icu:Stories__placeholder-with-icon--text": {
-    "messageformat": "Klikněte na <newStoryIcon>Přidat příběh</newStoryIcon> a přidejte příspěvek."
-  },
   "icu:Stories__placeholder-with-icon--text-2": {
     "messageformat": "Kliknutím na <newStoryButtonIcon></newStoryButtonIcon> přidáte aktualizaci."
   },
@@ -5171,9 +5258,6 @@
   "icu:StoryViewsNRepliesModal__tab--replies": {
     "messageformat": "Odpovědi"
   },
-  "icu:StoryViewsNRepliesModal__reacted": {
-    "messageformat": "Reagoval/a na příběh"
-  },
   "icu:StoryViewsNRepliesModal__reacted--you": {
     "messageformat": "Reagoval/a jste na příběh"
   },
@@ -5196,7 +5280,7 @@
     "messageformat": "Příběh"
   },
   "icu:StoryListItem__unhide": {
-    "messageformat": "Zobrazit příběhy"
+    "messageformat": "Zrušit skrytí příběhu"
   },
   "icu:StoryListItem__hide": {
     "messageformat": "Skrýt příběh"
@@ -5467,7 +5551,10 @@
     "messageformat": "Smazat historii hovorů?"
   },
   "icu:CallsTab__ConfirmClearCallHistory__Body": {
-    "messageformat": "Tím se trvale smaže veškerá historie hovorů"
+    "messageformat": "Tím se trvale odstraní veškerá historie hovorů."
+  },
+  "icu:CallsTab__ConfirmClearCallHistory__Body--call-links": {
+    "messageformat": "Tím se trvale odstraní veškerá historie hovorů. Vámi vytvořené odkazy na hovory již nebudou pro lidi, kteří je mají, fungovat. "
   },
   "icu:CallsTab__ConfirmClearCallHistory__ConfirmButton": {
     "messageformat": "Vymazat"
@@ -5475,14 +5562,23 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "Historie smazána"
   },
-  "icu:CallsTab__EmptyStateText--with-icon": {
-    "messageformat": "Klikněte na <newCallIcon>Nový hovor</newCallIcon> a zahajte nový hlasový nebo video hovor."
+  "icu:CallsTab__ClearCallHistoryError--call-links": {
+    "messageformat": "Ne všechny odkazy na hovory se podařilo odstranit. Zkontrolujte připojení k internetu a zkuste to znovu."
+  },
+  "icu:CallsTab__ClearCallHistoryError": {
+    "messageformat": "Nebylo možné vymazat celou historii hovorů. Zkontrolujte připojení k internetu a zkuste to znovu."
   },
   "icu:CallsTab__EmptyStateText--with-icon-2": {
     "messageformat": "Kliknutím na <newCallButtonIcon></newCallButtonIcon> začnete nový hovor nebo videohovor."
   },
+  "icu:CallsList__SearchInputPlaceholder--missed-calls": {
+    "messageformat": "Search missed calls"
+  },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "Hledat"
+  },
+  "icu:CallsList__FilteredByMissedHeader": {
+    "messageformat": "Filtered by missed"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "Filtrovat podle zmeškaných hovorů"
@@ -5496,14 +5592,14 @@
   "icu:CallsList__EmptyState--noQuery__subtitle": {
     "messageformat": "Zde se objeví poslední hovory."
   },
-  "icu:CallsList__EmptyState--noQuery--missed__title": {
-    "messageformat": "Žádné zmeškané hovory"
-  },
-  "icu:CallsList__EmptyState--noQuery--missed__subtitle": {
-    "messageformat": "Zde se objeví zmeškané hovory."
-  },
   "icu:CallsList__EmptyState--hasQuery": {
     "messageformat": "Pro „{query}“ nebylo nic nalezeno"
+  },
+  "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
+    "messageformat": "No results for “{query}” in missed calls"
+  },
+  "icu:CallsList__EmptyState--missedCalls": {
+    "messageformat": "No missed calls"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "Vytvořit odkaz na hovor"
@@ -5674,19 +5770,16 @@
     "messageformat": "Drobná vylepšení, opravy chyb a zvýšení výkonu. Děkujeme, že používáte Signal!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.23--0": {
-    "messageformat": "Chaty se nyní otevírají rychleji než kdykoli předtím díky dalšímu vylepšení výkonu."
+  "icu:WhatsNew__v7.33--0": {
+    "messageformat": "Toto vydání také opravuje chybu s emoji při výběru textu. Díky, <linkKhuddite>@khuddite</linkKhuddite>!"
   },
-  "icu:WhatsNew__v7.23--1": {
-    "messageformat": "Také jsme opravili několik chyb včetně té, která způsobovala, že se v přehledu chatu po zahájení hovoru objevilo sdělení „Videohovor zahájil neznámý kontakt“."
+  "icu:WhatsNew__v7.34--0": {
+    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say."
   },
-  "icu:WhatsNew__v7.24--0": {
-    "messageformat": "Tato aktualizace opravuje chybu, kdy se při zobrazení zmeškaného hovoru na jednom zařízení automaticky neodstranilo upozornění na tento zmeškaný hovor na jiném zařízení."
+  "icu:WhatsNew__v7.34--1": {
+    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore."
   },
-  "icu:WhatsNew__v7.25--0": {
-    "messageformat": "Když nyní kliknete na záhlaví chatu a v sekci sdílených médií vyberete možnost „Zobrazit vše“, zobrazí se při procházení automaticky starší fotografie a videa, nikoli jen nejnovější záznamy."
-  },
-  "icu:WhatsNew__v7.26--0": {
-    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
+  "icu:WhatsNew__v7.34--2": {
+    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality."
   }
 }

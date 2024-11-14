@@ -3,14 +3,15 @@
 
 import { format } from 'node:util';
 import { ipcRenderer } from 'electron';
-import { BackupLevel } from '@signalapp/libsignal-client/zkgroup';
 
 import type { IPCResponse as ChallengeResponseType } from './challenge';
 import type { MessageAttributesType } from './model-types.d';
 import * as log from './logging/log';
 import { explodePromise } from './util/explodePromise';
 import { AccessType, ipcInvoke } from './sql/channels';
-import { backupsService, BackupType } from './services/backups';
+import { backupsService } from './services/backups';
+import { AttachmentBackupManager } from './jobs/AttachmentBackupManager';
+import { migrateAllMessages } from './messages/migrateMessageData';
 import { SECOND } from './util/durations';
 import { isSignalRoute } from './util/signalRoutes';
 import { strictAssert } from './util/assert';
@@ -19,8 +20,6 @@ type ResolveType = (data: unknown) => void;
 
 export type CIType = {
   deviceName: string;
-  backupData?: Uint8Array;
-  isBackupIntegration?: boolean;
   getConversationId: (address: string | null) => string | null;
   getMessagesBySentAt(
     sentAt: number
@@ -37,23 +36,17 @@ export type CIType = {
     }
   ) => unknown;
   openSignalRoute(url: string): Promise<void>;
-  exportBackupToDisk(path: string): Promise<void>;
-  exportPlaintextBackupToDisk(path: string): Promise<void>;
+  migrateAllMessages(): Promise<void>;
+  uploadBackup(): Promise<void>;
   unlink: () => void;
   print: (...args: ReadonlyArray<unknown>) => void;
 };
 
 export type GetCIOptionsType = Readonly<{
   deviceName: string;
-  backupData?: Uint8Array;
-  isBackupIntegration?: boolean;
 }>;
 
-export function getCI({
-  deviceName,
-  backupData,
-  isBackupIntegration,
-}: GetCIOptionsType): CIType {
+export function getCI({ deviceName }: GetCIOptionsType): CIType {
   const eventListeners = new Map<string, Array<ResolveType>>();
   const completedEvents = new Map<string, Array<unknown>>();
 
@@ -72,8 +65,8 @@ export function getCI({
 
     if (!options?.ignorePastEvents) {
       const pendingCompleted = completedEvents.get(event) || [];
-      const pending = pendingCompleted.shift();
-      if (pending) {
+      if (pendingCompleted.length) {
+        const pending = pendingCompleted.shift();
         log.info(`CI: resolving pending result for ${event}`, pending);
 
         if (pendingCompleted.length === 0) {
@@ -176,16 +169,12 @@ export function getCI({
     document.body.removeChild(a);
   }
 
-  async function exportBackupToDisk(path: string) {
-    await backupsService.exportToDisk(path, BackupLevel.Media);
-  }
+  async function uploadBackup() {
+    await backupsService.upload();
+    await AttachmentBackupManager.waitForIdle();
 
-  async function exportPlaintextBackupToDisk(path: string) {
-    await backupsService.exportToDisk(
-      path,
-      BackupLevel.Media,
-      BackupType.TestOnlyPlaintext
-    );
+    // Remove the disclaimer from conversation hero for screenshot backup test
+    await window.storage.put('isRestoredFromBackup', true);
   }
 
   function unlink() {
@@ -198,8 +187,6 @@ export function getCI({
 
   return {
     deviceName,
-    backupData,
-    isBackupIntegration,
     getConversationId,
     getMessagesBySentAt,
     handleEvent,
@@ -207,8 +194,8 @@ export function getCI({
     solveChallenge,
     waitForEvent,
     openSignalRoute,
-    exportBackupToDisk,
-    exportPlaintextBackupToDisk,
+    migrateAllMessages,
+    uploadBackup,
     unlink,
     getPendingEventCount,
     print,

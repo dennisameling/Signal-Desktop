@@ -39,7 +39,10 @@ export type JobManagerParamsType<
     limit: number;
     timestamp: number;
   }) => Promise<Array<JobType>>;
-  saveJob: (job: JobType) => Promise<void>;
+  saveJob: (
+    job: JobType,
+    options?: { allowBatching?: boolean }
+  ) => Promise<void>;
   removeJob: (job: JobType) => Promise<void>;
   runJob: (
     job: JobType,
@@ -77,6 +80,7 @@ export abstract class JobManager<CoreJobType> {
   private jobCompletePromises: Map<string, ExplodePromiseResultType<void>> =
     new Map();
   private tickTimeout: NodeJS.Timeout | null = null;
+  private idleCallbacks = new Array<() => void>();
 
   protected logPrefix = 'JobManager';
   public tickInterval = DEFAULT_TICK_INTERVAL;
@@ -84,9 +88,11 @@ export abstract class JobManager<CoreJobType> {
 
   async start(): Promise<void> {
     log.info(`${this.logPrefix}: starting`);
-
-    this.enabled = true;
-    await this.params.markAllJobsInactive();
+    if (!this.enabled) {
+      this.enabled = true;
+      await this.params.markAllJobsInactive();
+    }
+    await this.maybeStartJobs();
     this.tick();
   }
 
@@ -104,6 +110,14 @@ export abstract class JobManager<CoreJobType> {
     await Promise.all(
       activeJobs.map(({ completionPromise }) => completionPromise.promise)
     );
+  }
+
+  async waitForIdle(): Promise<void> {
+    if (this.activeJobs.size === 0) {
+      return;
+    }
+
+    await new Promise<void>(resolve => this.idleCallbacks.push(resolve));
   }
 
   private tick(): void {
@@ -180,7 +194,8 @@ export abstract class JobManager<CoreJobType> {
         return { isAlreadyRunning: true };
       }
 
-      await this.params.saveJob(job);
+      // Allow batching of all saves except those that we will start immediately
+      await this.params.saveJob(job, { allowBatching: !options?.forceStart });
 
       if (options?.forceStart) {
         if (!this.enabled) {
@@ -232,7 +247,14 @@ export abstract class JobManager<CoreJobType> {
         timestamp: Date.now(),
       });
 
-      if (nextJobs.length === 0) {
+      if (nextJobs.length === 0 && this.activeJobs.size === 0) {
+        if (this.idleCallbacks.length > 0) {
+          const callbacks = this.idleCallbacks;
+          this.idleCallbacks = [];
+          for (const callback of callbacks) {
+            callback();
+          }
+        }
         return;
       }
 

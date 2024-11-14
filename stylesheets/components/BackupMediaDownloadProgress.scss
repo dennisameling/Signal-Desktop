@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 .BackupMediaDownloadProgress {
-  border-radius: 10px;
+  border-radius: 12px;
   display: flex;
-  align-items: center;
   gap: 10px;
   padding: 11px;
   padding-inline-end: 16px;
   margin-inline: 10px;
+  margin-block-end: 6px;
+  margin-block-start: 2px;
   user-select: none;
   position: relative;
 
@@ -26,6 +27,10 @@
   }
 }
 
+.BackupMediaDownloadProgress__icon {
+  margin-top: 6px;
+}
+
 .BackupMediaDownloadProgress__icon--complete {
   &::after {
     content: '';
@@ -41,6 +46,27 @@
     @include dark-theme {
       @include color-svg(
         '../images/icons/v3/check/check-circle.svg',
+        $color-ultramarine-light
+      );
+    }
+  }
+}
+
+.BackupMediaDownloadProgress__icon--idle {
+  &::after {
+    content: '';
+    display: block;
+    width: 24px;
+    height: 24px;
+    @include light-theme {
+      @include color-svg(
+        '../images/icons/v3/backup/backup-bold.svg',
+        $color-ultramarine
+      );
+    }
+    @include dark-theme {
+      @include color-svg(
+        '../images/icons/v3/backup/backup-bold.svg',
         $color-ultramarine-light
       );
     }
@@ -86,7 +112,7 @@ button.BackupMediaDownloadProgress__button-close {
     width: 20px;
     height: 20px;
     @include light-theme {
-      @include color-svg('../images/icons/v3/x/x.svg', $color-gray-75);
+      @include color-svg('../images/icons/v3/x/x.svg', $color-gray-45);
     }
     @include dark-theme {
       @include color-svg('../images/icons/v3/x/x.svg', $color-gray-20);
@@ -102,7 +128,7 @@ button.BackupMediaDownloadProgress__button-close {
   min-height: 36px;
 }
 
-.BackupMediaDownloadProgress__progressbar-hint {
+.BackupMediaDownloadProgress__description {
   @include font-subtitle;
 
   @include light-theme {

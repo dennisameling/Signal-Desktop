@@ -130,13 +130,14 @@ import {
   SentEvent,
   StickerPackEvent,
   StoryRecipientUpdateEvent,
+  SuccessfulDecryptEvent,
   TypingEvent,
   ViewEvent,
   ViewOnceOpenSyncEvent,
   ViewSyncEvent,
 } from './messageReceiverEvents';
 import * as log from '../logging/log';
-import { areArraysMatchingSets } from '../util/areArraysMatchingSets';
+import { diffArraysAsSets } from '../util/diffArraysAsSets';
 import { generateBlurHash } from '../util/generateBlurHash';
 import { TEXT_ATTACHMENT } from '../types/MIME';
 import type { SendTypesType } from '../util/handleMessageSend';
@@ -572,6 +573,11 @@ export default class MessageReceiver
   public override addEventListener(
     name: 'delivery',
     handler: (ev: DeliveryEvent) => void
+  ): void;
+
+  public override addEventListener(
+    name: 'successful-decrypt',
+    handler: (ev: SuccessfulDecryptEvent) => void
   ): void;
 
   public override addEventListener(
@@ -2021,17 +2027,38 @@ export default class MessageReceiver
     ciphertext: Uint8Array,
     serviceIdKind: ServiceIdKind
   ): Promise<InnerDecryptResultType | undefined> {
+    const uuid = envelope.sourceServiceId;
+    const deviceId = envelope.sourceDevice;
+    const envelopeId = getEnvelopeId(envelope);
+
     try {
-      return await this.innerDecrypt(
+      const result = await this.innerDecrypt(
         stores,
         envelope,
         ciphertext,
         serviceIdKind
       );
-    } catch (error) {
-      const uuid = envelope.sourceServiceId;
-      const deviceId = envelope.sourceDevice;
 
+      if (isAciString(uuid) && isNumber(deviceId)) {
+        const event = new SuccessfulDecryptEvent(
+          {
+            senderDevice: deviceId,
+            senderAci: uuid,
+            timestamp: envelope.timestamp,
+          },
+          () => this.removeFromCache(envelope)
+        );
+        drop(
+          this.addToQueue(
+            async () => this.dispatchEvent(event),
+            `decrypted/dispatchEvent/SuccessfulDecryptEvent(${envelopeId})`,
+            TaskType.Decrypted
+          )
+        );
+      }
+
+      return result;
+    } catch (error) {
       const ourAci = this.storage.user.getCheckedAci();
       const isFromMe = ourAci === uuid;
 
@@ -2068,8 +2095,6 @@ export default class MessageReceiver
         this.removeFromCache(envelope);
         throw error;
       }
-
-      const envelopeId = getEnvelopeId(envelope);
 
       if (uuid && deviceId) {
         const senderAci = uuid;
@@ -2162,16 +2187,6 @@ export default class MessageReceiver
     }
 
     const message = this.processDecrypted(envelope, msg);
-    const groupId = this.getProcessedGroupId(message);
-    const isBlocked = groupId ? this.isGroupBlocked(groupId) : false;
-
-    if (groupId && isBlocked) {
-      log.warn(
-        `Message ${getEnvelopeId(envelope)} ignored; destined for blocked group`
-      );
-      this.removeFromCache(envelope);
-      return undefined;
-    }
 
     const ev = new SentEvent(
       {
@@ -3348,16 +3363,13 @@ export default class MessageReceiver
 
     logUnexpectedUrgentValue(envelope, 'keySync');
 
-    if (!sync.storageService && !sync.master) {
-      return undefined;
-    }
-
     const ev = new KeysEvent(
       {
-        storageServiceKey: Bytes.isNotEmpty(sync.storageService)
-          ? sync.storageService
-          : undefined,
         masterKey: Bytes.isNotEmpty(sync.master) ? sync.master : undefined,
+        accountEntropyPool: sync.accountEntropyPool || undefined,
+        mediaRootBackupKey: Bytes.isNotEmpty(sync.mediaRootBackupKey)
+          ? sync.mediaRootBackupKey
+          : undefined,
       },
       this.removeFromCache.bind(this, envelope)
     );
@@ -3824,42 +3836,73 @@ export default class MessageReceiver
     await this.dispatchAndWait(logId, contactSync);
   }
 
+  // This function calls applyMessageRequestResponse before setting window.storage so
+  // proper before/after logic can be applied within that function.
   private async handleBlocked(
     envelope: ProcessedEnvelope,
     blocked: Proto.SyncMessage.IBlocked
   ): Promise<void> {
-    const allIdentifiers = [];
-    let changed = false;
-
     const logId = `handleBlocked(${getEnvelopeId(envelope)})`;
+    const messageRequestEnum = Proto.SyncMessage.MessageRequestResponse.Type;
 
     logUnexpectedUrgentValue(envelope, 'blockSync');
+
+    function getAndApply(
+      type: Proto.SyncMessage.MessageRequestResponse.Type
+    ): (value: string) => Promise<void> {
+      return async item => {
+        const conversation = window.ConversationController.getOrCreate(
+          item,
+          'private'
+        );
+        await conversation.applyMessageRequestResponse(type, {
+          fromSync: true,
+        });
+      };
+    }
 
     if (blocked.numbers) {
       const previous = this.storage.get('blocked', []);
 
-      log.info(`${logId}: Blocking these numbers:`, blocked.numbers);
-      await this.storage.put('blocked', blocked.numbers);
-
-      if (!areArraysMatchingSets(previous, blocked.numbers)) {
-        changed = true;
-        allIdentifiers.push(...previous);
-        allIdentifiers.push(...blocked.numbers);
+      const { added, removed } = diffArraysAsSets(previous, blocked.numbers);
+      if (added.length) {
+        await Promise.all(added.map(getAndApply(messageRequestEnum.BLOCK)));
       }
+      if (removed.length) {
+        await Promise.all(removed.map(getAndApply(messageRequestEnum.ACCEPT)));
+      }
+
+      log.info(`${logId}: New e164 blocks:`, added);
+      log.info(`${logId}: New e164 unblocks:`, removed);
+      await this.storage.put('blocked', blocked.numbers);
     }
     if (blocked.acis) {
       const previous = this.storage.get('blocked-uuids', []);
-      const acis = blocked.acis.map((aci, index) => {
-        return normalizeAci(aci, `handleBlocked.acis.${index}`);
-      });
-      log.info(`${logId}: Blocking these acis:`, acis);
-      await this.storage.put('blocked-uuids', acis);
+      const acis = blocked.acis
+        .map((aci, index) => {
+          try {
+            return normalizeAci(aci, `handleBlocked.acis.${index}`);
+          } catch (error) {
+            log.warn(
+              `${logId}: ACI ${aci} was malformed`,
+              Errors.toLogFormat(error)
+            );
+            return undefined;
+          }
+        })
+        .filter(isNotNil);
 
-      if (!areArraysMatchingSets(previous, acis)) {
-        changed = true;
-        allIdentifiers.push(...previous);
-        allIdentifiers.push(...blocked.acis);
+      const { added, removed } = diffArraysAsSets(previous, acis);
+      if (added.length) {
+        await Promise.all(added.map(getAndApply(messageRequestEnum.BLOCK)));
       }
+      if (removed.length) {
+        await Promise.all(removed.map(getAndApply(messageRequestEnum.ACCEPT)));
+      }
+
+      log.info(`${logId}: New aci blocks:`, added);
+      log.info(`${logId}: New aci unblocks:`, removed);
+      await this.storage.put('blocked-uuids', acis);
     }
 
     if (blocked.groupIds) {
@@ -3873,27 +3916,55 @@ export default class MessageReceiver
           log.error(`${logId}: Received invalid groupId value`);
         }
       });
-      log.info(
-        `${logId}: Blocking these groups - v2:`,
-        groupIds.map(groupId => `groupv2(${groupId})`)
-      );
 
-      await this.storage.put('blocked-groups', groupIds);
-
-      if (!areArraysMatchingSets(previous, groupIds)) {
-        changed = true;
-        allIdentifiers.push(...previous);
-        allIdentifiers.push(...groupIds);
+      const { added, removed } = diffArraysAsSets(previous, groupIds);
+      if (added.length) {
+        await Promise.all(
+          added.map(async item => {
+            const conversation = window.ConversationController.get(item);
+            if (!conversation) {
+              log.warn(`${logId}: Group groupv2(${item}) not found!`);
+              return;
+            }
+            await conversation.applyMessageRequestResponse(
+              messageRequestEnum.BLOCK,
+              {
+                fromSync: true,
+              }
+            );
+          })
+        );
       }
+      if (removed.length) {
+        await Promise.all(
+          removed.map(async item => {
+            const conversation = window.ConversationController.get(item);
+            if (!conversation) {
+              log.warn(`${logId}: Group groupv2(${item}) not found!`);
+              return;
+            }
+            await conversation.applyMessageRequestResponse(
+              messageRequestEnum.ACCEPT,
+              {
+                fromSync: true,
+              }
+            );
+          })
+        );
+      }
+
+      log.info(
+        `${logId}: New groupId blocks:`,
+        added.map(groupId => `groupv2(${groupId})`)
+      );
+      log.info(
+        `${logId}: New groupId unblocks:`,
+        removed.map(groupId => `groupv2(${groupId})`)
+      );
+      await this.storage.put('blocked-groups', groupIds);
     }
 
     this.removeFromCache(envelope);
-
-    if (changed) {
-      log.info(`${logId}: Block list changed, forcing re-render.`);
-      const uniqueIdentifiers = Array.from(new Set(allIdentifiers));
-      void window.ConversationController.forceRerender(uniqueIdentifiers);
-    }
   }
 
   private isBlocked(number: string): boolean {

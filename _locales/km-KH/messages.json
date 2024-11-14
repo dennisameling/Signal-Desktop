@@ -53,6 +53,15 @@
   "icu:appleSilicon": {
     "messageformat": "Apple silicon"
   },
+  "icu:About__AppEnvironment": {
+    "messageformat": "{appEnv}"
+  },
+  "icu:About__AppEnvironment--AppleSilicon": {
+    "messageformat": "{appEnv} (Apple silicon)"
+  },
+  "icu:About__AppEnvironment--AppleIntel": {
+    "messageformat": "{appEnv} (Intel)"
+  },
   "icu:copyErrorAndQuit": {
     "messageformat": "ចម្លងបញ្ហា និងចាកចេញ"
   },
@@ -575,9 +584,6 @@
   "icu:decryptionErrorToast": {
     "messageformat": "កុំព្យូទ័រលើតុបានជួបប្រទះបញ្ហាឌិគ្រីបពី {name} ឧបករណ៍ {deviceId}"
   },
-  "icu:decryptionErrorToastAction": {
-    "messageformat": "ដាក់បញ្ជូនកំណត់ហេតុ"
-  },
   "icu:Toast__ActionLabel--SubmitLog": {
     "messageformat": "ដាក់បញ្ជូនកំណត់ហេតុ"
   },
@@ -680,6 +686,9 @@
   "icu:search": {
     "messageformat": "ស្វែងរក"
   },
+  "icu:searchUnreadChats": {
+    "messageformat": "Search unread chats"
+  },
   "icu:clearSearch": {
     "messageformat": "លុបការស្វែងរក"
   },
@@ -689,11 +698,26 @@
   "icu:noSearchResults": {
     "messageformat": "គ្មានលទ្ធផលសម្រាប់ \"{searchTerm}\""
   },
+  "icu:noSearchResultsWithUnreadFilter": {
+    "messageformat": "No results for \"{searchTerm}\" in unread chats"
+  },
+  "icu:noSearchResultsOnlyUnreadFilter": {
+    "messageformat": "No unread chats"
+  },
   "icu:noSearchResults--sms-only": {
     "messageformat": "ឈ្មោះទំនាក់ទំនងសម្រាប់សារជាអក្សរ និងសារពហុមេឌៀមិនមាននៅលើកំព្យូទ័រលើតុទេ។"
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "គ្មានលទ្ធផលសម្រាប់ \"{searchTerm}\" ក្នុង {conversationName}"
+  },
+  "icu:conversationsUnreadHeader": {
+    "messageformat": "Filtered by unread"
+  },
+  "icu:filterByUnreadButtonLabel": {
+    "messageformat": "Filter by unread"
+  },
+  "icu:clearFilterButton": {
+    "messageformat": "Clear filter"
   },
   "icu:conversationsHeader": {
     "messageformat": "ការជជែក"
@@ -791,8 +815,14 @@
   "icu:attachmentSaved": {
     "messageformat": "បាន​រក្សា​ទុក​ឯកសារ​ភ្ជាប់។"
   },
+  "icu:attachmentSavedPlural": {
+    "messageformat": "{count, plural, other {ឯកសារភ្ជាប់ {count,number} ត្រូវបានរក្សាទុក}}"
+  },
   "icu:attachmentSavedShow": {
     "messageformat": "បង្ហាញក្នុងថតឯកសារ"
+  },
+  "icu:attachmentStillDownloading": {
+    "messageformat": "{count, plural, other {មិនអាចរក្សាទុកឯកសារភ្ជាប់បានទេ ដោយសារ {count,number} មិនទាន់បញ្ចប់ការទាញយកនៅឡើយ}}"
   },
   "icu:you": {
     "messageformat": "អ្នក"
@@ -944,9 +974,6 @@
   "icu:NotePreviewModal__Title": {
     "messageformat": "កំណត់ចំណាំ"
   },
-  "icu:viewRecentMedia": {
-    "messageformat": "បង្ហាញឯកសារមេឌាថ្មីៗ"
-  },
   "icu:allMediaMenuItem": {
     "messageformat": "មេឌៀទាំងអស់"
   },
@@ -1006,6 +1033,18 @@
   },
   "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
     "messageformat": "សារទាំងអស់នៅក្នុងការជជែកនេះនឹងត្រូវបានលុបចេញពីឧបករណ៍ទាំងអស់របស់អ្នក។ អ្នកនៅតែអាចស្វែងរកការជជែកនេះបាន បន្ទាប់ពីអ្នកលុបសារហើយ។"
+  },
+  "icu:deleteConversation": {
+    "messageformat": "លុប"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__title": {
+    "messageformat": "លុបការជជែកឬ?"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description": {
+    "messageformat": "សារទាំងអស់នៅក្នុងការជជែកនេះនឹងត្រូវបានលុបចេញពីឧបករណ៍នេះ។"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description-with-sync": {
+    "messageformat": "សារទាំងអស់នៅក្នុងការជជែកនេះនឹងត្រូវបានលុបចេញពីឧបករណ៍ទាំងអស់របស់អ្នក។"
   },
   "icu:ConversationHeader__ContextMenu__LeaveGroupAction__title": {
     "messageformat": "ចាកចេញពីក្រុម"
@@ -1232,6 +1271,9 @@
   "icu:calling__call-link-default-title": {
     "messageformat": "ការហៅ Signal"
   },
+  "icu:calling__call-link-delete-failed": {
+    "messageformat": "មិនអាចលុបតំណបានទេ។ សូមពិនិត្យមើលសេវាអ៊ីនធឺណិតរបស់អ្នក រួចព្យាយាមម្តងទៀត។"
+  },
   "icu:calling__join-request-denied": {
     "messageformat": "សំណើរបស់អ្នកដើម្បីចូលរួមការហៅនេះត្រូវបានបដិសេធ។"
   },
@@ -1415,6 +1457,9 @@
   "icu:calling__missing-media-keys": {
     "messageformat": "មិនអាចទទួលសំឡេងនិងវីដេអូពី {name}"
   },
+  "icu:calling__missing-media-keys--unknown-contact": {
+    "messageformat": "មិនអាចទទួលសំឡេង និងវីដេអូបានទេ"
+  },
   "icu:calling__missing-media-keys-info": {
     "messageformat": "វាអាចមកពីពួកគេមិនបានផ្ទៀងផ្ទាត់ការផ្លាស់ប្តូរលេខសុវត្ថិភាពរបស់អ្នក ឧបករណ៍របស់ពួកគេមានបញ្ហា ឬពួកគេបានទប់ស្កាត់អ្នក។"
   },
@@ -1438,6 +1483,9 @@
   },
   "icu:calling__presenting--info": {
     "messageformat": "Signal កំពុងចែករំលែក {window}។"
+  },
+  "icu:calling__presenting--info--unknown": {
+    "messageformat": "កំពុងចែករំលែកអេក្រង់ Signal ឱ្យអ្នកផ្សេងឃើញដែរ"
   },
   "icu:calling__presenting--reconnecting": {
     "messageformat": "កំពុងភ្ជាប់ឡើងវិញ…"
@@ -1621,6 +1669,9 @@
   },
   "icu:timestampFormat__long--yesterday": {
     "messageformat": "ម្សិលមិញ {time}"
+  },
+  "icu:messageLoop": {
+    "messageformat": "Signal ប្រហែលជាមិនអាចដំណើរការសារដែលផ្ញើចូលមកបានទេ។"
   },
   "icu:messageBodyTooLong": {
     "messageformat": "សារតួសេចក្តីវែងពេក។"
@@ -2970,7 +3021,7 @@
     "messageformat": "អ្នកមិនអាចចូលក្រុមនេះតាមរយៈតំណក្រុមបានទេ ព្រោះអ្នកគ្រប់គ្រងបានដកអ្នកចេញ។"
   },
   "icu:GroupV2--join--prompt-with-approval": {
-    "messageformat": "អ្នកគ្រប់គ្រងក្រុមនេះត្រូវតែឯកភាពលើសំណើរបស់អ្នក មុនពេលអ្នកអាចចូលរួមក្រុមនេះបាន។ ប្រសិនបើបានឯកភាពរួច ឈ្មោះ និងរូបថតរបស់អ្នកនឹងត្រូវបានចែករំលែកជាមួយសមាជិករបស់ក្រុម។"
+    "messageformat": "អ្នកគ្រប់គ្រងក្រុមនេះត្រូវតែយល់ព្រមនឹងសំណើរបស់អ្នកសិន ទើបអ្នកអាចចូលរួមក្រុមនេះបាន។ នៅពេលដែលអ្នកស្នើសុំចូលរួម ឈ្មោះនិងរូបថតរបស់អ្នកនឹងត្រូវបានចែករំលែកជាមួយសមាជិកក្រុម។"
   },
   "icu:GroupV2--join--join-button": {
     "messageformat": "ចូលរួម"
@@ -3530,6 +3581,9 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "កំពុងទាញយក {currentSize} នៃ {totalSize} ({fractionComplete,number,percent})..."
   },
+  "icu:BackupImportScreen__progressbar-hint--processing": {
+    "messageformat": "កំពុងបញ្ចប់ការផ្ទេរសារ..."
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "កំពុងរៀបចំទាញយក…"
   },
@@ -3538,6 +3592,9 @@
   },
   "icu:BackupImportScreen__cancel": {
     "messageformat": "បោះបង់ការផ្ទេរ"
+  },
+  "icu:BackupImportScreen__security-description": {
+    "messageformat": "Messages and chat info are protected by end-to-end encryption, including the sync process. <learnMoreLink>Learn more</learnMoreLink>"
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
     "messageformat": "បោះបង់ការផ្ទេរឬ?"
@@ -3551,17 +3608,44 @@
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
     "messageformat": "បោះបង់ការផ្ទេរ"
   },
+  "icu:BackupImportScreen__error__title": {
+    "messageformat": "បញ្ហាក្នុងការផ្ទេរសាររបស់អ្នក"
+  },
+  "icu:BackupImportScreen__error__body": {
+    "messageformat": "សាររបស់អ្នកមិនអាចផ្ទេរបានទេ។ សូមពិនិត្យមើលសេវាអ៊ីនធឺណិតរបស់អ្នក រួចព្យាយាមម្តងទៀត។"
+  },
+  "icu:BackupImportScreen__error__confirm": {
+    "messageformat": "ព្យាយាមម្តងទៀត"
+  },
+  "icu:BackupImportScreen__skip": {
+    "messageformat": "រំលង"
+  },
+  "icu:BackupImportScreen__skip-confirmation__title": {
+    "messageformat": "រំលងការផ្ទេរសារឬ?"
+  },
+  "icu:BackupImportScreen__skip-confirmation__body": {
+    "messageformat": "ប្រសិនបើអ្នកជ្រើសរើសរំលង អ្នកនឹងមិនអាចចូលប្រើសារ ឬមេឌៀណាមួយរបស់អ្នកនៅលើឧបករណ៍នេះបានទេ។ អ្នកអាចចាប់ផ្តើមការផ្ទេរថ្មីបន្ទាប់ពីរំលង នៅក្នុងការកំណត់ > ជជែក > ផ្ទេរ។"
+  },
+  "icu:BackupImportScreen__skip-confirmation__cancel": {
+    "messageformat": "បោះបង់"
+  },
   "icu:BackupMediaDownloadProgress__title-in-progress": {
     "messageformat": "កំពុងស្ដារមេឌៀឡើងវិញ"
   },
   "icu:BackupMediaDownloadProgress__title-paused": {
-    "messageformat": "Restore paused"
+    "messageformat": "ការស្តារឡើងវិញត្រូវបានផ្អាក"
+  },
+  "icu:BackupMediaDownloadProgress__title-idle": {
+    "messageformat": "បានស្ដារ {currentSize} លើ {totalSize}"
+  },
+  "icu:BackupMediaDownloadProgress__description-idle": {
+    "messageformat": "មេឌៀនឹងបន្តទាញយកនៅផ្ទៃខាងក្រោយ"
   },
   "icu:BackupMediaDownloadProgress__button-pause": {
-    "messageformat": "Pause transfer"
+    "messageformat": "ផ្អាកការផ្ទេរ"
   },
   "icu:BackupMediaDownloadProgress__button-resume": {
-    "messageformat": "Resume transfer"
+    "messageformat": "បន្តការផ្ទេរ"
   },
   "icu:BackupMediaDownloadProgress__button-cancel": {
     "messageformat": "បោះបង់ការផ្ទេរ"
@@ -3570,13 +3654,13 @@
     "messageformat": "ជម្រើសច្រើនទៀត"
   },
   "icu:BackupMediaDownloadProgress__title-complete": {
-    "messageformat": "ការស្តារជោគជ័យ"
+    "messageformat": "ការស្តារបានបញ្ចប់រួចរាល់"
   },
   "icu:BackupMediaDownloadProgress__progressbar-hint": {
-    "messageformat": "{currentSize} នៃ{totalSize}"
+    "messageformat": "{currentSize} នៃ {totalSize}"
   },
   "icu:BackupMediaDownloadCancelConfirmation__title": {
-    "messageformat": "Cancel media transfer?"
+    "messageformat": "បោះបង់ការផ្ទេរមេឌៀឬ?"
   },
   "icu:BackupMediaDownloadCancelConfirmation__description": {
     "messageformat": "សារ និងមេឌៀរបស់អ្នកមិនទាន់បញ្ចប់ការស្ដារឡើងវិញទេ។ ប្រសិនបើអ្នកជ្រើសរើសបោះបង់ អ្នកអាចផ្ទេរម្តងទៀតពីការកំណត់។"
@@ -3634,9 +3718,6 @@
   },
   "icu:ContactModal--remove-from-group": {
     "messageformat": "ដកចេញពីក្រុម"
-  },
-  "icu:ContactModal--already-in-call": {
-    "messageformat": "អ្នកស្ថិតនៅក្នុងការហៅទូរសព្ទស្រាប់ហើយ"
   },
   "icu:ContactModal--voice": {
     "messageformat": "សំឡេង"
@@ -4643,6 +4724,15 @@
   "icu:DialogNetworkStatus__outage": {
     "messageformat": "Signal កំពុងជួបប្រទះបញ្ហាបច្ចេកទេស។ យើងកំពុងធ្វើការស្តារសេវាកម្មយ៉ាងរហ័សតាមដែលអាចធ្វើទៅបាន។"
   },
+  "icu:InstallScreenUpdateDialog--update-required__title": {
+    "messageformat": "Update Required"
+  },
+  "icu:InstallScreenUpdateDialog--update-required__body": {
+    "messageformat": "To complete syncing your messages, update Signal desktop now."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__action-update": {
+    "messageformat": "Update"
+  },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "តម្រូវឲ្យដំឡើងកំណែ"
   },
@@ -4925,9 +5015,6 @@
   "icu:Stories__placeholder--text": {
     "messageformat": "ចុចដើម្បីមើលរឿងរ៉ាវ"
   },
-  "icu:Stories__placeholder-with-icon--text": {
-    "messageformat": "ចុច <newStoryIcon>បញ្ចូលរឿងរ៉ាវមួយ</newStoryIcon> ដើម្បីបញ្ចូលបច្ចុប្បន្នភាព។"
-  },
   "icu:Stories__placeholder-with-icon--text-2": {
     "messageformat": "ចុច <newStoryButtonIcon></newStoryButtonIcon> ដើម្បីបញ្ចូលបច្ចុប្បន្នភាព។"
   },
@@ -5171,9 +5258,6 @@
   "icu:StoryViewsNRepliesModal__tab--replies": {
     "messageformat": "ការឆ្លើយតប"
   },
-  "icu:StoryViewsNRepliesModal__reacted": {
-    "messageformat": "បានប្រតិកម្មទៅនឹងរឿងរ៉ាវ"
-  },
   "icu:StoryViewsNRepliesModal__reacted--you": {
     "messageformat": "បានប្រតិកម្មទៅនឹងរឿងរ៉ាវ"
   },
@@ -5196,7 +5280,7 @@
     "messageformat": "រឿងរ៉ាវ"
   },
   "icu:StoryListItem__unhide": {
-    "messageformat": "បង្ហាញរឿងរ៉ាវ"
+    "messageformat": "ឈប់លាក់រឿងរ៉ាវ"
   },
   "icu:StoryListItem__hide": {
     "messageformat": "លាក់រឿងរ៉ាវ"
@@ -5467,7 +5551,10 @@
     "messageformat": "លុបប្រវត្តិហៅទូរសព្ទឬ?"
   },
   "icu:CallsTab__ConfirmClearCallHistory__Body": {
-    "messageformat": "វានឹងលុបប្រវត្តិហៅទូរសព្ទទាំងអស់ជាអចិន្ត្រៃយ៍"
+    "messageformat": "វានឹងលុបប្រវត្តិហៅទូរសព្ទទាំងអស់ជាអចិន្ត្រៃយ៍។"
+  },
+  "icu:CallsTab__ConfirmClearCallHistory__Body--call-links": {
+    "messageformat": "វានឹងលុបប្រវត្តិហៅទូរសព្ទទាំងអស់ជាអចិន្ត្រៃយ៍។ តំណហៅទូរសព្ទដែលអ្នកបានបង្កើតឡើងនឹងលែងដំណើរការសម្រាប់អ្នកទាំងឡាយដែលមានពួកវាទៀតហើយ។ "
   },
   "icu:CallsTab__ConfirmClearCallHistory__ConfirmButton": {
     "messageformat": "សម្អាត"
@@ -5475,14 +5562,23 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "បានសម្អាតប្រវត្តិហៅ"
   },
-  "icu:CallsTab__EmptyStateText--with-icon": {
-    "messageformat": "ចុច <newCallIcon>ការហៅថ្មី</newCallIcon> ដើម្បីចាប់ផ្តើមការហៅជាសំឡេង ឬវីដេអូថ្មី។"
+  "icu:CallsTab__ClearCallHistoryError--call-links": {
+    "messageformat": "មិនមែនតំណហៅទូរសព្ទទាំងអស់សុទ្ធតែអាចលុបបានទេ។ សូមពិនិត្យមើលសេវាអ៊ីនធឺណិតរបស់អ្នក រួចព្យាយាមម្តងទៀត។"
+  },
+  "icu:CallsTab__ClearCallHistoryError": {
+    "messageformat": "មិនមែនប្រវត្តិហៅទូរសព្ទទាំងអស់សុទ្ធតែអាចលុបបានទេ។ សូមពិនិត្យមើលសេវាអ៊ីនធឺណិតរបស់អ្នក រួចព្យាយាមម្តងទៀត។"
   },
   "icu:CallsTab__EmptyStateText--with-icon-2": {
     "messageformat": "ចុច <newCallButtonIcon></newCallButtonIcon> ដើម្បីចាប់ផ្តើមការហៅជាសំឡេង ឬវីដេអូថ្មី។"
   },
+  "icu:CallsList__SearchInputPlaceholder--missed-calls": {
+    "messageformat": "Search missed calls"
+  },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "ស្វែងរក"
+  },
+  "icu:CallsList__FilteredByMissedHeader": {
+    "messageformat": "Filtered by missed"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "ច្រោះតាមការខកមិនបានទទួល"
@@ -5496,14 +5592,14 @@
   "icu:CallsList__EmptyState--noQuery__subtitle": {
     "messageformat": "ការហៅថ្មីៗនឹងបង្ហាញនៅទីនេះ។"
   },
-  "icu:CallsList__EmptyState--noQuery--missed__title": {
-    "messageformat": "មិនមានការហៅដែលខកខានទេ"
-  },
-  "icu:CallsList__EmptyState--noQuery--missed__subtitle": {
-    "messageformat": "ការហៅដែលខកខាននឹងបង្ហាញនៅទីនេះ។"
-  },
   "icu:CallsList__EmptyState--hasQuery": {
     "messageformat": "គ្មានលទ្ធផលសម្រាប់ “{query}”"
+  },
+  "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
+    "messageformat": "No results for “{query}” in missed calls"
+  },
+  "icu:CallsList__EmptyState--missedCalls": {
+    "messageformat": "No missed calls"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "បង្កើតតំណហៅទូរសព្ទ"
@@ -5674,19 +5770,16 @@
     "messageformat": "ការកែប្រែបន្តិចបន្តួច ការដោះស្រាយបញ្ហា និងការបង្កើនប្រតិបត្តិការ។ សូមអរគុណចំពោះការប្រើប្រាស់ Signal!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.23--0": {
-    "messageformat": "ឥឡូវនេះ ការជជែកបើកកាន់តែលឿនជាងមុន ដោយសារមានការកែលម្អដំណើរការបន្ថែមទៀត ដូច្នេះអ្នកអាចចុចលើការជជែករបស់អ្នក ហើយមើលឃើញអ្វីដែលពួកគេកំពុងនិយាយបានភ្លាមៗ។"
+  "icu:WhatsNew__v7.33--0": {
+    "messageformat": "កំណែថ្មីនេះកែបញ្ហាមួយដែលបានធ្វើឱ្យម៉ឺនុយបរិបទដែលត្រឹមត្រូវមិនបង្ហាញឡើង បន្ទាប់ពីចុចម៉ៅស្ដាំលើរូបអារម្មណ៍ ពេលកំពុងជ្រើសរើសអត្ថបទ។ អរគុណ <linkKhuddite>@khuddite</linkKhuddite>!"
   },
-  "icu:WhatsNew__v7.23--1": {
-    "messageformat": "យើងក៏បានដោះស្រាយបញ្ហាមួយចំនួនផងដែរ រួមទាំងបញ្ហាមួយដែលជួនកាលធ្វើឱ្យ \"ទំនាក់ទំនងមិនស្គាល់បានចាប់ផ្តើមការហៅជាវីដេអូ\" បង្ហាញនៅក្នុងសេចក្តីសង្ខេបនៃបញ្ជីជជែក បន្ទាប់ពីអ្នកចាប់ផ្តើមការហៅទូរសព្ទ។ ទោះបីជាអ្នកកំពុងស្ថិតនៅក្នុងដំណើរស្វែងរកខ្លួនឯងក៏ដោយ ក៏អ្នកមិនប្រាកដថាមិនស្គាល់ខ្លួនឯងសោះដែរ។"
+  "icu:WhatsNew__v7.34--0": {
+    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say."
   },
-  "icu:WhatsNew__v7.24--0": {
-    "messageformat": "កំណែថ្មីនេះបានដោះស្រាយបញ្ហាមួយដែលទោះបីជាអ្នកមើលការហៅដែលខកមិនបានទទួលនៅលើឧបករណ៍មួយក៏ដោយ ក៏វាមិនអាចលុបដោយស្វ័យប្រវត្តិបាននូវសញ្ញាបង្ហាញការហៅដែលខកមិនបានទទួលនោះនៅលើឧបករណ៍ផ្សេងទៀតរបស់អ្នកដែរ ដែលបានធ្វើឱ្យខកខានឱកាសក្នុងការបង្ហាញព្រមគ្នានូវបញ្ជីនៃការហៅដែលខកមិនបានទទួលរបស់អ្នក ឱ្យកាន់តែប្រសើរឡើង។"
+  "icu:WhatsNew__v7.34--1": {
+    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore."
   },
-  "icu:WhatsNew__v7.25--0": {
-    "messageformat": "តាមរយៈការកែលម្អថ្មីសម្រាប់ការមើល \"មេឌៀទាំងអស់\" អ្នកអាចមើលឃើញរូបថត និងវីដេអូទាំងថ្មី ទាំងចាស់បានភ្លាមៗ។ ឥឡូវនេះ នៅពេលអ្នកចុចលើរូបក្បាលឆាត ហើយជ្រើសរើស \"មើលទាំងអស់\" នៅក្នុងផ្នែកមេឌៀដែលបានចែករំលែក រូបថត និងវីដេអូចាស់ៗនឹងបង្ហាញដោយស្វ័យប្រវត្តិនៅពេលអ្នកអូសមើល ពោលគឺមិនមែនគ្រាន់តែឃើញមេឌៀថ្មីៗបំផុតនោះទេ។"
-  },
-  "icu:WhatsNew__v7.26--0": {
-    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
+  "icu:WhatsNew__v7.34--2": {
+    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality."
   }
 }

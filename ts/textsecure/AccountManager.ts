@@ -4,6 +4,10 @@
 import PQueue from 'p-queue';
 import { isNumber, omit, orderBy } from 'lodash';
 import type { KyberPreKeyRecord } from '@signalapp/libsignal-client';
+import {
+  AccountEntropyPool,
+  BackupKey,
+} from '@signalapp/libsignal-client/dist/AccountKeys';
 import { Readable } from 'stream';
 
 import EventTarget from './EventTarget';
@@ -25,11 +29,12 @@ import createTaskWithTimeout from './TaskWithTimeout';
 import * as Bytes from '../Bytes';
 import * as Errors from '../types/errors';
 import { senderCertificateService } from '../services/senderCertificate';
-import { backupsService, BackupType } from '../services/backups';
+import { backupsService } from '../services/backups';
 import {
   decryptDeviceName,
   deriveAccessKey,
   deriveStorageServiceKey,
+  deriveMasterKey,
   encryptDeviceName,
   generateRegistrationId,
   getRandomBytes,
@@ -59,6 +64,8 @@ import * as log from '../logging/log';
 import type { StorageAccessType } from '../types/Storage';
 import { getRelativePath, createName } from '../util/attachmentPath';
 import { isBackupEnabled } from '../util/isBackupEnabled';
+import { isLinkAndSyncEnabled } from '../util/isLinkAndSyncEnabled';
+import { getMessageQueueTime } from '../util/getMessageQueueTime';
 
 type StorageKeyByServiceIdKind = {
   [kind in ServiceIdKind]: keyof StorageAccessType;
@@ -77,7 +84,6 @@ export const KYBER_KEY_ID_KEY: StorageKeyByServiceIdKind = {
   [ServiceIdKind.PNI]: 'maxKyberPreKeyIdPNI',
 };
 
-const LAST_RESORT_KEY_ARCHIVE_AGE = 30 * DAY;
 const LAST_RESORT_KEY_ROTATION_AGE = DAY * 1.5;
 const LAST_RESORT_KEY_MINIMUM = 5;
 const LAST_RESORT_KEY_UPDATE_TIME_KEY: StorageKeyByServiceIdKind = {
@@ -96,7 +102,6 @@ const PRE_KEY_ID_KEY: StorageKeyByServiceIdKind = {
 };
 const PRE_KEY_MINIMUM = 10;
 
-const SIGNED_PRE_KEY_ARCHIVE_AGE = 30 * DAY;
 export const SIGNED_PRE_KEY_ID_KEY: StorageKeyByServiceIdKind = {
   [ServiceIdKind.ACI]: 'signedKeyId',
   [ServiceIdKind.Unknown]: 'signedKeyId',
@@ -122,11 +127,11 @@ type CreateAccountSharedOptionsType = Readonly<{
   aciKeyPair: KeyPairType;
   pniKeyPair: KeyPairType;
   profileKey: Uint8Array;
-  masterKey: Uint8Array;
+  masterKey: Uint8Array | undefined;
+  accountEntropyPool: string | undefined;
 
   // Test-only
   backupFile?: Uint8Array;
-  isBackupIntegration?: boolean;
 }>;
 
 type CreatePrimaryDeviceOptionsType = Readonly<{
@@ -136,6 +141,8 @@ type CreatePrimaryDeviceOptionsType = Readonly<{
   ourAci?: undefined;
   ourPni?: undefined;
   userAgent?: undefined;
+  ephemeralBackupKey?: undefined;
+  mediaRootBackupKey: Uint8Array;
 
   readReceipts: true;
 
@@ -151,6 +158,8 @@ export type CreateLinkedDeviceOptionsType = Readonly<{
   ourAci: AciString;
   ourPni: PniString;
   userAgent?: string;
+  ephemeralBackupKey: Uint8Array | undefined;
+  mediaRootBackupKey: Uint8Array | undefined;
 
   readReceipts: boolean;
 
@@ -220,7 +229,6 @@ function signedPreKeyToUploadSignedPreKey({
 export type ConfirmNumberResultType = Readonly<{
   deviceName: string;
   backupFile: Uint8Array | undefined;
-  isBackupIntegration: boolean;
 }>;
 
 export default class AccountManager extends EventTarget {
@@ -325,6 +333,8 @@ export default class AccountManager extends EventTarget {
       const profileKey = getRandomBytes(PROFILE_KEY_LENGTH);
       const accessKey = deriveAccessKey(profileKey);
       const masterKey = getRandomBytes(MASTER_KEY_LENGTH);
+      const accountEntropyPool = AccountEntropyPool.generate();
+      const mediaRootBackupKey = BackupKey.generateRandom().serialize();
 
       await this.createAccount({
         type: AccountType.Primary,
@@ -336,6 +346,9 @@ export default class AccountManager extends EventTarget {
         profileKey,
         accessKey,
         masterKey,
+        ephemeralBackupKey: undefined,
+        mediaRootBackupKey,
+        accountEntropyPool,
         readReceipts: true,
       });
     });
@@ -758,7 +771,7 @@ export default class AccountManager extends EventTarget {
       'confirmed'
     );
 
-    // Keep SIGNED_PRE_KEY_MINIMUM keys, drop if older than SIGNED_PRE_KEY_ARCHIVE_AGE
+    // Keep SIGNED_PRE_KEY_MINIMUM keys, drop if older than message queue time
 
     const toDelete: Array<number> = [];
     sortedKeys.forEach((key, index) => {
@@ -767,7 +780,7 @@ export default class AccountManager extends EventTarget {
       }
       const createdAt = key.created_at || 0;
 
-      if (isOlderThan(createdAt, SIGNED_PRE_KEY_ARCHIVE_AGE)) {
+      if (isOlderThan(createdAt, getMessageQueueTime())) {
         const timestamp = new Date(createdAt).toJSON();
         const confirmedText = key.confirmed ? ' (confirmed)' : '';
         log.info(
@@ -815,7 +828,7 @@ export default class AccountManager extends EventTarget {
       'confirmed'
     );
 
-    // Keep LAST_RESORT_KEY_MINIMUM keys, drop if older than LAST_RESORT_KEY_ARCHIVE_AGE
+    // Keep LAST_RESORT_KEY_MINIMUM keys, drop if older than message queue time
 
     const toDelete: Array<number> = [];
     sortedKeys.forEach((key, index) => {
@@ -824,7 +837,7 @@ export default class AccountManager extends EventTarget {
       }
       const createdAt = key.createdAt || 0;
 
-      if (isOlderThan(createdAt, LAST_RESORT_KEY_ARCHIVE_AGE)) {
+      if (isOlderThan(createdAt, getMessageQueueTime())) {
         const timestamp = new Date(createdAt).toJSON();
         const confirmedText = key.isConfirmed ? ' (confirmed)' : '';
         log.info(
@@ -901,6 +914,7 @@ export default class AccountManager extends EventTarget {
   private async createAccount(
     options: CreateAccountOptionsType
   ): Promise<void> {
+    this.dispatchEvent(new Event('startRegistration'));
     const registrationBaton = this.server.startRegistration();
     try {
       await this.doCreateAccount(options);
@@ -920,11 +934,17 @@ export default class AccountManager extends EventTarget {
       pniKeyPair,
       profileKey,
       masterKey,
+      mediaRootBackupKey,
       readReceipts,
       userAgent,
       backupFile,
-      isBackupIntegration,
+      accountEntropyPool,
     } = options;
+
+    strictAssert(
+      Bytes.isNotEmpty(masterKey) || accountEntropyPool,
+      'Either master key or AEP is necessary for registration'
+    );
 
     const { storage } = window.textsecure;
     let password = Bytes.toBase64(getRandomBytes(16));
@@ -955,6 +975,7 @@ export default class AccountManager extends EventTarget {
     const numberChanged =
       !previousACI && previousNumber && previousNumber !== number;
 
+    let cleanStart = !previousACI && !previousPNI && !previousNumber;
     if (uuidChanged || numberChanged || backupFile !== undefined) {
       if (uuidChanged) {
         log.warn(
@@ -968,8 +989,7 @@ export default class AccountManager extends EventTarget {
       }
       if (backupFile !== undefined) {
         log.warn(
-          'createAccount: Restoring from ' +
-            `${isBackupIntegration ? 'plaintext' : 'ciphertext'} backup; ` +
+          'createAccount: Restoring from backup; ' +
             'deleting all previous data'
         );
       }
@@ -977,6 +997,8 @@ export default class AccountManager extends EventTarget {
       try {
         await storage.protocol.removeAllData();
         log.info('createAccount: Successfully deleted previous data');
+
+        cleanStart = true;
       } catch (error) {
         log.error(
           'Something went wrong deleting data from previous number',
@@ -1095,6 +1117,20 @@ export default class AccountManager extends EventTarget {
       throw missingCaseError(options);
     }
 
+    const shouldDownloadBackup =
+      isBackupEnabled() ||
+      (isLinkAndSyncEnabled(window.getVersion()) && options.ephemeralBackupKey);
+
+    // Set backup download path before storing credentials to ensure that
+    // storage service and message receiver are not operating
+    // until the backup is downloaded and imported.
+    if (shouldDownloadBackup && cleanStart) {
+      if (options.type === AccountType.Linked && options.ephemeralBackupKey) {
+        await storage.put('backupEphemeralKey', options.ephemeralBackupKey);
+      }
+      await storage.put('backupDownloadPath', getRelativePath(createName()));
+    }
+
     // `setCredentials` needs to be called
     // before `saveIdentifyWithAttributes` since `saveIdentityWithAttributes`
     // indirectly calls `ConversationController.getConversationId()` which
@@ -1109,6 +1145,8 @@ export default class AccountManager extends EventTarget {
       deviceName: options.deviceName,
       password,
     });
+
+    await this.server.authenticate(storage.user.getWebAPICredentials());
 
     // This needs to be done very early, because it changes how things are saved in the
     //   database. Your identity, for example, in the saveIdentityWithAttributes call
@@ -1157,19 +1195,27 @@ export default class AccountManager extends EventTarget {
     if (userAgent) {
       await storage.put('userAgent', userAgent);
     }
-    await storage.put('masterKey', Bytes.toBase64(masterKey));
+    if (accountEntropyPool) {
+      await storage.put('accountEntropyPool', accountEntropyPool);
+    }
+    let derivedMasterKey = masterKey;
+    if (derivedMasterKey == null) {
+      strictAssert(accountEntropyPool, 'Cannot derive master key');
+      derivedMasterKey = deriveMasterKey(accountEntropyPool);
+    }
+    if (Bytes.isNotEmpty(mediaRootBackupKey)) {
+      await storage.put('backupMediaRootKey', mediaRootBackupKey);
+    }
+    await storage.put('masterKey', Bytes.toBase64(derivedMasterKey));
     await storage.put(
       'storageKey',
-      Bytes.toBase64(deriveStorageServiceKey(masterKey))
+      Bytes.toBase64(deriveStorageServiceKey(derivedMasterKey))
     );
 
     await storage.put('read-receipt-setting', Boolean(readReceipts));
 
     const regionCode = getRegionCodeForNumber(number);
     await storage.put('regionCode', regionCode);
-    if (isBackupEnabled()) {
-      await storage.put('backupDownloadPath', getRelativePath(createName()));
-    }
     await storage.protocol.hydrateCaches();
 
     const store = storage.protocol;
@@ -1229,12 +1275,7 @@ export default class AccountManager extends EventTarget {
     ]);
 
     if (backupFile !== undefined) {
-      await backupsService.importBackup(
-        () => Readable.from([backupFile]),
-        isBackupIntegration
-          ? BackupType.TestOnlyPlaintext
-          : BackupType.Ciphertext
-      );
+      await backupsService.importBackup(() => Readable.from([backupFile]));
     }
   }
 

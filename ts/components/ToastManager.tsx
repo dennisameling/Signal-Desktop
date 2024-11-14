@@ -88,6 +88,16 @@ export function renderToast({
     );
   }
 
+  if (toastType === ToastType.AttachmentDownloadStillInProgress) {
+    return (
+      <Toast onClose={hideToast}>
+        {i18n('icu:attachmentStillDownloading', {
+          count: toast.parameters.count,
+        })}
+      </Toast>
+    );
+  }
+
   if (toastType === ToastType.Blocked) {
     return <Toast onClose={hideToast}>{i18n('icu:unblockToSend')}</Toast>;
   }
@@ -310,7 +320,9 @@ export function renderToast({
           },
         }}
       >
-        {i18n('icu:attachmentSaved')}
+        {i18n('icu:attachmentSavedPlural', {
+          count: toast.parameters.countOfFiles ?? 1,
+        })}
       </Toast>
     );
   }
@@ -383,6 +395,20 @@ export function renderToast({
 
   if (toastType === ToastType.MessageBodyTooLong) {
     return <Toast onClose={hideToast}>{i18n('icu:messageBodyTooLong')}</Toast>;
+  }
+
+  if (toastType === ToastType.MessageLoop) {
+    return (
+      <Toast
+        onClose={hideToast}
+        toastAction={{
+          label: i18n('icu:Toast__ActionLabel--SubmitLog'),
+          onClick: onShowDebugLog,
+        }}
+      >
+        {i18n('icu:messageLoop')}
+      </Toast>
+    );
   }
 
   if (toastType === ToastType.OriginalMessageNotFound) {

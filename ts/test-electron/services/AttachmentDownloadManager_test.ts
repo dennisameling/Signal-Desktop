@@ -83,6 +83,7 @@ describe('AttachmentDownloadManager/JobManager', () => {
 
     downloadManager = new AttachmentDownloadManager({
       ...AttachmentDownloadManager.defaultParams,
+      saveJob: DataWriter.saveAttachmentDownloadJob,
       shouldHoldOffOnStartingQueuedJobs: isInCall,
       runDownloadAttachmentJob: runJob,
       getRetryConfig: () => ({
@@ -409,6 +410,15 @@ describe('AttachmentDownloadManager/JobManager', () => {
         idx % 2 === 0
           ? AttachmentDownloadSource.BACKUP_IMPORT
           : AttachmentDownloadSource.STANDARD,
+      digest: `digestFor${idx}`,
+      attachment: {
+        contentType: MIME.IMAGE_JPEG,
+        size: 128,
+        digest: `digestFor${idx}`,
+        backupLocator: {
+          mediaName: 'medianame',
+        },
+      },
     }));
     // make one of the backup job messages visible to test that code path as well
     downloadManager?.updateVisibleTimelineMessages(['message-0', 'message-1']);
@@ -435,14 +445,16 @@ describe('AttachmentDownloadManager/JobManager', () => {
 describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
   let sandbox: sinon.SinonSandbox;
   let downloadAttachment: sinon.SinonStub;
-
+  let processNewAttachment: sinon.SinonStub;
   beforeEach(async () => {
     sandbox = sinon.createSandbox();
     downloadAttachment = sandbox.stub().returns({
       path: '/path/to/file',
       iv: Buffer.alloc(16),
       plaintextHash: 'plaintextHash',
+      isReencryptableToSameDigest: true,
     });
+    processNewAttachment = sandbox.stub().callsFake(attachment => attachment);
   });
 
   afterEach(async () => {
@@ -458,7 +470,10 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
       const result = await runDownloadAttachmentJobInner({
         job,
         isForCurrentlyVisibleMessage: true,
-        dependencies: { downloadAttachment },
+        dependencies: {
+          downloadAttachment,
+          processNewAttachment,
+        },
       });
 
       assert.strictEqual(result.downloadedVariant, AttachmentVariant.Default);
@@ -482,7 +497,10 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
       const result = await runDownloadAttachmentJobInner({
         job,
         isForCurrentlyVisibleMessage: true,
-        dependencies: { downloadAttachment },
+        dependencies: {
+          downloadAttachment,
+          processNewAttachment,
+        },
       });
 
       strictAssert(
@@ -525,7 +543,10 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
       const result = await runDownloadAttachmentJobInner({
         job,
         isForCurrentlyVisibleMessage: true,
-        dependencies: { downloadAttachment },
+        dependencies: {
+          downloadAttachment,
+          processNewAttachment,
+        },
       });
       assert.strictEqual(result.downloadedVariant, AttachmentVariant.Default);
       assert.strictEqual(downloadAttachment.callCount, 1);
@@ -554,7 +575,10 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
         runDownloadAttachmentJobInner({
           job,
           isForCurrentlyVisibleMessage: true,
-          dependencies: { downloadAttachment },
+          dependencies: {
+            downloadAttachment,
+            processNewAttachment,
+          },
         })
       );
 
@@ -584,7 +608,10 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
       const result = await runDownloadAttachmentJobInner({
         job,
         isForCurrentlyVisibleMessage: false,
-        dependencies: { downloadAttachment },
+        dependencies: {
+          downloadAttachment,
+          processNewAttachment,
+        },
       });
       assert.strictEqual(result.downloadedVariant, AttachmentVariant.Default);
       assert.strictEqual(downloadAttachment.callCount, 1);
@@ -618,7 +645,10 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
       const result = await runDownloadAttachmentJobInner({
         job,
         isForCurrentlyVisibleMessage: false,
-        dependencies: { downloadAttachment },
+        dependencies: {
+          downloadAttachment,
+          processNewAttachment,
+        },
       });
       assert.strictEqual(
         result.downloadedVariant,
@@ -656,7 +686,10 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
         runDownloadAttachmentJobInner({
           job,
           isForCurrentlyVisibleMessage: false,
-          dependencies: { downloadAttachment },
+          dependencies: {
+            downloadAttachment,
+            processNewAttachment,
+          },
         })
       );
 

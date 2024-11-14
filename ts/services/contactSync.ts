@@ -32,6 +32,9 @@ export function setIsInitialSync(newValue: boolean): void {
   log.info(`setIsInitialSync(${newValue})`);
   isInitialSync = newValue;
 }
+export function getIsInitialSync(): boolean {
+  return isInitialSync;
+}
 
 async function updateConversationFromContactSync(
   conversation: ConversationModel,
@@ -224,15 +227,12 @@ async function doContactSync({
 
   await window.storage.put('synced_at', Date.now());
   window.Whisper.events.trigger('contactSync:complete');
+  window.SignalCI?.handleEvent('contactSync', isFullSync);
 
   log.info(`${logId}: done`);
 }
 
 export async function onContactSync(ev: ContactSyncEvent): Promise<void> {
-  if (window.SignalCI?.isBackupIntegration) {
-    return;
-  }
-
   log.info(
     `onContactSync(sent=${ev.sentAt}, receivedAt=${ev.receivedAtCounter}): queueing sync`
   );

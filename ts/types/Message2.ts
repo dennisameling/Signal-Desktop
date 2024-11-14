@@ -10,9 +10,12 @@ import type {
   AttachmentType,
   AttachmentWithHydratedData,
   LocalAttachmentV2Type,
+  LocallySavedAttachment,
+  ReencryptableAttachment,
 } from './Attachment';
 import {
   captureDimensionsAndScreenshot,
+  isAttachmentLocallySaved,
   removeSchemaVersion,
   replaceUnicodeOrderOverrides,
   replaceUnicodeV2,
@@ -21,6 +24,7 @@ import * as Errors from './errors';
 import * as SchemaVersion from './SchemaVersion';
 import { initializeAttachmentMetadata } from './message/initializeAttachmentMetadata';
 
+import { LONG_MESSAGE } from './MIME';
 import type * as MIME from './MIME';
 import type { LoggerType } from './Logging';
 import type {
@@ -45,11 +49,18 @@ import {
 } from '../util/getLocalAttachmentUrl';
 import { encryptLegacyAttachment } from '../util/encryptLegacyAttachment';
 import { deepClone } from '../util/deepClone';
+import { LONG_ATTACHMENT_LIMIT } from './Message';
+import * as Bytes from '../Bytes';
+import { redactGenericText } from '../util/privacy';
 
 export const GROUP = 'group';
 export const PRIVATE = 'private';
 
 export type ContextType = {
+  doesAttachmentExist: (relativePath: string) => Promise<boolean>;
+  ensureAttachmentIsReencryptable: (
+    attachment: LocallySavedAttachment
+  ) => Promise<ReencryptableAttachment>;
   getImageDimensions: (params: {
     objectUrl: string;
     logger: LoggerType;
@@ -125,8 +136,14 @@ export type ContextWithMessageType = ContextType & {
 //     attachment filenames
 // Version 10
 //   - Preview: A new type of attachment can be included in a message.
-// Version 11
+// Version 11 (deprecated)
 //   - Attachments: add sha256 plaintextHash
+// Version 12:
+//   - Attachments: encrypt attachments on disk
+// Version 13:
+//   - Attachments: write bodyAttachment to disk
+// Version 14
+//   - All attachments: ensure they are reencryptable to a known digest
 
 const INITIAL_SCHEMA_VERSION = 0;
 
@@ -272,6 +289,52 @@ export const _mapAttachments =
       (message.attachments || []).map(upgradeWithContext)
     );
     return { ...message, attachments };
+  };
+
+export const _mapAllAttachments =
+  (upgradeAttachment: UpgradeAttachmentType) =>
+  async (
+    message: MessageAttributesType,
+    context: ContextType
+  ): Promise<MessageAttributesType> => {
+    let result = { ...message };
+    result = await _mapAttachments(upgradeAttachment)(result, context);
+    result = await _mapQuotedAttachments(upgradeAttachment)(result, context);
+    result = await _mapPreviewAttachments(upgradeAttachment)(result, context);
+    result = await _mapContact(async contact => {
+      if (!contact.avatar?.avatar) {
+        return contact;
+      }
+
+      return {
+        ...contact,
+        avatar: {
+          ...contact.avatar,
+          avatar: await upgradeAttachment(
+            contact.avatar.avatar,
+            context,
+            result
+          ),
+        },
+      };
+    })(result, context);
+
+    if (result.sticker?.data) {
+      result.sticker.data = await upgradeAttachment(
+        result.sticker.data,
+        context,
+        result
+      );
+    }
+    if (result.bodyAttachment) {
+      result.bodyAttachment = await upgradeAttachment(
+        result.bodyAttachment,
+        context,
+        result
+      );
+    }
+
+    return result;
   };
 
 // Public API
@@ -571,6 +634,41 @@ const toVersion12 = _withSchemaVersion({
     return result;
   },
 });
+const toVersion13 = _withSchemaVersion({
+  schemaVersion: 13,
+  upgrade: migrateBodyAttachmentToDisk,
+});
+
+const toVersion14 = _withSchemaVersion({
+  schemaVersion: 14,
+  upgrade: _mapAllAttachments(
+    async (
+      attachment,
+      { logger, ensureAttachmentIsReencryptable, doesAttachmentExist }
+    ) => {
+      const logId = `Message2.toVersion14(digest=${redactGenericText(attachment.digest ?? '')})`;
+
+      if (!isAttachmentLocallySaved(attachment)) {
+        return attachment;
+      }
+
+      if (!(await doesAttachmentExist(attachment.path))) {
+        // Attachments may be missing, e.g. for quote thumbnails that reference messages
+        // which have been deleted
+        logger.info(`${logId}: File does not exist`);
+        return attachment;
+      }
+
+      if (!attachment.digest) {
+        // Messages that are being upgraded prior to being sent may not have encrypted the
+        // attachment yet
+        return attachment;
+      }
+
+      return ensureAttachmentIsReencryptable(attachment);
+    }
+  ),
+});
 
 const VERSIONS = [
   toVersion0,
@@ -586,7 +684,10 @@ const VERSIONS = [
   toVersion10,
   toVersion11,
   toVersion12,
+  toVersion13,
+  toVersion14,
 ];
+
 export const CURRENT_SCHEMA_VERSION = VERSIONS.length - 1;
 
 // We need dimensions and screenshots for images for proper display
@@ -598,6 +699,8 @@ export const upgradeSchema = async (
   {
     readAttachmentData,
     writeNewAttachmentData,
+    doesAttachmentExist,
+    ensureAttachmentIsReencryptable,
     getRegionCode,
     makeObjectUrl,
     revokeObjectUrl,
@@ -659,6 +762,8 @@ export const upgradeSchema = async (
       writeNewAttachmentData,
       makeObjectUrl,
       revokeObjectUrl,
+      doesAttachmentExist,
+      ensureAttachmentIsReencryptable,
       getImageDimensions,
       makeImageThumbnail,
       makeVideoScreenshot,
@@ -677,6 +782,7 @@ export const upgradeSchema = async (
 export const processNewAttachment = async (
   attachment: AttachmentType,
   {
+    ensureAttachmentIsReencryptable,
     writeNewAttachmentData,
     makeObjectUrl,
     revokeObjectUrl,
@@ -694,6 +800,7 @@ export const processNewAttachment = async (
     | 'makeVideoScreenshot'
     | 'logger'
     | 'deleteOnDisk'
+    | 'ensureAttachmentIsReencryptable'
   >
 ): Promise<AttachmentType> => {
   if (!isFunction(writeNewAttachmentData)) {
@@ -718,15 +825,25 @@ export const processNewAttachment = async (
     throw new TypeError('context.logger is required');
   }
 
-  const finalAttachment = await captureDimensionsAndScreenshot(attachment, {
-    writeNewAttachmentData,
-    makeObjectUrl,
-    revokeObjectUrl,
-    getImageDimensions,
-    makeImageThumbnail,
-    makeVideoScreenshot,
-    logger,
-  });
+  let upgradedAttachment = attachment;
+
+  if (isAttachmentLocallySaved(upgradedAttachment)) {
+    upgradedAttachment =
+      await ensureAttachmentIsReencryptable(upgradedAttachment);
+  }
+
+  const finalAttachment = await captureDimensionsAndScreenshot(
+    upgradedAttachment,
+    {
+      writeNewAttachmentData,
+      makeObjectUrl,
+      revokeObjectUrl,
+      getImageDimensions,
+      makeImageThumbnail,
+      makeVideoScreenshot,
+      logger,
+    }
+  );
 
   return finalAttachment;
 };
@@ -953,11 +1070,22 @@ export const deleteAllExternalFiles = ({
   }
 
   return async (message: MessageAttributesType) => {
-    const { attachments, editHistory, quote, contact, preview, sticker } =
-      message;
+    const {
+      attachments,
+      bodyAttachment,
+      editHistory,
+      quote,
+      contact,
+      preview,
+      sticker,
+    } = message;
 
     if (attachments && attachments.length) {
       await Promise.all(attachments.map(deleteAttachmentData));
+    }
+
+    if (bodyAttachment) {
+      await deleteAttachmentData(bodyAttachment);
     }
 
     if (quote && quote.attachments && quote.attachments.length) {
@@ -1001,7 +1129,11 @@ export const deleteAllExternalFiles = ({
 
     if (editHistory && editHistory.length) {
       await Promise.all(
-        editHistory.map(edit => {
+        editHistory.map(async edit => {
+          if (edit.bodyAttachment) {
+            await deleteAttachmentData(edit.bodyAttachment);
+          }
+
           if (!edit.attachments || !edit.attachments.length) {
             return;
           }
@@ -1014,6 +1146,35 @@ export const deleteAllExternalFiles = ({
     }
   };
 };
+
+export async function migrateBodyAttachmentToDisk(
+  message: MessageAttributesType,
+  { logger, writeNewAttachmentData }: ContextType
+): Promise<MessageAttributesType> {
+  const logId = `Message2.toVersion13(${message.sent_at})`;
+
+  // if there is already a bodyAttachment, nothing to do
+  if (message.bodyAttachment) {
+    return message;
+  }
+
+  if (!message.body || (message.body?.length ?? 0) <= LONG_ATTACHMENT_LIMIT) {
+    return message;
+  }
+
+  logger.info(`${logId}: Writing bodyAttachment to disk`);
+
+  const data = Bytes.fromString(message.body);
+  const bodyAttachment = {
+    contentType: LONG_MESSAGE,
+    ...(await writeNewAttachmentData(data)),
+  };
+
+  return {
+    ...message,
+    bodyAttachment,
+  };
+}
 
 async function deletePreviews(
   preview: MessageAttributesType['preview'],

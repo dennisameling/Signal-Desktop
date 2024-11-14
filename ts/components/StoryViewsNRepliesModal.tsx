@@ -64,8 +64,10 @@ const MESSAGE_DEFAULT_PROPS = {
   pushPanelForConversation: shouldNeverBeCalled,
   renderAudioAttachment: () => <div />,
   saveAttachment: shouldNeverBeCalled,
+  saveAttachments: shouldNeverBeCalled,
   scrollToQuotedMessage: shouldNeverBeCalled,
   showConversation: noop,
+  showAttachmentDownloadStillInProgressToast: shouldNeverBeCalled,
   showExpiredIncomingTapToViewToast: shouldNeverBeCalled,
   showExpiredOutgoingTapToViewToast: shouldNeverBeCalled,
   showLightbox: shouldNeverBeCalled,
@@ -259,6 +261,7 @@ export function StoryViewsNRepliesModal({
                     })
               }
               platform={platform}
+              quotedMessageId={null}
               sendCounter={0}
               skinTone={skinTone ?? null}
               sortedGroupMembers={sortedGroupMembers ?? null}

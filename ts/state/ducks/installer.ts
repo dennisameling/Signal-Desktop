@@ -7,6 +7,8 @@ import pTimeout, { TimeoutError } from 'p-timeout';
 
 import type { StateType as RootStateType } from '../reducer';
 import {
+  type InstallScreenBackupError,
+  InstallScreenBackupStep,
   InstallScreenStep,
   InstallScreenError,
   InstallScreenQRCodeError,
@@ -18,7 +20,7 @@ import { strictAssert } from '../../util/assert';
 import { SECOND } from '../../util/durations';
 import * as Registration from '../../util/registration';
 import { isBackupEnabled } from '../../util/isBackupEnabled';
-import { HTTPError } from '../../textsecure/Errors';
+import { HTTPError, InactiveTimeoutError } from '../../textsecure/Errors';
 import {
   Provisioner,
   type PrepareLinkDataOptionsType,
@@ -26,6 +28,8 @@ import {
 import type { BoundActionCreatorsMapObject } from '../../hooks/useBoundActions';
 import { useBoundActions } from '../../hooks/useBoundActions';
 import * as log from '../../logging/log';
+import { backupsService } from '../../services/backups';
+import OS from '../../util/os/osMain';
 
 const SLEEP_ERROR = new TimeoutError();
 
@@ -61,16 +65,21 @@ export type InstallerStateType = ReadonlyDeep<
     }
   | {
       step: InstallScreenStep.BackupImport;
+      backupStep: InstallScreenBackupStep;
       currentBytes?: number;
       totalBytes?: number;
+      error?: InstallScreenBackupError;
     }
 >;
+
+export type RetryBackupImportValue = ReadonlyDeep<'retry' | 'cancel'>;
 
 export const START_INSTALLER = 'installer/START_INSTALLER';
 const SET_PROVISIONING_URL = 'installer/SET_PROVISIONING_URL';
 const SET_QR_CODE_ERROR = 'installer/SET_QR_CODE_ERROR';
 const SET_ERROR = 'installer/SET_ERROR';
 const QR_CODE_SCANNED = 'installer/QR_CODE_SCANNED';
+const RETRY_BACKUP_IMPORT = 'installer/RETRY_BACKUP_IMPORT';
 const SHOW_LINK_IN_PROGRESS = 'installer/SHOW_LINK_IN_PROGRESS';
 export const SHOW_BACKUP_IMPORT = 'installer/SHOW_BACKUP_IMPORT';
 const UPDATE_BACKUP_IMPORT_PROGRESS = 'installer/UPDATE_BACKUP_IMPORT_PROGRESS';
@@ -103,6 +112,10 @@ type QRCodeScannedActionType = ReadonlyDeep<{
   };
 }>;
 
+type RetryBackupImportActionType = ReadonlyDeep<{
+  type: typeof RETRY_BACKUP_IMPORT;
+}>;
+
 type ShowLinkInProgressActionType = ReadonlyDeep<{
   type: typeof SHOW_LINK_IN_PROGRESS;
 }>;
@@ -113,10 +126,15 @@ export type ShowBackupImportActionType = ReadonlyDeep<{
 
 type UpdateBackupImportProgressActionType = ReadonlyDeep<{
   type: typeof UPDATE_BACKUP_IMPORT_PROGRESS;
-  payload: {
-    currentBytes: number;
-    totalBytes: number;
-  };
+  payload:
+    | {
+        backupStep: InstallScreenBackupStep;
+        currentBytes: number;
+        totalBytes: number;
+      }
+    | {
+        error: InstallScreenBackupError;
+      };
 }>;
 
 export type InstallerActionType = ReadonlyDeep<
@@ -125,6 +143,7 @@ export type InstallerActionType = ReadonlyDeep<
   | SetQRCodeErrorActionType
   | SetErrorActionType
   | QRCodeScannedActionType
+  | RetryBackupImportActionType
   | ShowLinkInProgressActionType
   | ShowBackupImportActionType
   | UpdateBackupImportProgressActionType
@@ -134,6 +153,7 @@ export const actions = {
   startInstaller,
   finishInstall,
   updateBackupImportProgress,
+  retryBackupImport,
   showBackupImport,
   showLinkInProgress,
 };
@@ -178,7 +198,10 @@ function startInstaller(): ThunkAction<
     const { server } = window.textsecure;
     strictAssert(server, 'Expected a server');
 
-    const provisioner = new Provisioner(server);
+    const provisioner = new Provisioner({
+      server,
+      appVersion: window.getVersion(),
+    });
 
     const abortController = new AbortController();
     const { signal } = abortController;
@@ -277,6 +300,14 @@ function startInstaller(): ThunkAction<
         Errors.toLogFormat(error)
       );
 
+      if (error instanceof InactiveTimeoutError) {
+        dispatch({
+          type: SET_ERROR,
+          payload: InstallScreenError.InactiveTimeout,
+        });
+        return;
+      }
+
       dispatch({
         type: SET_ERROR,
         payload: InstallScreenError.ConnectionFailed,
@@ -289,28 +320,30 @@ function startInstaller(): ThunkAction<
     }
     provisionerByBaton.set(baton, provisioner);
 
-    // Switch to next UI phase
-    dispatch({
-      type: QR_CODE_SCANNED,
-      payload: {
-        deviceName:
-          window.textsecure.storage.user.getDeviceName() ||
-          window.getHostName() ||
-          '',
-        baton,
-      },
-    });
+    if (provisioner.isLinkAndSync()) {
+      dispatch(finishInstall({ deviceName: OS.getName() || 'Signal Desktop' }));
+    } else {
+      // Show screen to choose device name
+      dispatch({
+        type: QR_CODE_SCANNED,
+        payload: {
+          deviceName:
+            window.textsecure.storage.user.getDeviceName() ||
+            window.getHostName() ||
+            '',
+          baton,
+        },
+      });
 
-    // And feed it the CI data if present
-    const { SignalCI } = window;
-    if (SignalCI != null) {
-      dispatch(
-        finishInstall({
-          deviceName: SignalCI.deviceName,
-          backupFile: SignalCI.backupData,
-          isBackupIntegration: SignalCI.isBackupIntegration,
-        })
-      );
+      // And feed it the CI data if present
+      const { SignalCI } = window;
+      if (SignalCI != null) {
+        dispatch(
+          finishInstall({
+            deviceName: SignalCI.deviceName,
+          })
+        );
+      }
     }
   };
 }
@@ -329,8 +362,9 @@ function finishInstall(
   return async (dispatch, getState) => {
     const state = getState();
     strictAssert(
-      state.installer.step === InstallScreenStep.ChoosingDeviceName,
-      'Not choosing device name'
+      state.installer.step === InstallScreenStep.ChoosingDeviceName ||
+        state.installer.step === InstallScreenStep.QrCodeNotScanned,
+      'Wrong step'
     );
 
     const { baton } = state.installer;
@@ -340,6 +374,13 @@ function finishInstall(
       'Provisioner is not waiting for device info'
     );
 
+    if (state.installer.step === InstallScreenStep.QrCodeNotScanned) {
+      strictAssert(
+        provisioner.isLinkAndSync(),
+        'Can only skip device naming if link & sync'
+      );
+    }
+
     // Cleanup
     controllerByBaton.delete(baton);
     provisionerByBaton.delete(baton);
@@ -347,7 +388,7 @@ function finishInstall(
     const accountManager = window.getAccountManager();
     strictAssert(accountManager, 'Expected an account manager');
 
-    if (isBackupEnabled()) {
+    if (isBackupEnabled() || provisioner.isLinkAndSync()) {
       dispatch({ type: SHOW_BACKUP_IMPORT });
     } else {
       dispatch({ type: SHOW_LINK_IN_PROGRESS });
@@ -413,6 +454,18 @@ function updateBackupImportProgress(
   payload: UpdateBackupImportProgressActionType['payload']
 ): UpdateBackupImportProgressActionType {
   return { type: UPDATE_BACKUP_IMPORT_PROGRESS, payload };
+}
+
+function retryBackupImport(): ThunkAction<
+  void,
+  RootStateType,
+  unknown,
+  RetryBackupImportActionType
+> {
+  return dispatch => {
+    dispatch({ type: RETRY_BACKUP_IMPORT });
+    backupsService.retryDownload();
+  };
 }
 
 // Reducer
@@ -525,7 +578,7 @@ export function reducer(
   if (action.type === SHOW_BACKUP_IMPORT) {
     if (
       // Downloading backup after linking
-      state.step !== InstallScreenStep.ChoosingDeviceName &&
+      state.step !== InstallScreenStep.QrCodeNotScanned &&
       // Restarting backup download on startup
       state.step !== InstallScreenStep.NotStarted
     ) {
@@ -535,6 +588,7 @@ export function reducer(
 
     return {
       step: InstallScreenStep.BackupImport,
+      backupStep: InstallScreenBackupStep.Download,
     };
   }
 
@@ -547,10 +601,33 @@ export function reducer(
       return state;
     }
 
+    if ('error' in action.payload) {
+      return {
+        ...state,
+        error: action.payload.error,
+      };
+    }
+
     return {
       ...state,
+      backupStep: action.payload.backupStep,
       currentBytes: action.payload.currentBytes,
       totalBytes: action.payload.totalBytes,
+    };
+  }
+
+  if (action.type === RETRY_BACKUP_IMPORT) {
+    if (state.step !== InstallScreenStep.BackupImport) {
+      log.warn(
+        'ducks/installer: wrong step, not retrying backup import',
+        state.step
+      );
+      return state;
+    }
+
+    return {
+      ...state,
+      error: undefined,
     };
   }
 

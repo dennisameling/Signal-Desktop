@@ -22,7 +22,7 @@ import { useGlobalModalActions } from '../ducks/globalModals';
 import { useLightboxActions } from '../ducks/lightbox';
 import { useStoriesActions } from '../ducks/stories';
 
-export { Contact } from '../../components/conversation/MessageDetail';
+export type { Contact } from '../../components/conversation/MessageDetail';
 export type OwnProps = Pick<
   MessageDetailProps,
   'contacts' | 'errors' | 'message' | 'receivedAt'
@@ -49,7 +49,9 @@ export const SmartMessageDetail = memo(
       popPanelForConversation,
       pushPanelForConversation,
       saveAttachment,
+      saveAttachments,
       showConversation,
+      showAttachmentDownloadStillInProgressToast,
       showExpiredIncomingTapToViewToast,
       showExpiredOutgoingTapToViewToast,
       showSpoiler,
@@ -99,10 +101,14 @@ export const SmartMessageDetail = memo(
         receivedAt={receivedAt}
         renderAudioAttachment={renderAudioAttachment}
         saveAttachment={saveAttachment}
+        saveAttachments={saveAttachments}
         sentAt={message.timestamp}
         showContactModal={showContactModal}
         showConversation={showConversation}
         showEditHistoryModal={showEditHistoryModal}
+        showAttachmentDownloadStillInProgressToast={
+          showAttachmentDownloadStillInProgressToast
+        }
         showExpiredIncomingTapToViewToast={showExpiredIncomingTapToViewToast}
         showExpiredOutgoingTapToViewToast={showExpiredOutgoingTapToViewToast}
         showLightbox={showLightbox}

@@ -98,14 +98,38 @@ describe('signalRoutes', () => {
     check(`sgnl://joingroup#${fooNoSlash}`, result);
   });
 
-  it('linkDevice', () => {
+  it('linkDevice without capabilities', () => {
     const result: ParsedSignalRoute = {
       key: 'linkDevice',
-      args: { uuid: foo, pubKey: foo },
+      args: { uuid: foo, pubKey: foo, capabilities: [] },
     };
     const check = createCheck({ hasWebUrl: false });
     check(`sgnl://linkdevice/?uuid=${foo}&pub_key=${foo}`, result);
     check(`sgnl://linkdevice?uuid=${foo}&pub_key=${foo}`, result);
+  });
+
+  it('linkDevice with one capability', () => {
+    const result: ParsedSignalRoute = {
+      key: 'linkDevice',
+      args: { uuid: foo, pubKey: foo, capabilities: ['backup'] },
+    };
+    const check = createCheck({ hasWebUrl: false });
+    check(
+      `sgnl://linkdevice/?uuid=${foo}&pub_key=${foo}&capabilities=backup`,
+      result
+    );
+  });
+
+  it('linkDevice with multiple capabilities', () => {
+    const result: ParsedSignalRoute = {
+      key: 'linkDevice',
+      args: { uuid: foo, pubKey: foo, capabilities: ['a', 'b'] },
+    };
+    const check = createCheck({ hasWebUrl: false });
+    check(
+      `sgnl://linkdevice/?uuid=${foo}&pub_key=${foo}&capabilities=a%2Cb`,
+      result
+    );
   });
 
   it('captcha', () => {
@@ -205,13 +229,13 @@ describe('signalRoutes', () => {
     check('sgnl://show-window', result);
   });
 
-  it('setIsPresenting', () => {
+  it('cancelPresenting', () => {
     const result: ParsedSignalRoute = {
-      key: 'setIsPresenting',
+      key: 'cancelPresenting',
       args: {},
     };
     const check = createCheck({ isRoute: true, hasWebUrl: false });
-    check('sgnl://set-is-presenting/', result);
-    check('sgnl://set-is-presenting', result);
+    check('sgnl://cancel-presenting/', result);
+    check('sgnl://cancel-presenting', result);
   });
 });

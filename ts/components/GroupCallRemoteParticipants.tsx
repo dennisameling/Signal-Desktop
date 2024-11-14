@@ -63,6 +63,7 @@ type PropsType = {
   i18n: LocalizerType;
   imageDataCache: React.RefObject<CallingImageDataCache>;
   isCallReconnecting: boolean;
+  joinedAt: number | null;
   remoteParticipants: ReadonlyArray<GroupCallRemoteParticipantType>;
   setGroupCallVideoRequest: (
     _: Array<GroupCallVideoRequest>,
@@ -115,6 +116,7 @@ export function GroupCallRemoteParticipants({
   imageDataCache,
   i18n,
   isCallReconnecting,
+  joinedAt,
   remoteParticipants,
   setGroupCallVideoRequest,
   remoteAudioLevels,
@@ -227,7 +229,7 @@ export function GroupCallRemoteParticipants({
     0
   );
 
-  // In speaker or overflow views, not all participants will be on the grid; they'll
+  // In speaker or sidebar views, not all participants will be on the grid; they'll
   //   get put in the overflow zone.
   const overflowedParticipants: Array<GroupCallRemoteParticipantType> = useMemo(
     () =>
@@ -359,6 +361,7 @@ export function GroupCallRemoteParticipants({
             remoteParticipantsCount={remoteParticipants.length}
             isActiveSpeakerInSpeakerView={isInSpeakerView}
             isCallReconnecting={isCallReconnecting}
+            joinedAt={joinedAt}
           />
         );
       });
@@ -517,6 +520,7 @@ export function GroupCallRemoteParticipants({
           imageDataCache={imageDataCache}
           i18n={i18n}
           isCallReconnecting={isCallReconnecting}
+          joinedAt={joinedAt}
           onClickRaisedHand={onClickRaisedHand}
           onParticipantVisibilityChanged={onParticipantVisibilityChanged}
           overflowedParticipants={overflowedParticipants}

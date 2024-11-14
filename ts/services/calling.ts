@@ -1,7 +1,6 @@
 // Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { DesktopCapturerSource } from 'electron';
 import { ipcRenderer } from 'electron';
 import type {
   AudioDevice,
@@ -64,7 +63,6 @@ import type {
   AvailableIODevicesType,
   CallEndedReason,
   MediaDeviceSettings,
-  PresentableSource,
   PresentedSource,
 } from '../types/Calling';
 import {
@@ -77,7 +75,6 @@ import {
   findBestMatchingAudioDeviceIndex,
   findBestMatchingCameraId,
 } from '../calling/findBestMatchingDevice';
-import type { LocalizerType } from '../types/Util';
 import { normalizeAci } from '../util/normalizeAci';
 import { isAciString } from '../util/isAciString';
 import * as Errors from '../types/errors';
@@ -99,10 +96,12 @@ import {
   REQUESTED_VIDEO_WIDTH,
   REQUESTED_VIDEO_HEIGHT,
   REQUESTED_VIDEO_FRAMERATE,
+  REQUESTED_SCREEN_SHARE_WIDTH,
+  REQUESTED_SCREEN_SHARE_HEIGHT,
+  REQUESTED_SCREEN_SHARE_FRAMERATE,
 } from '../calling/constants';
 import { callingMessageToProto } from '../util/callingMessageToProto';
 import { requestMicrophonePermissions } from '../util/requestMicrophonePermissions';
-import OS from '../util/os/osMain';
 import { SignalService as Proto } from '../protobuf';
 import { DataReader, DataWriter } from '../sql/Client';
 import {
@@ -156,6 +155,8 @@ import { getConversationIdForLogging } from '../util/idForLogging';
 import { sendCallLinkUpdateSync } from '../util/sendCallLinkUpdateSync';
 import { createIdenticon } from '../util/createIdenticon';
 import { getColorForCallLink } from '../util/getColorForCallLink';
+import { getUseRingrtcAdm } from '../util/ringrtc/ringrtcAdm';
+import OS from '../util/os/osMain';
 
 const { wasGroupCallRingPreviouslyCanceled } = DataReader;
 const {
@@ -192,6 +193,7 @@ type CallingReduxInterface = Pick<
   CallingReduxActionsType,
   | 'callStateChange'
   | 'cancelIncomingGroupCallRing'
+  | 'cancelPresenting'
   | 'groupCallAudioLevelsChange'
   | 'groupCallEnded'
   | 'groupCallRaisedHandsChange'
@@ -204,7 +206,6 @@ type CallingReduxInterface = Pick<
   | 'refreshIODevices'
   | 'remoteSharingScreenChange'
   | 'remoteVideoChange'
-  | 'setPresenting'
   | 'startCallingLobby'
   | 'startCallLinkLobby'
   | 'startCallLinkLobbyByRoomId'
@@ -213,9 +214,13 @@ type CallingReduxInterface = Pick<
   areAnyCallsActiveOrRinging(): boolean;
 };
 
-function isScreenSource(source: PresentedSource): boolean {
-  return source.id.startsWith('screen');
-}
+export type SetPresentingOptionsType = Readonly<{
+  conversationId: string;
+  hasLocalVideo: boolean;
+  mediaStream?: MediaStream;
+  source?: PresentedSource;
+  callLinkRootKey?: string;
+}>;
 
 function truncateForLogging(name: string | undefined): string | undefined {
   if (!name || name.length <= 4) {
@@ -249,29 +254,6 @@ function cleanForLogging(settings?: MediaDeviceSettings): unknown {
     selectedSpeaker: truncateForLogging(settings.selectedSpeaker?.name),
     selectedCamera: settings.selectedCamera,
   };
-}
-
-function translateSourceName(
-  i18n: LocalizerType,
-  source: PresentedSource
-): string {
-  const { name } = source;
-  if (!isScreenSource(source)) {
-    return name;
-  }
-
-  if (name === 'Entire Screen') {
-    return i18n('icu:calling__SelectPresentingSourcesModal--entireScreen');
-  }
-
-  const match = name.match(/^Screen (\d+)$/);
-  if (match) {
-    return i18n('icu:calling__SelectPresentingSourcesModal--screen', {
-      id: match[1],
-    });
-  }
-
-  return name;
 }
 
 function protoToCallingMessage({
@@ -346,9 +328,13 @@ export type NotifyScreenShareStatusOptionsType = Readonly<
 >;
 
 export class CallingClass {
-  readonly videoCapturer: GumVideoCapturer;
+  private readonly videoCapturer: GumVideoCapturer;
 
   readonly videoRenderer: CanvasVideoRenderer;
+
+  private localPreviewContainer: HTMLDivElement | null = null;
+
+  private localPreview: HTMLVideoElement | undefined;
 
   private reduxInterface?: CallingReduxInterface;
 
@@ -394,6 +380,7 @@ export class CallingClass {
 
     RingRTC.setConfig({
       field_trials: undefined,
+      use_ringrtc_adm: getUseRingrtcAdm(),
     });
 
     RingRTC.handleOutgoingSignaling = this.handleOutgoingSignaling.bind(this);
@@ -416,7 +403,7 @@ export class CallingClass {
     });
 
     ipcRenderer.on('stop-screen-share', () => {
-      reduxInterface.setPresenting();
+      reduxInterface.cancelPresenting();
     });
     ipcRenderer.on(
       'calling:set-rtc-stats-interval',
@@ -936,7 +923,7 @@ export class CallingClass {
     log.info(`${logId}: Sending profile key`);
     await conversationJobQueue.add({
       conversationId: conversation.id,
-      type: 'ProfileKey',
+      type: 'ProfileKeyForCall',
     });
 
     RingRTC.setOutgoingAudio(call.callId, hasLocalAudio);
@@ -971,6 +958,21 @@ export class CallingClass {
           Buffer.from(member.uuidCiphertext)
         )
     );
+  }
+
+  public setLocalPreviewContainer(container: HTMLDivElement | null): void {
+    // Reuse HTMLVideoElement between different containers so that the preview
+    // of the last frame stays valid even if there are no new frames on the
+    // underlying MediaStream.
+    if (this.localPreview == null) {
+      this.localPreview = document.createElement('video');
+      this.localPreview.autoplay = true;
+      this.videoCapturer.setLocalPreview({ current: this.localPreview });
+    }
+
+    this.localPreviewContainer?.removeChild(this.localPreview);
+    this.localPreviewContainer = container;
+    this.localPreviewContainer?.appendChild(this.localPreview);
   }
 
   public async cleanupStaleRingingCalls(): Promise<void> {
@@ -1539,7 +1541,7 @@ export class CallingClass {
       log.info(`${logId}: Sending profile key`);
       drop(
         conversationJobQueue.add({
-          type: conversationQueueJobEnum.enum.ProfileKey,
+          type: conversationQueueJobEnum.enum.ProfileKeyForCall,
           conversationId: conversation.id,
           isOneTimeSend: true,
         })
@@ -2046,51 +2048,13 @@ export class CallingClass {
     }
   }
 
-  async getPresentingSources(): Promise<Array<PresentableSource>> {
-    // There's a Linux Wayland Electron bug where requesting desktopCapturer.
-    // getSources() with types as ['screen', 'window'] (the default) pops 2
-    // OS permissions dialogs in an unusable state (Dialog 1 for Share Window
-    // is the foreground and ignores input; Dialog 2 for Share Screen is background
-    // and requires input. As a workaround, request both sources sequentially.
-    // https://github.com/signalapp/Signal-Desktop/issues/5350#issuecomment-1688614149
-    const sources: ReadonlyArray<DesktopCapturerSource> =
-      OS.isLinux() && OS.isWaylandEnabled()
-        ? (
-            await ipcRenderer.invoke('getScreenCaptureSources', ['screen'])
-          ).concat(
-            await ipcRenderer.invoke('getScreenCaptureSources', ['window'])
-          )
-        : await ipcRenderer.invoke('getScreenCaptureSources');
-
-    const presentableSources: Array<PresentableSource> = [];
-
-    sources.forEach(source => {
-      // If electron can't retrieve a thumbnail then it won't be able to
-      // present this source so we filter these out.
-      if (source.thumbnail.isEmpty()) {
-        return;
-      }
-      presentableSources.push({
-        appIcon:
-          source.appIcon && !source.appIcon.isEmpty()
-            ? source.appIcon.toDataURL()
-            : undefined,
-        id: source.id,
-        name: translateSourceName(window.i18n, source),
-        isScreen: isScreenSource(source),
-        thumbnail: source.thumbnail.toDataURL(),
-      });
-    });
-
-    return presentableSources;
-  }
-
-  async setPresenting(
-    conversationId: string,
-    hasLocalVideo: boolean,
-    source?: PresentedSource,
-    callLinkRootKey?: string
-  ): Promise<void> {
+  async setPresenting({
+    conversationId,
+    hasLocalVideo,
+    mediaStream,
+    source,
+    callLinkRootKey,
+  }: SetPresentingOptionsType): Promise<void> {
     const call = getOwn(this.callsLookup, conversationId);
     if (!call) {
       log.warn('Trying to set presenting for a non-existent call');
@@ -2098,15 +2062,18 @@ export class CallingClass {
     }
 
     this.videoCapturer.disable();
-    if (source) {
+    const isPresenting = mediaStream != null;
+    if (isPresenting) {
       this.hadLocalVideoBeforePresenting = hasLocalVideo;
       drop(
         this.enableCaptureAndSend(call, {
-          // 15fps is much nicer but takes up a lot more CPU.
-          maxFramerate: 5,
-          maxHeight: 1800,
-          maxWidth: 2880,
-          screenShareSourceId: source.id,
+          maxFramerate: REQUESTED_SCREEN_SHARE_FRAMERATE,
+          maxHeight: REQUESTED_SCREEN_SHARE_HEIGHT,
+          maxWidth: REQUESTED_SCREEN_SHARE_WIDTH,
+          mediaStream,
+          onEnded: () => {
+            this.reduxInterface?.cancelPresenting();
+          },
         })
       );
       this.setOutgoingVideo(conversationId, true);
@@ -2118,11 +2085,10 @@ export class CallingClass {
       this.hadLocalVideoBeforePresenting = undefined;
     }
 
-    const isPresenting = Boolean(source);
     this.setOutgoingVideoIsScreenShare(call, isPresenting);
 
-    if (source) {
-      ipcRenderer.send('show-screen-share', source.name);
+    if (isPresenting) {
+      ipcRenderer.send('show-screen-share', source?.name);
 
       let url: string;
       let absolutePath: string | undefined;
@@ -2368,20 +2334,26 @@ export class CallingClass {
       await this.getAvailableIODevices();
 
     const preferredMicrophone = window.Events.getPreferredAudioInputDevice();
-    const selectedMicIndex = findBestMatchingAudioDeviceIndex({
-      available: availableMicrophones,
-      preferred: preferredMicrophone,
-    });
+    const selectedMicIndex = findBestMatchingAudioDeviceIndex(
+      {
+        available: availableMicrophones,
+        preferred: preferredMicrophone,
+      },
+      OS.isWindows()
+    );
     const selectedMicrophone =
       selectedMicIndex !== undefined
         ? availableMicrophones[selectedMicIndex]
         : undefined;
 
     const preferredSpeaker = window.Events.getPreferredAudioOutputDevice();
-    const selectedSpeakerIndex = findBestMatchingAudioDeviceIndex({
-      available: availableSpeakers,
-      preferred: preferredSpeaker,
-    });
+    const selectedSpeakerIndex = findBestMatchingAudioDeviceIndex(
+      {
+        available: availableSpeakers,
+        preferred: preferredSpeaker,
+      },
+      OS.isWindows()
+    );
     const selectedSpeaker =
       selectedSpeakerIndex !== undefined
         ? availableSpeakers[selectedSpeakerIndex]
@@ -2707,6 +2679,7 @@ export class CallingClass {
         urgent,
         isPartialSend,
         recipients,
+        groupId,
       });
 
       log.info('handleSendCallMessageToGroup() completed successfully');
@@ -2977,6 +2950,19 @@ export class CallingClass {
       localCallEvent,
       'CallingClass.handleAutoEndedIncomingCallRequest'
     );
+
+    if (!this.reduxInterface) {
+      log.error(
+        'handleAutoEndedIncomingCallRequest: Unable to update redux for call'
+      );
+    }
+    this.reduxInterface?.callStateChange({
+      acceptedTime: null,
+      callEndedReason,
+      callState: CallState.Ended,
+      conversationId: conversation.id,
+    });
+
     await updateCallHistoryFromLocalEvent(
       callEvent,
       receivedAtCounter ?? null,
@@ -3172,20 +3158,24 @@ export class CallingClass {
     function iceServerConfigToList(
       iceServerConfig: GetIceServersResultType
     ): Array<IceServer> {
-      return [
+      if (!iceServerConfig.relays) {
+        return [];
+      }
+
+      return iceServerConfig.relays.flatMap(iceServerGroup => [
         {
-          hostname: iceServerConfig.hostname ?? '',
-          username: iceServerConfig.username,
-          password: iceServerConfig.password,
-          urls: (iceServerConfig.urlsWithIps ?? []).slice(),
+          hostname: iceServerGroup.hostname ?? '',
+          username: iceServerGroup.username,
+          password: iceServerGroup.password,
+          urls: (iceServerGroup.urlsWithIps ?? []).slice(),
         },
         {
           hostname: '',
-          username: iceServerConfig.username,
-          password: iceServerConfig.password,
-          urls: (iceServerConfig.urls ?? []).slice(),
+          username: iceServerGroup.username,
+          password: iceServerGroup.password,
+          urls: (iceServerGroup.urls ?? []).slice(),
         },
-      ];
+      ]);
     }
 
     if (!window.textsecure.messaging) {

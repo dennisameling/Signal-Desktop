@@ -126,6 +126,12 @@ const IPC: IPCType = {
     log.info('shutdown');
     ipc.send('shutdown');
   },
+  startTrackingQueryStats: () => {
+    ipc.send('start-tracking-query-stats');
+  },
+  stopTrackingQueryStats: options => {
+    ipc.send('stop-tracking-query-stats', options);
+  },
   titleBarDoubleClick: () => {
     ipc.send('title-bar-double-click');
   },
@@ -360,8 +366,8 @@ ipc.on('show-window', () => {
   window.IPC.showWindow();
 });
 
-ipc.on('set-is-presenting', () => {
-  window.reduxActions?.calling?.setPresenting();
+ipc.on('cancel-presenting', () => {
+  window.reduxActions?.calling?.cancelPresenting();
 });
 
 ipc.on(

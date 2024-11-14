@@ -63,6 +63,28 @@ Signal Desktop makes use of the following open source projects.
     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
     IN THE SOFTWARE.
 
+## @indutny/mac-screen-share
+
+    Copyright Fedor Indutny, 2024.
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
 ## @indutny/range-finder
 
     Copyright Fedor Indutny, 2022.
@@ -3330,25 +3352,13 @@ Signal Desktop makes use of the following open source projects.
 
     The MIT License (MIT)
 
-    Copyright (c) 2010-2016 Robert Kieffer and other contributors
+    Copyright (c) 2010-2020 Robert Kieffer and other contributors
 
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
+    Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
+    The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE.
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ## uuid-browser
 
@@ -4290,7 +4300,7 @@ For more information on this, and how to apply and follow the GNU AGPL, see
 
 ```
 
-## attest 0.1.0, libsignal-ffi 0.58.0, libsignal-jni 0.58.0, libsignal-jni-testing 0.58.0, libsignal-node 0.58.0, signal-neon-futures 0.1.0, signal-neon-futures-tests 0.1.0, libsignal-bridge 0.1.0, libsignal-bridge-macros 0.1.0, libsignal-bridge-testing 0.1.0, libsignal-bridge-types 0.1.0, libsignal-core 0.1.0, signal-crypto 0.1.0, device-transfer 0.1.0, libsignal-keytrans 0.0.1, signal-media 0.1.0, libsignal-message-backup 0.1.0, libsignal-message-backup-macros 0.1.0, libsignal-net 0.1.0, signal-pin 0.1.0, poksho 0.7.0, libsignal-protocol 0.1.0, libsignal-svr3 0.1.0, usernames 0.1.0, zkcredential 0.1.0, zkgroup 0.9.0
+## libsignal-account-keys 0.1.0, attest 0.1.0, libsignal-ffi 0.60.2, libsignal-jni 0.60.2, libsignal-jni-testing 0.60.2, libsignal-node 0.60.2, signal-neon-futures 0.1.0, signal-neon-futures-tests 0.1.0, libsignal-bridge 0.1.0, libsignal-bridge-macros 0.1.0, libsignal-bridge-testing 0.1.0, libsignal-bridge-types 0.1.0, libsignal-core 0.1.0, signal-crypto 0.1.0, device-transfer 0.1.0, libsignal-keytrans 0.0.1, signal-media 0.1.0, libsignal-message-backup 0.1.0, libsignal-message-backup-macros 0.1.0, libsignal-net 0.1.0, libsignal-net-infra 0.1.0, poksho 0.7.0, libsignal-protocol 0.1.0, libsignal-svr3 0.1.0, usernames 0.1.0, zkcredential 0.1.0, zkgroup 0.9.0
 
 ```
 GNU AFFERO GENERAL PUBLIC LICENSE
@@ -5792,7 +5802,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 
-## bindgen 0.68.1
+## bindgen 0.70.1
 
 ```
 BSD 3-Clause License
@@ -6547,7 +6557,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
-## backtrace 0.3.74, cc 1.1.18, cfg-if 1.0.0, cmake 0.1.48, flate2 1.0.33, jobserver 0.1.32, openssl-probe 0.1.5, rustc-demangle 0.1.24, socket2 0.5.7
+## backtrace 0.3.74, cc 1.1.18, cfg-if 1.0.0, cmake 0.1.48, flate2 1.0.33, jobserver 0.1.32, openssl-probe 0.1.5, rustc-demangle 0.1.24, scoped-tls 1.0.1, socket2 0.5.7
 
 ```
 Copyright (c) 2014 Alex Crichton
@@ -6666,6 +6676,32 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+## mime 0.3.17
+
+```
+Copyright (c) 2014 Sean McArthur
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+```
+
 ## base64ct 1.6.0
 
 ```
@@ -6761,6 +6797,32 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+## unicase 2.7.0
+
+```
+Copyright (c) 2014-2017 Sean McArthur
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+```
+
 ## nom 7.1.3
 
 ```
@@ -6784,6 +6846,32 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+```
+
+## headers-core 0.2.0, headers 0.3.9
+
+```
+Copyright (c) 2014-2019 Sean McArthur
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
 
 ```
 
@@ -6818,7 +6906,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
-## hyper 1.4.1
+## hyper 0.14.30, hyper 1.4.1
 
 ```
 Copyright (c) 2014-2021 Sean McArthur
@@ -6843,7 +6931,7 @@ THE SOFTWARE.
 
 ```
 
-## either 1.13.0, itertools 0.13.0, petgraph 0.6.5
+## either 1.13.0, itertools 0.10.5, itertools 0.13.0, petgraph 0.6.5
 
 ```
 Copyright (c) 2015
@@ -6986,7 +7074,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
-## gimli 0.31.0, heck 0.5.0, peeking_take_while 0.1.2, unicode-bidi 0.3.15, unicode-normalization 0.1.23
+## gimli 0.31.0, heck 0.5.0, unicode-bidi 0.3.15, unicode-normalization 0.1.23
 
 ```
 Copyright (c) 2015 The Rust Project Developers
@@ -7396,6 +7484,37 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+## serde_urlencoded 0.7.1
+
+```
+Copyright (c) 2016 Anthony Ramine
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
 ## utf8parse 0.2.2
 
 ```
@@ -7458,7 +7577,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
-## rustls-native-certs 0.7.3, rustls-pemfile 2.1.3, rustls 0.23.13
+## rustls-native-certs 0.7.3, rustls-pemfile 2.1.3, rustls 0.22.4, rustls 0.23.13
 
 ```
 Copyright (c) 2016 Joseph Birr-Pixton <jpixton@gmail.com>
@@ -7517,6 +7636,31 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+
+```
+
+## httpdate 1.0.3
+
+```
+Copyright (c) 2016 Pyfisch
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 ```
 
@@ -7826,7 +7970,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
-## tungstenite 0.23.0
+## tungstenite 0.21.0, tungstenite 0.23.0
 
 ```
 Copyright (c) 2017 Alexey Galakhov
@@ -7945,7 +8089,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
-## tokio-tungstenite 0.23.1
+## tokio-tungstenite 0.21.0, tokio-tungstenite 0.23.1
 
 ```
 Copyright (c) 2017 Daniel Abramov
@@ -8022,7 +8166,7 @@ SOFTWARE.
 
 ```
 
-## h2 0.4.6
+## h2 0.3.26, h2 0.4.6
 
 ```
 Copyright (c) 2017 h2 authors
@@ -8053,10 +8197,41 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
-## http 1.1.0
+## http 0.2.12, http 1.1.0
 
 ```
 Copyright (c) 2017 http-rs authors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+## tokio-rustls 0.25.0
+
+```
+Copyright (c) 2017 quininer kel
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -8328,6 +8503,32 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
+## warp 0.3.7
+
+```
+Copyright (c) 2018-2020 Sean McArthur
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+```
+
 ## cbc 0.1.2, ctr 0.9.2
 
 ```
@@ -8512,7 +8713,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
-## http-body-util 0.1.2
+## http-body-util 0.1.2, http-body 0.4.6
 
 ```
 Copyright (c) 2019 Hyper Contributors
@@ -8692,7 +8893,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
-## aes-gcm-siv 0.11.1, chacha20poly1305 0.10.1
+## aes-gcm-siv 0.11.1, aes-gcm 0.10.3, chacha20poly1305 0.10.1
 
 ```
 Copyright (c) 2019 The RustCrypto Project Developers
@@ -8759,6 +8960,37 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 Copyright (c) 2019 Tokio Contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+## tower-service 0.3.3
+
+```
+Copyright (c) 2019 Tower Contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -9988,6 +10220,33 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## multer 2.1.0
+
+```
+MIT License
+
+Copyright (c) 2020 Rousan Ali
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
 ## tinyvec_macros 0.1.1
 
 ```
@@ -10217,39 +10476,7 @@ SOFTWARE.
 
 ```
 
-## lazycell 1.3.0
-
-```
-Original work Copyright (c) 2014 The Rust Project Developers
-Modified work Copyright (c) 2016-2018 Nikita Pekin and lazycell contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-```
-
-## curve25519-dalek-derive 0.1.1, adler2 2.0.0, anyhow 1.0.88, async-trait 0.1.82, atomic-waker 1.1.2, displaydoc 0.2.5, dyn-clone 1.0.17, fastrand 2.1.1, home 0.5.9, itoa 1.0.11, linkme-impl 0.3.28, linkme 0.3.28, linux-raw-sys 0.4.14, minimal-lexical 0.2.1, num_enum 0.7.3, num_enum_derive 0.7.3, once_cell 1.19.0, paste 1.0.15, pin-project-lite 0.2.14, prettyplease 0.2.22, proc-macro-crate 3.2.0, proc-macro2 1.0.86, quote 1.0.37, rustc-hash 1.1.0, rustix 0.38.37, rustversion 1.0.17, semver 1.0.23, send_wrapper 0.6.0, serde 1.0.210, serde_derive 1.0.210, serde_json 1.0.128, syn-mid 0.6.0, syn 1.0.109, syn 2.0.77, thiserror-impl 1.0.63, thiserror 1.0.63, unicode-ident 1.0.13, utf-8 0.7.6
+## curve25519-dalek-derive 0.1.1, adler2 2.0.0, anyhow 1.0.88, async-trait 0.1.82, atomic-waker 1.1.2, displaydoc 0.2.5, dyn-clone 1.0.17, fastrand 2.1.1, home 0.5.9, itoa 1.0.11, linkme-impl 0.3.28, linkme 0.3.28, linux-raw-sys 0.4.14, minimal-lexical 0.2.1, num_enum 0.7.3, num_enum_derive 0.7.3, once_cell 1.19.0, paste 1.0.15, pin-project-internal 1.1.5, pin-project-lite 0.2.14, pin-project 1.1.5, prettyplease 0.2.22, proc-macro-crate 3.2.0, proc-macro2 1.0.86, quote 1.0.37, rustc-hash 1.1.0, rustix 0.38.37, rustversion 1.0.17, semver 1.0.23, send_wrapper 0.6.0, serde 1.0.210, serde_derive 1.0.210, serde_json 1.0.128, syn-mid 0.6.0, syn 1.0.109, syn 2.0.77, thiserror-impl 1.0.63, thiserror 1.0.63, unicode-ident 1.0.13, utf-8 0.7.6
 
 ```
 Permission is hereby granted, free of charge, to any
@@ -10418,7 +10645,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-## base64 0.22.1
+## base64 0.21.7, base64 0.22.1
 
 ```
 The MIT License (MIT)
@@ -10942,6 +11169,34 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+```
+
+## mime_guess 2.0.5
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2015 Austin Bonander
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
 
 ```
 
@@ -11756,7 +12011,7 @@ For more information on this, and how to apply and follow the GNU AGPL, see
 
 ```
 
-## libsignal-core 0.1.0, mrp 2.48.0, protobuf 2.48.0, ringrtc 2.48.0, regex-aot 0.1.0, partial-default-derive 0.1.0
+## libsignal-core 0.1.0, mrp 2.48.6, protobuf 2.48.6, ringrtc 2.48.6, regex-aot 0.1.0, partial-default-derive 0.1.0
 
 ```
 GNU AFFERO GENERAL PUBLIC LICENSE
@@ -12540,6 +12795,25 @@ THIS SOFTWARE.
 
 ```
 
+## cubeb-core 0.17.0, cubeb-sys 0.17.0, cubeb 0.17.0
+
+```
+Copyright © 2017 Mozilla Foundation
+
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+```
+
 ## windows-sys 0.45.0, windows-sys 0.52.0, windows-targets 0.42.2, windows-targets 0.52.6, windows_aarch64_msvc 0.42.2, windows_aarch64_msvc 0.52.6, windows_x86_64_gnu 0.52.6, windows_x86_64_msvc 0.42.2, windows_x86_64_msvc 0.52.6
 
 ```
@@ -12688,7 +12962,7 @@ SOFTWARE.
 
 ```
 
-## cfg-if 1.0.0
+## cc 1.1.31, cfg-if 1.0.0, cmake 0.1.50, pkg-config 0.3.30
 
 ```
 Copyright (c) 2014 Alex Crichton
@@ -12750,7 +13024,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
-## bitflags 2.6.0, log 0.4.22, regex-automata 0.4.7, regex-syntax 0.8.4, regex 1.10.5
+## bitflags 1.3.2, bitflags 2.6.0, log 0.4.22, regex-automata 0.4.7, regex-syntax 0.8.4, regex 1.10.5
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -14197,7 +14471,7 @@ SOFTWARE.
 
 ```
 
-## cesu8 1.1.0, neon 1.0.0, windows-core 0.57.0, windows-implement 0.57.0, windows-interface 0.57.0, windows-result 0.1.2, windows 0.57.0
+## cesu8 1.1.0, neon 1.0.0, windows-core 0.57.0, windows-core 0.58.0, windows-implement 0.57.0, windows-implement 0.58.0, windows-interface 0.57.0, windows-interface 0.58.0, windows-result 0.1.2, windows-result 0.2.0, windows-strings 0.1.0, windows 0.57.0, windows 0.58.0
 
 ```
 MIT License
@@ -14476,6 +14750,33 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
+
+```
+
+## shlex 1.3.0
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2015 Nicholas Allegra (comex).
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 ```
 
@@ -16508,6 +16809,33 @@ simplified BSD license.
    limitations under the License.
 
 
+   Copyright 2015 The Chromium Authors
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+
+      * Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+      * Redistributions in binary form must reproduce the above
+   copyright notice, this list of conditions and the following disclaimer
+   in the documentation and/or other materials provided with the
+   distribution.
+      * Neither the name of Google LLC nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 

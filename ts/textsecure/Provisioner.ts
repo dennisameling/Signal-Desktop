@@ -9,6 +9,8 @@ import { linkDeviceRoute } from '../util/signalRoutes';
 import { strictAssert } from '../util/assert';
 import { normalizeAci } from '../util/normalizeAci';
 import { normalizeDeviceName } from '../util/normalizeDeviceName';
+import { isLinkAndSyncEnabled } from '../util/isLinkAndSyncEnabled';
+import { MINUTE } from '../util/durations';
 import { MAX_DEVICE_NAME_LENGTH } from '../types/InstallScreen';
 import * as Errors from '../types/errors';
 import {
@@ -32,6 +34,7 @@ import {
   type IncomingWebSocketRequest,
   ServerRequestType,
 } from './WebsocketResources';
+import { InactiveTimeoutError } from './Errors';
 
 enum Step {
   Idle = 'Idle',
@@ -69,16 +72,27 @@ type StateType = Readonly<
 export type PrepareLinkDataOptionsType = Readonly<{
   deviceName: string;
   backupFile?: Uint8Array;
-  isBackupIntegration?: boolean;
 }>;
+
+export type ProvisionerOptionsType = Readonly<{
+  server: WebAPIType;
+  appVersion: string;
+}>;
+
+const INACTIVE_SOCKET_TIMEOUT = 30 * MINUTE;
 
 export class Provisioner {
   private readonly cipher = new ProvisioningCipher();
+  private readonly server: WebAPIType;
+  private readonly appVersion: string;
 
   private state: StateType = { step: Step.Idle };
   private wsr: IWebSocketResource | undefined;
 
-  constructor(private readonly server: WebAPIType) {}
+  constructor(options: ProvisionerOptionsType) {
+    this.server = options.server;
+    this.appVersion = options.appVersion;
+  }
 
   public close(error = new Error('Provisioner closed')): void {
     try {
@@ -119,6 +133,32 @@ export class Provisioner {
     });
     this.wsr = wsr;
 
+    let inactiveTimer: NodeJS.Timeout | undefined;
+
+    const onVisibilityChange = (): void => {
+      // Visible
+      if (!document.hidden) {
+        if (inactiveTimer != null) {
+          clearTimeout(inactiveTimer);
+        }
+        inactiveTimer = undefined;
+        return;
+      }
+
+      // Invisible, but already has a timer
+      if (inactiveTimer != null) {
+        return;
+      }
+
+      inactiveTimer = setTimeout(() => {
+        inactiveTimer = undefined;
+
+        this.close(new InactiveTimeoutError());
+      }, INACTIVE_SOCKET_TIMEOUT);
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     if (this.state.step !== Step.Connecting) {
       this.close();
       throw new Error('Provisioner closed early');
@@ -130,6 +170,13 @@ export class Provisioner {
     };
 
     wsr.addEventListener('close', ({ code, reason }) => {
+      // Unsubscribe from visibility changes
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (inactiveTimer != null) {
+        clearTimeout(inactiveTimer);
+      }
+      inactiveTimer = undefined;
+
       if (this.state.step === Step.ReadyToLink) {
         // WebSocket close is not an issue since we no longer need it
         return;
@@ -153,7 +200,6 @@ export class Provisioner {
   public prepareLinkData({
     deviceName,
     backupFile,
-    isBackupIntegration,
   }: PrepareLinkDataOptionsType): CreateLinkedDeviceOptionsType {
     strictAssert(
       this.state.step === Step.ReadyToLink,
@@ -173,6 +219,9 @@ export class Provisioner {
       untaggedPni,
       userAgent,
       readReceipts,
+      ephemeralBackupKey,
+      accountEntropyPool,
+      mediaRootBackupKey,
     } = envelope;
 
     strictAssert(number, 'prepareLinkData: missing number');
@@ -185,8 +234,8 @@ export class Provisioner {
       'prepareLinkData: missing profileKey'
     );
     strictAssert(
-      Bytes.isNotEmpty(masterKey),
-      'prepareLinkData: missing masterKey'
+      Bytes.isNotEmpty(masterKey) || accountEntropyPool,
+      'prepareLinkData: missing masterKey or accountEntropyPool'
     );
     strictAssert(
       isUntaggedPniString(untaggedPni),
@@ -211,13 +260,29 @@ export class Provisioner {
         MAX_DEVICE_NAME_LENGTH
       ),
       backupFile,
-      isBackupIntegration,
       userAgent,
       ourAci,
       ourPni,
       readReceipts: Boolean(readReceipts),
       masterKey,
+      ephemeralBackupKey,
+      accountEntropyPool,
+      mediaRootBackupKey,
     };
+  }
+
+  public isLinkAndSync(): boolean {
+    strictAssert(
+      this.state.step === Step.ReadyToLink,
+      `Invalid state for prepareLinkData: ${this.state.step}`
+    );
+
+    const { envelope } = this.state;
+
+    return (
+      isLinkAndSyncEnabled(this.appVersion) &&
+      Bytes.isNotEmpty(envelope.ephemeralBackupKey)
+    );
   }
 
   private handleRequest(request: IncomingWebSocketRequest): void {
@@ -242,6 +307,7 @@ export class Provisioner {
         .toAppUrl({
           uuid,
           pubKey: Bytes.toBase64(pubKey),
+          capabilities: isLinkAndSyncEnabled(this.appVersion) ? ['backup'] : [],
         })
         .toString();
 

@@ -144,7 +144,7 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version-file: '.nvmrc'
-    - run: sudo apt-get install xvfb
+    - run: sudo apt-get install xvfb libpulse0
 
     - run: npm install -g npm@10.2.5
 
@@ -189,12 +189,21 @@ jobs:
         DD_API_KEY: ${{ secrets.DATADOG_API_KEY }}
 
     - run: xvfb-run --auto-servernum npm run test-node
+
+    - name: Clone backup integration tests
+      uses: actions/checkout@v4
+      with:
+        repository: 'signalapp/Signal-Message-Backup-Tests'
+        ref: 'c84390838f65c6c0927c9bbcc3a240f986fc4a80'
+        path: 'backup-integration-tests'
+
     - run: xvfb-run --auto-servernum npm run test-electron
       timeout-minutes: 5
       env:
         ARTIFACTS_DIR: artifacts/linux
         LANG: en_US
         LANGUAGE: en_US
+        BACKUP_INTEGRATION_DIR: 'backup-integration-tests/test-cases'
     - run: xvfb-run --auto-servernum npm run test-release
       env:
         NODE_ENV: production
@@ -349,7 +358,7 @@ jobs:
       run: npm install -g npm@10.2.5
 
     - name: Install xvfb
-      run: sudo apt-get install xvfb
+      run: sudo apt-get install xvfb libpulse0
 
     - name: Cache Desktop node_modules
       id: cache-desktop-modules

@@ -53,6 +53,15 @@
   "icu:appleSilicon": {
     "messageformat": "Appleシリコン"
   },
+  "icu:About__AppEnvironment": {
+    "messageformat": "{appEnv}"
+  },
+  "icu:About__AppEnvironment--AppleSilicon": {
+    "messageformat": "{appEnv} (Apple silicon)"
+  },
+  "icu:About__AppEnvironment--AppleIntel": {
+    "messageformat": "{appEnv} (Intel)"
+  },
   "icu:copyErrorAndQuit": {
     "messageformat": "エラーメッセージをコピーして終了します"
   },
@@ -575,9 +584,6 @@
   "icu:decryptionErrorToast": {
     "messageformat": "デスクトップで {name} ({deviceId}) からの復号化でエラーが発生しました。"
   },
-  "icu:decryptionErrorToastAction": {
-    "messageformat": "ログを送信"
-  },
   "icu:Toast__ActionLabel--SubmitLog": {
     "messageformat": "ログを送信"
   },
@@ -680,6 +686,9 @@
   "icu:search": {
     "messageformat": "検索"
   },
+  "icu:searchUnreadChats": {
+    "messageformat": "Search unread chats"
+  },
   "icu:clearSearch": {
     "messageformat": "検索テキストを消去"
   },
@@ -689,11 +698,26 @@
   "icu:noSearchResults": {
     "messageformat": "「{searchTerm}」はありません"
   },
+  "icu:noSearchResultsWithUnreadFilter": {
+    "messageformat": "No results for \"{searchTerm}\" in unread chats"
+  },
+  "icu:noSearchResultsOnlyUnreadFilter": {
+    "messageformat": "No unread chats"
+  },
   "icu:noSearchResults--sms-only": {
     "messageformat": "SMS/MMSの連絡先はデスクトップでは利用できません。"
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "{conversationName} 内に「{searchTerm}」はありません"
+  },
+  "icu:conversationsUnreadHeader": {
+    "messageformat": "Filtered by unread"
+  },
+  "icu:filterByUnreadButtonLabel": {
+    "messageformat": "Filter by unread"
+  },
+  "icu:clearFilterButton": {
+    "messageformat": "Clear filter"
   },
   "icu:conversationsHeader": {
     "messageformat": "チャット"
@@ -791,8 +815,14 @@
   "icu:attachmentSaved": {
     "messageformat": "添付ファイルを保存しました。"
   },
+  "icu:attachmentSavedPlural": {
+    "messageformat": "{count, plural, other {{count,number}個の添付ファイルを保存しました。}}"
+  },
   "icu:attachmentSavedShow": {
     "messageformat": "フォルダで表示"
+  },
+  "icu:attachmentStillDownloading": {
+    "messageformat": "{count, plural, other {{count,number}個がまだダウンロードを完了していないため、添付ファイルを保存できません}}"
   },
   "icu:you": {
     "messageformat": "あなた"
@@ -944,9 +974,6 @@
   "icu:NotePreviewModal__Title": {
     "messageformat": "メモ"
   },
-  "icu:viewRecentMedia": {
-    "messageformat": "最近使用したメディア"
-  },
   "icu:allMediaMenuItem": {
     "messageformat": "すべてのメディア"
   },
@@ -1006,6 +1033,18 @@
   },
   "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
     "messageformat": "このチャット内のすべてのメッセージはこの端末から消去されます。メッセージを消去した後も、このチャットを検索できます。"
+  },
+  "icu:deleteConversation": {
+    "messageformat": "消去"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__title": {
+    "messageformat": "チャットを消去しますか？"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description": {
+    "messageformat": "このチャット内のすべてのメッセージはこの端末から消去されます。"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description-with-sync": {
+    "messageformat": "このチャット内のすべてのメッセージはこの端末から消去されます。"
   },
   "icu:ConversationHeader__ContextMenu__LeaveGroupAction__title": {
     "messageformat": "グループを退出する"
@@ -1232,6 +1271,9 @@
   "icu:calling__call-link-default-title": {
     "messageformat": "Signal通話"
   },
+  "icu:calling__call-link-delete-failed": {
+    "messageformat": "リンクを消去できません。インターネット接続を確認して再度試してください。"
+  },
   "icu:calling__join-request-denied": {
     "messageformat": "この通話への参加リクエストは拒否されました。"
   },
@@ -1415,6 +1457,9 @@
   "icu:calling__missing-media-keys": {
     "messageformat": "{name} からの音声と映像を受信できません"
   },
+  "icu:calling__missing-media-keys--unknown-contact": {
+    "messageformat": "音声と動画を受信できません"
+  },
   "icu:calling__missing-media-keys-info": {
     "messageformat": "相手があなたの安全番号の変更を検証していないか、相手の端末に問題があるか、あなたがブロックされている可能性があります。"
   },
@@ -1438,6 +1483,9 @@
   },
   "icu:calling__presenting--info": {
     "messageformat": "Signalが {window} を共有しています。"
+  },
+  "icu:calling__presenting--info--unknown": {
+    "messageformat": "Signalの画面共有がアクティブです"
   },
   "icu:calling__presenting--reconnecting": {
     "messageformat": "再接続しています…"
@@ -1621,6 +1669,9 @@
   },
   "icu:timestampFormat__long--yesterday": {
     "messageformat": "昨日 {time}"
+  },
+  "icu:messageLoop": {
+    "messageformat": "Signalが受信メッセージの処理に失敗している可能性があります。"
   },
   "icu:messageBodyTooLong": {
     "messageformat": "メッセージが長すぎます。"
@@ -2970,7 +3021,7 @@
     "messageformat": "管理者があなたを削除したため、グループリンクからはこのグループに参加できません。"
   },
   "icu:GroupV2--join--prompt-with-approval": {
-    "messageformat": "このグループに参加するには、グループ管理者の承認が必要です。承認されると、あなたの名前と画像がそのメンバーと共有されます。"
+    "messageformat": "このグループに参加するには、管理者の承認が必要です。参加を申請すると、あなたの名前と画像がそのメンバーと共有されます。"
   },
   "icu:GroupV2--join--join-button": {
     "messageformat": "参加する"
@@ -3530,6 +3581,9 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "{totalSize} のうち {currentSize}（{fractionComplete,number,percent}）"
   },
+  "icu:BackupImportScreen__progressbar-hint--processing": {
+    "messageformat": "メッセージの移行が間もなく完了します…"
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "ダウンロード中..."
   },
@@ -3538,6 +3592,9 @@
   },
   "icu:BackupImportScreen__cancel": {
     "messageformat": "転送をキャンセルする"
+  },
+  "icu:BackupImportScreen__security-description": {
+    "messageformat": "Messages and chat info are protected by end-to-end encryption, including the sync process. <learnMoreLink>Learn more</learnMoreLink>"
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
     "messageformat": "転送をキャンセルしますか？"
@@ -3551,17 +3608,44 @@
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
     "messageformat": "転送をキャンセルする"
   },
+  "icu:BackupImportScreen__error__title": {
+    "messageformat": "メッセージの移行中にエラーが発生しました"
+  },
+  "icu:BackupImportScreen__error__body": {
+    "messageformat": "メッセージを移行できませんでした。インターネット接続を確認して再度試してください。"
+  },
+  "icu:BackupImportScreen__error__confirm": {
+    "messageformat": "再試行"
+  },
+  "icu:BackupImportScreen__skip": {
+    "messageformat": "スキップ"
+  },
+  "icu:BackupImportScreen__skip-confirmation__title": {
+    "messageformat": "メッセージの移行をスキップしますか？"
+  },
+  "icu:BackupImportScreen__skip-confirmation__body": {
+    "messageformat": "スキップを選択すると、この端末上のメッセージやメディアにアクセスできなくなります。スキップした後は、設定 > チャット > 移行 から改めて移行の手続きができます。"
+  },
+  "icu:BackupImportScreen__skip-confirmation__cancel": {
+    "messageformat": "キャンセル"
+  },
   "icu:BackupMediaDownloadProgress__title-in-progress": {
     "messageformat": "メディアを復元中"
   },
   "icu:BackupMediaDownloadProgress__title-paused": {
-    "messageformat": "Restore paused"
+    "messageformat": "復元が中断されました"
+  },
+  "icu:BackupMediaDownloadProgress__title-idle": {
+    "messageformat": "{totalSize}のうち {currentSize}が復元されました"
+  },
+  "icu:BackupMediaDownloadProgress__description-idle": {
+    "messageformat": "メディアはバックグラウンドで引き続きダウンロードされます"
   },
   "icu:BackupMediaDownloadProgress__button-pause": {
-    "messageformat": "Pause transfer"
+    "messageformat": "転送を一時停止する"
   },
   "icu:BackupMediaDownloadProgress__button-resume": {
-    "messageformat": "Resume transfer"
+    "messageformat": "転送を再開する"
   },
   "icu:BackupMediaDownloadProgress__button-cancel": {
     "messageformat": "転送をキャンセルする"
@@ -3576,7 +3660,7 @@
     "messageformat": "{currentSize}/{totalSize}"
   },
   "icu:BackupMediaDownloadCancelConfirmation__title": {
-    "messageformat": "Cancel media transfer?"
+    "messageformat": "メディアの転送をキャンセルしますか？"
   },
   "icu:BackupMediaDownloadCancelConfirmation__description": {
     "messageformat": "メッセージとメディアの復元が完了していません。キャンセルした場合は、設定からもう一度転送できます。"
@@ -3634,9 +3718,6 @@
   },
   "icu:ContactModal--remove-from-group": {
     "messageformat": "グループから削除"
-  },
-  "icu:ContactModal--already-in-call": {
-    "messageformat": "あなたはすでに通話中です"
   },
   "icu:ContactModal--voice": {
     "messageformat": "音声通話"
@@ -4643,6 +4724,15 @@
   "icu:DialogNetworkStatus__outage": {
     "messageformat": "Signalは技術的な問題を抱えています。私たちは、これをできるだけ早く解決するよう対応しています。"
   },
+  "icu:InstallScreenUpdateDialog--update-required__title": {
+    "messageformat": "Update Required"
+  },
+  "icu:InstallScreenUpdateDialog--update-required__body": {
+    "messageformat": "To complete syncing your messages, update Signal desktop now."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__action-update": {
+    "messageformat": "Update"
+  },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "アップデートが必要です"
   },
@@ -4925,9 +5015,6 @@
   "icu:Stories__placeholder--text": {
     "messageformat": "クリックしてストーリーを表示"
   },
-  "icu:Stories__placeholder-with-icon--text": {
-    "messageformat": "<newStoryIcon>ストーリーを追加</newStoryIcon> をクリックして更新を追加します。"
-  },
   "icu:Stories__placeholder-with-icon--text-2": {
     "messageformat": "<newStoryButtonIcon></newStoryButtonIcon> をクリックしてストーリーに追加する。"
   },
@@ -5171,9 +5258,6 @@
   "icu:StoryViewsNRepliesModal__tab--replies": {
     "messageformat": "返信"
   },
-  "icu:StoryViewsNRepliesModal__reacted": {
-    "messageformat": "ストーリーにリアクションがありました"
-  },
   "icu:StoryViewsNRepliesModal__reacted--you": {
     "messageformat": "ストーリーにリアクションしました"
   },
@@ -5196,7 +5280,7 @@
     "messageformat": "ストーリー"
   },
   "icu:StoryListItem__unhide": {
-    "messageformat": "ストーリーを表示"
+    "messageformat": "ストーリーを再表示"
   },
   "icu:StoryListItem__hide": {
     "messageformat": "ストーリーを非表示にする"
@@ -5467,7 +5551,10 @@
     "messageformat": "通話履歴を消去しますか？"
   },
   "icu:CallsTab__ConfirmClearCallHistory__Body": {
-    "messageformat": "すべての通話履歴を完全に消去します"
+    "messageformat": "すべての通話履歴を完全に消去します。"
+  },
+  "icu:CallsTab__ConfirmClearCallHistory__Body--call-links": {
+    "messageformat": "すべての通話履歴を完全に消去します。作成した通話リンクを消去すると、共有している他のメンバーもこのリンクを使えなくなります。 "
   },
   "icu:CallsTab__ConfirmClearCallHistory__ConfirmButton": {
     "messageformat": "消去する"
@@ -5475,14 +5562,23 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "通話履歴がクリアされました"
   },
-  "icu:CallsTab__EmptyStateText--with-icon": {
-    "messageformat": "<newCallIcon>通話する</newCallIcon> をクリックして、音声通話またはビデオ通話を開始します。"
+  "icu:CallsTab__ClearCallHistoryError--call-links": {
+    "messageformat": "一部の通話リンクを消去できませんでした。インターネット接続を確認して再度試してください。"
+  },
+  "icu:CallsTab__ClearCallHistoryError": {
+    "messageformat": "一部の通話履歴を消去できませんでした。インターネット接続を確認して再度試してください。"
   },
   "icu:CallsTab__EmptyStateText--with-icon-2": {
     "messageformat": "<newCallButtonIcon></newCallButtonIcon>をクリックして新しい音声通話またはビデオ通話を開始する。"
   },
+  "icu:CallsList__SearchInputPlaceholder--missed-calls": {
+    "messageformat": "Search missed calls"
+  },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "検索"
+  },
+  "icu:CallsList__FilteredByMissedHeader": {
+    "messageformat": "Filtered by missed"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "不在着信でフィルタリングする"
@@ -5496,14 +5592,14 @@
   "icu:CallsList__EmptyState--noQuery__subtitle": {
     "messageformat": "最近の通話がここに表示されます。"
   },
-  "icu:CallsList__EmptyState--noQuery--missed__title": {
-    "messageformat": "不在着信はありません"
-  },
-  "icu:CallsList__EmptyState--noQuery--missed__subtitle": {
-    "messageformat": "最近の不在着信がここに表示されます。"
-  },
   "icu:CallsList__EmptyState--hasQuery": {
     "messageformat": "“{query}” の検索結果はありません"
+  },
+  "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
+    "messageformat": "No results for “{query}” in missed calls"
+  },
+  "icu:CallsList__EmptyState--missedCalls": {
+    "messageformat": "No missed calls"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "通話リンクを作成する"
@@ -5674,19 +5770,16 @@
     "messageformat": "細かな微調整、バグ修正、パフォーマンスの向上。 Signalをご利用いただきありがとうございます。",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.23--0": {
-    "messageformat": "さらなるパフォーマンス改善により、チャットがこれまで以上に速く開けるようになりました。"
+  "icu:WhatsNew__v7.33--0": {
+    "messageformat": "今回のリリースでは、絵文字テキストの選択に関するバグも修正されています。ありがとう、<linkKhuddite>@khuddite</linkKhuddite>！"
   },
-  "icu:WhatsNew__v7.23--1": {
-    "messageformat": "通話開始後に、チャットリストの概要に「不明な連絡先がビデオ通話を開始しました」と表示されることがあったいくつかのバグなども修正しました。"
+  "icu:WhatsNew__v7.34--0": {
+    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say."
   },
-  "icu:WhatsNew__v7.24--0": {
-    "messageformat": "このアップデートでは、ある端末で不在着信を表示しても、他の端末でその不在着信のお知らせが自動的にクリアされないというバグが修正されました。"
+  "icu:WhatsNew__v7.34--1": {
+    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore."
   },
-  "icu:WhatsNew__v7.25--0": {
-    "messageformat": "今後は、チャットのヘッダーをクリックして「共有されたメディア」で「すべて表示」を選択すると、過去の写真や動画が自動で表示されるようになります。"
-  },
-  "icu:WhatsNew__v7.26--0": {
-    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
+  "icu:WhatsNew__v7.34--2": {
+    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality."
   }
 }

@@ -8,6 +8,7 @@ import type { Readable, Writable } from 'stream';
 import { Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import { ensureFile } from 'fs-extra';
+
 import * as log from '../logging/log';
 import * as Errors from '../types/errors';
 import { strictAssert } from '../util/assert';
@@ -18,11 +19,6 @@ import {
   AttachmentVariant,
 } from '../types/Attachment';
 import * as Bytes from '../Bytes';
-import {
-  deriveBackupMediaKeyMaterial,
-  type BackupMediaKeyMaterialType,
-  deriveBackupMediaThumbnailInnerEncryptionKeyMaterial,
-} from '../Crypto';
 import {
   getAttachmentCiphertextLength,
   safeUnlink,
@@ -35,7 +31,11 @@ import type { ProcessedAttachment } from './Types.d';
 import type { WebAPIType } from './WebAPI';
 import { createName, getRelativePath } from '../util/attachmentPath';
 import { MediaTier } from '../types/AttachmentDownload';
-import { getBackupKey } from '../services/backups/crypto';
+import {
+  getBackupMediaRootKey,
+  deriveBackupMediaKeyMaterial,
+  type BackupMediaKeyMaterialType,
+} from '../services/backups/crypto';
 import { backupsService } from '../services/backups';
 import {
   getMediaIdForAttachment,
@@ -44,6 +44,7 @@ import {
 import { MAX_BACKUP_THUMBNAIL_SIZE } from '../types/VisualAttachment';
 import { missingCaseError } from '../util/missingCaseError';
 import { IV_LENGTH, MAC_LENGTH } from '../types/Crypto';
+import { BackupCredentialType } from '../types/backups';
 
 const DEFAULT_BACKUP_CDN_NUMBER = 3;
 
@@ -57,7 +58,7 @@ function getBackupMediaOuterEncryptionKeyMaterial(
   attachment: AttachmentType
 ): BackupMediaKeyMaterialType {
   const mediaId = getMediaIdForAttachment(attachment);
-  const backupKey = getBackupKey();
+  const backupKey = getBackupMediaRootKey();
   return deriveBackupMediaKeyMaterial(backupKey, mediaId.bytes);
 }
 
@@ -65,17 +66,14 @@ function getBackupThumbnailInnerEncryptionKeyMaterial(
   attachment: AttachmentType
 ): BackupMediaKeyMaterialType {
   const mediaId = getMediaIdForAttachmentThumbnail(attachment);
-  const backupKey = getBackupKey();
-  return deriveBackupMediaThumbnailInnerEncryptionKeyMaterial(
-    backupKey,
-    mediaId.bytes
-  );
+  const backupKey = getBackupMediaRootKey();
+  return deriveBackupMediaKeyMaterial(backupKey, mediaId.bytes);
 }
 function getBackupThumbnailOuterEncryptionKeyMaterial(
   attachment: AttachmentType
 ): BackupMediaKeyMaterialType {
   const mediaId = getMediaIdForAttachmentThumbnail(attachment);
-  const backupKey = getBackupKey();
+  const backupKey = getBackupMediaRootKey();
   return deriveBackupMediaKeyMaterial(backupKey, mediaId.bytes);
 }
 
@@ -113,7 +111,7 @@ export async function downloadAttachment(
 ): Promise<ReencryptedAttachmentV2 & { size?: number }> {
   const logId = `downloadAttachment/${options.logPrefix ?? ''}`;
 
-  const { digest, key, size } = attachment;
+  const { chunkSize, digest, incrementalMac, key, size } = attachment;
 
   strictAssert(digest, `${logId}: missing digest`);
   strictAssert(key, `${logId}: missing key`);
@@ -188,7 +186,10 @@ export async function downloadAttachment(
 
     const cdnNumber = await getCdnNumberForBackupTier(attachment);
     const cdnCredentials =
-      await backupsService.credentials.getCDNReadCredentials(cdnNumber);
+      await backupsService.credentials.getCDNReadCredentials(
+        cdnNumber,
+        BackupCredentialType.Media
+      );
 
     const backupDir = await backupsService.api.getBackupDir();
     const mediaDir = await backupsService.api.getMediaDir();
@@ -232,6 +233,10 @@ export async function downloadAttachment(
           macKey,
           size,
           theirDigest: Bytes.fromBase64(digest),
+          theirIncrementalMac: incrementalMac
+            ? Bytes.fromBase64(incrementalMac)
+            : undefined,
+          theirChunkSize: chunkSize,
           outerEncryption:
             mediaTier === 'backup'
               ? getBackupMediaOuterEncryptionKeyMaterial(attachment)

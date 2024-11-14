@@ -13,7 +13,6 @@ import type {
   SendGroupCallRaiseHandType,
   SendGroupCallReactionType,
   SetLocalAudioType,
-  SetLocalPreviewType,
   SetLocalVideoType,
   SetRendererCanvasType,
 } from '../state/ducks/calling';
@@ -29,7 +28,6 @@ import type {
   ActiveCallReactionsType,
   ConversationsByDemuxIdType,
   GroupCallVideoRequest,
-  PresentedSource,
 } from '../types/Calling';
 import {
   CALLING_REACTIONS_LIFETIME,
@@ -97,6 +95,7 @@ export type PropsType = {
   activeCall: ActiveCallType;
   approveUser: (payload: PendingUserActionPayloadType) => void;
   batchUserAction: (payload: BatchUserActionPayloadType) => void;
+  cancelPresenting: () => void;
   denyUser: (payload: PendingUserActionPayloadType) => void;
   getGroupCallVideoFrameSource: (demuxId: number) => VideoFrameSource;
   getPresentingSources: () => void;
@@ -105,7 +104,6 @@ export type PropsType = {
   i18n: LocalizerType;
   imageDataCache: React.RefObject<CallingImageDataCache>;
   isCallLinkAdmin: boolean;
-  isGroupCallRaiseHandEnabled: boolean;
   me: ConversationType;
   openSystemPreferencesAction: () => unknown;
   renderReactionPicker: (
@@ -119,8 +117,7 @@ export type PropsType = {
   ) => void;
   setLocalAudio: (_: SetLocalAudioType) => void;
   setLocalVideo: (_: SetLocalVideoType) => void;
-  setLocalPreview: (_: SetLocalPreviewType) => void;
-  setPresenting: (_?: PresentedSource) => void;
+  setLocalPreviewContainer: (container: HTMLDivElement | null) => void;
   setRendererCanvas: (_: SetRendererCanvasType) => void;
   stickyControls: boolean;
   switchToPresentationView: () => void;
@@ -190,6 +187,7 @@ export function CallScreen({
   activeCall,
   approveUser,
   batchUserAction,
+  cancelPresenting,
   changeCallView,
   denyUser,
   getGroupCallVideoFrameSource,
@@ -199,7 +197,6 @@ export function CallScreen({
   i18n,
   imageDataCache,
   isCallLinkAdmin,
-  isGroupCallRaiseHandEnabled,
   me,
   openSystemPreferencesAction,
   renderEmojiPicker,
@@ -209,8 +206,7 @@ export function CallScreen({
   sendGroupCallReaction,
   setLocalAudio,
   setLocalVideo,
-  setLocalPreview,
-  setPresenting,
+  setLocalPreviewContainer,
   setRendererCanvas,
   stickyControls,
   switchToPresentationView,
@@ -260,11 +256,11 @@ export function CallScreen({
 
   const togglePresenting = useCallback(() => {
     if (presentingSource) {
-      setPresenting();
+      cancelPresenting();
     } else {
       getPresentingSources();
     }
-  }, [getPresentingSources, presentingSource, setPresenting]);
+  }, [getPresentingSources, presentingSource, cancelPresenting]);
 
   const hangUp = useCallback(() => {
     hangUpActiveCall('button click');
@@ -294,15 +290,6 @@ export function CallScreen({
   }, [setControlsHover]);
 
   const [showControls, setShowControls] = useState(true);
-
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
-
-  useEffect(() => {
-    setLocalPreview({ element: localVideoRef });
-    return () => {
-      setLocalPreview({ element: undefined });
-    };
-  }, [setLocalPreview, setRendererCanvas]);
 
   useEffect(() => {
     if (
@@ -432,7 +419,10 @@ export function CallScreen({
         )}
       >
         {isSendingVideo ? (
-          <video ref={localVideoRef} autoPlay />
+          <div
+            className="module-ongoing-call__local-preview-container"
+            ref={setLocalPreviewContainer}
+          />
         ) : (
           <CallBackgroundBlur avatarUrl={me.avatarUrl}>
             <div className="module-calling__spacer module-calling__camera-is-off-spacer" />
@@ -445,14 +435,13 @@ export function CallScreen({
     );
   } else {
     localPreviewNode = isSendingVideo ? (
-      <video
+      <div
         className={classNames(
           'module-ongoing-call__footer__local-preview__video',
           presentingSource &&
             'module-ongoing-call__footer__local-preview__video--presenting'
         )}
-        ref={localVideoRef}
-        autoPlay
+        ref={setLocalPreviewContainer}
       />
     ) : (
       <CallBackgroundBlur avatarUrl={me.avatarUrl}>
@@ -671,8 +660,7 @@ export function CallScreen({
         />
       );
     }
-    // joinedAt is only available for direct calls
-    if (isConnected) {
+    if (isConnected && activeCall.callMode === CallMode.Direct) {
       return <CallDuration joinedAt={activeCall.joinedAt} />;
     }
     if (hasLocalVideo) {
@@ -724,6 +712,7 @@ export function CallScreen({
           getGroupCallVideoFrameSource={getGroupCallVideoFrameSource}
           imageDataCache={imageDataCache}
           i18n={i18n}
+          joinedAt={activeCall.joinedAt}
           remoteParticipants={activeCall.remoteParticipants}
           setGroupCallVideoRequest={setGroupCallVideoRequest}
           remoteAudioLevels={activeCall.remoteAudioLevels}
@@ -859,7 +848,7 @@ export function CallScreen({
         renderRaisedHandsToast={renderRaisedHandsToast}
         i18n={i18n}
       />
-      {pendingParticipants.length ? (
+      {isCallLinkAdmin ? (
         <CallingPendingParticipants
           i18n={i18n}
           participants={pendingParticipants}
@@ -942,7 +931,7 @@ export function CallScreen({
               onClick={toggleAudio}
               tooltipDirection={TooltipPlacement.Top}
             />
-            {isGroupCallRaiseHandEnabled && raiseHandButtonType && (
+            {raiseHandButtonType && (
               <CallingButton
                 buttonType={raiseHandButtonType}
                 i18n={i18n}

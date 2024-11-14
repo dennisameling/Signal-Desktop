@@ -53,6 +53,15 @@
   "icu:appleSilicon": {
     "messageformat": "اپل سیلیکون"
   },
+  "icu:About__AppEnvironment": {
+    "messageformat": "{appEnv}"
+  },
+  "icu:About__AppEnvironment--AppleSilicon": {
+    "messageformat": "{appEnv} (Apple silicon)"
+  },
+  "icu:About__AppEnvironment--AppleIntel": {
+    "messageformat": "{appEnv} (Intel)"
+  },
   "icu:copyErrorAndQuit": {
     "messageformat": "کپی از خطا و خروج"
   },
@@ -575,9 +584,6 @@
   "icu:decryptionErrorToast": {
     "messageformat": "برنامه دسکتاپ در رمزگشایی از سمت {name}، دستگاه {deviceId} دچار خطا شد."
   },
-  "icu:decryptionErrorToastAction": {
-    "messageformat": "ارسال گزارش"
-  },
   "icu:Toast__ActionLabel--SubmitLog": {
     "messageformat": "ارسال گزارش"
   },
@@ -680,6 +686,9 @@
   "icu:search": {
     "messageformat": "جستجو"
   },
+  "icu:searchUnreadChats": {
+    "messageformat": "Search unread chats"
+  },
   "icu:clearSearch": {
     "messageformat": "پاک کردن جستجو"
   },
@@ -689,11 +698,26 @@
   "icu:noSearchResults": {
     "messageformat": "هیچ نتیجه ای برای \"{searchTerm}\" یافت نشد"
   },
+  "icu:noSearchResultsWithUnreadFilter": {
+    "messageformat": "No results for \"{searchTerm}\" in unread chats"
+  },
+  "icu:noSearchResultsOnlyUnreadFilter": {
+    "messageformat": "No unread chats"
+  },
   "icu:noSearchResults--sms-only": {
     "messageformat": "مخاطبین پیامک/پیام چندرسانه‌ای در دسکتاپ در دسترس نیستند."
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "هیچ نتیجه ای برای{searchTerm}در {conversationName}"
+  },
+  "icu:conversationsUnreadHeader": {
+    "messageformat": "Filtered by unread"
+  },
+  "icu:filterByUnreadButtonLabel": {
+    "messageformat": "Filter by unread"
+  },
+  "icu:clearFilterButton": {
+    "messageformat": "Clear filter"
   },
   "icu:conversationsHeader": {
     "messageformat": "گفتگوها"
@@ -791,8 +815,14 @@
   "icu:attachmentSaved": {
     "messageformat": "پیوست ذخیره شد"
   },
+  "icu:attachmentSavedPlural": {
+    "messageformat": "{count, plural, one {پیوست ذخیره شد} other {{count,number} پیوست ذخیره شد}}"
+  },
   "icu:attachmentSavedShow": {
     "messageformat": "نمایش در پوشه"
+  },
+  "icu:attachmentStillDownloading": {
+    "messageformat": "{count, plural, one {پیوست ذخیره نشد، زیرا هنوز دانلود آن تمام نشده است} other {پیوست‌ها ذخیره نشد، زیرا هنوز دانلود {count,number} پیوست تمام نشده است}}"
   },
   "icu:you": {
     "messageformat": "شما"
@@ -944,9 +974,6 @@
   "icu:NotePreviewModal__Title": {
     "messageformat": "یادداشت"
   },
-  "icu:viewRecentMedia": {
-    "messageformat": "مشاهدهٔ رسانه‌های اخیر"
-  },
   "icu:allMediaMenuItem": {
     "messageformat": "همه رسانه‌ها"
   },
@@ -1006,6 +1033,18 @@
   },
   "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
     "messageformat": "همه پیام‌های این گفتگو از همه دستگاه‌های شما حذف خواهد شد. بعد از حذف پیام‌ها همچنان می‌توانید این گفتگو را جستجو کنید."
+  },
+  "icu:deleteConversation": {
+    "messageformat": "پاک کردن"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__title": {
+    "messageformat": "گفتگو پاک شود؟"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description": {
+    "messageformat": "همۀ پیام‌های این گفتگو از این دستگاه حذف خواهد شد."
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description-with-sync": {
+    "messageformat": "همه پیام‌های این گفتگو از همه دستگاه‌های شما حذف خواهد شد."
   },
   "icu:ConversationHeader__ContextMenu__LeaveGroupAction__title": {
     "messageformat": "ترک گروه"
@@ -1232,6 +1271,9 @@
   "icu:calling__call-link-default-title": {
     "messageformat": "تماس با سیگنال"
   },
+  "icu:calling__call-link-delete-failed": {
+    "messageformat": "پیوند قابل حذف نیست. اتصال خود را بررسی و دوباره تلاش کنید."
+  },
   "icu:calling__join-request-denied": {
     "messageformat": "درخواست شما برای پیوستن به این تماس رد شده است."
   },
@@ -1415,6 +1457,9 @@
   "icu:calling__missing-media-keys": {
     "messageformat": "دریافت صدا و تصویر از {name} ممکن نیست"
   },
+  "icu:calling__missing-media-keys--unknown-contact": {
+    "messageformat": "دریافت صدا و تصویر ممکن نیست"
+  },
   "icu:calling__missing-media-keys-info": {
     "messageformat": "این می‌تواند به این دلیل باشد که او تغییر شماره امنیتی شما را تأیید نکرده، مشکلی برای دستگاهش پیش آمده یا شما را مسدود کرده است."
   },
@@ -1438,6 +1483,9 @@
   },
   "icu:calling__presenting--info": {
     "messageformat": "سیگنال در حال اشتراک {window} است."
+  },
+  "icu:calling__presenting--info--unknown": {
+    "messageformat": "اشتراک‌گذاری صفحه در سیگنال فعال است"
   },
   "icu:calling__presenting--reconnecting": {
     "messageformat": "در حال اتصال دوباره..."
@@ -1622,6 +1670,9 @@
   "icu:timestampFormat__long--yesterday": {
     "messageformat": "دیروز {time}"
   },
+  "icu:messageLoop": {
+    "messageformat": "سیگنال ممکن است پیام دریافتی را پردازش نکند."
+  },
   "icu:messageBodyTooLong": {
     "messageformat": "متن پیام بیش از حد طولانی می باشد."
   },
@@ -1716,7 +1767,7 @@
     "messageformat": "سیستم"
   },
   "icu:noteToSelf": {
-    "messageformat": "یادداشت به خود"
+    "messageformat": "یادداشت برای خود"
   },
   "icu:noteToSelfHero": {
     "messageformat": "می‌توانید برای خودتان در این گفتگو یادداشت اضافه کنید. اگر حساب شما هرگونه دستگاه پیوندداده‌شده داشته باشد، یادداشت‌های جدید همگام‌سازی خواهند شد."
@@ -2970,7 +3021,7 @@
     "messageformat": "شما نمی‌توانید از طریق پیوند گروه به این گروه بپیوندید، چون یک مدیر شما را حذف کرده است."
   },
   "icu:GroupV2--join--prompt-with-approval": {
-    "messageformat": "یک مدیر از این گروه باید با درخواست شما قبل از پیوستن به گروه، موافقت کند. در صورت موافقت، نام و عکس شما با اعضای گروه به اشتراک گذاشته خواهد شد."
+    "messageformat": "یک مدیر از این گروه باید با درخواست شما قبل از پیوستن به گروه، موافقت کند. هنگامی که درخواست عضویت می‌دهید، نام و عکس شما با اعضای گروه به اشتراک گذاشته خواهد شد."
   },
   "icu:GroupV2--join--join-button": {
     "messageformat": "پیوستن"
@@ -3530,6 +3581,9 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "در حال دانلود {currentSize} از {totalSize} ({fractionComplete,number,percent})..."
   },
+  "icu:BackupImportScreen__progressbar-hint--processing": {
+    "messageformat": "در حال تکمیل انتقال پیام..."
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "در حال آماده‌سازی برای دانلود..."
   },
@@ -3538,6 +3592,9 @@
   },
   "icu:BackupImportScreen__cancel": {
     "messageformat": "لغو انتقال"
+  },
+  "icu:BackupImportScreen__security-description": {
+    "messageformat": "Messages and chat info are protected by end-to-end encryption, including the sync process. <learnMoreLink>Learn more</learnMoreLink>"
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
     "messageformat": "انتقال لغو شود؟"
@@ -3551,17 +3608,44 @@
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
     "messageformat": "لغو انتقال"
   },
+  "icu:BackupImportScreen__error__title": {
+    "messageformat": "خطا در انتقال پیام‌های شما"
+  },
+  "icu:BackupImportScreen__error__body": {
+    "messageformat": "پیام‌های شما قابل انتقال نیست. اتصال اینترنت خود را بررسی و دوباره امتحان کنید."
+  },
+  "icu:BackupImportScreen__error__confirm": {
+    "messageformat": "تلاش مجدد"
+  },
+  "icu:BackupImportScreen__skip": {
+    "messageformat": "رد کردن"
+  },
+  "icu:BackupImportScreen__skip-confirmation__title": {
+    "messageformat": "انتقال پیام رد شود؟"
+  },
+  "icu:BackupImportScreen__skip-confirmation__body": {
+    "messageformat": "اگر رد شوید، به هیچ یک از پیام‌ها یا رسانه‌های خود در این دستگاه دسترسی نخواهید داشت. پس از رد کردن، می‌توانید از قسمت «تنظیمات» > «گفتگوها» > «انتقال»، انتقال جدیدی را شروع کنید."
+  },
+  "icu:BackupImportScreen__skip-confirmation__cancel": {
+    "messageformat": "لغو"
+  },
   "icu:BackupMediaDownloadProgress__title-in-progress": {
     "messageformat": "در حال بازیابی رسانه"
   },
   "icu:BackupMediaDownloadProgress__title-paused": {
-    "messageformat": "Restore paused"
+    "messageformat": "بازیابی موقتاً متوقف شد"
+  },
+  "icu:BackupMediaDownloadProgress__title-idle": {
+    "messageformat": "{currentSize} از {totalSize} بازیابی شد"
+  },
+  "icu:BackupMediaDownloadProgress__description-idle": {
+    "messageformat": "دانلود رسانه در پس‌زمینه ادامه خواهد یافت"
   },
   "icu:BackupMediaDownloadProgress__button-pause": {
-    "messageformat": "Pause transfer"
+    "messageformat": "توقف موقت انتقال"
   },
   "icu:BackupMediaDownloadProgress__button-resume": {
-    "messageformat": "Resume transfer"
+    "messageformat": "ازسرگیری انتقال"
   },
   "icu:BackupMediaDownloadProgress__button-cancel": {
     "messageformat": "لغو انتقال"
@@ -3576,7 +3660,7 @@
     "messageformat": "{currentSize} از {totalSize}"
   },
   "icu:BackupMediaDownloadCancelConfirmation__title": {
-    "messageformat": "Cancel media transfer?"
+    "messageformat": "انتقال رسانه لغو شود؟"
   },
   "icu:BackupMediaDownloadCancelConfirmation__description": {
     "messageformat": "پیام‌ها و رسانه شما کامل بازیابی نشده است. اگر لغو را انتخاب کردید، می‌توانید از قسمت تنظیمات، دوباره انتقال دهید."
@@ -3634,9 +3718,6 @@
   },
   "icu:ContactModal--remove-from-group": {
     "messageformat": "حذف از گروه"
-  },
-  "icu:ContactModal--already-in-call": {
-    "messageformat": "شما در حال حاضر در یک تماس هستید"
   },
   "icu:ContactModal--voice": {
     "messageformat": "صوتی"
@@ -3822,7 +3903,7 @@
     "messageformat": "بازنشانی پیوند"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "الزام تأیید مدیر"
+    "messageformat": "نیازمند تأیید مدیر"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "نیاز به یک مدیر برای تأیید اعضای جدیدی که از طریق پیوند گروه می‌پیوندند"
@@ -4643,6 +4724,15 @@
   "icu:DialogNetworkStatus__outage": {
     "messageformat": "سیگنال با مشکلات فنی روبروست. به سختی تلاش میکنیم تا سرویس را تا حد ممکن سریعا برگردانیم."
   },
+  "icu:InstallScreenUpdateDialog--update-required__title": {
+    "messageformat": "Update Required"
+  },
+  "icu:InstallScreenUpdateDialog--update-required__body": {
+    "messageformat": "To complete syncing your messages, update Signal desktop now."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__action-update": {
+    "messageformat": "Update"
+  },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "به‌روزرسانی لازم است"
   },
@@ -4925,9 +5015,6 @@
   "icu:Stories__placeholder--text": {
     "messageformat": "برای مشاهده استوری کلیک کنید"
   },
-  "icu:Stories__placeholder-with-icon--text": {
-    "messageformat": "برای به‌روزرسانی، روی <newStoryIcon>افزودن استوری</newStoryIcon> کلیک کنید."
-  },
   "icu:Stories__placeholder-with-icon--text-2": {
     "messageformat": "برای به‌روزرسانی، روی <newStoryButtonIcon></newStoryButtonIcon> کلیک کنید."
   },
@@ -5171,9 +5258,6 @@
   "icu:StoryViewsNRepliesModal__tab--replies": {
     "messageformat": "پاسخ‌ها"
   },
-  "icu:StoryViewsNRepliesModal__reacted": {
-    "messageformat": "به استوری واکنش نشان داد"
-  },
   "icu:StoryViewsNRepliesModal__reacted--you": {
     "messageformat": "به استوری واکنش نشان داد"
   },
@@ -5196,7 +5280,7 @@
     "messageformat": "استوری"
   },
   "icu:StoryListItem__unhide": {
-    "messageformat": "نمایش استوری‌ها"
+    "messageformat": "نمایان کردن استوری"
   },
   "icu:StoryListItem__hide": {
     "messageformat": "پنهان کردن استوری"
@@ -5467,7 +5551,10 @@
     "messageformat": "تاریخچه تماس پاک شود؟"
   },
   "icu:CallsTab__ConfirmClearCallHistory__Body": {
-    "messageformat": "این کار همه تاریخچه تماس را به‌طور دائمی پاک خواهد کرد"
+    "messageformat": "این کار همۀ تاریخچۀ تماس را به‌طور دائم پاک خواهد کرد."
+  },
+  "icu:CallsTab__ConfirmClearCallHistory__Body--call-links": {
+    "messageformat": "با این کار، تاریخچه همه تماس‌ها برای همیشه حذف می‌شود. پیوندهای تماسی که ایجاد کرده‌اید دیگر برای کسانی که این پیوندها را دارند کار نخواهد کرد. "
   },
   "icu:CallsTab__ConfirmClearCallHistory__ConfirmButton": {
     "messageformat": "پاک کردن"
@@ -5475,14 +5562,23 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "سوابق تماس‌ها پاک شد."
   },
-  "icu:CallsTab__EmptyStateText--with-icon": {
-    "messageformat": "برای شروع تماس صوتی یا تصویری جدید، روی <newCallIcon>تماس جدید</newCallIcon> کلیک کنید."
+  "icu:CallsTab__ClearCallHistoryError--call-links": {
+    "messageformat": "امکان حذف همه پیوندهای تماس وجود ندارد. اتصال خود را بررسی و دوباره تلاش کنید."
+  },
+  "icu:CallsTab__ClearCallHistoryError": {
+    "messageformat": "امکان پاک کردن تاریخچه همه تماس‌ها وجود ندارد. اتصال خود را بررسی و دوباره تلاش کنید."
   },
   "icu:CallsTab__EmptyStateText--with-icon-2": {
     "messageformat": "برای شروع تماس صوتی یا تصویری جدید، روی <newCallButtonIcon></newCallButtonIcon> کلیک کنید."
   },
+  "icu:CallsList__SearchInputPlaceholder--missed-calls": {
+    "messageformat": "Search missed calls"
+  },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "جستجو"
+  },
+  "icu:CallsList__FilteredByMissedHeader": {
+    "messageformat": "Filtered by missed"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "فیلتر کردن بر اساس «از دست رفته»"
@@ -5496,14 +5592,14 @@
   "icu:CallsList__EmptyState--noQuery__subtitle": {
     "messageformat": "تماس‌های اخیر در اینجا ظاهر می‌شود."
   },
-  "icu:CallsList__EmptyState--noQuery--missed__title": {
-    "messageformat": "تماس ازدست‌رفته‌ای وجود ندارد"
-  },
-  "icu:CallsList__EmptyState--noQuery--missed__subtitle": {
-    "messageformat": "تماس‌های بی پاسخ در اینجا ظاهر می‌شود."
-  },
   "icu:CallsList__EmptyState--hasQuery": {
     "messageformat": "نتیجه‌ای برای «{query}» پیدا نشد"
+  },
+  "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
+    "messageformat": "No results for “{query}” in missed calls"
+  },
+  "icu:CallsList__EmptyState--missedCalls": {
+    "messageformat": "No missed calls"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "ایجاد یک پیوند تماس"
@@ -5569,7 +5665,7 @@
     "messageformat": "ویرایش نام تماس"
   },
   "icu:CallLinkDetails__ApproveAllMembersLabel": {
-    "messageformat": "الزام تأیید مدیر"
+    "messageformat": "نیازمند تأیید مدیر"
   },
   "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
     "messageformat": "وقتی تماس فعال است، این تنظیم قابل تغییر نیست"
@@ -5611,7 +5707,7 @@
     "messageformat": "ویرایش نام تماس"
   },
   "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "الزام تأیید مدیر"
+    "messageformat": "نیازمند تأیید مدیر"
   },
   "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
     "messageformat": "تأیید ورود"
@@ -5674,19 +5770,16 @@
     "messageformat": "تغییرات کوچک، رفع اشکالات و بهبود عملکرد. بابت استفاده از سیگنال سپاسگزاریم!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.23--0": {
-    "messageformat": "به لطف سری جدید بهبود عملکرد، اکنون گفتگوها سریع‌تر از همیشه باز می‌شوند."
+  "icu:WhatsNew__v7.33--0": {
+    "messageformat": "در این نسخه جدید، اشکال مربوط به انتخاب متن شکلک را نیز برطرف کرده‌ایم. با تشکر از <linkKhuddite>@khuddite</linkKhuddite>!"
   },
-  "icu:WhatsNew__v7.23--1": {
-    "messageformat": "همچنین تعدادی از اشکالات را برطرف کردیم، از جمله اشکالی که گاهی باعث می‌شد پیام «مخاطب ناشناس یک تماس تصویری شروع کرد» پس از شروع تماس در خلاصه فهرست گفتگوها ظاهر شود."
+  "icu:WhatsNew__v7.34--0": {
+    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say."
   },
-  "icu:WhatsNew__v7.24--0": {
-    "messageformat": "این به‌روزرسانی اشکالی را برطرف می‌کند که اجازه نمی‌داد هنگام مشاهده تماس بی‌پاسخ در یک دستگاه، نشانگر آن تماس از دست‌رفته به‌طور خودکار در دستگاه‌های دیگر شما پاک شود."
+  "icu:WhatsNew__v7.34--1": {
+    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore."
   },
-  "icu:WhatsNew__v7.25--0": {
-    "messageformat": "اکنون وقتی روی سربرگ گفتگو کلیک می‌کنید و گزینه «مشاهده همه» را در بخش رسانه اشتراک‌گذاری‌شده انتخاب می‌کنید، به‌جای اینکه فقط جدیدترین رسانه‌ها را ببینید، عکس‌ها و ویدیوهای قدیمی‌تر نیز به‌طور خودکار هنگام پیمایش ظاهر می‌شوند."
-  },
-  "icu:WhatsNew__v7.26--0": {
-    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
+  "icu:WhatsNew__v7.34--2": {
+    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality."
   }
 }

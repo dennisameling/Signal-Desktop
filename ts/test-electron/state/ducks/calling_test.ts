@@ -45,6 +45,8 @@ import {
   getCallLinkState,
 } from '../../../test-both/helpers/fakeCallLink';
 import { strictAssert } from '../../../util/assert';
+import { callLinkRefreshJobQueue } from '../../../jobs/callLinkRefreshJobQueue';
+import { CALL_LINK_DEFAULT_STATE } from '../../../util/callLinks';
 
 const ACI_1 = generateAci();
 const NOW = new Date('2020-01-23T04:56:00.000');
@@ -240,46 +242,6 @@ describe('calling duck', () => {
   });
 
   describe('actions', () => {
-    describe('getPresentingSources', () => {
-      beforeEach(function (this: Mocha.Context) {
-        this.callingServiceGetPresentingSources = this.sandbox
-          .stub(callingService, 'getPresentingSources')
-          .resolves([
-            {
-              id: 'foo.bar',
-              name: 'Foo Bar',
-              thumbnail: 'xyz',
-            },
-          ]);
-      });
-
-      it('retrieves sources from the calling service', async function (this: Mocha.Context) {
-        const { getPresentingSources } = actions;
-        const dispatch = sinon.spy();
-        await getPresentingSources()(dispatch, getEmptyRootState, null);
-
-        sinon.assert.calledOnce(this.callingServiceGetPresentingSources);
-      });
-
-      it('dispatches SET_PRESENTING_SOURCES', async () => {
-        const { getPresentingSources } = actions;
-        const dispatch = sinon.spy();
-        await getPresentingSources()(dispatch, getEmptyRootState, null);
-
-        sinon.assert.calledOnce(dispatch);
-        sinon.assert.calledWith(dispatch, {
-          type: 'calling/SET_PRESENTING_SOURCES',
-          payload: [
-            {
-              id: 'foo.bar',
-              name: 'Foo Bar',
-              thumbnail: 'xyz',
-            },
-          ],
-        });
-      });
-    });
-
     describe('remoteSharingScreenChange', () => {
       it("updates whether someone's screen is being shared", () => {
         const { remoteSharingScreenChange } = actions;
@@ -308,7 +270,7 @@ describe('calling duck', () => {
       });
     });
 
-    describe('setPresenting', () => {
+    describe('_setPresenting', () => {
       beforeEach(function (this: Mocha.Context) {
         this.callingServiceSetPresenting = this.sandbox.stub(
           callingService,
@@ -316,8 +278,8 @@ describe('calling duck', () => {
         );
       });
 
-      it('calls setPresenting on the calling service', async function (this: Mocha.Context) {
-        const { setPresenting } = actions;
+      it('calls _setPresenting on the calling service', async function (this: Mocha.Context) {
+        const { _setPresenting } = actions;
         const dispatch = sinon.spy();
         const presentedSource = {
           id: 'window:786',
@@ -330,19 +292,20 @@ describe('calling duck', () => {
           },
         });
 
-        await setPresenting(presentedSource)(dispatch, getState, null);
+        await _setPresenting(presentedSource)(dispatch, getState, null);
 
         sinon.assert.calledOnce(this.callingServiceSetPresenting);
-        sinon.assert.calledWith(
-          this.callingServiceSetPresenting,
-          'fake-group-call-conversation-id',
-          false,
-          presentedSource
-        );
+        sinon.assert.calledWith(this.callingServiceSetPresenting, {
+          conversationId: 'fake-group-call-conversation-id',
+          hasLocalVideo: false,
+          mediaStream: undefined,
+          source: presentedSource,
+          callLinkRootKey: undefined,
+        });
       });
 
       it('dispatches SET_PRESENTING', async () => {
-        const { setPresenting } = actions;
+        const { _setPresenting } = actions;
         const dispatch = sinon.spy();
         const presentedSource = {
           id: 'window:786',
@@ -355,7 +318,7 @@ describe('calling duck', () => {
           },
         });
 
-        await setPresenting(presentedSource)(dispatch, getState, null);
+        await _setPresenting(presentedSource)(dispatch, getState, null);
 
         sinon.assert.calledOnce(dispatch);
         sinon.assert.calledWith(dispatch, {
@@ -366,7 +329,7 @@ describe('calling duck', () => {
 
       it('turns off presenting when no value is passed in', async () => {
         const dispatch = sinon.spy();
-        const { setPresenting } = actions;
+        const { _setPresenting } = actions;
         const presentedSource = {
           id: 'window:786',
           name: 'Application',
@@ -379,7 +342,7 @@ describe('calling duck', () => {
           },
         });
 
-        await setPresenting(presentedSource)(dispatch, getState, null);
+        await _setPresenting(presentedSource)(dispatch, getState, null);
 
         const action = dispatch.getCall(0).args[0];
 
@@ -401,7 +364,7 @@ describe('calling duck', () => {
 
       it('sets the presenting value when one is passed in', async () => {
         const dispatch = sinon.spy();
-        const { setPresenting } = actions;
+        const { _setPresenting } = actions;
 
         const getState = (): RootStateType => ({
           ...getEmptyRootState(),
@@ -410,7 +373,7 @@ describe('calling duck', () => {
           },
         });
 
-        await setPresenting()(dispatch, getState, null);
+        await _setPresenting()(dispatch, getState, null);
 
         const action = dispatch.getCall(0).args[0];
 
@@ -1302,6 +1265,42 @@ describe('calling duck', () => {
         );
         assert.isTrue(result.activeCallState?.hasLocalAudio);
         assert.isTrue(result.activeCallState?.hasLocalVideo);
+        assert.isNumber(result.activeCallState?.joinedAt);
+      });
+
+      it('keeps existing activeCallState.joinedAt', () => {
+        const joinedAt = new Date().getTime() - 1000;
+        const result = reducer(
+          {
+            ...stateWithActiveGroupCall,
+            activeCallState: {
+              ...stateWithActiveDirectCall.activeCallState,
+              joinedAt,
+            },
+          },
+          getAction({
+            callMode: CallMode.Group,
+            conversationId: 'fake-group-call-conversation-id',
+            connectionState: GroupCallConnectionState.Connected,
+            joinState: GroupCallJoinState.Joined,
+            localDemuxId: 1,
+            hasLocalAudio: true,
+            hasLocalVideo: true,
+            peekInfo: {
+              acis: [],
+              pendingAcis: [],
+              maxDevices: 16,
+              deviceCount: 0,
+            },
+            remoteParticipants: [],
+          })
+        );
+
+        strictAssert(
+          result.activeCallState?.state === 'Active',
+          'state is active'
+        );
+        assert.equal(result.activeCallState?.joinedAt, joinedAt);
       });
 
       it("doesn't stop ringing if nobody is in the call", () => {
@@ -1466,20 +1465,13 @@ describe('calling duck', () => {
     });
 
     describe('handleCallLinkUpdate', () => {
-      const {
-        roomId,
-        name,
-        restrictions,
-        expiration,
-        revoked,
-        rootKey,
-        adminKey,
-      } = FAKE_CALL_LINK;
+      const { roomId, rootKey, adminKey } = FAKE_CALL_LINK;
 
       beforeEach(function (this: Mocha.Context) {
-        this.callingServiceReadCallLink = this.sandbox
-          .stub(callingService, 'readCallLink')
-          .resolves(getCallLinkState(FAKE_CALL_LINK));
+        this.callLinkRefreshJobQueueAdd = this.sandbox.stub(
+          callLinkRefreshJobQueue,
+          'add'
+        );
       });
 
       const doAction = async (
@@ -1491,10 +1483,10 @@ describe('calling duck', () => {
         return { dispatch };
       };
 
-      it('reads the call link from calling service', async function (this: Mocha.Context) {
+      it('queues call link refresh', async function (this: Mocha.Context) {
         await doAction({ rootKey, adminKey: null });
 
-        sinon.assert.calledOnce(this.callingServiceReadCallLink);
+        sinon.assert.calledOnce(this.callLinkRefreshJobQueueAdd);
       });
 
       it('dispatches HANDLE_CALL_LINK_UPDATE', async () => {
@@ -1505,10 +1497,7 @@ describe('calling duck', () => {
           type: 'calling/HANDLE_CALL_LINK_UPDATE',
           payload: {
             callLink: {
-              name,
-              restrictions,
-              expiration,
-              revoked,
+              ...CALL_LINK_DEFAULT_STATE,
               roomId,
               rootKey,
               adminKey,
@@ -1529,10 +1518,7 @@ describe('calling duck', () => {
           type: 'calling/HANDLE_CALL_LINK_UPDATE',
           payload: {
             callLink: {
-              name,
-              restrictions,
-              expiration,
-              revoked,
+              ...CALL_LINK_DEFAULT_STATE,
               roomId,
               rootKey,
               adminKey: 'banana',
@@ -1626,6 +1612,42 @@ describe('calling duck', () => {
           ) as unknown as Readonly<CallingActionType>
         );
         assert.equal(result.callLinks[roomId]?.adminKey, adminKey);
+      });
+    });
+
+    describe('startCallLinkLobby for deleted links', () => {
+      beforeEach(function (this: Mocha.Context) {
+        this.callingServiceReadCallLink = this.sandbox
+          .stub(callingService, 'readCallLink')
+          .resolves(null);
+      });
+
+      const doAction = async (
+        payload: StartCallLinkLobbyType
+      ): Promise<{ dispatch: sinon.SinonSpy }> => {
+        const { startCallLinkLobby } = actions;
+        const dispatch = sinon.spy();
+        await startCallLinkLobby(payload)(dispatch, getEmptyRootState, null);
+        return { dispatch };
+      };
+
+      it('fails', async function (this: Mocha.Context) {
+        const { roomId, rootKey } = FAKE_CALL_LINK;
+        const { dispatch } = await doAction({ rootKey });
+
+        sinon.assert.calledTwice(dispatch);
+        sinon.assert.calledWith(dispatch, {
+          type: 'calling/WAITING_FOR_CALL_LINK_LOBBY',
+          payload: {
+            roomId,
+          },
+        });
+        sinon.assert.calledWith(dispatch, {
+          type: 'calling/CALL_LOBBY_FAILED',
+          payload: {
+            conversationId: roomId,
+          },
+        });
       });
     });
 
@@ -2766,7 +2788,7 @@ describe('calling duck', () => {
       it('switches to previously selected view after presentation', () => {
         const stateOverflow = reducer(
           stateWithActiveGroupCall,
-          changeCallView(CallViewMode.Overflow)
+          changeCallView(CallViewMode.Sidebar)
         );
         const statePresentation = reducer(
           stateOverflow,
@@ -2783,7 +2805,7 @@ describe('calling duck', () => {
         );
         assert.strictEqual(
           stateAfterPresentation.activeCallState?.viewMode,
-          CallViewMode.Overflow
+          CallViewMode.Sidebar
         );
       });
     });

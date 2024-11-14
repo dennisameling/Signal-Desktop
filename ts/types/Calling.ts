@@ -1,6 +1,7 @@
 // Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { ReadonlyDeep } from 'type-fest';
 import type { AudioDevice, Reaction as CallReaction } from '@signalapp/ringrtc';
 import type { ConversationType } from '../state/ducks/conversations';
 import type { AciString, ServiceIdString } from './ServiceId';
@@ -14,18 +15,18 @@ export const CALLING_REACTIONS_LIFETIME = 4000;
 // once presentation is complete
 export enum CallViewMode {
   Paginated = 'Paginated',
-  Overflow = 'Overflow',
+  Sidebar = 'Sidebar',
   Speaker = 'Speaker',
   Presentation = 'Presentation',
 }
 
-export type PresentableSource = {
+export type PresentableSource = ReadonlyDeep<{
   appIcon?: string;
   id: string;
   name: string;
   isScreen: boolean;
   thumbnail: string;
-};
+}>;
 
 export type PresentedSource = {
   id: string;
@@ -54,7 +55,7 @@ export type ActiveCallBaseType = {
   outgoingRing: boolean;
   pip: boolean;
   presentingSource?: PresentedSource;
-  presentingSourcesAvailable?: Array<PresentableSource>;
+  presentingSourcesAvailable?: ReadonlyArray<PresentableSource>;
   settingsDialogOpen: boolean;
   showNeedsScreenRecordingPermissionsWarning?: boolean;
   showParticipantsList: boolean;

@@ -17,7 +17,10 @@ import {
   pauseWriteAccess,
   resumeWriteAccess,
 } from '../../sql/Client';
-import type { PageMessagesCursorType } from '../../sql/Interface';
+import type {
+  PageMessagesCursorType,
+  IdentityKeyType,
+} from '../../sql/Interface';
 import * as log from '../../logging/log';
 import { GiftBadgeStates } from '../../components/conversation/Message';
 import { type CustomColorType } from '../../types/Colors';
@@ -77,6 +80,7 @@ import {
   isNormalBubble,
   isPhoneNumberDiscovery,
   isProfileChange,
+  isTapToView,
   isUniversalTimerNotification,
   isUnsupportedMessage,
   isVerifiedChange,
@@ -109,6 +113,7 @@ import {
 import { isAciString } from '../../util/isAciString';
 import { hslToRGB } from '../../util/hslToRGB';
 import type { AboutMe, LocalChatStyle } from './types';
+import { BackupType } from './types';
 import { messageHasPaymentEvent } from '../../messages/helpers';
 import {
   numberToAddressType,
@@ -123,6 +128,7 @@ import {
   getFilePointerForAttachment,
   maybeGetBackupJobForAttachmentAndFilePointer,
 } from './util/filePointers';
+import { getBackupMediaRootKey } from './crypto';
 import type { CoreAttachmentBackupJobType } from '../../types/AttachmentBackup';
 import { AttachmentBackupManager } from '../../jobs/AttachmentBackupManager';
 import { getBackupCdnInfo } from './util/mediaId';
@@ -132,6 +138,7 @@ import { CallLinkRestrictions } from '../../types/CallLink';
 import { toAdminKeyBytes } from '../../util/callLinks';
 import { getRoomIdFromRootKey } from '../../util/callLinksRingrtc';
 import { SeenStatus } from '../../MessageSeenStatus';
+import { migrateAllMessages } from '../../messages/migrateMessageData';
 
 const MAX_CONCURRENCY = 10;
 
@@ -209,11 +216,18 @@ export class BackupExportStream extends Readable {
   // array.
   private customColorIdByUuid = new Map<string, Long>();
 
+  constructor(private readonly backupType: BackupType) {
+    super();
+  }
+
   public run(backupLevel: BackupLevel): void {
     drop(
       (async () => {
         log.info('BackupExportStream: starting...');
         drop(AttachmentBackupManager.stop());
+        log.info('BackupExportStream: message migration starting...');
+        await migrateAllMessages();
+
         await pauseWriteAccess();
         try {
           await this.unsafeRun(backupLevel);
@@ -224,7 +238,7 @@ export class BackupExportStream extends Readable {
 
           // TODO (DESKTOP-7344): Clear & add backup jobs in a single transaction
           await DataWriter.clearAllAttachmentBackupJobs();
-          if (!window.SignalCI?.isBackupIntegration) {
+          if (this.backupType !== BackupType.TestOnlyPlaintext) {
             await Promise.all(
               this.attachmentBackupJobs.map(job =>
                 AttachmentBackupManager.addJobAndMaybeThumbnailJob(job)
@@ -243,6 +257,7 @@ export class BackupExportStream extends Readable {
       Backups.BackupInfo.encodeDelimited({
         version: Long.fromNumber(BACKUP_VERSION),
         backupTimeMs: this.backupTimeMs,
+        mediaRootBackupKey: getBackupMediaRootKey().serialize(),
       }).finish()
     );
 
@@ -262,6 +277,13 @@ export class BackupExportStream extends Readable {
       stickerPacks: 0,
     };
 
+    const identityKeys = await DataReader.getAllIdentityKeys();
+    const identityKeysById = new Map(
+      identityKeys.map(key => {
+        return [key.id, key];
+      })
+    );
+
     for (const { attributes } of window.ConversationController.getAll()) {
       const recipientId = this.getRecipientId({
         id: attributes.id,
@@ -269,7 +291,11 @@ export class BackupExportStream extends Readable {
         e164: attributes.e164,
       });
 
-      const recipient = this.toRecipient(recipientId, attributes);
+      const recipient = this.toRecipient(
+        recipientId,
+        attributes,
+        identityKeysById
+      );
       if (recipient === undefined) {
         // Can't be backed up.
         continue;
@@ -776,7 +802,8 @@ export class BackupExportStream extends Readable {
     convo: Omit<
       ConversationAttributesType,
       'id' | 'version' | 'expireTimerVersion'
-    >
+    >,
+    identityKeysById?: ReadonlyMap<IdentityKeyType['id'], IdentityKeyType>
   ): Backups.IRecipient | undefined {
     const res: Backups.IRecipient = {
       id: recipientId,
@@ -794,6 +821,11 @@ export class BackupExportStream extends Readable {
         visibility = Backups.Contact.Visibility.HIDDEN_MESSAGE_REQUEST;
       } else {
         throw missingCaseError(convo.removalStage);
+      }
+
+      let identityKey: IdentityKeyType | undefined;
+      if (identityKeysById != null && convo.serviceId != null) {
+        identityKey = identityKeysById.get(convo.serviceId);
       }
 
       res.contact = {
@@ -828,6 +860,10 @@ export class BackupExportStream extends Readable {
         profileGivenName: convo.profileName,
         profileFamilyName: convo.profileFamilyName,
         hideStory: convo.hideStory === true,
+        identityKey: identityKey?.publicKey || null,
+
+        // Integer values match so we can use it as is
+        identityState: identityKey?.verified ?? 0,
       };
     } else if (isGroupV2(convo) && convo.masterKey) {
       let storySendMode: Backups.Group.StorySendMode;
@@ -1035,7 +1071,12 @@ export class BackupExportStream extends Readable {
     }
 
     const { contact, sticker } = message;
-    if (message.isErased) {
+    if (isTapToView(message)) {
+      result.viewOnceMessage = await this.toViewOnceMessage({
+        message,
+        backupLevel,
+      });
+    } else if (message.isErased) {
       result.remoteDeletedMessage = {};
     } else if (messageHasPaymentEvent(message)) {
       const { payment } = message;
@@ -1157,10 +1198,11 @@ export class BackupExportStream extends Readable {
         };
       }
     } else {
-      result.standardMessage = await this.toStandardMessage(
+      result.standardMessage = await this.toStandardMessage({
         message,
-        backupLevel
-      );
+        backupLevel,
+      });
+
       result.revisions = await this.toChatItemRevisions(
         result,
         message,
@@ -2058,8 +2100,20 @@ export class BackupExportStream extends Readable {
       return null;
     }
 
+    let quoteType: Backups.Quote.Type;
+    if (quote.isGiftBadge) {
+      quoteType = Backups.Quote.Type.GIFT_BADGE;
+    } else if (quote.isViewOnce) {
+      quoteType = Backups.Quote.Type.VIEW_ONCE;
+    } else {
+      quoteType = Backups.Quote.Type.NORMAL;
+    }
+
     return {
-      targetSentTimestamp: Long.fromNumber(quote.id),
+      targetSentTimestamp:
+        quote.referencedMessageNotFound || quote.id == null
+          ? null
+          : Long.fromNumber(quote.id),
       authorId,
       text:
         quote.text != null
@@ -2089,9 +2143,7 @@ export class BackupExportStream extends Readable {
           }
         )
       ),
-      type: quote.isGiftBadge
-        ? Backups.Quote.Type.GIFTBADGE
-        : Backups.Quote.Type.NORMAL,
+      type: quoteType,
     };
   }
 
@@ -2152,7 +2204,7 @@ export class BackupExportStream extends Readable {
     return new Backups.MessageAttachment({
       pointer: filePointer,
       flag: this.getMessageAttachmentFlag(attachment),
-      wasDownloaded: isDownloaded(attachment), // should always be true
+      wasDownloaded: isDownloaded(attachment),
       clientUuid: clientUuid ? uuidToBytes(clientUuid) : undefined,
     });
   }
@@ -2180,7 +2232,7 @@ export class BackupExportStream extends Readable {
 
     // We don't download attachments during integration tests and thus have no
     // "iv" for an attachment and can't create a job
-    if (!window.SignalCI?.isBackupIntegration) {
+    if (this.backupType !== BackupType.TestOnlyPlaintext) {
       const backupJob = await maybeGetBackupJobForAttachmentAndFilePointer({
         attachment: updatedAttachment ?? attachment,
         filePointer,
@@ -2239,7 +2291,7 @@ export class BackupExportStream extends Readable {
         serverTimestamp != null
           ? getSafeLongFromTimestamp(serverTimestamp)
           : null,
-      read: readStatus === ReadStatus.Read,
+      read: readStatus === ReadStatus.Read || readStatus === ReadStatus.Viewed,
       sealedSender: unidentifiedDeliveryReceived === true,
     };
   }
@@ -2344,26 +2396,30 @@ export class BackupExportStream extends Readable {
     };
   }
 
-  private async toStandardMessage(
+  private async toStandardMessage({
+    message,
+    backupLevel,
+  }: {
     message: Pick<
       MessageAttributesType,
       | 'quote'
       | 'attachments'
       | 'body'
+      | 'bodyAttachment'
       | 'bodyRanges'
       | 'preview'
       | 'reactions'
       | 'received_at'
-    >,
-    backupLevel: BackupLevel
-  ): Promise<Backups.IStandardMessage> {
+    >;
+    backupLevel: BackupLevel;
+  }): Promise<Backups.IStandardMessage> {
     return {
       quote: await this.toQuote({
         quote: message.quote,
         backupLevel,
         messageReceivedAt: message.received_at,
       }),
-      attachments: message.attachments
+      attachments: message.attachments?.length
         ? await Promise.all(
             message.attachments.map(attachment => {
               return this.processMessageAttachment({
@@ -2374,12 +2430,16 @@ export class BackupExportStream extends Readable {
             })
           )
         : undefined,
+      longText: message.bodyAttachment
+        ? await this.processAttachment({
+            attachment: message.bodyAttachment,
+            backupLevel,
+            messageReceivedAt: message.received_at,
+          })
+        : undefined,
       text:
         message.body != null
           ? {
-              // TODO (DESKTOP-7207): handle long message text attachments
-              // Note that we store full text on the message model so we have to
-              // trim it before serializing.
               body: message.body?.slice(0, LONG_ATTACHMENT_LIMIT),
               bodyRanges: message.bodyRanges?.map(range =>
                 this.toBodyRange(range)
@@ -2405,6 +2465,30 @@ export class BackupExportStream extends Readable {
             })
           )
         : undefined,
+      reactions: this.getMessageReactions(message),
+    };
+  }
+
+  private async toViewOnceMessage({
+    message,
+    backupLevel,
+  }: {
+    message: Pick<
+      MessageAttributesType,
+      'attachments' | 'received_at' | 'reactions'
+    >;
+    backupLevel: BackupLevel;
+  }): Promise<Backups.IViewOnceMessage> {
+    const attachment = message.attachments?.at(0);
+    return {
+      attachment:
+        attachment == null
+          ? null
+          : await this.processMessageAttachment({
+              attachment,
+              backupLevel,
+              messageReceivedAt: message.received_at,
+            }),
       reactions: this.getMessageReactions(message),
     };
   }
@@ -2444,7 +2528,10 @@ export class BackupExportStream extends Readable {
               : this.getIncomingMessageDetails(history),
 
             // Message itself
-            standardMessage: await this.toStandardMessage(history, backupLevel),
+            standardMessage: await this.toStandardMessage({
+              message: history,
+              backupLevel,
+            }),
           };
 
           // Backups use oldest to newest order

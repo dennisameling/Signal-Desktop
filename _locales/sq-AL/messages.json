@@ -53,6 +53,15 @@
   "icu:appleSilicon": {
     "messageformat": "Apple silicon"
   },
+  "icu:About__AppEnvironment": {
+    "messageformat": "{appEnv}"
+  },
+  "icu:About__AppEnvironment--AppleSilicon": {
+    "messageformat": "{appEnv} (Apple silicon)"
+  },
+  "icu:About__AppEnvironment--AppleIntel": {
+    "messageformat": "{appEnv} (Intel)"
+  },
   "icu:copyErrorAndQuit": {
     "messageformat": "Kopjo gabimin dhe dil"
   },
@@ -575,9 +584,6 @@
   "icu:decryptionErrorToast": {
     "messageformat": "Desktopi ndeshi nëj gabim shfshehtëzimi prej {name}, pajisja {deviceId}"
   },
-  "icu:decryptionErrorToastAction": {
-    "messageformat": "Parashtroni regjistër"
-  },
   "icu:Toast__ActionLabel--SubmitLog": {
     "messageformat": "Parashtroni regjistër"
   },
@@ -680,6 +686,9 @@
   "icu:search": {
     "messageformat": "Kërko"
   },
+  "icu:searchUnreadChats": {
+    "messageformat": "Search unread chats"
+  },
   "icu:clearSearch": {
     "messageformat": "Spastro Kërkimin"
   },
@@ -689,11 +698,26 @@
   "icu:noSearchResults": {
     "messageformat": "S’ka përfundime për \"{searchTerm}\""
   },
+  "icu:noSearchResultsWithUnreadFilter": {
+    "messageformat": "No results for \"{searchTerm}\" in unread chats"
+  },
+  "icu:noSearchResultsOnlyUnreadFilter": {
+    "messageformat": "No unread chats"
+  },
   "icu:noSearchResults--sms-only": {
     "messageformat": "Kontaktet SMS/MMS s’janë të passhëm në Desktop."
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "S’ka përfundime për \"{searchTerm}\" te {conversationName}"
+  },
+  "icu:conversationsUnreadHeader": {
+    "messageformat": "Filtered by unread"
+  },
+  "icu:filterByUnreadButtonLabel": {
+    "messageformat": "Filter by unread"
+  },
+  "icu:clearFilterButton": {
+    "messageformat": "Clear filter"
   },
   "icu:conversationsHeader": {
     "messageformat": "Bisedat"
@@ -791,8 +815,14 @@
   "icu:attachmentSaved": {
     "messageformat": "Bashkëngjitja u ruajt."
   },
+  "icu:attachmentSavedPlural": {
+    "messageformat": "{count, plural, one {Bashkëngjitja u ruajt} other {{count,number} bashkëngjitje u ruajtën}}"
+  },
   "icu:attachmentSavedShow": {
     "messageformat": "Shfaqe në dosje"
+  },
+  "icu:attachmentStillDownloading": {
+    "messageformat": "{count, plural, one {Nuk mund të ruhet bashkëngjitja, pasi nuk ka përfunduar ende shkarkimi} other {Nuk mund të ruhen bashkëngjitjet, pasi {count,number} nuk ka përfunduar ende shkarkimi}}"
   },
   "icu:you": {
     "messageformat": "Ju"
@@ -944,9 +974,6 @@
   "icu:NotePreviewModal__Title": {
     "messageformat": "Shënim"
   },
-  "icu:viewRecentMedia": {
-    "messageformat": "Shihni media së fundi"
-  },
   "icu:allMediaMenuItem": {
     "messageformat": "E gjithë media"
   },
@@ -1006,6 +1033,18 @@
   },
   "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
     "messageformat": "Të gjitha mesazhet në këtë bisedë do të fshihen nga të gjitha pajisjet. Mund ta kërkosh ende këtë bisedë pasi të fshish mesazhet."
+  },
+  "icu:deleteConversation": {
+    "messageformat": "Fshije"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__title": {
+    "messageformat": "Të fshihet biseda?"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description": {
+    "messageformat": "Të gjitha mesazhet në këtë bisedë do të fshihen nga kjo pajisje."
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description-with-sync": {
+    "messageformat": "Të gjitha mesazhet në këtë bisedë do të fshihen nga të gjitha pajisjet."
   },
   "icu:ConversationHeader__ContextMenu__LeaveGroupAction__title": {
     "messageformat": "Largohu nga grupi"
@@ -1232,6 +1271,9 @@
   "icu:calling__call-link-default-title": {
     "messageformat": "Thirrje përmes Signal-i"
   },
+  "icu:calling__call-link-delete-failed": {
+    "messageformat": "Lidhja nuk mund të fshihet. Kontrollo lidhjen e internetit dhe riprovo."
+  },
   "icu:calling__join-request-denied": {
     "messageformat": "Kërkesa jote për t'iu bashkuar kësaj telefonatë është refuzuar."
   },
@@ -1415,6 +1457,9 @@
   "icu:calling__missing-media-keys": {
     "messageformat": "S\\’mund të merret audio dhe video prej {name}"
   },
+  "icu:calling__missing-media-keys--unknown-contact": {
+    "messageformat": "Nuk mund të marrësh audio dhe video"
+  },
   "icu:calling__missing-media-keys-info": {
     "messageformat": "Kjo mund të ndodhë sepse ata nuk e kanë verifikuar ndryshimin e numrit tënd të sigurisë, ka një problem me pajisjen e tyre ose të kanë bllokuar."
   },
@@ -1438,6 +1483,9 @@
   },
   "icu:calling__presenting--info": {
     "messageformat": "Signal-i po ndan me të tjerë {window}."
+  },
+  "icu:calling__presenting--info--unknown": {
+    "messageformat": "Shpërndarja e ekranit të Signal është aktive"
   },
   "icu:calling__presenting--reconnecting": {
     "messageformat": "Po rilidhet…"
@@ -1621,6 +1669,9 @@
   },
   "icu:timestampFormat__long--yesterday": {
     "messageformat": "Dje {time}"
+  },
+  "icu:messageLoop": {
+    "messageformat": "Signal mund të mos e përpunojë mesazhin në hyrje."
   },
   "icu:messageBodyTooLong": {
     "messageformat": "Lënda e mesazhit është shumë e gjatë."
@@ -2970,7 +3021,7 @@
     "messageformat": "S’mund të bëhesh pjesë e këtij grupi përmes lidhjes së grupit, ngaqë ju ka hequr një përgjegjës."
   },
   "icu:GroupV2--join--prompt-with-approval": {
-    "messageformat": "Përpara se të mund të bëheni pjesë e këtij grupi, kërkesën tuaj duhet ta miratojë një përgjegjës i tij. Në u miratoftë. emri dhe fotoja juaj do t’u jepet anëtarëve të ti."
+    "messageformat": "Përpara se të bëheni pjesë e këtij grupi, kërkesën tuaj duhet ta miratojë një përgjegjës i grupit. Kur kërkoni të bëheni pjesë, emri dhe fotoja juaj do të ndahet me anëtarët e tij."
   },
   "icu:GroupV2--join--join-button": {
     "messageformat": "Merrni pjesë"
@@ -3530,6 +3581,9 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "Po shkarkohen {currentSize} nga {totalSize} ({fractionComplete,number,percent})..."
   },
+  "icu:BackupImportScreen__progressbar-hint--processing": {
+    "messageformat": "Duke përfunduar transferimin e mesazhit..."
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "Po përgatitet për t'u shkarkuar..."
   },
@@ -3538,6 +3592,9 @@
   },
   "icu:BackupImportScreen__cancel": {
     "messageformat": "Anulo transferimin"
+  },
+  "icu:BackupImportScreen__security-description": {
+    "messageformat": "Messages and chat info are protected by end-to-end encryption, including the sync process. <learnMoreLink>Learn more</learnMoreLink>"
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
     "messageformat": "Të anulohet transferimi?"
@@ -3551,17 +3608,44 @@
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
     "messageformat": "Anulo transferimin"
   },
+  "icu:BackupImportScreen__error__title": {
+    "messageformat": "Gabim në transferimin e mesazheve"
+  },
+  "icu:BackupImportScreen__error__body": {
+    "messageformat": "Mesazhet nuk mund të transferoheshin. Kontrollo lidhjen e internetit dhe riprovo."
+  },
+  "icu:BackupImportScreen__error__confirm": {
+    "messageformat": "Riprovo"
+  },
+  "icu:BackupImportScreen__skip": {
+    "messageformat": "Anashkaloje"
+  },
+  "icu:BackupImportScreen__skip-confirmation__title": {
+    "messageformat": "Të kapërcehet transferimi i mesazhit?"
+  },
+  "icu:BackupImportScreen__skip-confirmation__body": {
+    "messageformat": "Nuk do të kesh lejehyrje në asnjë nga mesazhet apo mediat e tua në këtë pajisje nëse zgjedh të kapërcesh. Mund të fillosh një transferim të ri pasi të kapërcesh te Parametrat > Bisedat > Transferimi."
+  },
+  "icu:BackupImportScreen__skip-confirmation__cancel": {
+    "messageformat": "Anulo"
+  },
   "icu:BackupMediaDownloadProgress__title-in-progress": {
     "messageformat": "Duke rikthyer median"
   },
   "icu:BackupMediaDownloadProgress__title-paused": {
-    "messageformat": "Restore paused"
+    "messageformat": "Rikthimi u ndërpre"
+  },
+  "icu:BackupMediaDownloadProgress__title-idle": {
+    "messageformat": "{currentSize} nga {totalSize} u rikthyen"
+  },
+  "icu:BackupMediaDownloadProgress__description-idle": {
+    "messageformat": "Media do të vazhdojë të shkarkohet në sfond"
   },
   "icu:BackupMediaDownloadProgress__button-pause": {
-    "messageformat": "Pause transfer"
+    "messageformat": "Ndërprit transferimin"
   },
   "icu:BackupMediaDownloadProgress__button-resume": {
-    "messageformat": "Resume transfer"
+    "messageformat": "Rifillo transferimin"
   },
   "icu:BackupMediaDownloadProgress__button-cancel": {
     "messageformat": "Anulo transferimin"
@@ -3576,7 +3660,7 @@
     "messageformat": "{currentSize} nga {totalSize}"
   },
   "icu:BackupMediaDownloadCancelConfirmation__title": {
-    "messageformat": "Cancel media transfer?"
+    "messageformat": "Të anulohet transferimi i medias?"
   },
   "icu:BackupMediaDownloadCancelConfirmation__description": {
     "messageformat": "Mesazhet dhe media nuk kanë përfunduar rikthimin. Nëse zgjedh ta anulosh, mund t'i transferosh përsëri nga parametrat."
@@ -3634,9 +3718,6 @@
   },
   "icu:ContactModal--remove-from-group": {
     "messageformat": "Hiqe nga grup"
-  },
-  "icu:ContactModal--already-in-call": {
-    "messageformat": "Jeni tashmë në një thirrje"
   },
   "icu:ContactModal--voice": {
     "messageformat": "Zëri"
@@ -4643,6 +4724,15 @@
   "icu:DialogNetworkStatus__outage": {
     "messageformat": "Signal-i po kalon vështirësi teknike. Po punojmë fort të rikthejmë shërbimin sa më shpejt që të mundet."
   },
+  "icu:InstallScreenUpdateDialog--update-required__title": {
+    "messageformat": "Update Required"
+  },
+  "icu:InstallScreenUpdateDialog--update-required__body": {
+    "messageformat": "To complete syncing your messages, update Signal desktop now."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__action-update": {
+    "messageformat": "Update"
+  },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "Kërkohet përditësim"
   },
@@ -4925,9 +5015,6 @@
   "icu:Stories__placeholder--text": {
     "messageformat": "Kliko që të shohësh një postim të përkohshëm"
   },
-  "icu:Stories__placeholder-with-icon--text": {
-    "messageformat": "Kliko <newStoryIcon>Shto një postim të përkohshëm</newStoryIcon> për të shtuar një përditësim."
-  },
   "icu:Stories__placeholder-with-icon--text-2": {
     "messageformat": "Kliko <newStoryButtonIcon></newStoryButtonIcon> për të shtuar një përditësim."
   },
@@ -5170,9 +5257,6 @@
   },
   "icu:StoryViewsNRepliesModal__tab--replies": {
     "messageformat": "Përgjigje"
-  },
-  "icu:StoryViewsNRepliesModal__reacted": {
-    "messageformat": "Reagoi ndaj postimit të përkohshëm"
   },
   "icu:StoryViewsNRepliesModal__reacted--you": {
     "messageformat": "Reagove ndaj postimit të përkohshëm"
@@ -5467,7 +5551,10 @@
     "messageformat": "Të pastrohet historiku i thirrjeve?"
   },
   "icu:CallsTab__ConfirmClearCallHistory__Body": {
-    "messageformat": "Kjo do të fshijë përgjithmonë të gjithë historikun e thirrjeve"
+    "messageformat": "Kjo do të fshijë përgjithmonë të gjithë historikun e thirrjeve."
+  },
+  "icu:CallsTab__ConfirmClearCallHistory__Body--call-links": {
+    "messageformat": "Kjo do të fshijë përgjithmonë të gjithë historikun e thirrjeve. Lidhjet e thirrjeve që ke krijuar nuk do të funksionojnë më për njerëzit që i zotërojnë. "
   },
   "icu:CallsTab__ConfirmClearCallHistory__ConfirmButton": {
     "messageformat": "Spastroje"
@@ -5475,14 +5562,23 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "Historia e thirrjeve u fshi"
   },
-  "icu:CallsTab__EmptyStateText--with-icon": {
-    "messageformat": "Kliko <newCallIcon>Thirrje e re</newCallIcon> për të nisur një thirrje të re zanore ose me video."
+  "icu:CallsTab__ClearCallHistoryError--call-links": {
+    "messageformat": "Jo të gjitha lidhjet e thirrjeve mund të fshiheshin. Kontrollo lidhjen e internetit dhe riprovo."
+  },
+  "icu:CallsTab__ClearCallHistoryError": {
+    "messageformat": "Jo i gjithë historiku i thirrjeve mund të fshihej. Kontrollo lidhjen e internetit dhe riprovo."
   },
   "icu:CallsTab__EmptyStateText--with-icon-2": {
     "messageformat": "Kliko <newCallButtonIcon></newCallButtonIcon> për të nisur një thirrje të re zanore ose me video."
   },
+  "icu:CallsList__SearchInputPlaceholder--missed-calls": {
+    "messageformat": "Search missed calls"
+  },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "Kërko"
+  },
+  "icu:CallsList__FilteredByMissedHeader": {
+    "messageformat": "Filtered by missed"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "Filtro sipas \"të humburat\""
@@ -5496,14 +5592,14 @@
   "icu:CallsList__EmptyState--noQuery__subtitle": {
     "messageformat": "Thirrjet e fundit do të shfaqen këtu."
   },
-  "icu:CallsList__EmptyState--noQuery--missed__title": {
-    "messageformat": "Asnjë thirrje e humbur"
-  },
-  "icu:CallsList__EmptyState--noQuery--missed__subtitle": {
-    "messageformat": "Thirrjet e humbura do të shfaqen këtu."
-  },
   "icu:CallsList__EmptyState--hasQuery": {
     "messageformat": "Nuk ka rezultate për \"{query}\""
+  },
+  "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
+    "messageformat": "No results for “{query}” in missed calls"
+  },
+  "icu:CallsList__EmptyState--missedCalls": {
+    "messageformat": "No missed calls"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "Krijo një lidhje thirrjeje"
@@ -5674,19 +5770,16 @@
     "messageformat": "Rregullme të vogla, riparime të gabimeve dhe përmirësime të mbarëvajtjes.  Faleminderit që përdorni Signal!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.23--0": {
-    "messageformat": "Bisedat hapen tani më shpejt se kurrë falë një raundi tjetër përmirësimesh të performancës, kështu që mund të klikosh klikat e tua dhe të shohësh se çfarë po thonë shumë shpejt."
+  "icu:WhatsNew__v7.33--0": {
+    "messageformat": "Përditësimi rregullon edhe gabimin ku menyja e saktë e kontekstit nuk shfaqej kur klikon me të djathtën mbi një emoxhi gjatë zgjedhjes së tekstit. Faleminderit, <linkKhuddite>@khuddite</linkKhuddite>!"
   },
-  "icu:WhatsNew__v7.23--1": {
-    "messageformat": "Rregulluam edhe disa defekte, duke përfshirë atë, i cili ndonjëherë shkaktonte shfaqjen e mesazhit \"Kontakti i panjohur filloi një telefonatë video\" në përmbledhjen e listës së bisedave pasi të kesh filluar thirrjen. Edhe nëse je ende në udhëtim vetë-zbulues, nuk je kurrë plotësisht i panjohur për veten."
+  "icu:WhatsNew__v7.34--0": {
+    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say."
   },
-  "icu:WhatsNew__v7.24--0": {
-    "messageformat": "Përditësimi rregullon defektin ku hapja e njoftimit të një telefonate të humbur në një pajisje nuk do të fshinte automatikisht njoftimin e asaj telefonate të humbur në pajisje të tjera, gjë që ishte një mundësi e humbur për bashkëjetesën e mirë të listës së telefonatave të humbura."
+  "icu:WhatsNew__v7.34--1": {
+    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore."
   },
-  "icu:WhatsNew__v7.25--0": {
-    "messageformat": "Bëj një udhëtim në korsinë e kujtesës me pamjen e re dhe të përmirësuar \"E gjitha media\". Kur kliko tani në krye të bisedës dhe zgjedh \"Shiko të gjitha\" në seksionin e mediave të përbashkëta dhe teksa lëviz nëpër media, fotot dhe videot më të vjetra do të shfaqen automatikisht në vend që shfaqja të kufizohet vetëm te hyrjet më të fundit."
-  },
-  "icu:WhatsNew__v7.26--0": {
-    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
+  "icu:WhatsNew__v7.34--2": {
+    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality."
   }
 }

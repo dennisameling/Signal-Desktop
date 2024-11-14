@@ -2,12 +2,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { createReadStream, createWriteStream } from 'fs';
-import { open, unlink } from 'fs/promises';
+import { open, unlink, stat } from 'fs/promises';
 import { createCipheriv, createHash, createHmac, randomBytes } from 'crypto';
 import type { Hash } from 'crypto';
 import { PassThrough, Transform, type Writable, Readable } from 'stream';
 import { pipeline } from 'stream/promises';
+
+import { isNumber } from 'lodash';
 import { ensureFile } from 'fs-extra';
+import {
+  chunkSizeInBytes,
+  DigestingPassThrough,
+  everyNthByte,
+  inferChunkSize,
+  ValidatingPassThrough,
+} from '@signalapp/libsignal-client/dist/incremental_mac';
+import type { ChunkSizeChoice } from '@signalapp/libsignal-client/dist/incremental_mac';
+
 import * as log from './logging/log';
 import {
   HashType,
@@ -53,7 +64,9 @@ export function generateAttachmentKeys(): Uint8Array {
 }
 
 export type EncryptedAttachmentV2 = {
+  chunkSize: number | undefined;
   digest: Uint8Array;
+  incrementalMac: Uint8Array | undefined;
   iv: Uint8Array;
   plaintextHash: string;
   ciphertextSize: number;
@@ -64,18 +77,26 @@ export type ReencryptedAttachmentV2 = {
   iv: string;
   plaintextHash: string;
   localKey: string;
+  isReencryptableToSameDigest: boolean;
   version: 2;
+};
+
+export type ReencryptionInfo = {
+  iv: string;
+  key: string;
+  digest: string;
 };
 
 export type DecryptedAttachmentV2 = {
   path: string;
   iv: Uint8Array;
   plaintextHash: string;
+  isReencryptableToSameDigest: boolean;
 };
 
 export type PlaintextSourceType =
   | { data: Uint8Array }
-  | { stream: Readable }
+  | { stream: Readable; size?: number }
   | { absolutePath: string };
 
 export type HardcodedIVForEncryptionType =
@@ -89,16 +110,22 @@ export type HardcodedIVForEncryptionType =
       digestToMatch: Uint8Array;
     };
 
-type EncryptAttachmentV2PropsType = {
-  plaintext: PlaintextSourceType;
-  keys: Readonly<Uint8Array>;
+type EncryptAttachmentV2OptionsType = Readonly<{
   dangerousIv?: HardcodedIVForEncryptionType;
   dangerousTestOnlySkipPadding?: boolean;
-  getAbsoluteAttachmentPath: (relativePath: string) => string;
-};
+  keys: Readonly<Uint8Array>;
+  needIncrementalMac: boolean;
+  plaintext: PlaintextSourceType;
+}>;
+
+export type EncryptAttachmentV2ToDiskOptionsType =
+  EncryptAttachmentV2OptionsType &
+    Readonly<{
+      getAbsoluteAttachmentPath: (relativePath: string) => string;
+    }>;
 
 export async function encryptAttachmentV2ToDisk(
-  args: EncryptAttachmentV2PropsType
+  args: EncryptAttachmentV2ToDiskOptionsType
 ): Promise<EncryptedAttachmentV2 & { path: string }> {
   // Create random output file
   const relativeTargetPath = getRelativePath(createName());
@@ -124,12 +151,13 @@ export async function encryptAttachmentV2ToDisk(
   };
 }
 export async function encryptAttachmentV2({
-  keys,
-  plaintext,
   dangerousIv,
   dangerousTestOnlySkipPadding,
+  keys,
+  needIncrementalMac,
+  plaintext,
   sink,
-}: EncryptAttachmentV2PropsType & {
+}: EncryptAttachmentV2OptionsType & {
   sink?: Writable;
 }): Promise<EncryptedAttachmentV2> {
   const logId = 'encryptAttachmentV2';
@@ -168,16 +196,41 @@ export async function encryptAttachmentV2({
 
   let ciphertextSize: number | undefined;
   let mac: Uint8Array | undefined;
+  let incrementalDigestCreator: DigestingPassThrough | undefined;
+  let chunkSizeChoice: ChunkSizeChoice | undefined;
 
   try {
     let source: Readable;
+    let size;
     if ('data' in plaintext) {
-      source = Readable.from([Buffer.from(plaintext.data)]);
+      const { data } = plaintext;
+      source = Readable.from([Buffer.from(data)]);
+      size = data.byteLength;
     } else if ('stream' in plaintext) {
       source = plaintext.stream;
+      size = plaintext.size;
     } else {
-      source = createReadStream(plaintext.absolutePath);
+      const { absolutePath } = plaintext;
+      if (needIncrementalMac) {
+        const fileData = await stat(absolutePath);
+        size = fileData.size;
+      }
+      source = createReadStream(absolutePath);
     }
+
+    if (needIncrementalMac) {
+      strictAssert(
+        isNumber(size),
+        'Need size if we are to generate incrementalMac!'
+      );
+    }
+    chunkSizeChoice = isNumber(size)
+      ? inferChunkSize(getAttachmentCiphertextLength(size))
+      : undefined;
+    incrementalDigestCreator =
+      needIncrementalMac && chunkSizeChoice
+        ? new DigestingPassThrough(Buffer.from(macKey), chunkSizeChoice)
+        : undefined;
 
     await pipeline(
       [
@@ -190,8 +243,9 @@ export async function encryptAttachmentV2({
           mac = macValue;
         }),
         peekAndUpdateHash(digest),
-        measureSize(size => {
-          ciphertextSize = size;
+        incrementalDigestCreator,
+        measureSize(finalSize => {
+          ciphertextSize = finalSize;
         }),
         sink ?? new PassThrough().resume(),
       ].filter(isNotNil)
@@ -228,11 +282,18 @@ export async function encryptAttachmentV2({
     }
   }
 
+  const incrementalMac = incrementalDigestCreator?.getFinalDigest();
+
   return {
+    chunkSize:
+      incrementalMac && chunkSizeChoice
+        ? chunkSizeInBytes(chunkSizeChoice)
+        : undefined,
+    ciphertextSize,
     digest: ourDigest,
+    incrementalMac,
     iv,
     plaintextHash: ourPlaintextHash,
-    ciphertextSize,
   };
 }
 
@@ -249,6 +310,8 @@ type DecryptAttachmentToSinkOptionsType = Readonly<
     | {
         type: 'standard';
         theirDigest: Readonly<Uint8Array>;
+        theirIncrementalMac: Readonly<Uint8Array> | undefined;
+        theirChunkSize: number | undefined;
       }
     | {
         // No need to check integrity for locally reencrypted attachments, or for backup
@@ -318,7 +381,7 @@ export async function decryptAttachmentV2ToSink(
   options: DecryptAttachmentToSinkOptionsType,
   sink: Writable
 ): Promise<Omit<DecryptedAttachmentV2, 'path'>> {
-  const { idForLogging, ciphertextPath, outerEncryption } = options;
+  const { ciphertextPath, idForLogging, outerEncryption } = options;
 
   let aesKey: Uint8Array;
   let macKey: Uint8Array;
@@ -337,6 +400,18 @@ export async function decryptAttachmentV2ToSink(
   const digest = createHash(HashType.size256);
   const hmac = createHmac(HashType.size256, macKey);
   const plaintextHash = createHash(HashType.size256);
+
+  const incrementalDigestValidator =
+    options.type === 'standard' &&
+    options.theirIncrementalMac &&
+    options.theirChunkSize
+      ? new ValidatingPassThrough(
+          Buffer.from(macKey),
+          everyNthByte(options.theirChunkSize),
+          Buffer.from(options.theirIncrementalMac)
+        )
+      : undefined;
+
   let theirMac: Uint8Array | undefined;
 
   // When downloading from backup there is an outer encryption layer; in that case we
@@ -356,6 +431,7 @@ export async function decryptAttachmentV2ToSink(
       })
     : undefined;
 
+  let isPaddingAllZeros = false;
   let readFd;
   let iv: Uint8Array | undefined;
   try {
@@ -371,13 +447,16 @@ export async function decryptAttachmentV2ToSink(
         maybeOuterEncryptionGetMacAndUpdateMac,
         maybeOuterEncryptionGetIvAndDecipher,
         peekAndUpdateHash(digest),
+        incrementalDigestValidator,
         getMacAndUpdateHmac(hmac, theirMacValue => {
           theirMac = theirMacValue;
         }),
         getIvAndDecipher(aesKey, theirIv => {
           iv = theirIv;
         }),
-        trimPadding(options.size),
+        trimPadding(options.size, paddingAnalysis => {
+          isPaddingAllZeros = paddingAnalysis.isPaddingAllZeros;
+        }),
         peekAndUpdateHash(plaintextHash),
         finalStream(() => {
           const ourMac = hmac.digest();
@@ -469,8 +548,13 @@ export async function decryptAttachmentV2ToSink(
     `${logId}: failed to find their iv`
   );
 
+  if (!isPaddingAllZeros) {
+    log.warn(`${logId}: Attachment had non-zero padding`);
+  }
+
   return {
     iv,
+    isReencryptableToSameDigest: isPaddingAllZeros,
     plaintextHash: ourPlaintextHash,
   };
 }
@@ -479,7 +563,6 @@ export async function decryptAndReencryptLocally(
   options: DecryptAttachmentOptionsType
 ): Promise<ReencryptedAttachmentV2> {
   const { idForLogging } = options;
-
   const logId = `reencryptAttachmentV2(${idForLogging})`;
 
   // Create random output file
@@ -503,19 +586,20 @@ export async function decryptAndReencryptLocally(
       decryptAttachmentV2ToSink(options, passthrough),
       await encryptAttachmentV2({
         keys,
+        needIncrementalMac: false,
         plaintext: {
           stream: passthrough,
         },
         sink: createWriteStream(absoluteTargetPath),
-        getAbsoluteAttachmentPath: options.getAbsoluteAttachmentPath,
       }),
     ]);
 
     return {
-      ...result,
       localKey: toBase64(keys),
       iv: toBase64(result.iv),
       path: relativeTargetPath,
+      plaintextHash: result.plaintextHash,
+      isReencryptableToSameDigest: result.isReencryptableToSameDigest,
       version: 2,
     };
   } catch (error) {

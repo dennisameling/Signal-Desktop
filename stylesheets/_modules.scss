@@ -34,37 +34,24 @@
 }
 
 .module-splash-screen__logo {
-  @include color-svg('../images/signal-logo.svg', $color-white);
   margin-block: 24px;
   margin-inline: 0;
 
-  &.module-img--256 {
-    height: 256px;
-    width: 256px;
+  @include light-theme {
+    @include color-svg('../images/signal-logo.svg', $color-ultramarine-logo);
+  }
+  @include dark-theme {
+    @include color-svg('../images/signal-logo.svg', $color-white);
   }
 
-  &.module-img--200 {
-    height: 200px;
-    width: 200px;
-  }
-
-  &.module-img--150 {
-    height: 150px;
-    width: 150px;
-  }
-
-  &.module-img--128 {
+  &.module-splash-screen__logo--128 {
     height: 128px;
     width: 128px;
   }
 
-  &.module-img--80 {
-    height: 80px;
-    width: 80px;
-  }
-
-  &.module-logo-blue {
-    background-color: $color-ultramarine-icon;
+  &.module-splash-screen__logo--96 {
+    height: 96px;
+    width: 96px;
   }
 }
 
@@ -791,11 +778,6 @@ $message-padding-horizontal: 12px;
 
 .module-message__generic-attachment--with-content-above {
   padding-top: 4px;
-}
-
-.module-message__generic-attachment--not-active {
-  cursor: default;
-  pointer-events: none;
 }
 
 .module-message__generic-attachment__icon-container {
@@ -3680,14 +3662,13 @@ button.module-image__border-overlay:focus {
   }
 
   &__camera-is-off {
+    @include font-body-2;
     @include calling-text-shadow;
     align-items: center;
     color: $color-white;
     display: flex;
     flex-direction: column;
     flex-grow: 1;
-    font-size: 15px;
-    line-height: 20px;
     margin-block-start: 15px;
     margin-block-end: 15px;
     justify-content: center;
@@ -3872,10 +3853,6 @@ button.module-image__border-overlay:focus {
           .module-ongoing-call__group-call-remote-participant__footer {
             padding-block: 0 14px;
             padding-inline: 16px;
-          }
-
-          .module-ongoing-call__group-call-remote-participant__error-icon {
-            margin-block-end: 16px;
           }
 
           .module-ongoing-call__group-call-remote-participant__error {
@@ -4100,7 +4077,7 @@ button.module-image__border-overlay:focus {
       // when @container size is big enough
       display: none;
 
-      margin-block-end: 12px;
+      margin-block-end: 16px;
       margin-inline: 8px;
       font-size: 12px;
       line-height: 16px;
@@ -4114,7 +4091,7 @@ button.module-image__border-overlay:focus {
       padding-block: 3px;
       padding-inline: 10px;
       border-radius: 16px;
-      background-color: $color-gray-75;
+      background-color: $color-black-alpha-30;
       color: $color-white;
       font-size: 12px;
       line-height: 16px;
@@ -4129,12 +4106,29 @@ button.module-image__border-overlay:focus {
         overflow: hidden;
         text-overflow: ellipsis;
       }
+
+      // Shown in the mini version / overflow sidebar
+      &--icon {
+        width: 20px;
+        height: 20px;
+      }
+
+      &--icon-blocked {
+        @include color-svg('../images/icons/v3/block/block.svg', $color-white);
+      }
+
+      &--icon-missing-media-keys {
+        @include color-svg(
+          '../images/icons/v3/error/error-circle.svg',
+          $color-white
+        );
+      }
     }
 
     &__error-icon {
-      width: 24px;
-      height: 24px;
-      margin-block-end: 8px;
+      width: 20px;
+      height: 20px;
+      margin-block-end: 12px;
 
       &--blocked {
         @include color-svg('../images/icons/v3/block/block.svg', $color-white);
@@ -4142,7 +4136,7 @@ button.module-image__border-overlay:focus {
 
       &--missing-media-keys {
         @include color-svg(
-          '../images/icons/v3/error/error-circle-solid.svg',
+          '../images/icons/v3/error/error-circle.svg',
           $color-white
         );
       }
@@ -4219,6 +4213,10 @@ button.module-image__border-overlay:focus {
     }
   }
 
+  &__local-preview-video-container {
+    display: contents;
+  }
+
   &__local-preview-fullsize {
     position: absolute;
     top: 0;
@@ -4271,13 +4269,19 @@ button.module-image__border-overlay:focus {
       }
 
       &__video {
-        // The background-color is seen while the video loads.
-        background-color: $color-gray-75;
         height: 100%;
-        transform: rotateY(180deg);
         width: 100%;
 
-        &--presenting {
+        video {
+          // The background-color is seen while the video loads.
+          background-color: $color-gray-75;
+          height: 100%;
+          width: 100%;
+
+          transform: rotateY(180deg);
+        }
+
+        &--presenting video {
           transform: inherit;
         }
       }
@@ -4356,13 +4360,22 @@ button.module-image__border-overlay:focus {
       }
     }
 
-    &--local {
+    &--local,
+    &--local-presenting {
       bottom: 38px;
       height: 32px;
       position: absolute;
       inset-inline-end: 4px;
-      transform: rotateY(180deg);
       width: 32px;
+
+      video {
+        width: 100%;
+        height: 100%;
+      }
+    }
+
+    &--local video {
+      transform: rotateY(180deg);
     }
   }
 
@@ -5257,6 +5270,10 @@ button.module-calling-participants-list__contact {
       }
     }
 
+    &--clear-filter-button {
+      height: $normal-row-height;
+    }
+
     &--header {
       @include font-body-1-bold;
 
@@ -5326,9 +5343,7 @@ button.module-calling-participants-list__contact {
 }
 
 .module-left-pane__dialogs {
-  &:first-child {
-    margin-top: 8px;
-  }
+  margin-bottom: 8px;
 }
 
 .module-left-pane__header {
@@ -5509,15 +5524,34 @@ button.module-calling-participants-list__contact {
     background-color: $color-gray-75;
   }
 }
+.module-left-pane__no-search-results__unread-header {
+  margin-bottom: 50px;
+}
+
+.module-left-pane__no-search-results--withHeader {
+  display: flex;
+  flex-direction: column;
+  margin-top: 15px;
+  // This applies only for filter by unread, set margin
+  // for clear filter button
+  margin-bottom: 20px;
+  padding-inline: 1em;
+  width: 100%;
+  text-align: center;
+  outline: none;
+}
 
 .module-left-pane__no-search-results,
 .module-left-pane__compose-no-contacts {
-  flex-grow: 1;
   margin-top: 27px;
   padding-inline: 1em;
   width: 100%;
   text-align: center;
   outline: none;
+}
+
+.module-left-pane__compose-no-contacts {
+  flex-grow: 1;
 }
 
 .module-left-pane__no-search-results__sms-only {

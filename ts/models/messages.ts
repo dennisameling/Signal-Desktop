@@ -11,7 +11,6 @@ import {
   pick,
   union,
 } from 'lodash';
-import { v4 as generateUuid } from 'uuid';
 
 import type {
   CustomError,
@@ -26,6 +25,7 @@ import { isNotNil } from '../util/isNotNil';
 import { isNormalNumber } from '../util/isNormalNumber';
 import { strictAssert } from '../util/assert';
 import { hydrateStoryContext } from '../util/hydrateStoryContext';
+import { generateMessageId } from '../util/generateMessageId';
 import { drop } from '../util/drop';
 import type { ConversationModel } from './conversations';
 import type {
@@ -54,8 +54,6 @@ import {
   sendStateReducer,
   someRecipientSendStatus,
 } from '../messages/MessageSendState';
-import { migrateLegacyReadStatus } from '../messages/migrateLegacyReadStatus';
-import { migrateLegacySendAttributes } from '../messages/migrateLegacySendAttributes';
 import { getOwn } from '../util/getOwn';
 import { markRead, markViewed } from '../services/MessageUpdater';
 import {
@@ -126,7 +124,6 @@ import { queueAttachmentDownloads } from '../util/queueAttachmentDownloads';
 import { findStoryMessages } from '../util/findStoryMessage';
 import type { ConversationQueueJobData } from '../jobs/conversationJobQueue';
 import { shouldDownloadStory } from '../util/shouldDownloadStory';
-import { SeenStatus } from '../MessageSeenStatus';
 import { isNewReactionReplacingPrevious } from '../reactions/util';
 import { parseBoostBadgeListFromServer } from '../badges/parseBadgesFromServer';
 
@@ -208,35 +205,6 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
           logger: log,
         })
       );
-    }
-
-    const readStatus = migrateLegacyReadStatus(this.attributes);
-    if (readStatus !== undefined) {
-      this.set(
-        {
-          readStatus,
-          seenStatus:
-            readStatus === ReadStatus.Unread
-              ? SeenStatus.Unseen
-              : SeenStatus.Seen,
-        },
-        { silent: true }
-      );
-    }
-
-    const ourConversationId =
-      window.ConversationController.getOurConversationId();
-    if (ourConversationId) {
-      const sendStateByConversationId = migrateLegacySendAttributes(
-        this.attributes,
-        window.ConversationController.get.bind(window.ConversationController),
-        ourConversationId
-      );
-      if (sendStateByConversationId) {
-        this.set('sendStateByConversationId', sendStateByConversationId, {
-          silent: true,
-        });
-      }
     }
 
     this.CURRENT_PROTOCOL_VERSION = Proto.DataMessage.ProtocolVersion.CURRENT;
@@ -1674,7 +1642,8 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
         }
       }
 
-      const messageId = message.get('id') || generateUuid();
+      const messageId =
+        message.get('id') || generateMessageId(this.get('received_at')).id;
 
       // Send delivery receipts, but only for non-story sealed sender messages
       //   and not for messages from unaccepted conversations
@@ -1820,6 +1789,14 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
         const incomingPreview = dataMessage.preview || [];
         const preview = incomingPreview
           .map((item: LinkPreviewType) => {
+            if (LinkPreview.isCallLink(item.url)) {
+              return {
+                ...item,
+                isCallLink: true,
+                callLinkRoomId: getRoomIdFromCallLink(item.url),
+              };
+            }
+
             if (!item.image && !item.title) {
               return null;
             }
@@ -1835,21 +1812,13 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
               return undefined;
             }
 
-            if (LinkPreview.isCallLink(item.url)) {
-              return {
-                ...item,
-                isCallLink: true,
-                callLinkRoomId: getRoomIdFromCallLink(item.url),
-              };
-            }
-
             return item;
           })
           .filter(isNotNil);
         if (preview.length < incomingPreview.length) {
           log.info(
             `${message.idForLogging()}: Eliminated ${
-              preview.length - incomingPreview.length
+              incomingPreview.length - preview.length
             } previews with invalid urls'`
           );
         }
@@ -1857,11 +1826,17 @@ export class MessageModel extends window.Backbone.Model<MessageAttributesType> {
         const ourPni = window.textsecure.storage.user.getCheckedPni();
         const ourServiceIds: Set<ServiceIdString> = new Set([ourAci, ourPni]);
 
+        const [longMessageAttachments, normalAttachments] = partition(
+          dataMessage.attachments ?? [],
+          attachment => MIME.isLongMessage(attachment.contentType)
+        );
+
         window.MessageCache.toMessageAttributes(this.attributes);
         message.set({
           id: messageId,
-          attachments: dataMessage.attachments,
+          attachments: normalAttachments,
           body: dataMessage.body,
+          bodyAttachment: longMessageAttachments[0],
           bodyRanges: dataMessage.bodyRanges,
           contact: dataMessage.contact,
           conversationId: conversation.id,

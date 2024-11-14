@@ -4,14 +4,15 @@
 import type { ConversationAttributesType } from '../model-types';
 
 export function getAboutText(
-  attributes: ConversationAttributesType
+  attributes: Pick<ConversationAttributesType, 'about' | 'aboutEmoji'>
 ): string | undefined {
-  if (!attributes.about) {
+  const text = attributes.about;
+
+  if (!text) {
     return undefined;
   }
 
   const emoji = attributes.aboutEmoji;
-  const text = attributes.about;
 
   if (!emoji) {
     return text;

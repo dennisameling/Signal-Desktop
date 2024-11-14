@@ -53,6 +53,15 @@
   "icu:appleSilicon": {
     "messageformat": "Apple Silicon"
   },
+  "icu:About__AppEnvironment": {
+    "messageformat": "{appEnv}"
+  },
+  "icu:About__AppEnvironment--AppleSilicon": {
+    "messageformat": "{appEnv} (Apple silicon)"
+  },
+  "icu:About__AppEnvironment--AppleIntel": {
+    "messageformat": "{appEnv} (Intel)"
+  },
   "icu:copyErrorAndQuit": {
     "messageformat": "Kopier fejl og afslut"
   },
@@ -575,9 +584,6 @@
   "icu:decryptionErrorToast": {
     "messageformat": "Desktop stødte på en dekrypteringsfejl fra {name}, enhed {deviceId}"
   },
-  "icu:decryptionErrorToastAction": {
-    "messageformat": "Indsend log"
-  },
   "icu:Toast__ActionLabel--SubmitLog": {
     "messageformat": "Indsend log"
   },
@@ -680,6 +686,9 @@
   "icu:search": {
     "messageformat": "Søg"
   },
+  "icu:searchUnreadChats": {
+    "messageformat": "Search unread chats"
+  },
   "icu:clearSearch": {
     "messageformat": "Ryd søgning"
   },
@@ -689,11 +698,26 @@
   "icu:noSearchResults": {
     "messageformat": "Ingen resultater for \"{searchTerm}\""
   },
+  "icu:noSearchResultsWithUnreadFilter": {
+    "messageformat": "No results for \"{searchTerm}\" in unread chats"
+  },
+  "icu:noSearchResultsOnlyUnreadFilter": {
+    "messageformat": "No unread chats"
+  },
   "icu:noSearchResults--sms-only": {
     "messageformat": "SMS/MMS-kontakter er ikke tilgængelige på Signal Desktop."
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "Ingen resultater på \"{searchTerm} efter {conversationName}"
+  },
+  "icu:conversationsUnreadHeader": {
+    "messageformat": "Filtered by unread"
+  },
+  "icu:filterByUnreadButtonLabel": {
+    "messageformat": "Filter by unread"
+  },
+  "icu:clearFilterButton": {
+    "messageformat": "Clear filter"
   },
   "icu:conversationsHeader": {
     "messageformat": "Chats"
@@ -791,8 +815,14 @@
   "icu:attachmentSaved": {
     "messageformat": "Vedhæftning gemt."
   },
+  "icu:attachmentSavedPlural": {
+    "messageformat": "{count, plural, one {Vedhæftet fil gemt} other {{count,number} vedhæftede filer gemt}}"
+  },
   "icu:attachmentSavedShow": {
     "messageformat": "Vis i mappe"
+  },
+  "icu:attachmentStillDownloading": {
+    "messageformat": "{count, plural, one {Kan ikke gemme den vedhæftede fil, da den ikke er downloadet endnu} other {Kan ikke gemme de vedhæftede filer, da {count,number} ikke er downloadet endnu}}"
   },
   "icu:you": {
     "messageformat": "Dig"
@@ -944,9 +974,6 @@
   "icu:NotePreviewModal__Title": {
     "messageformat": "Note"
   },
-  "icu:viewRecentMedia": {
-    "messageformat": "Vis seneste medier"
-  },
   "icu:allMediaMenuItem": {
     "messageformat": "Alle medier"
   },
@@ -1006,6 +1033,18 @@
   },
   "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
     "messageformat": "Alle beskeder i denne chat slettes fra alle dine enheder. Du kan stadig søge efter denne chat, når du har slettet beskeder."
+  },
+  "icu:deleteConversation": {
+    "messageformat": "Slet"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__title": {
+    "messageformat": "Slet chat?"
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description": {
+    "messageformat": "Alle beskeder i denne chat slettes fra denne enhed."
+  },
+  "icu:ConversationHeader__DeleteConversationConfirmation__description-with-sync": {
+    "messageformat": "Alle beskeder i denne chat slettes fra alle dine enheder."
   },
   "icu:ConversationHeader__ContextMenu__LeaveGroupAction__title": {
     "messageformat": "Forlad gruppe"
@@ -1232,6 +1271,9 @@
   "icu:calling__call-link-default-title": {
     "messageformat": "Signal-opkald"
   },
+  "icu:calling__call-link-delete-failed": {
+    "messageformat": "Kan ikke slette link. Tjek din forbindelse, og prøv igen."
+  },
   "icu:calling__join-request-denied": {
     "messageformat": "Din anmodning om at deltage i dette opkald er blevet afvist."
   },
@@ -1415,6 +1457,9 @@
   "icu:calling__missing-media-keys": {
     "messageformat": "Der modtages ikke lyd og video fra {name}"
   },
+  "icu:calling__missing-media-keys--unknown-contact": {
+    "messageformat": "Kan ikke modtage lyd og video"
+  },
   "icu:calling__missing-media-keys-info": {
     "messageformat": "Dette kan skyldes at personen ikke har bekræftet ændringen i dit sikkerhedsnummer, at der er et problem med deres enhed eller at de har blokeret dig."
   },
@@ -1438,6 +1483,9 @@
   },
   "icu:calling__presenting--info": {
     "messageformat": "Signal deler {window}."
+  },
+  "icu:calling__presenting--info--unknown": {
+    "messageformat": "Signal-skærmdelingen er aktiv"
   },
   "icu:calling__presenting--reconnecting": {
     "messageformat": "Forbinder igen…"
@@ -1621,6 +1669,9 @@
   },
   "icu:timestampFormat__long--yesterday": {
     "messageformat": "I går {time}"
+  },
+  "icu:messageLoop": {
+    "messageformat": "Signalet kan muligvis ikke behandle en indgående besked."
   },
   "icu:messageBodyTooLong": {
     "messageformat": "Beskeden er for langt."
@@ -2970,7 +3021,7 @@
     "messageformat": "Du kan ikke deltage i denne gruppe via gruppelinket, fordi en administrator har fjernet dig."
   },
   "icu:GroupV2--join--prompt-with-approval": {
-    "messageformat": "En administrator af gruppen skal godkende din anmodning før du kan deltage. Hvis det er godkendt, deles dit navn og billede med dens medlemmer."
+    "messageformat": "En administrator af gruppen skal godkende din anmodning, inden du kan deltage. Når du anmoder om at deltage, vil dit navn og billede blive delt med dens medlemmer"
   },
   "icu:GroupV2--join--join-button": {
     "messageformat": "Deltag"
@@ -3530,6 +3581,9 @@
   "icu:BackupImportScreen__progressbar-hint": {
     "messageformat": "Downloader {currentSize} af {totalSize} ({fractionComplete,number,percent})..."
   },
+  "icu:BackupImportScreen__progressbar-hint--processing": {
+    "messageformat": "Afslutter beskedoverførsel..."
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "Forbereder download..."
   },
@@ -3538,6 +3592,9 @@
   },
   "icu:BackupImportScreen__cancel": {
     "messageformat": "Annuller overførsel"
+  },
+  "icu:BackupImportScreen__security-description": {
+    "messageformat": "Messages and chat info are protected by end-to-end encryption, including the sync process. <learnMoreLink>Learn more</learnMoreLink>"
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
     "messageformat": "Vil du annullere overførslen?"
@@ -3551,17 +3608,44 @@
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
     "messageformat": "Annuller overførsel"
   },
+  "icu:BackupImportScreen__error__title": {
+    "messageformat": "Fejl ved overførsel af beskeder"
+  },
+  "icu:BackupImportScreen__error__body": {
+    "messageformat": "Dine beskeder kunne ikke overføres. Tjek din internetforbindelse, og prøv igen."
+  },
+  "icu:BackupImportScreen__error__confirm": {
+    "messageformat": "Prøv igen"
+  },
+  "icu:BackupImportScreen__skip": {
+    "messageformat": "Spring over"
+  },
+  "icu:BackupImportScreen__skip-confirmation__title": {
+    "messageformat": "Vil du springe beskedoverførsel over?"
+  },
+  "icu:BackupImportScreen__skip-confirmation__body": {
+    "messageformat": "Hvis du vælger at springe over, kan du ikke tilgå nogen af dine beskeder eller medier på denne enhed. Du kan starte en ny overførsel efter at have sprunget over fra Indstillinger > Chats > Overførsel."
+  },
+  "icu:BackupImportScreen__skip-confirmation__cancel": {
+    "messageformat": "Annullér"
+  },
   "icu:BackupMediaDownloadProgress__title-in-progress": {
     "messageformat": "Gendanner medier"
   },
   "icu:BackupMediaDownloadProgress__title-paused": {
-    "messageformat": "Restore paused"
+    "messageformat": "Gendannelse sat på pause"
+  },
+  "icu:BackupMediaDownloadProgress__title-idle": {
+    "messageformat": "{currentSize} af {totalSize} gendannet"
+  },
+  "icu:BackupMediaDownloadProgress__description-idle": {
+    "messageformat": "Medierne vil fortsætte med at blive downloadet i baggrunden"
   },
   "icu:BackupMediaDownloadProgress__button-pause": {
-    "messageformat": "Pause transfer"
+    "messageformat": "Sæt overførsel på pause"
   },
   "icu:BackupMediaDownloadProgress__button-resume": {
-    "messageformat": "Resume transfer"
+    "messageformat": "Genoptag overførsel"
   },
   "icu:BackupMediaDownloadProgress__button-cancel": {
     "messageformat": "Annuller overførsel"
@@ -3576,7 +3660,7 @@
     "messageformat": "{currentSize} af {totalSize}"
   },
   "icu:BackupMediaDownloadCancelConfirmation__title": {
-    "messageformat": "Cancel media transfer?"
+    "messageformat": "Vil du annullere medieoverførslen?"
   },
   "icu:BackupMediaDownloadCancelConfirmation__description": {
     "messageformat": "Dine beskeder og medier er ikke gendannet endnu. Hvis du vælger at annullere, kan du overføre igen fra Indstillinger."
@@ -3634,9 +3718,6 @@
   },
   "icu:ContactModal--remove-from-group": {
     "messageformat": "Fjern fra gruppe"
-  },
-  "icu:ContactModal--already-in-call": {
-    "messageformat": "Du er allerede i et opkald"
   },
   "icu:ContactModal--voice": {
     "messageformat": "Stemme"
@@ -4643,6 +4724,15 @@
   "icu:DialogNetworkStatus__outage": {
     "messageformat": "Signal oplever tekniske vanskeligheder. Vi arbejder hårdt på at genoprette tjenesten så hurtigt som muligt!"
   },
+  "icu:InstallScreenUpdateDialog--update-required__title": {
+    "messageformat": "Update Required"
+  },
+  "icu:InstallScreenUpdateDialog--update-required__body": {
+    "messageformat": "To complete syncing your messages, update Signal desktop now."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__action-update": {
+    "messageformat": "Update"
+  },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "Opdatering påkrævet"
   },
@@ -4925,9 +5015,6 @@
   "icu:Stories__placeholder--text": {
     "messageformat": "Klik for at se en historie"
   },
-  "icu:Stories__placeholder-with-icon--text": {
-    "messageformat": "Klik på <newStoryIcon>Tilføj en historie</newStoryIcon> for at tilføje en opdatering."
-  },
   "icu:Stories__placeholder-with-icon--text-2": {
     "messageformat": "Klik <newStoryButtonIcon></newStoryButtonIcon> for at tilføje en opdatering."
   },
@@ -5171,9 +5258,6 @@
   "icu:StoryViewsNRepliesModal__tab--replies": {
     "messageformat": "Svar"
   },
-  "icu:StoryViewsNRepliesModal__reacted": {
-    "messageformat": "Reagerede på historien"
-  },
   "icu:StoryViewsNRepliesModal__reacted--you": {
     "messageformat": "Reagerede på historien"
   },
@@ -5196,7 +5280,7 @@
     "messageformat": "Historie"
   },
   "icu:StoryListItem__unhide": {
-    "messageformat": "Vis historier"
+    "messageformat": "Vis historie igen"
   },
   "icu:StoryListItem__hide": {
     "messageformat": "Skjul historie"
@@ -5467,7 +5551,10 @@
     "messageformat": "Vil du rydde opkaldshistorik?"
   },
   "icu:CallsTab__ConfirmClearCallHistory__Body": {
-    "messageformat": "Dette vil permanent slette al opkaldshistorik"
+    "messageformat": "Dette vil permanent slette al opkaldshistorik."
+  },
+  "icu:CallsTab__ConfirmClearCallHistory__Body--call-links": {
+    "messageformat": "Dette vil permanent slette al opkaldshistorik. Opkaldslinks, du har oprettet, vil ikke længere virke for folk, der har dem. "
   },
   "icu:CallsTab__ConfirmClearCallHistory__ConfirmButton": {
     "messageformat": "Fjern"
@@ -5475,14 +5562,23 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "Opkaldshistorik slettet"
   },
-  "icu:CallsTab__EmptyStateText--with-icon": {
-    "messageformat": "Klik <newCallIcon>Nyt opkald</newCallIcon> for at starte et nyt tale- eller videoopkald."
+  "icu:CallsTab__ClearCallHistoryError--call-links": {
+    "messageformat": "Ikke alle opkaldslinks kunne slettes. Tjek din forbindelse, og prøv igen."
+  },
+  "icu:CallsTab__ClearCallHistoryError": {
+    "messageformat": "Ikke alle opkaldslinks kunne slettes. Tjek din forbindelse, og prøv igen."
   },
   "icu:CallsTab__EmptyStateText--with-icon-2": {
     "messageformat": "Klik <newCallButtonIcon></newCallButtonIcon> for at starte et nyt tale- eller videoopkald."
   },
+  "icu:CallsList__SearchInputPlaceholder--missed-calls": {
+    "messageformat": "Search missed calls"
+  },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "Søg"
+  },
+  "icu:CallsList__FilteredByMissedHeader": {
+    "messageformat": "Filtered by missed"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "Filtrér efter ubesvaret"
@@ -5496,14 +5592,14 @@
   "icu:CallsList__EmptyState--noQuery__subtitle": {
     "messageformat": "De seneste opkald vises her."
   },
-  "icu:CallsList__EmptyState--noQuery--missed__title": {
-    "messageformat": "Ingen ubesvarede opkald"
-  },
-  "icu:CallsList__EmptyState--noQuery--missed__subtitle": {
-    "messageformat": "Ubesvarede opkald vises her."
-  },
   "icu:CallsList__EmptyState--hasQuery": {
     "messageformat": "Ingen resultater for \"{query}\""
+  },
+  "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
+    "messageformat": "No results for “{query}” in missed calls"
+  },
+  "icu:CallsList__EmptyState--missedCalls": {
+    "messageformat": "No missed calls"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "Opret et opkaldslink"
@@ -5674,19 +5770,16 @@
     "messageformat": "Små tweaks, rettelser og forbedringer af appens præstation. Tak fordi du bruger Signal!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.23--0": {
-    "messageformat": "Chats åbner nu hurtigere end nogensinde, takket være endnu en runde af præstationsforbedringer, så du kan klikke på dine grupper og se, hvad de siger – rigtig hurtigt."
+  "icu:WhatsNew__v7.33--0": {
+    "messageformat": "Denne opdatering retter en fejl, hvor den korrekte kontekstmenu ikke blev vist efter at have højreklikket på en emoji gennem tekstvalg. Tak, <linkKhuddite>@khuddite</linkKhuddite>!"
   },
-  "icu:WhatsNew__v7.23--1": {
-    "messageformat": "Vi har også rettet en håndfuld fejl, herunder en, der nogle gange forårsagede, at \"Ukendt kontakt startede et videoopkald\" til at blive vist i chatlisteoversigten, efter du startede opkaldet. Selvom du stadig er på en selvopdagelsesrejse, er du aldrig helt ukendt for dig selv."
+  "icu:WhatsNew__v7.34--0": {
+    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say."
   },
-  "icu:WhatsNew__v7.24--0": {
-    "messageformat": "Denne opdatering retter en fejl, hvor visning af et ubesvaret opkald på én enhed ikke automatisk ville rydde indikatoren for det ubesvarede opkald på dine andre enheder, hvilket var en mistet mulighed for, at din liste med ubesvarede opkald bedre kunne eksistere side om side."
+  "icu:WhatsNew__v7.34--1": {
+    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore."
   },
-  "icu:WhatsNew__v7.25--0": {
-    "messageformat": "Tag en tur ned ad memory lane med den nye og forbedrede visning \"Alle medier\". Når du nu klikker på en chatoverskrift og vælger \"Se alle\" i sektionen med delte medier, vises ældre billeder og videoer automatisk, mens du ruller – i stedet for at være begrænset til de seneste medier."
-  },
-  "icu:WhatsNew__v7.26--0": {
-    "messageformat": "Sometimes leaving something behind is the best way to discover that you want to find it again, so we fixed a bug that made it difficult to search for groups that you're no longer a part of anymore but that still remain in your conversation list (and quite possibly in your heart)."
+  "icu:WhatsNew__v7.34--2": {
+    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality."
   }
 }

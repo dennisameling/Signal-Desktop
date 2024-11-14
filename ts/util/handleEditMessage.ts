@@ -24,6 +24,7 @@ import { isDirectConversation } from './whatTypeOfConversation';
 import { isTooOldToModifyMessage } from './isTooOldToModifyMessage';
 import { queueAttachmentDownloads } from './queueAttachmentDownloads';
 import { modifyTargetMessage } from './modifyTargetMessage';
+import { isMessageNoteToSelf } from './isMessageNoteToSelf';
 
 const RECURSION_LIMIT = 15;
 
@@ -92,12 +93,10 @@ export async function handleEditMessage(
   }
 
   const { serverTimestamp } = editAttributes.message;
-  const isNoteToSelf =
-    mainMessage.conversationId ===
-    window.ConversationController.getOurConversationId();
+
   if (
     serverTimestamp &&
-    !isNoteToSelf &&
+    !isMessageNoteToSelf(mainMessage) &&
     isTooOldToModifyMessage(serverTimestamp, mainMessage)
   ) {
     log.warn(`${idLog}: cannot edit message older than 48h`, serverTimestamp);
@@ -254,6 +253,7 @@ export async function handleEditMessage(
   const editedMessage: EditHistoryType = {
     attachments: nextEditedMessageAttachments,
     body: upgradedEditedMessageData.body,
+    bodyAttachment: upgradedEditedMessageData.bodyAttachment,
     bodyRanges: upgradedEditedMessageData.bodyRanges,
     preview: nextEditedMessagePreview,
     sendStateByConversationId:
@@ -277,6 +277,7 @@ export async function handleEditMessage(
   mainMessageModel.set({
     attachments: editedMessage.attachments,
     body: editedMessage.body,
+    bodyAttachment: editedMessage.bodyAttachment,
     bodyRanges: editedMessage.bodyRanges,
     editHistory,
     editMessageTimestamp: upgradedEditedMessageData.timestamp,

@@ -6,7 +6,7 @@ import type { ReadonlyMessageAttributesType } from '../model-types.d';
 import type { StoryDataType } from '../state/ducks/stories';
 import * as durations from '../util/durations';
 import * as log from '../logging/log';
-import { DataReader, DataWriter } from '../sql/Client';
+import { DataReader } from '../sql/Client';
 import type { GetAllStoriesResultType } from '../sql/Interface';
 import {
   getAttachmentsForMessage,
@@ -172,9 +172,7 @@ async function repairUnexpiredStories(): Promise<void> {
 
   await Promise.all(
     storiesWithExpiry.map(messageAttributes => {
-      return DataWriter.saveMessage(messageAttributes, {
-        ourAci: window.textsecure.storage.user.getCheckedAci(),
-      });
+      return window.MessageCache.saveMessage(messageAttributes);
     })
   );
 }

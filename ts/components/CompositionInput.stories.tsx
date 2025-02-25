@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-import 'react-quill/dist/quill.core.css';
+// @ts-expect-error -- no types
+import '@signalapp/quill-cjs/dist/quill.core.css';
 import { action } from '@storybook/addon-actions';
 import type { Meta } from '@storybook/react';
 import { getDefaultConversation } from '../test-both/helpers/getDefaultConversation';
@@ -42,6 +43,7 @@ const useProps = (overrideProps: Partial<Props> = {}): Props => {
     onPickEmoji: action('onPickEmoji'),
     onSubmit: action('onSubmit'),
     onTextTooLong: action('onTextTooLong'),
+    ourConversationId: 'me',
     platform: 'darwin',
     quotedMessageId: null,
     sendCounter: 0,

@@ -50,9 +50,6 @@
   "icu:privacyPolicy": {
     "messageformat": "ನಿಯಮಗಳು ಮತ್ತು ಗೌಪ್ಯತೆಯ ನೀತಿ"
   },
-  "icu:appleSilicon": {
-    "messageformat": "ಆ್ಯಪಲ್ ಸಿಲಿಕಾನ್"
-  },
   "icu:About__AppEnvironment": {
     "messageformat": "{appEnv}"
   },
@@ -590,6 +587,9 @@
   "icu:Toast--FailedToSendWithEndorsements": {
     "messageformat": "Failed to send message with endorsements"
   },
+  "icu:Toast--FailedToImportBackup": {
+    "messageformat": "Failed to process some frames during backup import. Please share your logs."
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "ಫೈಲ್ ಗಳ ಜೊತೆಗೆ ಫೊಟೋ ಮತ್ತು ವಿಡಿಯೋಗಳನ್ನು ನೀವು ಆಯ್ಕೆ ಮಾಡಲಾಗುವುದಿಲ್ಲ."
   },
@@ -687,7 +687,7 @@
     "messageformat": "ಹುಡುಕಿ"
   },
   "icu:searchUnreadChats": {
-    "messageformat": "Search unread chats"
+    "messageformat": "ಓದದಿರುವ ಚಾಟ್‌ಗಳನ್ನು ಹುಡುಕಿ"
   },
   "icu:clearSearch": {
     "messageformat": "ಶೋಧ ತೆರವುಗೊಳಿಸಿ"
@@ -699,10 +699,10 @@
     "messageformat": "\"{searchTerm}\" ಗೆ ಯಾವುದೇ ಹುಡುಕಾಟ ಇಲ್ಲ"
   },
   "icu:noSearchResultsWithUnreadFilter": {
-    "messageformat": "No results for \"{searchTerm}\" in unread chats"
+    "messageformat": "ಓದದಿರುವ ಚಾಟ್‌ಗಳಲ್ಲಿ \"{searchTerm}\" ಗಾಗಿ ಯಾವುದೇ ಫಲಿತಾಂಶಗಳಿಲ್ಲ"
   },
   "icu:noSearchResultsOnlyUnreadFilter": {
-    "messageformat": "No unread chats"
+    "messageformat": "ಓದದಿರುವ ಯಾವುದೇ ಚಾಟ್‌ಗಳಿಲ್ಲ"
   },
   "icu:noSearchResults--sms-only": {
     "messageformat": "ಡೆಸ್ಕ್‌ಟಾಪ್‌ನಲ್ಲಿ ಎಸ್ಎಂಎಸ್/ಎಂಎಂಎಸ್ ಸಂಪರ್ಕಗಳು ಲಭ್ಯವಿಲ್ಲ."
@@ -711,13 +711,13 @@
     "messageformat": "{conversationName}ನಲ್ಲಿ \"{searchTerm}\" ಗೆ ಯಾವುದೇ ಫಲಿತಾಂಶಗಳಿಲ್ಲ"
   },
   "icu:conversationsUnreadHeader": {
-    "messageformat": "Filtered by unread"
+    "messageformat": "ಓದದಿರುವವು ಎಂದು ಫಿಲ್ಟರ್ ಮಾಡಲಾಗಿದೆ"
   },
   "icu:filterByUnreadButtonLabel": {
-    "messageformat": "Filter by unread"
+    "messageformat": "ಓದದಿರುವುದು ಎಂಬ ಪ್ರಕಾರ ಫಿಲ್ಟರ್ ಮಾಡಿ"
   },
   "icu:clearFilterButton": {
-    "messageformat": "Clear filter"
+    "messageformat": "ಫಿಲ್ಟರ್ ತೆರವುಗೊಳಿಸಿ"
   },
   "icu:conversationsHeader": {
     "messageformat": "ಚಾಟ್‌‌ ಗಳು"
@@ -811,9 +811,6 @@
   },
   "icu:voiceNoteError": {
     "messageformat": "ಧ್ವನಿ ರೆಕಾರ್ಡಿಂಗ್‌ನಲ್ಲಿ ದೋಷವಿತ್ತು."
-  },
-  "icu:attachmentSaved": {
-    "messageformat": "ಲಗತ್ತು ಉಳಿಸಲಾಗಿದೆ."
   },
   "icu:attachmentSavedPlural": {
     "messageformat": "{count, plural, one {ಅಟ್ಯಾಚ್ ಮೆಂಟ್ ಸೇವ್ಆಗಿದೆ} other {{count,number}ಅಟ್ಯಾಚ್ ಮೆಂಟ್ ಗಳು ಸೇವ್ಆಗಿವೆ}}"
@@ -1022,18 +1019,6 @@
   "icu:MessageContextMenu__info": {
     "messageformat": "ಮಾಹಿತಿ"
   },
-  "icu:deleteMessagesInConversation": {
-    "messageformat": "ಮೆಸೇಜ್‌ಗಳನ್ನು ಅಳಿಸಿ"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__title": {
-    "messageformat": "ಮೆಸೇಜ್‍‌ಗಳನ್ನು ಅಳಿಸಬೇಕೆ?"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description": {
-    "messageformat": "ಈ ಸಾಧನದಿಂದ ಈ ಚಾಟ್‌ನಲ್ಲಿರುವ ಎಲ್ಲಾ ಮೆಸೇಜ್‌ಗಳನ್ನು ಅಳಿಸಲಾಗುತ್ತದೆ. ನೀವು ಮೆಸೇಜ್‌ಗಳನ್ನು ಅಳಿಸಿದ ನಂತರವೂ ಈ ಚಾಟ್‌ ಅನ್ನು ನೀವು ಹುಡುಕಬಹುದು."
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
-    "messageformat": "ಈ ಚಾಟ್‌ನಲ್ಲಿರುವ ಎಲ್ಲಾ ಮೆಸೇಜ್‌ಗಳನ್ನು ನಿಮ್ಮ ಎಲ್ಲಾ ಸಾಧನಗಳಿಂದ ಅಳಿಸಲಾಗುತ್ತದೆ. ನೀವು ಮೆಸೇಜ್‌ಗಳನ್ನು ಅಳಿಸಿದ ನಂತರವೂ ಈ ಚಾಟ್‌ ಅನ್ನು ನೀವು ಹುಡುಕಬಹುದು."
-  },
   "icu:deleteConversation": {
     "messageformat": "ಅಳಿಸಿ"
   },
@@ -1136,8 +1121,77 @@
   "icu:lightboxImageAlt": {
     "messageformat": "ಚಾಟ್‌ನಲ್ಲಿ ಚಿತ್ರವನ್ನು ಕಳುಹಿಸಲಾಗಿದೆ"
   },
+  "icu:lightBoxDownloading": {
+    "messageformat": "{total}ರಲ್ಲಿ {downloaded} ಡೌನ್‌ಲೋಡ್ ಮಾಡಲಾಗುತ್ತಿದೆ"
+  },
   "icu:imageCaptionIconAlt": {
     "messageformat": "ಈ ಚಿತ್ರಕ್ಕೆ ಶೀರ್ಷಿಕೆ ಇದೆ ಎಂದು ತೋರಿಸುವ ಐಕಾನ್"
+  },
+  "icu:imageOpenAlt": {
+    "messageformat": "ಈ ಲಗತ್ತನ್ನು ದೊಡ್ಡ ವೀಕ್ಷಣೆಯಲ್ಲಿ ತೆರೆಯಿರಿ"
+  },
+  "icu:startDownload": {
+    "messageformat": "ಡೌನ್‌ಲೋಡ್ ಪ್ರಾರಂಭಿಸಿ"
+  },
+  "icu:cancelDownload": {
+    "messageformat": "ಡೌನ್ ಲೋಡ್ ರದ್ದು ಮಾಡಿ"
+  },
+  "icu:downloadNItems": {
+    "messageformat": "{count, plural, one {{count,number} ಐಟಂ} other {{count,number} ಐಟಂಗಳು}}"
+  },
+  "icu:mediaNoLongerAvailable": {
+    "messageformat": "ಈ ಮೀಡಿಯಾ ಇನ್ನು ಮುಂದೆ ಲಭ್ಯವಿರುವುದಿಲ್ಲ."
+  },
+  "icu:mediaNotAvailable": {
+    "messageformat": "ಈ ಮೀಡಿಯಾ ಲಭ್ಯವಿಲ್ಲ"
+  },
+  "icu:mediaNotAvailable--short": {
+    "messageformat": "ಮೀಡಿಯಾ ಲಭ್ಯವಿಲ್ಲ"
+  },
+  "icu:attachmentNoLongerAvailable__learnMore": {
+    "messageformat": "ಇನ್ನಷ್ಟು ತಿಳಿಯಿರಿ"
+  },
+  "icu:attachmentNotAvailable__file": {
+    "messageformat": "ಫೈಲ್ ಲಭ್ಯವಿಲ್ಲ"
+  },
+  "icu:attachmentNotAvailable__longMessage": {
+    "messageformat": "ಈ ಮೆಸೇಜ್ ಅಪೂರ್ಣವಾಗಿದೆ"
+  },
+  "icu:attachmentNotAvailable__sticker": {
+    "messageformat": "ಸ್ಟಿಕ್ಕರ್ ಲಭ್ಯವಿಲ್ಲ"
+  },
+  "icu:attachmentNotAvailable__voice": {
+    "messageformat": "ಈ ಧ್ವನಿ ಸಂದೇಶ ಲಭ್ಯವಿಲ್ಲ"
+  },
+  "icu:AttachmentNotAvailableModal__title--file": {
+    "messageformat": "ಫೈಲ್ ಲಭ್ಯವಿಲ್ಲ"
+  },
+  "icu:AttachmentNotAvailableModal__title--long-text": {
+    "messageformat": "ಸಂಪೂರ್ಣ ಮೆಸೇಜ್ ಲಭ್ಯವಿಲ್ಲ"
+  },
+  "icu:AttachmentNotAvailableModal__title--media": {
+    "messageformat": "ಮೀಡಿಯಾ ಲಭ್ಯವಿಲ್ಲ"
+  },
+  "icu:AttachmentNotAvailableModal__title--sticker": {
+    "messageformat": "ಸ್ಟಿಕ್ಕರ್ ಲಭ್ಯವಿಲ್ಲ"
+  },
+  "icu:AttachmentNotAvailableModal__title--voice-message": {
+    "messageformat": "ಈ ಧ್ವನಿ ಸಂದೇಶ ಲಭ್ಯವಿಲ್ಲ"
+  },
+  "icu:AttachmentNotAvailableModal__body--file": {
+    "messageformat": "ಈ ಸಾಧನವನ್ನು ಲಿಂಕ್ ಮಾಡಿದಾಗ ಈ ಫೈಲ್ ಅನ್ನು ನಿಮ್ಮ ಫೋನ್‌ನಿಂದ ವರ್ಗಾಯಿಸಲಾಗಿಲ್ಲ. ಸಾಧನ ಲಿಂಕ್ ಮಾಡುವ ಸಮಯದಲ್ಲಿ 45 ದಿನಗಳಿಗಿಂತ ಹಳೆಯದಾದ ಮೀಡಿಯಾ ಮತ್ತು ಫೈಲ್‌ಗಳನ್ನು ಸಿಂಕ್ ಮಾಡಲು ಸಾಧ್ಯವಿಲ್ಲ."
+  },
+  "icu:AttachmentNotAvailableModal__body--long-text": {
+    "messageformat": "ಈ ಸಾಧನವನ್ನು ಲಿಂಕ್ ಮಾಡಿದಾಗ ಈ ಮೆಸೇಜ್‌ನಲ್ಲಿರುವ ಸಂಪೂರ್ಣ ಪಠ್ಯವನ್ನು ನಿಮ್ಮ ಫೋನ್‌ನಿಂದ ವರ್ಗಾಯಿಸಲಾಗಿಲ್ಲ. ಸಾಧನ ಲಿಂಕ್ ಮಾಡುವ ಸಮಯದಲ್ಲಿ 45 ದಿನಗಳಿಗಿಂತ ಹಳೆಯದಾದ ದೀರ್ಘ ಪಠ್ಯ ಸಂದೇಶಗಳನ್ನು ಸಿಂಕ್ ಮಾಡಲು ಸಾಧ್ಯವಿಲ್ಲ."
+  },
+  "icu:AttachmentNotAvailableModal__body--media": {
+    "messageformat": "ಈ ಸಾಧನವನ್ನು ಲಿಂಕ್ ಮಾಡಿದಾಗ ಈ ಮೀಡಿಯಾವನ್ನು ನಿಮ್ಮ ಫೋನ್‌ನಿಂದ ವರ್ಗಾಯಿಸಲಾಗಿಲ್ಲ. ಸಾಧನ ಲಿಂಕ್ ಮಾಡುವ ಸಮಯದಲ್ಲಿ 45 ದಿನಗಳಿಗಿಂತ ಹಳೆಯದಾದ ಮೀಡಿಯಾವನ್ನು ಸಿಂಕ್ ಮಾಡಲು ಸಾಧ್ಯವಿಲ್ಲ."
+  },
+  "icu:AttachmentNotAvailableModal__body--sticker": {
+    "messageformat": "ಈ ಸಾಧನವನ್ನು ಲಿಂಕ್ ಮಾಡಿದಾಗ ಈ ಸ್ಟಿಕ್ಕರ್ ಅನ್ನು ನಿಮ್ಮ ಫೋನ್‌ನಿಂದ ವರ್ಗಾಯಿಸಲಾಗಿಲ್ಲ. ಸಾಧನ ಲಿಂಕ್ ಮಾಡುವ ಸಮಯದಲ್ಲಿ 45 ದಿನಗಳಿಗಿಂತ ಹಳೆಯದಾದ ಮೀಡಿಯಾ ಮತ್ತು ಫೈಲ್‌ಗಳನ್ನು ಸಿಂಕ್ ಮಾಡಲು ಸಾಧ್ಯವಿಲ್ಲ."
+  },
+  "icu:AttachmentNotAvailableModal__body--voice-message": {
+    "messageformat": "ಈ ಸಾಧನವನ್ನು ಲಿಂಕ್ ಮಾಡಿದಾಗ ಈ ಧ್ವನಿ ಸಂದೇಶವನ್ನು ನಿಮ್ಮ ಫೋನ್‌ನಿಂದ ವರ್ಗಾಯಿಸಲಾಗಿಲ್ಲ. ಸಾಧನ ಲಿಂಕ್ ಮಾಡುವ ಸಮಯದಲ್ಲಿ 45 ದಿನಗಳಿಗಿಂತ ಹಳೆಯದಾದ ಮೀಡಿಯಾ ಮತ್ತು ಫೈಲ್‌ಗಳನ್ನು ಸಿಂಕ್ ಮಾಡಲು ಸಾಧ್ಯವಿಲ್ಲ."
   },
   "icu:save": {
     "messageformat": "ಉಳಿಸಿ"
@@ -1181,6 +1235,9 @@
   "icu:Install__qr-failed-load__retry": {
     "messageformat": "ಮರುಪ್ರಯತ್ನಿಸಿ"
   },
+  "icu:Install__qr-max-rotations__retry": {
+    "messageformat": "ಕೋಡ್ ರಿಫ್ರೆಶ್ ಮಾಡಿ"
+  },
   "icu:Install__qr-failed-load__get-help": {
     "messageformat": "ಸಹಾಯ ಪಡೆಯಿರಿ"
   },
@@ -1198,6 +1255,9 @@
   },
   "icu:Preferences--device-name": {
     "messageformat": "ಸಾಧನದ ಹೆಸರು"
+  },
+  "icu:Preferences--device-name__description": {
+    "messageformat": "ಈ ಸಾಧನದ ಹೆಸರನ್ನು ಬದಲಾಯಿಸಲು, ನಿಮ್ಮ ಫೋನ್‌ನಲ್ಲಿ Signal ತೆರೆಯಿರಿ ಮತ್ತು ಸೆಟ್ಟಿಂಗ್‌ಗಳು > ಲಿಂಕ್ ಮಾಡಲಾದ ಸಾಧನಗಳು ಎಂಬಲ್ಲಿಗೆ ನ್ಯಾವಿಗೇಟ್ ಮಾಡಿ"
   },
   "icu:chooseDeviceName": {
     "messageformat": "ಈ ಸಾಧನದ ಹೆಸರು ಆಯ್ಕೆ ಮಾಡಿ"
@@ -1415,6 +1475,9 @@
   "icu:calling__pre-call-info--many-people-in-call": {
     "messageformat": "{others, plural, one {{first}, {second} ಮತ್ತು {others,number} ಇತರರು ಈ ಕರೆಯಲ್ಲಿದ್ದಾರೆ} other {{first}, {second} ಮತ್ತು {others,number} ಇತರರು ಈ ಕರೆಯಲ್ಲಿದ್ದಾರೆ}}"
   },
+  "icu:calling__pre-call-info--only-unknown-contacts-in-call": {
+    "messageformat": "{count, plural, one {{count,number} ವ್ಯಕ್ತಿ ಈ ಕರೆಯಲ್ಲಿದ್ದಾರೆ} other {{count,number} ಜನರು ಈ ಕರೆಯಲ್ಲಿದ್ದಾರೆ}}"
+  },
   "icu:calling__pre-call-info--will-ring-1": {
     "messageformat": "Signal {person} ಅವರಿಗೆ ರಿಂಗ್ ಮಾಡಲಿದೆ"
   },
@@ -1572,10 +1635,10 @@
     "messageformat": "ಎಲ್ಲ ಡೇಟಾ ಅಳಿಸುವುದೇ?"
   },
   "icu:deleteAllDataBody": {
-    "messageformat": "Signal Desktop ನ ಈ ಆವೃತ್ತಿಯಿಂದ ಎಲ್ಲಾ ಡೇಟಾ ಮತ್ತು ಮೆಸೇಜ್‌ಗಳನ್ನು ಅಳಿಸಬೇಕೇ? ನೀವು ಯಾವಾಗಲೂ ಈ ಡೆಸ್ಕ್‌ಟಾಪ್ ಅನ್ನು ಮರುಲಿಂಕ್ ಮಾಡಬಹುದು, ಆದರೆ ನಿಮ್ಮ ಮೆಸೇಜ್‌ಗಳು ರೀಸ್ಟೋರ್ ಆಗುವುದಿಲ್ಲ. ನಿಮ್ಮ ಫೋನ್ ಅಥವಾ ಇತರ ಲಿಂಕ್ ಮಾಡಲಾದ ಸಾಧನಗಳಲ್ಲಿನ ನಿಮ್ಮ Signal ಖಾತೆ ಮತ್ತು ಡೇಟಾವನ್ನು ಅಳಿಸಲಾಗುವುದಿಲ್ಲ."
+    "messageformat": "Signal Desktop ನ ಈ ಆವೃತ್ತಿಯಿಂದ ಎಲ್ಲಾ ಡೇಟಾ ಮತ್ತು ಮೆಸೇಜ್‌ಗಳನ್ನು ಅಳಿಸಬೇಕೇ? ನಿಮ್ಮ ಫೋನ್ ಅಥವಾ ಇತರ ಲಿಂಕ್ ಮಾಡಲಾದ ಸಾಧನಗಳಲ್ಲಿನ ನಿಮ್ಮ Signal ಖಾತೆ ಮತ್ತು ಡೇಟಾವನ್ನು ಅಳಿಸಲಾಗುವುದಿಲ್ಲ."
   },
   "icu:deleteAllDataProgress": {
-    "messageformat": "ಸಂಪರ್ಕ ಕಡಿತಗೊಳಿಸಲಾಗುತ್ತಿದೆ ಮತ್ತು ಎಲ್ಲ ಡೇಟಾ ಅಳಿಸಲಾಗುತ್ತಿದೆ"
+    "messageformat": "ಡಿಸ್‌ಕನೆಕ್ಟ್ ಮಾಡಲಾಗುತ್ತಿದೆ ಮತ್ತು ಎಲ್ಲ ಡೇಟಾ ಅಳಿಸಲಾಗುತ್ತಿದೆ…"
   },
   "icu:deleteOldIndexedDBData": {
     "messageformat": "Signal Desktop ನ ಹಿಂದಿನ ಇನ್‌ಸ್ಟಾಲೇಶನ್‌ನಿಂದ ಹಳೆಯ ಡೇಟಾವನ್ನು ನೀವು ಹೊಂದಿದ್ದೀರಿ. ಮುಂದುವರಿಯಲು ನೀವು ಆಯ್ಕೆ ಮಾಡಿಕೊಂಡರೆ, ಇದನ್ನು ಅಳಿಸಲಾಗುತ್ತದೆ ಮತ್ತು ಶೂನ್ಯದಿಂದ ಆರಂಭವಾಗುತ್ತದೆ."
@@ -2735,6 +2798,9 @@
   "icu:incomingGroupCall__ringing-many": {
     "messageformat": "{remaining, plural, one {{ringer} ಅವರು ನಿಮಗೆ, {first}, {second}, ಮತ್ತು {remaining,number} ಇತರರಿಗೆ ಕರೆ ಮಾಡುತ್ತಿದ್ದಾರೆ} other {{ringer} is calling you, {first}, {second}, and {remaining,number} others}}"
   },
+  "icu:outgoingCallConnecting": {
+    "messageformat": "ಸಂಪರ್ಕಿಸಲಾಗುತ್ತಿದೆ..."
+  },
   "icu:outgoingCallRinging": {
     "messageformat": "ರಿಂಗ್ ಆಗುತ್ತಿದೆ…"
   },
@@ -2779,6 +2845,12 @@
   },
   "icu:CallControls__MutedToast--unmuted": {
     "messageformat": "ಮೈಕ್ ಆನ್ ಆಗಿದೆ"
+  },
+  "icu:CallControls__LowerHandSuggestionToast": {
+    "messageformat": "ನಿಮ್ಮ ಕೈಯನ್ನು ಕೆಳಗಿಳಿಸಬೇಕೇ?"
+  },
+  "icu:CallControls__LowerHandSuggestionToast--button": {
+    "messageformat": "ಕೆಳಗಿಳಿಸಿ"
   },
   "icu:CallControls__RingingToast--ringing-on": {
     "messageformat": "ರಿಂಗಿಂಗ್ ಆನ್ ಆಗಿದೆ"
@@ -3557,6 +3629,9 @@
   "icu:next": {
     "messageformat": "ಮುಂದೆ"
   },
+  "icu:ClearingData__description": {
+    "messageformat": "ಇದು ಕೆಲವು ನಿಮಿಷಗಳನ್ನು ತೆಗೆದುಕೊಳ್ಳಬಹುದು"
+  },
   "icu:BadgeDialog__become-a-sustainer-button": {
     "messageformat": "Signal ಗೆ ದಾನ ಮಾಡಿ"
   },
@@ -3584,35 +3659,41 @@
   "icu:BackupImportScreen__progressbar-hint--processing": {
     "messageformat": "ಮೆಸೇಜ್ ವರ್ಗಾವಣೆ ಅಂತಿಮ ಹಂತದಲ್ಲಿದೆ..."
   },
+  "icu:BackupImportScreen__progressbar-hint--canceling": {
+    "messageformat": "ರದ್ದುಗೊಳಿಸಲಾಗುತ್ತಿದೆ..."
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "ಡೌನ್‌ಲೋಡ್ ಮಾಡಲು ಸಿದ್ಧವಾಗುತ್ತಿದೆ..."
   },
   "icu:BackupImportScreen__description": {
-    "messageformat": "ನಿಮ್ಮ ಬ್ಯಾಕಪ್‌ನ ಗಾತ್ರವನ್ನು ಆಧರಿಸಿ ಇದು ಕೆಲವು ನಿಮಿಷಗಳನ್ನು ತೆಗೆದುಕೊಳ್ಳಬಹುದು"
+    "messageformat": "ಇದು ಕೆಲವು ನಿಮಿಷಗಳನ್ನು ತೆಗೆದುಕೊಳ್ಳಬಹುದು"
   },
   "icu:BackupImportScreen__cancel": {
-    "messageformat": "ವರ್ಗಾವಣೆಯನ್ನು ರದ್ದುಗೊಳಿಸಿ"
+    "messageformat": "ರದ್ದುಮಾಡಿ"
   },
   "icu:BackupImportScreen__security-description": {
-    "messageformat": "Messages and chat info are protected by end-to-end encryption, including the sync process. <learnMoreLink>Learn more</learnMoreLink>"
+    "messageformat": "ಮೆಸೇಜ್‌ಗಳು ಮತ್ತು ಚಾಟ್ ಮಾಹಿತಿಯನ್ನು ಸಿಂಕ್ ಪ್ರಕ್ರಿಯೆ ಸೇರಿದಂತೆ ಎಂಡ್-ಟು-ಎಂಡ್ ಎನ್‌ಕ್ರಿಪ್ಶನ್ ಮೂಲಕ ರಕ್ಷಿಸಲಾಗಿದೆ. <learnMoreLink>ಇನ್ನಷ್ಟು ತಿಳಿಯಿರಿ</learnMoreLink>"
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
-    "messageformat": "ವರ್ಗಾವಣೆಯನ್ನು ರದ್ದುಗೊಳಿಸಬೇಕೇ?"
+    "messageformat": "ಸಾಧನ ಲಿಂಕ್ ಮಾಡುವುದನ್ನು ರದ್ದುಗೊಳಿಸಬೇಕೇ?"
   },
   "icu:BackupImportScreen__cancel-confirmation__body": {
-    "messageformat": "ನಿಮ್ಮ ಮೆಸೇಜ್‌ಗಳು ಮತ್ತು ಮೀಡಿಯಾ ರೀಸ್ಟೋರ್ ಆಗುವುದನ್ನು ಪೂರ್ಣಗೊಳಿಸಿಲ್ಲ. ನೀವು ರದ್ದುಗೊಳಿಸುವುದನ್ನು ಆಯ್ಕೆಮಾಡಿದರೆ, ಸೆಟ್ಟಿಂಗ್‌ಗಳಿಂದ ನೀವು ಪುನಃ ವರ್ಗಾಯಿಸಬಹುದು."
+    "messageformat": "ನೀವು ರದ್ದುಗೊಳಿಸುವುದನ್ನು ಆಯ್ಕೆಮಾಡಿದರೆ, ಈ ಸಾಧನವನ್ನು ಲಿಂಕ್ ಮಾಡಲಾಗುವುದಿಲ್ಲ ಮತ್ತು ಯಾವುದೇ ಮೆಸೇಜ್‌ಗಳು ಅಥವಾ ಮೀಡಿಯಾವನ್ನು ವರ್ಗಾಯಿಸಲಾಗುವುದಿಲ್ಲ."
   },
   "icu:BackupImportScreen__cancel-confirmation__cancel": {
-    "messageformat": "ವರ್ಗಾವಣೆಯನ್ನು ಮುಂದುವರಿಸಿ"
+    "messageformat": "ಲಿಂಕ್ ಮಾಡುವುದನ್ನು ಮುಂದುವರಿಸಿ"
   },
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
-    "messageformat": "ವರ್ಗಾವಣೆಯನ್ನು ರದ್ದುಗೊಳಿಸಿ"
+    "messageformat": "ಲಿಂಕ್ ಮಾಡುವುದನ್ನು ರದ್ದುಗೊಳಿಸಿ"
   },
   "icu:BackupImportScreen__error__title": {
     "messageformat": "ಸಂದೇಶ ವರ್ಗಾವಣೆಯಲ್ಲಿ ದೋಷ ಕಂಡುಬಂದಿದೆ"
   },
   "icu:BackupImportScreen__error__body": {
     "messageformat": "ನಿಮ್ಮ ಸಂದೇಶಗಳನ್ನು ವರ್ಗಾಯಿಸಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ. ನಿಮ್ಮ ಇಂಟರ್ ನೆಟ್ ಸಂಪರ್ಕವನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೊಮ್ಮೆ ಪ್ರಯತ್ನ ಮಾಡಿ."
+  },
+  "icu:BackupImportScreen__error-fatal__body": {
+    "messageformat": "ದೋಷದಿಂದಾಗಿ ನಿಮ್ಮ ಮೆಸೇಜ್‌ಗಳನ್ನು ವರ್ಗಾಯಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಈ ಡೆಸ್ಕ್‌ಟಾಪ್ ಅನ್ನು ಮರುಲಿಂಕ್ ಮಾಡುವ ಮೂಲಕ ಪುನಃ ಪ್ರಯತ್ನಿಸಿ."
   },
   "icu:BackupImportScreen__error__confirm": {
     "messageformat": "ಮರುಪ್ರಯತ್ನಿಸಿ"
@@ -4218,7 +4299,7 @@
     "messageformat": "ಎಲ್ಲ ಚಾಟ್ ಬಣ್ಣಗಳನ್ನು ರಿಸೆಟ್ ಮಾಡಿ"
   },
   "icu:ChatColorPicker__confirm-reset-default": {
-    "messageformat": "ಡೀಫಾಲ್ಟ್ ರಿಸೆಟ್‌ ಮಾಡಿ"
+    "messageformat": "ಡೀಫಾಲ್ಟ್‌ ಬಣ್ಣಗಳನ್ನು ಮರುಹೊಂದಿಸಿ"
   },
   "icu:ChatColorPicker__confirm-reset": {
     "messageformat": "ಮರುಹೊಂದಿಸಿ"
@@ -4538,6 +4619,12 @@
   "icu:AvatarColorPicker--choose": {
     "messageformat": "ಬಣ್ಣ ಆಯ್ಕೆಮಾಡಿ"
   },
+  "icu:AttachmentDetailPill__retryDownload": {
+    "messageformat": "ಡೌನ್‌ಲೋಡ್ ಮರುಪ್ರಯತ್ನಿಸಿ"
+  },
+  "icu:AttachmentDetailPill__retryDownloadShort": {
+    "messageformat": "ಮರುಪ್ರಯತ್ನಿಸಿ"
+  },
   "icu:LeftPaneSetGroupMetadataHelper__avatar-modal-title": {
     "messageformat": "ಗ್ರೂಪ್ ಅವತಾರ್"
   },
@@ -4725,13 +4812,13 @@
     "messageformat": "Signal ತಾಂತ್ರಿಕ ತೊಂದರೆಗಳನ್ನು ಎದುರಿಸುತ್ತಿದೆ. ಸಾಧ್ಯವಾದಷ್ಟು ಬೇಗ ಸೇವೆಯನ್ನು ಮರುಸ್ಥಾಪಿಸಲು ನಾವು ಶ್ರಮಿಸುತ್ತಿದ್ದೇವೆ."
   },
   "icu:InstallScreenUpdateDialog--update-required__title": {
-    "messageformat": "Update Required"
+    "messageformat": "ಅಪ್ಡೇಟ್ ಆಗಬೇಕಾಗಿದೆ"
   },
   "icu:InstallScreenUpdateDialog--update-required__body": {
-    "messageformat": "To complete syncing your messages, update Signal desktop now."
+    "messageformat": "ನಿಮ್ಮ ಮೆಸೇಜ್‌ಗಳನ್ನು ಸಿಂಕ್ ಮಾಡುವುದನ್ನು ಪೂರ್ಣಗೊಳಿಸಲು, ಸಿಗ್ನಲ್ ಡೆಸ್ಕ್‌ಟಾಪ್ ಅನ್ನು ಈಗ ಅಪ್‌ಡೇಟ್ ಮಾಡಿ."
   },
   "icu:InstallScreenUpdateDialog--update-required__action-update": {
-    "messageformat": "Update"
+    "messageformat": "ನವೀಕರಿಸಿ"
   },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "ಅಪ್ಡೇಟ್ ಆಗಬೇಕಾಗಿದೆ"
@@ -5572,13 +5659,13 @@
     "messageformat": "ಹೊಸ ಧ್ವನಿ ಅಥವಾ ವೀಡಿಯೊ ಕರೆಯನ್ನು ಪ್ರಾರಂಭಿಸಲು <newCallButtonIcon></newCallButtonIcon> ಕ್ಲಿಕ್ ಮಾಡಿ."
   },
   "icu:CallsList__SearchInputPlaceholder--missed-calls": {
-    "messageformat": "Search missed calls"
+    "messageformat": "ಮಿಸ್ಡ್‌ಕಾಲ್‌ಗಳನ್ನು ಹುಡುಕಿ"
   },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "ಹುಡುಕಿ"
   },
   "icu:CallsList__FilteredByMissedHeader": {
-    "messageformat": "Filtered by missed"
+    "messageformat": "ತಪ್ಪಿಹೋದವುಗಳು ಎಂದು ಫಿಲ್ಟರ್ ಮಾಡಲಾಗಿದೆ"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "ತಪ್ಪಿ ಹೋದವುಗಳು ಎಂಬುದಾಗಿ ಫಿಲ್ಟರ್ ಮಾಡಿ"
@@ -5596,10 +5683,10 @@
     "messageformat": "{query} ಗೆ ಫಲಿತಾಂಶಗಳು ಲಭ್ಯವಿಲ್ಲ"
   },
   "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
-    "messageformat": "No results for “{query}” in missed calls"
+    "messageformat": "ಮಿಸ್ಡ್ ಕಾಲ್‌ಗಳಲ್ಲಿ \"{query} \" ಗೆ ಯಾವುದೇ ಫಲಿತಾಂಶಗಳಿಲ್ಲ"
   },
   "icu:CallsList__EmptyState--missedCalls": {
-    "messageformat": "No missed calls"
+    "messageformat": "ಯಾವುದೇ ಮಿಸ್ಡ್ ಕಾಲ್‌ಗಳಿಲ್ಲ"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "ಒಂದು ಕರೆ ಲಿಂಕ್ ರಚಿಸಿ"
@@ -5770,16 +5857,19 @@
     "messageformat": "ಸಣ್ಣ ಟ್ವೀಕ್‌ಗಳು, ಬಗ್ ಫಿಕ್ಸ್‌ಗಳು ಮತ್ತು ಕಾರ್ಯಕ್ಷಮತೆ ವರ್ಧನೆಗಳು. Signal ಬಳಸುತ್ತಿರುವುದಕ್ಕಾಗಿ ಧನ್ಯವಾದಗಳು!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.33--0": {
-    "messageformat": "ಪಠ್ಯವನ್ನು ಆಯ್ಕೆಮಾಡುವಾಗ ಎಮೋಜಿಯ ಮೇಲೆ ಬಲ ಕ್ಲಿಕ್ ಮಾಡಿದ ನಂತರ ಸರಿಯಾದ ಸಂದರ್ಭ ಮೆನು ಕಾಣಿಸದಿರುವ ದೋಷವನ್ನು ಈ ಅಪ್‌ಡೇಟ್ ಸರಿಪಡಿಸುತ್ತದೆ. ಧನ್ಯವಾದಗಳು, <linkKhuddite>@khuddite</linkKhuddite>!"
+  "icu:WhatsNew__v7.39--0": {
+    "messageformat": "ಈಗ ನೀವು ಟಚ್‌ಸ್ಕ್ರೀನ್ ಸಾಧನಗಳಲ್ಲಿ ಚಾಟ್ ಲಿಸ್ಟ್ ಸೈಡ್‌ಬಾರ್‌ನ ಗಾತ್ರವನ್ನು ಸರಿಹೊಂದಿಸಬಹುದು. ಹಾಗಾಗಿ ನೀವು ಡ್ರ್ಯಾಗ್ ಮಾಡಲು ಪ್ರಯತ್ನಿಸಿದಾಗ ಅದು ಅಂತಹ ಡ್ರ್ಯಾಗ್ ಆಗುವುದಿಲ್ಲ ಮತ್ತು ನಿಮ್ಮ ಸ್ಕ್ರೀನ್ ಮೇಲಿನ ಕಲೆಗಳು ನಿಮ್ಮ ಬೆರಳ ತುದಿಯಿಂದ ಹೊರಹೊಮ್ಮುವ ಶಕ್ತಿಗೆ ಸಾಕ್ಷಿಯಾಗಿವೆ."
   },
-  "icu:WhatsNew__v7.34--0": {
-    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say."
+  "icu:WhatsNew__v7.40--0": {
+    "messageformat": "ಕೆಲವು ಚಾಟ್‌ಗಳನ್ನು ಆಯ್ಕೆ ಮಾಡಿದ ನಂತರ ಅವುಗಳನ್ನು ಸರಿಯಾಗಿ ತೆರೆಯುವುದನ್ನು ತಡೆಯುವ ಅಪರೂಪದ ದೋಷವನ್ನು ನಾವು ಸರಿಪಡಿಸಿದ್ದೇವೆ, ಆದ್ದರಿಂದ ಈಗ ನೀವು ಅವರು ಹೇಳಿದ್ದನ್ನು ನೆನಪಿಟ್ಟುಕೊಳ್ಳಲು ಪ್ರಯತ್ನಿಸುತ್ತಿರುವಾಗ ಸಿಗ್ನಲ್ ಡೆಸ್ಕ್‌ಟಾಪ್ ಕೂಡ ನೆನಪಿಸಿಕೊಳ್ಳಲು ತಡಕಾಡುವುದಿಲ್ಲ."
   },
-  "icu:WhatsNew__v7.34--1": {
-    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore."
+  "icu:WhatsNew__v7.40--1": {
+    "messageformat": "ಈಗ ನೀವು ನಿಮ್ಮ ಪ್ರಾಥಮಿಕ Signal ಸಾಧನವನ್ನು ಹೊಸ ಡೆಸ್ಕ್‌ಟಾಪ್ ಲಿಂಕ್ ಮಾಡಿದಾಗ, ನಿಮ್ಮ ಚಾಟ್ ಇತಿಹಾಸ ಮತ್ತು ನಿಮ್ಮ ಕಳೆದ 45 ದಿನಗಳ ಮೀಡಿಯಾವನ್ನು ನಿಮ್ಮೊಂದಿಗೆ ತರಬಹುದು. ವರ್ಗಾವಣೆ ಪ್ರಕ್ರಿಯೆಯು ಎಂಡ್-ಟು-ಎಂಡ್ ಎನ್ಕ್ರಿಪ್ಟ್ ಆಗಿದೆ ಮತ್ತು ಸಂಪೂರ್ಣವಾಗಿ ಐಚ್ಛಿಕವಾಗಿರುತ್ತದೆ. ಹಿಂದಿನದನ್ನು ಬಿಡಬೇಕೆ ಅಥವಾ ಬೇಡವೇ ಎಂಬುದರ ಕುರಿತು ಆಯ್ಕೆ ಮಾಡುವ ಸಂದರ್ಭ ಬಂದಾಗ, ನಿಮ್ಮ ಸ್ವಂತ ವಿವೇಚನೆಯ ಮೇಲೆ ನಿರ್ಣಯ ತೆಗೆದುಕೊಳ್ಳಬೇಕಾಗುತ್ತದೆ."
   },
-  "icu:WhatsNew__v7.34--2": {
-    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality."
+  "icu:WhatsNew__v7.43--0": {
+    "messageformat": "ಪ್ರೇಮಿಗಳ ದಿನವು ಪರಿಪೂರ್ಣ ಜೋಡಿಯನ್ನು ಸಂಭ್ರಮಿಸುವುದರ ಬಗ್ಗೆ ಆಗಿದೆ, ಆದ್ದರಿಂದ ನಿಮ್ಮ ಫೋನ್‌ನಲ್ಲಿ ಅದೇ ಬಟನ್‌ನೊಂದಿಗೆ ಮುದ್ದಾದ ಜೋಡಿಯನ್ನು ರಚಿಸಲು ನಾವು ಡೆಸ್ಕ್‌ಟಾಪ್ ಆ್ಯಪ್‌ನಲ್ಲಿ ಒಂದೇ ಬಟನ್‌ನಲ್ಲಿ ಪಠ್ಯ ಲೇಬಲ್ ಅನ್ನು ಅಪ್‌ಡೇಟ್ ಮಾಡಿದ್ದೇವೆ. ಇದು ತುಂಬಾ ಸಣ್ಣ ಬದಲಾವಣೆಯಂತೆ ತೋರುತ್ತದೆ, ಮತ್ತು ಅದು ಹಾಗೆಯೇ ಇರುತ್ತದೆ, ಆದರೆ ಕೆಲವೊಮ್ಮೆ ನೀವು ಎಷ್ಟು ಕಾಳಜಿ ವಹಿಸುತ್ತೀರಿ ಎಂಬುದನ್ನು ತೋರಿಸುವ ಸಣ್ಣ ವಿಷಯಗಳಾಗಿವೆ."
+  },
+  "icu:WhatsNew__v7.44--0": {
+    "messageformat": "We fixed a minor animation bug during group calls. We apologize in advance if the most exciting part of your day was switching to grid view during a meeting and trying to catch the moment where the video squares from people who joined late sometimes partially obscured the slide deck your boss was presenting."
   }
 }

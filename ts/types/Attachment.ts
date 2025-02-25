@@ -33,6 +33,7 @@ import { DAY } from '../util/durations';
 import { getMessageQueueTime } from '../util/getMessageQueueTime';
 import { getLocalAttachmentUrl } from '../util/getLocalAttachmentUrl';
 import type { ReencryptionInfo } from '../AttachmentCrypto';
+import { redactGenericText } from '../util/privacy';
 
 const MAX_WIDTH = 300;
 const MAX_HEIGHT = MAX_WIDTH * 1.5;
@@ -65,7 +66,6 @@ export type AttachmentType = {
   /** For messages not already on disk, this will be a data url */
   url?: string;
   size: number;
-  fileSize?: string;
   pending?: boolean;
   width?: number;
   height?: number;
@@ -87,8 +87,9 @@ export type AttachmentType = {
   textAttachment?: TextAttachmentType;
   wasTooBig?: boolean;
 
+  totalDownloaded?: number;
   incrementalMac?: string;
-  incrementalMacChunkSize?: number;
+  chunkSize?: number;
 
   backupLocator?: {
     mediaName: string;
@@ -654,6 +655,20 @@ export function isPlayed(
   return readStatus === ReadStatus.Viewed;
 }
 
+export function canRenderAudio(
+  attachments?: ReadonlyArray<AttachmentType>
+): boolean {
+  const firstAttachment = attachments && attachments[0];
+  if (!firstAttachment) {
+    return false;
+  }
+
+  return (
+    isAudio(attachments) &&
+    (isDownloaded(firstAttachment) || isDownloadable(firstAttachment))
+  );
+}
+
 export function canDisplayImage(
   attachments?: ReadonlyArray<AttachmentType>
 ): boolean {
@@ -771,11 +786,35 @@ function resolveNestedAttachment<
   return attachment;
 }
 
+export function isIncremental(
+  attachment: Pick<AttachmentForUIType, 'incrementalMac' | 'chunkSize'>
+): boolean {
+  return Boolean(attachment.incrementalMac && attachment.chunkSize);
+}
+
 export function isDownloaded(
   attachment?: Pick<AttachmentType, 'path' | 'textAttachment'>
 ): boolean {
   const resolved = resolveNestedAttachment(attachment);
   return Boolean(resolved && (resolved.path || resolved.textAttachment));
+}
+
+export function isReadyToView(
+  attachment?: Pick<
+    AttachmentType,
+    'incrementalMac' | 'chunkSize' | 'path' | 'textAttachment'
+  >
+): boolean {
+  const fullyDownloaded = isDownloaded(attachment);
+  if (fullyDownloaded) {
+    return fullyDownloaded;
+  }
+
+  const resolved = resolveNestedAttachment(attachment);
+  return Boolean(
+    resolved &&
+      (resolved.path || resolved.textAttachment || isIncremental(resolved))
+  );
 }
 
 export function hasNotResolved(attachment?: AttachmentType): boolean {
@@ -1089,6 +1128,16 @@ export function getAttachmentSignature(attachment: AttachmentType): string {
   return attachment.digest;
 }
 
+export function getAttachmentSignatureSafe(
+  attachment: AttachmentType
+): string | undefined {
+  try {
+    return getAttachmentSignature(attachment);
+  } catch {
+    return undefined;
+  }
+}
+
 type RequiredPropertiesForDecryption = 'key' | 'digest';
 type RequiredPropertiesForReencryption = 'path' | 'key' | 'digest' | 'iv';
 
@@ -1233,8 +1282,22 @@ export function isDownloadable(attachment: AttachmentType): boolean {
   );
 }
 
+export function isPermanentlyUndownloadable(
+  attachment: AttachmentType
+): boolean {
+  return Boolean(!isDownloadable(attachment) && attachment.error);
+}
+
 export function isAttachmentLocallySaved(
   attachment: AttachmentType
 ): attachment is LocallySavedAttachment {
   return Boolean(attachment.path);
+}
+
+export function getAttachmentIdForLogging(attachment: AttachmentType): string {
+  const { digest } = attachment;
+  if (typeof digest === 'string') {
+    return redactGenericText(digest);
+  }
+  return '[MissingDigest]';
 }

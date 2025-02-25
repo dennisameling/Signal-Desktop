@@ -10,7 +10,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:protos && tsc && vite build --base=./",
+    "build": "pnpm run build:protos && tsc && vite build --base=./",
     "check:types": "tsc --noEmit",
     "preview": "vite preview",
     "lint": "run-p eslint prettier:format",
@@ -72,5 +72,14 @@
     "typescript": "5.0.4",
     "vite": "4.5.3",
     "vitest": "0.30.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "protobufjs"
+    ],
+    "ignoredBuiltDependencies": [
+      "es5-ext"
+    ]
   }
 }

@@ -32,6 +32,8 @@ import {
   RECEIPT_BATCHER_WAIT_MS,
 } from '../types/Receipt';
 import { drop } from '../util/drop';
+import { getMessageById } from '../messages/getMessageById';
+import { MessageModel } from '../models/messages';
 
 const { deleteSentProtoRecipient, removeSyncTaskById } = DataWriter;
 
@@ -78,12 +80,11 @@ const processReceiptBatcher = createWaitBatcher({
     > = new Map();
 
     function addReceiptAndTargetMessage(
-      message: MessageAttributesType,
+      message: MessageModel,
       receipt: MessageReceiptAttributesType
     ): void {
       const existing = receiptsByMessageId.get(message.id);
       if (!existing) {
-        window.MessageCache.toMessageAttributes(message);
         receiptsByMessageId.set(message.id, [receipt]);
       } else {
         existing.push(receipt);
@@ -151,9 +152,10 @@ const processReceiptBatcher = createWaitBatcher({
           );
 
           if (targetMessages.length) {
-            targetMessages.forEach(msg =>
-              addReceiptAndTargetMessage(msg, receipt)
-            );
+            targetMessages.forEach(msg => {
+              const model = window.MessageCache.register(new MessageModel(msg));
+              addReceiptAndTargetMessage(model, receipt);
+            });
           } else {
             // Nope, no target message was found
             const { receiptSync } = receipt;
@@ -188,54 +190,47 @@ async function processReceiptsForMessage(
   }
 
   // Get message from cache or DB
-  const message = await window.MessageCache.resolveAttributes(
-    'processReceiptsForMessage',
-    messageId
-  );
+  const message = await getMessageById(messageId);
+  if (!message) {
+    throw new Error(
+      `processReceiptsForMessage: Failed to find message ${messageId}`
+    );
+  }
 
-  const { updatedMessage, validReceipts } = await updateMessageWithReceipts(
-    message,
-    receipts
-  );
+  const { validReceipts } = await updateMessageWithReceipts(message, receipts);
 
-  // Save it to cache & to DB
-  await window.MessageCache.setAttributes({
-    messageId,
-    messageAttributes: updatedMessage,
-    skipSaveToDatabase: false,
-  });
+  await window.MessageCache.saveMessage(message.attributes);
 
   // Confirm/remove receipts, and delete sent protos
   for (const receipt of validReceipts) {
     // eslint-disable-next-line no-await-in-loop
     await remove(receipt);
-    drop(addToDeleteSentProtoBatcher(receipt, updatedMessage));
+    drop(addToDeleteSentProtoBatcher(receipt, message.attributes));
   }
 
   // notify frontend listeners
   const conversation = window.ConversationController.get(
-    message.conversationId
+    message.get('conversationId')
   );
   conversation?.debouncedUpdateLastMessage?.();
 }
 
 async function updateMessageWithReceipts(
-  message: MessageAttributesType,
+  message: MessageModel,
   receipts: Array<MessageReceiptAttributesType>
 ): Promise<{
-  updatedMessage: MessageAttributesType;
   validReceipts: Array<MessageReceiptAttributesType>;
 }> {
-  const logId = `updateMessageWithReceipts(timestamp=${message.timestamp})`;
+  const logId = `updateMessageWithReceipts(timestamp=${message.get('timestamp')})`;
 
-  const toRemove: Array<MessageReceiptAttributesType> = [];
+  const droppedReceipts: Array<MessageReceiptAttributesType> = [];
   const receiptsToProcess = receipts.filter(receipt => {
-    if (shouldDropReceipt(receipt, message)) {
+    if (shouldDropReceipt(receipt, message.attributes)) {
       const { receiptSync } = receipt;
       log.info(
         `${logId}: Dropping a receipt ${receiptSync.type} for sentAt=${receiptSync.messageSentAt}`
       );
-      toRemove.push(receipt);
+      droppedReceipts.push(receipt);
       return false;
     }
 
@@ -247,22 +242,22 @@ async function updateMessageWithReceipts(
     return true;
   });
 
-  await Promise.all(toRemove.map(remove));
-
   log.info(
     `${logId}: batch processing ${receipts.length}` +
       ` receipt${receipts.length === 1 ? '' : 's'}`
   );
 
   // Generate the updated message synchronously
-  let updatedMessage: MessageAttributesType = { ...message };
+  let { attributes } = message;
   for (const receipt of receiptsToProcess) {
-    updatedMessage = {
-      ...updatedMessage,
-      ...updateMessageSendStateWithReceipt(updatedMessage, receipt),
+    attributes = {
+      ...attributes,
+      ...updateMessageSendStateWithReceipt(attributes, receipt),
     };
   }
-  return { updatedMessage, validReceipts: receiptsToProcess };
+  message.set(attributes);
+
+  return { validReceipts: receiptsToProcess };
 }
 
 const deleteSentProtoBatcher = createWaitBatcher({
@@ -308,7 +303,7 @@ function getTargetMessage({
   sourceConversationId: string;
   messagesMatchingTimestamp: ReadonlyArray<MessageAttributesType>;
   targetTimestamp: number;
-}): MessageAttributesType | null {
+}): MessageModel | null {
   if (messagesMatchingTimestamp.length === 0) {
     return null;
   }
@@ -364,7 +359,7 @@ function getTargetMessage({
   }
 
   const message = matchingMessages[0];
-  return window.MessageCache.toMessageAttributes(message);
+  return window.MessageCache.register(new MessageModel(message));
 }
 const wasDeliveredWithSealedSender = (
   conversationId: string,

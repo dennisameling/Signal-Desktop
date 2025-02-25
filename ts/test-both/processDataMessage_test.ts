@@ -100,9 +100,9 @@ describe('processDataMessage', () => {
     assert.deepStrictEqual(out.attachments, [
       {
         ...PROCESSED_ATTACHMENT,
-        chunkSize: 2,
         downloadPath: 'random-path',
         incrementalMac: 'AAAA',
+        chunkSize: 2,
       },
     ]);
   });
@@ -222,7 +222,7 @@ describe('processDataMessage', () => {
         reaction: {
           emoji: '😎',
           targetAuthorAci: ACI_1,
-          targetTimestamp: Long.fromNumber(TIMESTAMP),
+          targetSentTimestamp: Long.fromNumber(TIMESTAMP),
         },
       }).reaction,
       {
@@ -239,7 +239,7 @@ describe('processDataMessage', () => {
           emoji: '😎',
           remove: true,
           targetAuthorAci: ACI_1,
-          targetTimestamp: Long.fromNumber(TIMESTAMP),
+          targetSentTimestamp: Long.fromNumber(TIMESTAMP),
         },
       }).reaction,
       {

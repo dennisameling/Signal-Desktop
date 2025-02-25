@@ -50,9 +50,6 @@
   "icu:privacyPolicy": {
     "messageformat": "Sera ya Masharti na Usiri"
   },
-  "icu:appleSilicon": {
-    "messageformat": "Apple silicon"
-  },
   "icu:About__AppEnvironment": {
     "messageformat": "{appEnv}"
   },
@@ -590,6 +587,9 @@
   "icu:Toast--FailedToSendWithEndorsements": {
     "messageformat": "Failed to send message with endorsements"
   },
+  "icu:Toast--FailedToImportBackup": {
+    "messageformat": "Failed to process some frames during backup import. Please share your logs."
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "Huwezi kuchagua picha na video pamoja na faili."
   },
@@ -687,7 +687,7 @@
     "messageformat": "Tafuta"
   },
   "icu:searchUnreadChats": {
-    "messageformat": "Search unread chats"
+    "messageformat": "Tafuta jumbe ambazo hazijasomwa"
   },
   "icu:clearSearch": {
     "messageformat": "Futa Utafutaji"
@@ -699,10 +699,10 @@
     "messageformat": "Hakuna matokeo ya \";{searchTerm}\""
   },
   "icu:noSearchResultsWithUnreadFilter": {
-    "messageformat": "No results for \"{searchTerm}\" in unread chats"
+    "messageformat": "Hakuna matokeo ya \"{searchTerm}\" katika gumzo ambazo hazijasomwa"
   },
   "icu:noSearchResultsOnlyUnreadFilter": {
-    "messageformat": "No unread chats"
+    "messageformat": "Hakuna jumbe ambazo hazijasomwa"
   },
   "icu:noSearchResults--sms-only": {
     "messageformat": "Mawasiliano ya SMS/MMS hayapatikani kwenye toleo la Kompyuta."
@@ -711,13 +711,13 @@
     "messageformat": "Hakuna matokeo ya \";{searchTerm}\" kwenye  {conversationName}"
   },
   "icu:conversationsUnreadHeader": {
-    "messageformat": "Filtered by unread"
+    "messageformat": "Imechujwa kwa jumbe ambazo hazijasomwa"
   },
   "icu:filterByUnreadButtonLabel": {
-    "messageformat": "Filter by unread"
+    "messageformat": "Chuja kwa jumbe ambazo hazijasomwa"
   },
   "icu:clearFilterButton": {
-    "messageformat": "Clear filter"
+    "messageformat": "Futa chujio"
   },
   "icu:conversationsHeader": {
     "messageformat": "Gumzo"
@@ -811,9 +811,6 @@
   },
   "icu:voiceNoteError": {
     "messageformat": "Kulikuwa na hitilafu na kinasa sauti."
-  },
-  "icu:attachmentSaved": {
-    "messageformat": "Kiambatisho kimehifadhiwa."
   },
   "icu:attachmentSavedPlural": {
     "messageformat": "{count, plural, one {Kiambatisho kimehifadhiwa} other {Viambatisho {count,number} vimehifadhiwa}}"
@@ -1022,18 +1019,6 @@
   "icu:MessageContextMenu__info": {
     "messageformat": "Maelezo"
   },
-  "icu:deleteMessagesInConversation": {
-    "messageformat": "Futa jumbe"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__title": {
-    "messageformat": "Futa ujumbe?"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description": {
-    "messageformat": "Jumbe zote kwenye gumzo hili zitafutwa kutoka kwenye kifaa hiki. Bado unaweza kutafuta gumzo hili baada ya kufuta jumbe."
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
-    "messageformat": "Jumbe zote kwenye gumzo hili zitafutwa kwenye vifaa vyako vyote. Bado unaweza kutafuta gumzo hili baada ya kufuta jumbe."
-  },
   "icu:deleteConversation": {
     "messageformat": "Futa"
   },
@@ -1136,8 +1121,77 @@
   "icu:lightboxImageAlt": {
     "messageformat": "Picha zimetumwa katika gumzo"
   },
+  "icu:lightBoxDownloading": {
+    "messageformat": "Inapakua {downloaded} ya {total}"
+  },
   "icu:imageCaptionIconAlt": {
     "messageformat": "Ikoni inaonyesha kuwa taswira hii ina maelezo mafupi"
+  },
+  "icu:imageOpenAlt": {
+    "messageformat": "Fungua kiambatisho hiki katika mwonekano mkubwa zaidi"
+  },
+  "icu:startDownload": {
+    "messageformat": "Anza kupakua"
+  },
+  "icu:cancelDownload": {
+    "messageformat": "Ghairi upakuaji"
+  },
+  "icu:downloadNItems": {
+    "messageformat": "{count, plural, one {Kitu {count,number}} other {Vitu {count,number}}}"
+  },
+  "icu:mediaNoLongerAvailable": {
+    "messageformat": "Video hii haipatikani tena."
+  },
+  "icu:mediaNotAvailable": {
+    "messageformat": "Video hii haipatikani"
+  },
+  "icu:mediaNotAvailable--short": {
+    "messageformat": "Video na picha haipatikani"
+  },
+  "icu:attachmentNoLongerAvailable__learnMore": {
+    "messageformat": "Jifunze zaidi"
+  },
+  "icu:attachmentNotAvailable__file": {
+    "messageformat": "Faili haipatikani"
+  },
+  "icu:attachmentNotAvailable__longMessage": {
+    "messageformat": "Ujumbe huu haujakamilika"
+  },
+  "icu:attachmentNotAvailable__sticker": {
+    "messageformat": "Kibandiko hakipatikani"
+  },
+  "icu:attachmentNotAvailable__voice": {
+    "messageformat": "Ujumbe huu wa sauti haujakamilika"
+  },
+  "icu:AttachmentNotAvailableModal__title--file": {
+    "messageformat": "Faili haipatikani"
+  },
+  "icu:AttachmentNotAvailableModal__title--long-text": {
+    "messageformat": "Ujumbe kamili haupatikani"
+  },
+  "icu:AttachmentNotAvailableModal__title--media": {
+    "messageformat": "Video na picha haipatikani"
+  },
+  "icu:AttachmentNotAvailableModal__title--sticker": {
+    "messageformat": "Kibandiko hakipatikani"
+  },
+  "icu:AttachmentNotAvailableModal__title--voice-message": {
+    "messageformat": "Ujumbe huu wa sauti haujakamilika"
+  },
+  "icu:AttachmentNotAvailableModal__body--file": {
+    "messageformat": "Faili hii haikuhamishwa kutoka kwenye simu yako wakati kifaa hiki kilipounganishwa. Video, picha na faili zenye zaidi ya siku 45 wakati wa kuunganisha kifaa haziwezi kusawazishwa."
+  },
+  "icu:AttachmentNotAvailableModal__body--long-text": {
+    "messageformat": "Nakala kamili katika ujumbe huu haikuhamishwa kutoka kwenye simu yako wakati kifaa hiki kiliunganishwa. Ujumbe mrefu wa maandishi zaidi ya siku 45 wakati wa kuunganisha kifaa hauwezi kusawazishwa."
+  },
+  "icu:AttachmentNotAvailableModal__body--media": {
+    "messageformat": "Faili hii haikuhamishwa kutoka kwenye simu yako wakati kifaa hiki kilipounganishwa. Video na picha zenye zaidi ya siku 45 wakati wa kuunganisha kifaa haziwezi kusawazishwa."
+  },
+  "icu:AttachmentNotAvailableModal__body--sticker": {
+    "messageformat": "Kibandiko hiki hakikuhamishwa kutoka kwenye simu yako wakati kifaa hiki kilipounganishwa. Video, picha na faili zenye zaidi ya siku 45 wakati wa kuunganisha kifaa haziwezi kusawazishwa."
+  },
+  "icu:AttachmentNotAvailableModal__body--voice-message": {
+    "messageformat": "Ujumbe huu wa sauti haukuhamishwa kutoka kwenye simu yako wakati kifaa hiki kilipounganishwa. Video, picha na faili zenye zaidi ya siku 45 wakati wa kuunganisha kifaa haziwezi kusawazishwa."
   },
   "icu:save": {
     "messageformat": "Hifadhi"
@@ -1181,6 +1235,9 @@
   "icu:Install__qr-failed-load__retry": {
     "messageformat": "Jaribu Upya"
   },
+  "icu:Install__qr-max-rotations__retry": {
+    "messageformat": "Onyesha code upya"
+  },
   "icu:Install__qr-failed-load__get-help": {
     "messageformat": "Pata msaada"
   },
@@ -1198,6 +1255,9 @@
   },
   "icu:Preferences--device-name": {
     "messageformat": "Jina la kifaa"
+  },
+  "icu:Preferences--device-name__description": {
+    "messageformat": "Ili kubadilisha jina la kifaa hiki, fungua ishara kwenye simu yako na nenda kwa mipangilio> Kifaa Kilichounganishwa"
   },
   "icu:chooseDeviceName": {
     "messageformat": "Chagua jina la kifaa hiki"
@@ -1415,6 +1475,9 @@
   "icu:calling__pre-call-info--many-people-in-call": {
     "messageformat": "{others, plural, one {{first}, {second} na {others,number} wako katika mazungumzo haya ya simu} other {{first}, {second}, na {others,number} wako katika mazungumzo haya ya simu}}"
   },
+  "icu:calling__pre-call-info--only-unknown-contacts-in-call": {
+    "messageformat": "{count, plural, one {Mtu {count,number} yuko kwenye simu hii} other {Watu {count,number} wako kwenye simu hii}}"
+  },
   "icu:calling__pre-call-info--will-ring-1": {
     "messageformat": "{person}atapigiwa simu na Signal"
   },
@@ -1572,10 +1635,10 @@
     "messageformat": "Futa data yote?"
   },
   "icu:deleteAllDataBody": {
-    "messageformat": "Futa data na jumbe zote kutoka kwenye toleo hili la Signal Desktop? Unaweza kuiunganisha tena kompyuta hii wakati wowote, lakini jumbe zako hazitarejeshwa. Akaunti yako ya Signal na data kwenye simu yako au vifaa vingine vilivyounganishwa havitofutwa."
+    "messageformat": "Futa data na jumbe zote kutoka kwenye toleo hili la Signal Desktop? Akaunti yako ya Signal na data kwenye simu yako au vifaa vingine vilivyounganishwa havitofutwa."
   },
   "icu:deleteAllDataProgress": {
-    "messageformat": "Inatenganisha na kufuta data yote"
+    "messageformat": "Inatenganisha na kufuta data yote…"
   },
   "icu:deleteOldIndexedDBData": {
     "messageformat": "Una data nzee kutokana na usanikishaji wa awali wa Signal Desktop. Ukichagua kuendelea, itafutwa na utaanza kutoka mwanzoni."
@@ -2735,6 +2798,9 @@
   "icu:incomingGroupCall__ringing-many": {
     "messageformat": "{remaining, plural, one {{ringer} amekupigia wewe, {first}, {second}, na {remaining,number} wengine} other {{ringer} anakupigia wewe, {first}, {second}, na {remaining,number} wengine}}"
   },
+  "icu:outgoingCallConnecting": {
+    "messageformat": "Inaunganisha..."
+  },
   "icu:outgoingCallRinging": {
     "messageformat": "Inaita..."
   },
@@ -2779,6 +2845,12 @@
   },
   "icu:CallControls__MutedToast--unmuted": {
     "messageformat": "Washa mic"
+  },
+  "icu:CallControls__LowerHandSuggestionToast": {
+    "messageformat": "Je ushushe mkono wako?"
+  },
+  "icu:CallControls__LowerHandSuggestionToast--button": {
+    "messageformat": "Shusha"
   },
   "icu:CallControls__RingingToast--ringing-on": {
     "messageformat": "Sauti ya kuitana imewashwa"
@@ -3557,6 +3629,9 @@
   "icu:next": {
     "messageformat": "ijayo"
   },
+  "icu:ClearingData__description": {
+    "messageformat": "Huenda hatua hii ikachukua dakika kadhaa"
+  },
   "icu:BadgeDialog__become-a-sustainer-button": {
     "messageformat": "Changia Signal"
   },
@@ -3584,35 +3659,41 @@
   "icu:BackupImportScreen__progressbar-hint--processing": {
     "messageformat": "Inakamilisha uhamishaji wa ujumbe..."
   },
+  "icu:BackupImportScreen__progressbar-hint--canceling": {
+    "messageformat": "Inaghairi..."
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "Inajiandaa kupakua..."
   },
   "icu:BackupImportScreen__description": {
-    "messageformat": "Hii inaweza kuchukua sekunde kadhaa kulingana na ukubwa wa mchakato wako wa uhifadhi nakala"
+    "messageformat": "Huenda hatua hii ikachukua dakika kadhaa"
   },
   "icu:BackupImportScreen__cancel": {
-    "messageformat": "Ghairi uhamishaji"
+    "messageformat": "Ghairi"
   },
   "icu:BackupImportScreen__security-description": {
-    "messageformat": "Messages and chat info are protected by end-to-end encryption, including the sync process. <learnMoreLink>Learn more</learnMoreLink>"
+    "messageformat": "Maelezo ya ujumbe na gumzo yanalindwa na kusimbwa fiche, ikiwemo mchakato wa ku-sync. <learnMoreLink>Jifunze zaidi</learnMoreLink>"
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
-    "messageformat": "Je, ghairi uhamishaji?"
+    "messageformat": "Ungependa kughairi kuunganisha kifaa?"
   },
   "icu:BackupImportScreen__cancel-confirmation__body": {
-    "messageformat": "Jumbe na picha na video zako hazijakamilika kurejeshwa. Ukichagua kughairi, unaweza kuhamisha tena kutoka kwenye Mipangilio."
+    "messageformat": "Ukichagua kughairi, kifaa hiki hakitaunganishwa na hakuna ujumbe au video na picha haitahamishwa."
   },
   "icu:BackupImportScreen__cancel-confirmation__cancel": {
-    "messageformat": "Endelea na uhamishaji"
+    "messageformat": "Endelea kuunganisha"
   },
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
-    "messageformat": "Ghairi uhamishaji"
+    "messageformat": "Ghairi kuunganisha"
   },
   "icu:BackupImportScreen__error__title": {
     "messageformat": "Hitilafu katika uhamishaji wa jumbe zako"
   },
   "icu:BackupImportScreen__error__body": {
     "messageformat": "Jumbe zako zimeshindwa kuhama. Angalia muunganisho wako wa mtandao kisha ujaribu tena."
+  },
+  "icu:BackupImportScreen__error-fatal__body": {
+    "messageformat": "Jumbe zako hazikuweza kuhamishwa kwa sababu ya hitilafu. Jaribu tena kwa kuunganisha tena eneo-kazi hili."
   },
   "icu:BackupImportScreen__error__confirm": {
     "messageformat": "Jaribu Upya"
@@ -4218,7 +4299,7 @@
     "messageformat": "Weka upya rangi zote za gumzo"
   },
   "icu:ChatColorPicker__confirm-reset-default": {
-    "messageformat": "Weka upya chaguo-msingi"
+    "messageformat": "Weka upya rangi chaguo-msingi"
   },
   "icu:ChatColorPicker__confirm-reset": {
     "messageformat": "Weka upya"
@@ -4538,6 +4619,12 @@
   "icu:AvatarColorPicker--choose": {
     "messageformat": "Chagua rangi"
   },
+  "icu:AttachmentDetailPill__retryDownload": {
+    "messageformat": "Jaribu kupakua tena"
+  },
+  "icu:AttachmentDetailPill__retryDownloadShort": {
+    "messageformat": "Jaribu Upya"
+  },
   "icu:LeftPaneSetGroupMetadataHelper__avatar-modal-title": {
     "messageformat": "Umbo la Kikundi"
   },
@@ -4725,13 +4812,13 @@
     "messageformat": "Signal inakabiliwa na matatizo ya kiufundi. Tunajitahidi kurejesha huduma haraka iwezekanavyo."
   },
   "icu:InstallScreenUpdateDialog--update-required__title": {
-    "messageformat": "Update Required"
+    "messageformat": "Sasisho Linahitajika"
   },
   "icu:InstallScreenUpdateDialog--update-required__body": {
-    "messageformat": "To complete syncing your messages, update Signal desktop now."
+    "messageformat": "Ili kukamilisha kusawazisha ujumbe wako, sasisha Signal Desktop sasa."
   },
   "icu:InstallScreenUpdateDialog--update-required__action-update": {
-    "messageformat": "Update"
+    "messageformat": "Sasisha"
   },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "Sasisho Linahitajika"
@@ -5572,13 +5659,13 @@
     "messageformat": "Bonyeza <newCallButtonIcon></newCallButtonIcon> ili kupiga simu ya kawaida au ya video."
   },
   "icu:CallsList__SearchInputPlaceholder--missed-calls": {
-    "messageformat": "Search missed calls"
+    "messageformat": "Tafuta simu ambazo hukupokea"
   },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "Tafuta"
   },
   "icu:CallsList__FilteredByMissedHeader": {
-    "messageformat": "Filtered by missed"
+    "messageformat": "Imechujwa kwa simu fifi"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "Chuja kwa zilizokoswa"
@@ -5596,10 +5683,10 @@
     "messageformat": "Hakuna matokeo ya \"{query}\""
   },
   "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
-    "messageformat": "No results for “{query}” in missed calls"
+    "messageformat": "Hakuna matokeo ya \"{query}\" katika simu ambazo hazikupokelewa"
   },
   "icu:CallsList__EmptyState--missedCalls": {
-    "messageformat": "No missed calls"
+    "messageformat": "Hakuna simu fifi"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "Unda Kiungo cha Simu"
@@ -5770,16 +5857,19 @@
     "messageformat": "Mabadiliko madogo, marekebisho ya bugs na uboreshaji wa utendaji. Asante kwa kutumia Signal!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.33--0": {
-    "messageformat": "Sasisho hili hurekebisha hitilafu ambapo menyu sahihi ya muktadha haikuonekana baada ya kubofya emoji wakati wa kuchagua maandishi. Asante, <linkKhuddite>@khuddite</linkKhuddite>!"
+  "icu:WhatsNew__v7.39--0": {
+    "messageformat": "Sasa unaweza kurekebisha ukubwa wa utepe wa orodha ya gumzo kwenye vifaa vya skrini ya kugusa. Kwa hiyo unapojaribu kuvuruta haitachukua muda, na uchafu kwenye skrini yako ni ushahidi tu wa nguvu inayotoka kwenye vidole vyako."
   },
-  "icu:WhatsNew__v7.34--0": {
-    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say."
+  "icu:WhatsNew__v7.40--0": {
+    "messageformat": "Tulirekebisha hitilafu nadra ambayo ilizuia baadhi ya gumzo kufunguka vizuri baada ya kuchaguliwa, kwa hivyo sasa Signal Desktop itakusaidia pale unapojaribu kukumbuka walichosema."
   },
-  "icu:WhatsNew__v7.34--1": {
-    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore."
+  "icu:WhatsNew__v7.40--1": {
+    "messageformat": "Sasa unapounganisha kifaa chako msingi cha Signal kwenye Kompyuta ya Mezani mpya, unaweza kutembea na historia yako ya gumzo na picha na video zako za siku 45 zilizopita. Mchakato wa uhamishaji umesimbwa kwa njia fiche, na ni kwa hiari kabisa. Linapokuja suala la kufanya uchaguzi kuhusu kuacha au kutoyaacha yaliyopita, unaachwa kwa vifaa vyako."
   },
-  "icu:WhatsNew__v7.34--2": {
-    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality."
+  "icu:WhatsNew__v7.43--0": {
+    "messageformat": "Siku ya Valentine inahusu kusherehekea mapenzi, hivyo tumesasisha lebo ya maandishi kwenye kitufe kimoja kwenye programu ya Desktop kuunda couple nzuri na kitufe kimoja kwenye simu yako. Hii inaonekana kama mabadiliko madogo sana, na kweli ni hivyo, lakini wakati mwingine ni vitu vidogo ambavyo vinaonyesha ni kiasi gani unajali."
+  },
+  "icu:WhatsNew__v7.44--0": {
+    "messageformat": "We fixed a minor animation bug during group calls. We apologize in advance if the most exciting part of your day was switching to grid view during a meeting and trying to catch the moment where the video squares from people who joined late sometimes partially obscured the slide deck your boss was presenting."
   }
 }

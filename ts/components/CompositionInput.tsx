@@ -3,12 +3,16 @@
 
 import * as React from 'react';
 
-import Delta from 'quill-delta';
-import ReactQuill from 'react-quill';
+import Quill, { Delta } from '@signalapp/quill-cjs';
+import {
+  matchText,
+  matchNewline,
+  matchBreak,
+} from '@signalapp/quill-cjs/modules/clipboard';
+import Emitter from '@signalapp/quill-cjs/core/emitter';
 import classNames from 'classnames';
 import { Manager, Reference } from 'react-popper';
-import type { DeltaStatic, KeyboardStatic, RangeStatic } from 'quill';
-import Quill from 'quill';
+import type { Range as RangeStatic } from '@signalapp/quill-cjs';
 
 import { MentionCompletion } from '../quill/mentions/completion';
 import { FormattingMenu, QuillFormattingStyle } from '../quill/formatting/menu';
@@ -56,7 +60,6 @@ import { getClassNamesFor } from '../util/getClassNamesFor';
 import { isNotNil } from '../util/isNotNil';
 import * as log from '../logging/log';
 import * as Errors from '../types/errors';
-import { useRefMerger } from '../hooks/useRefMerger';
 import { useEmojiSearch } from '../hooks/useEmojiSearch';
 import type { LinkPreviewType } from '../types/message/LinkPreviews';
 import { StagedLinkPreview } from './conversation/StagedLinkPreview';
@@ -72,22 +75,23 @@ import {
 import { missingCaseError } from '../util/missingCaseError';
 import { AutoSubstituteAsciiEmojis } from '../quill/auto-substitute-ascii-emojis';
 import { dropNull } from '../util/dropNull';
+import { SimpleQuillWrapper } from './SimpleQuillWrapper';
 
-Quill.register('formats/emoji', EmojiBlot);
-Quill.register('formats/mention', MentionBlot);
-Quill.register('formats/block', DirectionalBlot);
-Quill.register('formats/monospace', MonospaceBlot);
-Quill.register('formats/spoiler', SpoilerBlot);
-Quill.register('modules/autoSubstituteAsciiEmojis', AutoSubstituteAsciiEmojis);
-Quill.register('modules/emojiCompletion', EmojiCompletion);
-Quill.register('modules/mentionCompletion', MentionCompletion);
-Quill.register('modules/formattingMenu', FormattingMenu);
-Quill.register('modules/signalClipboard', SignalClipboard);
-
-type HistoryStatic = {
-  undo(): void;
-  clear(): void;
-};
+Quill.register(
+  {
+    'formats/emoji': EmojiBlot,
+    'formats/mention': MentionBlot,
+    'formats/block': DirectionalBlot,
+    'formats/monospace': MonospaceBlot,
+    'formats/spoiler': SpoilerBlot,
+    'modules/autoSubstituteAsciiEmojis': AutoSubstituteAsciiEmojis,
+    'modules/emojiCompletion': EmojiCompletion,
+    'modules/mentionCompletion': MentionCompletion,
+    'modules/formattingMenu': FormattingMenu,
+    'modules/signalClipboard': SignalClipboard,
+  },
+  true
+);
 
 export type InputApi = {
   focus: () => void;
@@ -120,7 +124,6 @@ export type Props = Readonly<{
   theme: ThemeType;
   placeholder?: string;
   sortedGroupMembers: ReadonlyArray<ConversationType> | null;
-  scrollerRef?: React.RefObject<HTMLDivElement>;
   onDirtyChange?(dirty: boolean): unknown;
   onEditorStateChange(options: {
     bodyRanges: DraftBodyRanges;
@@ -139,6 +142,7 @@ export type Props = Readonly<{
     timestamp: number
   ): unknown;
   onScroll?: (ev: React.UIEvent<HTMLElement>) => void;
+  ourConversationId: string | undefined;
   platform: string;
   quotedMessageId: string | null;
   shouldHidePopovers: boolean | null;
@@ -173,6 +177,7 @@ export function CompositionInput(props: Props): React.ReactElement {
     onPickEmoji,
     onScroll,
     onSubmit,
+    ourConversationId,
     placeholder,
     platform,
     quotedMessageId,
@@ -182,8 +187,6 @@ export function CompositionInput(props: Props): React.ReactElement {
     sortedGroupMembers,
     theme,
   } = props;
-
-  const refMerger = useRefMerger();
 
   const [emojiCompletionElement, setEmojiCompletionElement] =
     React.useState<JSX.Element>();
@@ -197,8 +200,6 @@ export function CompositionInput(props: Props): React.ReactElement {
   const emojiCompletionRef = React.useRef<EmojiCompletion>();
   const mentionCompletionRef = React.useRef<MentionCompletion>();
   const quillRef = React.useRef<Quill>();
-
-  const scrollerRefInner = React.useRef<HTMLDivElement>(null);
 
   const propsRef = React.useRef<Props>(props);
   const canSendRef = React.useRef<boolean>(false);
@@ -309,13 +310,7 @@ export function CompositionInput(props: Props): React.ReactElement {
     canSendRef.current = true;
     quill.setText('');
 
-    const historyModule = quill.getModule('history');
-
-    if (historyModule === undefined) {
-      return;
-    }
-
-    historyModule.clear();
+    quill.history.clear();
   };
 
   const setContents = (
@@ -332,11 +327,7 @@ export function CompositionInput(props: Props): React.ReactElement {
     const delta = generateDelta(text || '', bodyRanges || []);
 
     canSendRef.current = true;
-    // We need to cast here because we use @types/quill@1.3.10 which has types
-    // for quill-delta even though quill-delta is written in TS and has its own
-    // types. @types/quill@2.0.0 fixes the issue but react-quill has a peer-dep
-    // on the older quill types.
-    quill.setContents(delta as unknown as DeltaStatic);
+    quill.setContents(delta);
     if (cursorToEnd) {
       quill.setSelection(quill.getLength(), 0);
     }
@@ -408,11 +399,17 @@ export function CompositionInput(props: Props): React.ReactElement {
     const quill = quillRef.current;
     const changed = formattingChanged || mouseDownChanged;
     if (quill && changed) {
-      quill.getModule('formattingMenu').updateOptions({
+      const formattingMenu = quill.getModule('formattingMenu');
+      if (!(formattingMenu instanceof FormattingMenu)) {
+        throw new Error(
+          'CompositionInput: formattingMenu module not properly initialized'
+        );
+      }
+
+      formattingMenu.updateOptions({
         isMenuEnabled: isFormattingEnabled,
         isMouseDown,
       });
-      quill.options.formats = getQuillFormats();
     }
   }, [
     isFormattingEnabled,
@@ -422,7 +419,17 @@ export function CompositionInput(props: Props): React.ReactElement {
   ]);
 
   React.useEffect(() => {
-    quillRef.current?.getModule('signalClipboard').updateOptions({
+    const signalClipboard = quillRef.current?.getModule('signalClipboard');
+    if (!signalClipboard) {
+      return;
+    }
+    if (!(signalClipboard instanceof SignalClipboard)) {
+      throw new Error(
+        'CompositionInput: signalClipboard module not properly initialized'
+      );
+    }
+
+    signalClipboard.updateOptions({
       isDisabled: !isActive,
     });
   }, [isActive]);
@@ -525,6 +532,10 @@ export function CompositionInput(props: Props): React.ReactElement {
     }
 
     const [blotToDelete] = quill.getLeaf(selection.index);
+    if (!blotToDelete) {
+      return true;
+    }
+
     if (isMentionBlot(blotToDelete)) {
       const contents = quill.getContents(0, selection.index - 1);
       const restartDelta = getDeltaToRestartMention(contents.ops);
@@ -551,10 +562,18 @@ export function CompositionInput(props: Props): React.ReactElement {
     const { text, bodyRanges } = getTextAndRanges();
 
     if (quill !== undefined) {
-      const historyModule: HistoryStatic = quill.getModule('history');
+      // This is pretty ugly, but it seems that Chromium tries to replicate the computed
+      // style of removed DOM elements. 100% reproducible by selecting formatted lines and
+      // typing new text. This code removes the style tags that we don't want there, and
+      // quill doesn't know about. It can result formatting on the resultant message that
+      // doesn't match the composer.
+      const withStyles = quill.container.querySelectorAll('[style]');
+      for (const node of withStyles) {
+        node.attributes.removeNamedItem('style');
+      }
 
       if (text.length > MAX_LENGTH) {
-        historyModule.undo();
+        quill.history.undo();
         propsRef.current.onTextTooLong();
         return;
       }
@@ -720,7 +739,7 @@ export function CompositionInput(props: Props): React.ReactElement {
       const delta = generateDelta(draftText || '', draftBodyRanges || []);
 
       return (
-        <ReactQuill
+        <SimpleQuillWrapper
           className={`${BASE_CLASS_NAME}__quill`}
           onChange={() => callbacksRef.current.onChange()}
           defaultValue={delta}
@@ -730,7 +749,13 @@ export function CompositionInput(props: Props): React.ReactElement {
               isDisabled: !isActive,
             },
             clipboard: {
+              defaultMatchersOverride: [],
+              disableDefaultListeners: true,
               matchers: [
+                [Node.TEXT_NODE, matchText],
+                [Node.TEXT_NODE, matchNewline],
+                ['br', matchBreak],
+                [Node.ELEMENT_NODE, matchNewline],
                 ['IMG', matchEmojiImage],
                 ['IMG', matchEmojiBlot],
                 ['STRONG', matchBold],
@@ -744,23 +769,23 @@ export function CompositionInput(props: Props): React.ReactElement {
             },
             keyboard: {
               bindings: {
-                onEnter: {
-                  key: 13,
-                  handler: () => callbacksRef.current.onEnter(),
-                }, // 13 = Enter
-                onShortKeyEnter: {
-                  key: 13, // 13 = Enter
+                ShortEnter: {
+                  key: 'Enter',
                   shortKey: true,
                   handler: () => callbacksRef.current.onShortKeyEnter(),
                 },
-                onEscape: {
-                  key: 27,
+                Enter: {
+                  key: 'Enter',
+                  handler: () => callbacksRef.current.onEnter(),
+                },
+                Escape: {
+                  key: 'Escape',
                   handler: () => callbacksRef.current.onEscape(),
-                }, // 27 = Escape
-                onBackspace: {
-                  key: 8,
+                },
+                Backspace: {
+                  key: 'Backspace',
                   handler: () => callbacksRef.current.onBackspace(),
-                }, // 8 = Backspace
+                },
               },
             },
             emojiCompletion: {
@@ -781,11 +806,9 @@ export function CompositionInput(props: Props): React.ReactElement {
             },
             mentionCompletion: {
               getPreferredBadge,
-              me: sortedGroupMembers
-                ? sortedGroupMembers.find(foo => foo.isMe)
-                : undefined,
               memberRepositoryRef,
               setMentionPickerElement: setMentionCompletionElement,
+              ourConversationId,
               i18n,
               theme,
             },
@@ -794,48 +817,69 @@ export function CompositionInput(props: Props): React.ReactElement {
           placeholder={placeholder || i18n('icu:sendMessage')}
           readOnly={disabled}
           ref={element => {
-            if (element) {
-              const quill = element.getEditor();
-              const keyboard = quill.getModule('keyboard') as KeyboardStatic;
-
-              // force the tab handler to be prepended, otherwise it won't be
-              // executed: https://github.com/quilljs/quill/issues/1967
-              keyboard.bindings[9].unshift({
-                key: 9,
-                handler: () => callbacksRef.current.onTab(),
-              }); // 9 = Tab
-              // also, remove the default \t insertion binding
-              keyboard.bindings[9].pop();
-
-              // When loading a multi-line message out of a draft, the cursor
-              // position needs to be pushed to the end of the input manually.
-              quill.once('editor-change', () => {
-                const scroller = scrollerRefInner.current;
-
-                if (scroller != null) {
-                  quill.scrollingContainer = scroller;
-                }
-
-                setTimeout(() => {
-                  quill.setSelection(quill.getLength(), 0);
-                  quill.root.classList.add('ql-editor--loaded');
-                }, 0);
-              });
-
-              quill.on(
-                'selection-change',
-                (newRange: RangeStatic, oldRange: RangeStatic) => {
-                  // If we lose focus, store the last edit point for emoji insertion
-                  if (newRange == null) {
-                    setLastSelectionRange(oldRange);
-                  }
-                }
-              );
-              quillRef.current = quill;
-              emojiCompletionRef.current = quill.getModule('emojiCompletion');
-              mentionCompletionRef.current =
-                quill.getModule('mentionCompletion');
+            if (!element) {
+              return;
             }
+            const quill = element.getQuill();
+            if (!quill) {
+              throw new Error(
+                'CompositionInput: wrapper did not return quill!'
+              );
+            }
+
+            quillRef.current = quill;
+
+            quill.on(Emitter.events.COMPOSITION_START, () => {
+              quill.root.classList.toggle('ql-blank', false);
+            });
+            quill.on(Emitter.events.COMPOSITION_END, () => {
+              quill.root.classList.toggle('ql-blank', quill.editor.isBlank());
+            });
+
+            // When loading a multi-line message out of a draft, the cursor
+            // position needs to be pushed to the end of the input manually.
+            quill.once(Emitter.events.EDITOR_CHANGE, () => {
+              setTimeout(() => {
+                quill.setSelection(quill.getLength(), 0);
+                quill.root.classList.add('ql-editor--loaded');
+              }, 0);
+            });
+
+            quill.on(
+              Emitter.events.SELECTION_CHANGE,
+              (newRange: RangeStatic, oldRange: RangeStatic) => {
+                // If we lose focus, store the last edit point for emoji insertion
+                if (newRange == null) {
+                  setLastSelectionRange(oldRange);
+                }
+              }
+            );
+
+            const tabKey = 'Tab';
+            quill.keyboard.addBinding({
+              key: tabKey,
+              handler: () => callbacksRef.current.onTab(),
+            });
+            const ourHandler = quill.keyboard.bindings[tabKey].pop();
+            if (ourHandler) {
+              quill.keyboard.bindings[tabKey].unshift(ourHandler);
+            }
+
+            const emojiCompletion = quill.getModule('emojiCompletion');
+            if (!(emojiCompletion instanceof EmojiCompletion)) {
+              throw new Error(
+                'CompositionInput: emojiCompletion module not properly initialized'
+              );
+            }
+            emojiCompletionRef.current = emojiCompletion;
+
+            const mentionCompletion = quill.getModule('mentionCompletion');
+            if (!(mentionCompletion instanceof MentionCompletion)) {
+              throw new Error(
+                'CompositionInput: mentionCompletion module not properly initialized'
+              );
+            }
+            mentionCompletionRef.current = mentionCompletion;
           }}
         />
       );
@@ -918,11 +962,6 @@ export function CompositionInput(props: Props): React.ReactElement {
             )}
             {children}
             <div
-              ref={
-                props.scrollerRef
-                  ? refMerger(scrollerRefInner, props.scrollerRef)
-                  : scrollerRefInner
-              }
               onClick={focus}
               onScroll={onScroll}
               className={classNames(

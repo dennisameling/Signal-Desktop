@@ -1,7 +1,7 @@
 // Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { action } from '@storybook/addon-actions';
 import type { Meta } from '@storybook/react';
 import { IMAGE_JPEG } from '../types/MIME';
@@ -36,6 +36,7 @@ export default {
     areWePendingApproval: { control: { type: 'boolean' } },
   },
   args: {
+    acceptedMessageRequest: true,
     addAttachment: action('addAttachment'),
     conversationId: '123',
     convertDraftBodyRangesIntoHydrated: () => undefined,
@@ -116,8 +117,7 @@ export default {
     groupAdmins: [],
     cancelJoinRequest: action('cancelJoinRequest'),
     showConversation: action('showConversation'),
-    // SMS-only
-    isSMSOnly: false,
+    isSmsOnlyOrUnregistered: false,
     isFetchingUUID: false,
     renderSmartCompositionRecording: _ => <div>RECORDING</div>,
     renderSmartCompositionRecordingDraft: _ => <div>RECORDING DRAFT</div>,
@@ -125,6 +125,10 @@ export default {
     selectedMessageIds: undefined,
     toggleSelectMode: action('toggleSelectMode'),
     toggleForwardMessagesModal: action('toggleForwardMessagesModal'),
+    // Signal Conversation
+    isSignalConversation: false,
+    isMuted: false,
+    setMuteExpiration: action('setMuteExpiration'),
   },
 } satisfies Meta<Props>;
 
@@ -158,17 +162,26 @@ export function StickerButton(args: Props): JSX.Element {
 
 export function MessageRequest(args: Props): JSX.Element {
   const theme = useContext(StorybookThemeContext);
-  return <CompositionArea {...args} theme={theme} />;
+  return (
+    <CompositionArea {...args} theme={theme} acceptedMessageRequest={false} />
+  );
 }
 
 export function SmsOnlyFetchingUuid(args: Props): JSX.Element {
   const theme = useContext(StorybookThemeContext);
-  return <CompositionArea {...args} theme={theme} isSMSOnly isFetchingUUID />;
+  return (
+    <CompositionArea
+      {...args}
+      theme={theme}
+      isSmsOnlyOrUnregistered
+      isFetchingUUID
+    />
+  );
 }
 
 export function SmsOnly(args: Props): JSX.Element {
   const theme = useContext(StorybookThemeContext);
-  return <CompositionArea {...args} theme={theme} isSMSOnly />;
+  return <CompositionArea {...args} theme={theme} isSmsOnlyOrUnregistered />;
 }
 
 export function Attachments(args: Props): JSX.Element {
@@ -252,5 +265,23 @@ export function NoFormattingMenu(args: Props): JSX.Element {
   const theme = useContext(StorybookThemeContext);
   return (
     <CompositionArea {...args} theme={theme} isFormattingEnabled={false} />
+  );
+}
+
+export function SignalConversationMuteToggle(args: Props): JSX.Element {
+  const theme = useContext(StorybookThemeContext);
+  const [isMuted, setIsMuted] = useState(true);
+
+  function setIsMutedByTime(_: string, muteExpiresAt: number) {
+    setIsMuted(muteExpiresAt > Date.now());
+  }
+  return (
+    <CompositionArea
+      {...args}
+      theme={theme}
+      isSignalConversation
+      isMuted={isMuted}
+      setMuteExpiration={setIsMutedByTime}
+    />
   );
 }

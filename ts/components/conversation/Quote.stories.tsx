@@ -108,6 +108,7 @@ const defaultMessageProps: TimelineMessagesProps = {
   isSMS: false,
   isSpoilerExpanded: {},
   toggleSelectMessage: action('toggleSelectMessage'),
+  cancelAttachmentDownload: action('default--cancelAttachmentDownload'),
   kickOffAttachmentDownload: action('default--kickOffAttachmentDownload'),
   markAttachmentAsCorrupted: action('default--markAttachmentAsCorrupted'),
   messageExpanded: action('default--message-expanded'),
@@ -137,12 +138,14 @@ const defaultMessageProps: TimelineMessagesProps = {
   showAttachmentDownloadStillInProgressToast: action(
     'showAttachmentDownloadStillInProgressToast'
   ),
+  showAttachmentNotAvailableModal: action('showAttachmentNotAvailableModal'),
   showExpiredIncomingTapToViewToast: action(
     'showExpiredIncomingTapToViewToast'
   ),
   showExpiredOutgoingTapToViewToast: action(
     'showExpiredOutgoingTapToViewToast'
   ),
+  showMediaNoLongerAvailableToast: action('showMediaNoLongerAvailableToast'),
   toggleDeleteMessagesModal: action('default--toggleDeleteMessagesModal'),
   toggleForwardMessagesModal: action('default--toggleForwardMessagesModal'),
   showLightbox: action('default--showLightbox'),

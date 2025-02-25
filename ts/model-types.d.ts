@@ -38,6 +38,7 @@ import type { AnyPaymentEvent } from './types/Payment';
 import AccessRequiredEnum = Proto.AccessControl.AccessRequired;
 import MemberRoleEnum = Proto.Member.Role;
 import type { MessageRequestResponseEvent } from './types/MessageRequestResponseEvent';
+import type { QuotedMessageForComposerType } from './state/ducks/composer';
 
 export type LastMessageStatus =
   | 'paused'
@@ -70,8 +71,8 @@ export type CustomError = Error & {
 
 export type GroupMigrationType = {
   areWeInvited: boolean;
-  droppedMemberIds?: Array<string>;
-  invitedMembers?: Array<LegacyMigrationPendingMemberType>;
+  droppedMemberIds?: ReadonlyArray<string>;
+  invitedMembers?: ReadonlyArray<LegacyMigrationPendingMemberType>;
 
   // We don't generate data like this; these were added to support import/export
   droppedMemberCount?: number;
@@ -97,10 +98,11 @@ export type QuotedMessageType = {
   id: number | null;
   isGiftBadge?: boolean;
   isViewOnce: boolean;
-  // `messageId` is deprecated
-  messageId?: string;
   referencedMessageNotFound: boolean;
   text?: string;
+  /** @deprecated `messageId` is used only in composer state, but still may exist in DB
+   * records, particularly for messages sent from this device */
+  messageId?: string;
 };
 
 type StoryReplyContextType = {
@@ -111,7 +113,7 @@ type StoryReplyContextType = {
 
 export type GroupV1Update = {
   avatarUpdated?: boolean;
-  joined?: Array<string>;
+  joined?: ReadonlyArray<string>;
   left?: string | 'You';
   name?: string;
 };
@@ -128,11 +130,11 @@ export type MessageReactionType = {
 //   needs more usage of get/setPropForTimestamp. Also, these fields must match the fields
 //   in MessageAttributesType.
 export type EditHistoryType = {
-  attachments?: Array<AttachmentType>;
+  attachments?: ReadonlyArray<AttachmentType>;
   body?: string;
   bodyAttachment?: AttachmentType;
   bodyRanges?: ReadonlyArray<RawBodyRange>;
-  preview?: Array<LinkPreviewType>;
+  preview?: ReadonlyArray<LinkPreviewType>;
   quote?: QuotedMessageType;
   sendStateByConversationId?: SendStateByConversationId;
   timestamp: number;
@@ -166,6 +168,9 @@ type MessageType =
   | 'verified-change'
   | 'message-request-response-event';
 
+// Note: when adding a property that is likely to be set across many messages,
+//   consider adding a database column as well and updating `MESSAGE_COLUMNS`
+//   in `ts/sql/Server.ts`
 export type MessageAttributesType = {
   bodyAttachment?: AttachmentType;
   bodyRanges?: ReadonlyArray<RawBodyRange>;
@@ -176,7 +181,7 @@ export type MessageAttributesType = {
   decrypted_at?: number;
   deletedForEveryone?: boolean;
   deletedForEveryoneTimestamp?: number;
-  errors?: Array<CustomError>;
+  errors?: ReadonlyArray<CustomError>;
   expirationStartTimestamp?: number | null;
   expireTimer?: DurationInSeconds;
   groupMigration?: GroupMigrationType;
@@ -188,7 +193,7 @@ export type MessageAttributesType = {
   isErased?: boolean;
   isTapToViewInvalid?: boolean;
   isViewOnce?: boolean;
-  editHistory?: Array<EditHistoryType>;
+  editHistory?: ReadonlyArray<EditHistoryType>;
   editMessageTimestamp?: number;
   editMessageReceivedAt?: number;
   editMessageReceivedAtMs?: number;
@@ -218,12 +223,12 @@ export type MessageAttributesType = {
   id: string;
   type: MessageType;
   body?: string;
-  attachments?: Array<AttachmentType>;
-  preview?: Array<LinkPreviewType>;
+  attachments?: ReadonlyArray<AttachmentType>;
+  preview?: ReadonlyArray<LinkPreviewType>;
   sticker?: StickerType;
   sent_at: number;
-  unidentifiedDeliveries?: Array<string>;
-  contact?: Array<EmbeddedContactType>;
+  unidentifiedDeliveries?: ReadonlyArray<string>;
+  contact?: ReadonlyArray<EmbeddedContactType>;
   conversationId: string;
   storyReaction?: {
     emoji: string;
@@ -284,8 +289,8 @@ export type MessageAttributesType = {
   timestamp: number;
 
   // Backwards-compatibility with prerelease data schema
-  invitedGV2Members?: Array<LegacyMigrationPendingMemberType>;
-  droppedGV2MemberIds?: Array<string>;
+  invitedGV2Members?: ReadonlyArray<LegacyMigrationPendingMemberType>;
+  droppedGV2MemberIds?: ReadonlyArray<string>;
 
   sendHQImages?: boolean;
 
@@ -324,7 +329,7 @@ export type DraftEditMessageType = {
   body: string;
   preview?: LinkPreviewType;
   targetMessageId: string;
-  quote?: QuotedMessageType;
+  quote?: QuotedMessageForComposerType['quote'];
 };
 
 export type ConversationAttributesType = {
@@ -377,6 +382,7 @@ export type ConversationAttributesType = {
   messageCount?: number;
   messageCountBeforeMessageRequests?: number | null;
   messageRequestResponseType?: number;
+  messagesDeleted?: boolean;
   muteExpiresAt?: number;
   dontNotifyForMentionsIfMuted?: boolean;
   sharingPhoneNumber?: boolean;
@@ -501,6 +507,13 @@ export type ConversationAttributesType = {
 
   // Legacy field, mapped to above in getConversation()
   unblurredAvatarPath?: string;
+
+  // Only used during backup integration tests. After import, our data model merges
+  // Contact and Chat frames from a backup, and we will then by default export both, even
+  // if the Chat frame was not imported. That's fine in normal usage, but breaks
+  // integration tests that aren't expecting to see a Chat frame on export that was not
+  // there on import.
+  test_chatFrameImportedFromBackup?: boolean;
 };
 
 export type ConversationRenderInfoType = Pick<

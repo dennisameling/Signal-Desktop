@@ -10,7 +10,7 @@ import type { ReadonlyMessageAttributesType } from '../model-types.d';
 import { isNotNil } from '../util/isNotNil';
 import {
   format as formatPhoneNumber,
-  parse as parsePhoneNumber,
+  normalize as normalizePhoneNumber,
 } from './PhoneNumber';
 import type {
   AttachmentType,
@@ -26,9 +26,9 @@ import { getLocalAttachmentUrl } from '../util/getLocalAttachmentUrl';
 
 type GenericEmbeddedContactType<AvatarType> = {
   name?: Name;
-  number?: Array<Phone>;
-  email?: Array<Email>;
-  address?: Array<PostalAddress>;
+  number?: ReadonlyArray<Phone>;
+  email?: ReadonlyArray<Email>;
+  address?: ReadonlyArray<PostalAddress>;
   avatar?: AvatarType;
   organization?: string;
 
@@ -223,15 +223,15 @@ export function parseAndWriteAvatar(
   return async (
     contact: EmbeddedContactType,
     context: {
-      message: ReadonlyMessageAttributesType;
       getRegionCode: () => string | undefined;
       logger: LoggerType;
       writeNewAttachmentData: (
         data: Uint8Array
       ) => Promise<LocalAttachmentV2Type>;
-    }
+    },
+    message: ReadonlyMessageAttributesType
   ): Promise<EmbeddedContactType> => {
-    const { message, getRegionCode, logger } = context;
+    const { getRegionCode, logger } = context;
     const { avatar } = contact;
 
     const contactWithUpdatedAvatar =
@@ -306,7 +306,7 @@ export function _validate(
   contact: EmbeddedContactType,
   { messageId }: { messageId: string }
 ): Error | undefined {
-  const { number, email, address, organization } = contact;
+  const { organization } = contact;
 
   if (!getDisplayName(contact) && !organization) {
     return new Error(
@@ -314,20 +314,10 @@ export function _validate(
     );
   }
 
-  if (
-    (!number || !number.length) &&
-    (!email || !email.length) &&
-    (!address || !address.length)
-  ) {
-    return new Error(
-      `Message ${messageId}: Contact had no included numbers, email or addresses`
-    );
-  }
-
   return undefined;
 }
 
-function parsePhoneItem(
+export function parsePhoneItem(
   item: Phone,
   { regionCode }: { regionCode: string | undefined }
 ): Phone | undefined {
@@ -335,10 +325,14 @@ function parsePhoneItem(
     return undefined;
   }
 
+  const value = regionCode
+    ? normalizePhoneNumber(item.value, { regionCode })
+    : item.value;
+
   return {
     ...item,
     type: item.type || DEFAULT_PHONE_TYPE,
-    value: parsePhoneNumber(item.value, { regionCode }),
+    value: value ?? item.value,
   };
 }
 

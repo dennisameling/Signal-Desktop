@@ -287,6 +287,9 @@ const useProps = (overrideProps: OverridePropsType = {}): PropsType => {
         onShowDebugLog={action('onShowDebugLog')}
         onUndoArchive={action('onUndoArchive')}
         openFileInFolder={action('openFileInFolder')}
+        showAttachmentNotAvailableModal={action(
+          'showAttachmentNotAvailableModal'
+        )}
         toast={undefined}
         megaphone={undefined}
         containerWidthBreakpoint={containerWidthBreakpoint}
@@ -561,24 +564,6 @@ export function SearchNoResultsWhenSearchingEverywhere(): JSX.Element {
           conversationResults: emptySearchResultsGroup,
           contactResults: emptySearchResultsGroup,
           messageResults: emptySearchResultsGroup,
-          primarySendsSms: false,
-        },
-      })}
-    />
-  );
-}
-
-export function SearchNoResultsWhenSearchingEverywhereSms(): JSX.Element {
-  return (
-    <LeftPaneInContainer
-      {...useProps({
-        modeSpecificProps: {
-          ...defaultSearchProps,
-          mode: LeftPaneMode.Search,
-          conversationResults: emptySearchResultsGroup,
-          contactResults: emptySearchResultsGroup,
-          messageResults: emptySearchResultsGroup,
-          primarySendsSms: true,
         },
       })}
     />
@@ -596,7 +581,6 @@ export function SearchNoResultsWhenSearchingInAConversation(): JSX.Element {
           contactResults: emptySearchResultsGroup,
           messageResults: emptySearchResultsGroup,
           searchConversationName: 'Bing Bong',
-          primarySendsSms: false,
         },
       })}
     />
@@ -614,7 +598,6 @@ export function SearchNoResultsUnreadFilterAndQuery(): JSX.Element {
           conversationResults: emptySearchResultsGroup,
           contactResults: emptySearchResultsGroup,
           messageResults: emptySearchResultsGroup,
-          primarySendsSms: false,
         },
       })}
     />
@@ -633,7 +616,6 @@ export function SearchNoResultsUnreadFilterWithoutQuery(): JSX.Element {
           conversationResults: emptySearchResultsGroup,
           contactResults: emptySearchResultsGroup,
           messageResults: emptySearchResultsGroup,
-          primarySendsSms: false,
         },
       })}
     />
@@ -650,7 +632,6 @@ export function SearchAllResultsLoading(): JSX.Element {
           conversationResults: { isLoading: true },
           contactResults: { isLoading: true },
           messageResults: { isLoading: true },
-          primarySendsSms: false,
         },
       })}
     />
@@ -670,7 +651,6 @@ export function SearchSomeResultsLoading(): JSX.Element {
           },
           contactResults: { isLoading: true },
           messageResults: { isLoading: true },
-          primarySendsSms: false,
         },
       })}
     />
@@ -690,7 +670,6 @@ export function SearchHasConversationsAndContactsButNotMessages(): JSX.Element {
           },
           contactResults: { isLoading: false, results: defaultConversations },
           messageResults: { isLoading: false, results: [] },
-          primarySendsSms: false,
         },
       })}
     />
@@ -716,7 +695,6 @@ export function SearchAllResults(): JSX.Element {
               { id: 'msg2', type: 'incoming', conversationId: 'bar' },
             ],
           },
-          primarySendsSms: false,
         },
       })}
     />
@@ -740,7 +718,6 @@ export function SearchAllResultsUnreadFilter(): JSX.Element {
             isLoading: false,
             results: [],
           },
-          primarySendsSms: false,
         },
       })}
     />

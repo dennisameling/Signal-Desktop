@@ -47,6 +47,7 @@ function HeaderInfoTitle({
   type,
   i18n,
   isMe,
+  isSignalConversation,
   headerRef,
 }: {
   name: string | null;
@@ -54,8 +55,18 @@ function HeaderInfoTitle({
   type: ConversationTypeType;
   i18n: LocalizerType;
   isMe: boolean;
+  isSignalConversation: boolean;
   headerRef: React.RefObject<HTMLDivElement>;
 }) {
+  if (isSignalConversation) {
+    return (
+      <div className="module-ConversationHeader__header__info__title">
+        <UserText text={title} />
+        <span className="ContactModal__official-badge" />
+      </div>
+    );
+  }
+
   if (isMe) {
     return (
       <div className="module-ConversationHeader__header__info__title">
@@ -100,7 +111,7 @@ export type PropsDataType = {
   isMissingMandatoryProfileSharing?: boolean;
   isSelectMode: boolean;
   isSignalConversation?: boolean;
-  isSMSOnly?: boolean;
+  isSmsOnlyOrUnregistered?: boolean;
   outgoingCallButtonStyle: OutgoingCallButtonStyle;
   sharedGroupNames: ReadonlyArray<string>;
   theme: ThemeType;
@@ -159,7 +170,7 @@ export const ConversationHeader = memo(function ConversationHeader({
   isMissingMandatoryProfileSharing,
   isSelectMode,
   isSignalConversation,
-  isSMSOnly,
+  isSmsOnlyOrUnregistered,
   localDeleteWarningShown,
   onConversationAccept,
   onConversationArchive,
@@ -294,8 +305,9 @@ export const ConversationHeader = memo(function ConversationHeader({
               theme={theme}
               onViewUserStories={onViewUserStories}
               onViewConversationDetails={onViewConversationDetails}
+              isSignalConversation={isSignalConversation ?? false}
             />
-            {!isSMSOnly && !isSignalConversation && (
+            {!isSmsOnlyOrUnregistered && !isSignalConversation && (
               <OutgoingCallButtons
                 conversation={conversation}
                 hasActiveCall={hasActiveCall}
@@ -415,6 +427,7 @@ function HeaderContent({
   i18n,
   sharedGroupNames,
   theme,
+  isSignalConversation,
   onViewUserStories,
   onViewConversationDetails,
 }: {
@@ -425,6 +438,7 @@ function HeaderContent({
   i18n: LocalizerType;
   sharedGroupNames: ReadonlyArray<string>;
   theme: ThemeType;
+  isSignalConversation: boolean;
   onViewUserStories: () => void;
   onViewConversationDetails: () => void;
 }) {
@@ -476,6 +490,7 @@ function HeaderContent({
         type={conversation.type}
         i18n={i18n}
         isMe={conversation.isMe}
+        isSignalConversation={isSignalConversation}
         headerRef={headerRef}
       />
       {(conversation.expireTimer != null || conversation.isVerified) && (
@@ -631,6 +646,19 @@ function HeaderMenu({
             </MenuItem>
           )}
         </SubMenu>
+        {conversation.isArchived ? (
+          <MenuItem onClick={onConversationUnarchive}>
+            {i18n('icu:moveConversationToInbox')}
+          </MenuItem>
+        ) : (
+          <MenuItem onClick={onConversationArchive}>
+            {i18n('icu:archiveConversation')}
+          </MenuItem>
+        )}
+
+        <MenuItem onClick={onConversationDeleteMessages}>
+          {i18n('icu:deleteConversation')}
+        </MenuItem>
       </ContextMenu>
     );
   }

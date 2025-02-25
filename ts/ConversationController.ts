@@ -149,17 +149,15 @@ export function start(): void {
 }
 
 export class ConversationController {
-  private _initialFetchComplete = false;
+  #_initialFetchComplete = false;
+  #isReadOnly = false;
 
   private _initialPromise: undefined | Promise<void>;
 
-  private _conversationOpenStart = new Map<string, number>();
-
-  private _hasQueueEmptied = false;
-
-  private _combineConversationsQueue = new PQueue({ concurrency: 1 });
-
-  private _signalConversationId: undefined | string;
+  #_conversationOpenStart = new Map<string, number>();
+  #_hasQueueEmptied = false;
+  #_combineConversationsQueue = new PQueue({ concurrency: 1 });
+  #_signalConversationId: undefined | string;
 
   constructor(private _conversations: ConversationModelCollectionType) {
     const debouncedUpdateUnreadCount = debounce(
@@ -192,7 +190,7 @@ export class ConversationController {
   }
 
   updateUnreadCount(): void {
-    if (!this._hasQueueEmptied) {
+    if (!this.#_hasQueueEmptied) {
       return;
     }
 
@@ -238,12 +236,12 @@ export class ConversationController {
   }
 
   onEmpty(): void {
-    this._hasQueueEmptied = true;
+    this.#_hasQueueEmptied = true;
     this.updateUnreadCount();
   }
 
   get(id?: string | null): ConversationModel | undefined {
-    if (!this._initialFetchComplete) {
+    if (!this.#_initialFetchComplete) {
       throw new Error(
         'ConversationController.get() needs complete initial fetch'
       );
@@ -283,7 +281,7 @@ export class ConversationController {
       );
     }
 
-    if (!this._initialFetchComplete) {
+    if (!this.#_initialFetchComplete) {
       throw new Error(
         'ConversationController.get() needs complete initial fetch'
       );
@@ -292,6 +290,10 @@ export class ConversationController {
     let conversation = this._conversations.get(identifier);
     if (conversation) {
       return conversation;
+    }
+
+    if (this.#isReadOnly) {
+      throw new Error('ConversationController is read-only');
     }
 
     const id = generateUuid();
@@ -460,13 +462,13 @@ export class ConversationController {
       await updateConversation(conversation.attributes);
     }
 
-    this._signalConversationId = conversation.id;
+    this.#_signalConversationId = conversation.id;
 
     return conversation;
   }
 
   isSignalConversationId(conversationId: string): boolean {
-    return this._signalConversationId === conversationId;
+    return this.#_signalConversationId === conversationId;
   }
 
   areWePrimaryDevice(): boolean {
@@ -841,14 +843,14 @@ export class ConversationController {
   }
 
   checkForConflicts(): Promise<void> {
-    return this._combineConversationsQueue.add(() =>
-      this.doCheckForConflicts()
+    return this.#_combineConversationsQueue.add(() =>
+      this.#doCheckForConflicts()
     );
   }
 
   // Note: `doCombineConversations` is directly used within this function since both
   //   run on `_combineConversationsQueue` queue and we don't want deadlocks.
-  private async doCheckForConflicts(): Promise<void> {
+  async #doCheckForConflicts(): Promise<void> {
     log.info('ConversationController.checkForConflicts: starting...');
     const byServiceId = Object.create(null);
     const byE164 = Object.create(null);
@@ -884,7 +886,7 @@ export class ConversationController {
           if (conversation.get('e164')) {
             // Keep new one
             // eslint-disable-next-line no-await-in-loop
-            await this.doCombineConversations({
+            await this.#doCombineConversations({
               current: conversation,
               obsolete: existing,
             });
@@ -892,7 +894,7 @@ export class ConversationController {
           } else {
             // Keep existing - note that this applies if neither had an e164
             // eslint-disable-next-line no-await-in-loop
-            await this.doCombineConversations({
+            await this.#doCombineConversations({
               current: existing,
               obsolete: conversation,
             });
@@ -918,7 +920,7 @@ export class ConversationController {
           if (conversation.get('e164') || conversation.getPni()) {
             // Keep new one
             // eslint-disable-next-line no-await-in-loop
-            await this.doCombineConversations({
+            await this.#doCombineConversations({
               current: conversation,
               obsolete: existing,
             });
@@ -926,7 +928,7 @@ export class ConversationController {
           } else {
             // Keep existing - note that this applies if neither had an e164
             // eslint-disable-next-line no-await-in-loop
-            await this.doCombineConversations({
+            await this.#doCombineConversations({
               current: existing,
               obsolete: conversation,
             });
@@ -964,7 +966,7 @@ export class ConversationController {
           if (conversation.getServiceId()) {
             // Keep new one
             // eslint-disable-next-line no-await-in-loop
-            await this.doCombineConversations({
+            await this.#doCombineConversations({
               current: conversation,
               obsolete: existing,
             });
@@ -972,7 +974,7 @@ export class ConversationController {
           } else {
             // Keep existing - note that this applies if neither had a service id
             // eslint-disable-next-line no-await-in-loop
-            await this.doCombineConversations({
+            await this.#doCombineConversations({
               current: existing,
               obsolete: conversation,
             });
@@ -1010,14 +1012,14 @@ export class ConversationController {
             !isGroupV2(existing.attributes)
           ) {
             // eslint-disable-next-line no-await-in-loop
-            await this.doCombineConversations({
+            await this.#doCombineConversations({
               current: conversation,
               obsolete: existing,
             });
             byGroupV2Id[groupV2Id] = conversation;
           } else {
             // eslint-disable-next-line no-await-in-loop
-            await this.doCombineConversations({
+            await this.#doCombineConversations({
               current: existing,
               obsolete: conversation,
             });
@@ -1032,12 +1034,12 @@ export class ConversationController {
   async combineConversations(
     options: CombineConversationsParams
   ): Promise<void> {
-    return this._combineConversationsQueue.add(() =>
-      this.doCombineConversations(options)
+    return this.#_combineConversationsQueue.add(() =>
+      this.#doCombineConversations(options)
     );
   }
 
-  private async doCombineConversations({
+  async #doCombineConversations({
     current,
     obsolete,
     obsoleteTitleInfo,
@@ -1302,14 +1304,24 @@ export class ConversationController {
     );
   }
 
+  setReadOnly(value: boolean): void {
+    if (this.#isReadOnly === value) {
+      log.warn(`ConversationController: already at readOnly=${value}`);
+      return;
+    }
+
+    log.info(`ConversationController: readOnly=${value}`);
+    this.#isReadOnly = value;
+  }
+
   reset(): void {
     delete this._initialPromise;
-    this._initialFetchComplete = false;
+    this.#_initialFetchComplete = false;
     this._conversations.reset([]);
   }
 
   load(): Promise<void> {
-    this._initialPromise ||= this.doLoad();
+    this._initialPromise ||= this.#doLoad();
     return this._initialPromise;
   }
 
@@ -1346,16 +1358,16 @@ export class ConversationController {
   }
 
   onConvoOpenStart(conversationId: string): void {
-    this._conversationOpenStart.set(conversationId, Date.now());
+    this.#_conversationOpenStart.set(conversationId, Date.now());
   }
 
   onConvoMessageMount(conversationId: string): void {
-    const loadStart = this._conversationOpenStart.get(conversationId);
+    const loadStart = this.#_conversationOpenStart.get(conversationId);
     if (loadStart === undefined) {
       return;
     }
 
-    this._conversationOpenStart.delete(conversationId);
+    this.#_conversationOpenStart.delete(conversationId);
     this.get(conversationId)?.onOpenComplete(loadStart);
   }
 
@@ -1402,15 +1414,15 @@ export class ConversationController {
   async _forgetE164(e164: string): Promise<void> {
     const { server } = window.textsecure;
     strictAssert(server, 'Server must be initialized');
-    const { entries: serviceIdMap } = await getServiceIdsForE164s(server, [
-      e164,
-    ]);
+    const { entries: serviceIdMap, transformedE164s } =
+      await getServiceIdsForE164s(server, [e164]);
 
-    const pni = serviceIdMap.get(e164)?.pni;
+    const e164ToUse = transformedE164s.get(e164) ?? e164;
+    const pni = serviceIdMap.get(e164ToUse)?.pni;
 
-    log.info(`ConversationController: forgetting e164=${e164} pni=${pni}`);
+    log.info(`ConversationController: forgetting e164=${e164ToUse} pni=${pni}`);
 
-    const convos = [this.get(e164), this.get(pni)];
+    const convos = [this.get(e164ToUse), this.get(pni)];
 
     for (const convo of convos) {
       if (!convo) {
@@ -1424,7 +1436,7 @@ export class ConversationController {
     }
   }
 
-  private async doLoad(): Promise<void> {
+  async #doLoad(): Promise<void> {
     log.info('ConversationController: starting initial fetch');
 
     if (this._conversations.length) {
@@ -1460,7 +1472,7 @@ export class ConversationController {
 
       // It is alright to call it first because the 'add'/'update' events are
       // triggered after updating the collection.
-      this._initialFetchComplete = true;
+      this.#_initialFetchComplete = true;
 
       // Hydrate the final set of conversations
       batchDispatch(() => {

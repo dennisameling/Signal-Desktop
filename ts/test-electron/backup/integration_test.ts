@@ -17,32 +17,31 @@ import { clearData } from './helpers';
 import { loadAllAndReinitializeRedux } from '../../services/allLoaders';
 import { backupsService, BackupType } from '../../services/backups';
 import { initialize as initializeExpiringMessageService } from '../../services/expiringMessagesDeletion';
-import { singleProtoJobQueue } from '../../jobs/singleProtoJobQueue';
 import { DataWriter } from '../../sql/Client';
 
 const { BACKUP_INTEGRATION_DIR } = process.env;
 
 class MemoryStream extends InputStream {
-  private offset = 0;
+  #offset = 0;
 
   constructor(private readonly buffer: Buffer) {
     super();
   }
 
   public override async read(amount: number): Promise<Buffer> {
-    const result = this.buffer.slice(this.offset, this.offset + amount);
-    this.offset += amount;
+    const result = this.buffer.slice(this.#offset, this.#offset + amount);
+    this.#offset += amount;
     return result;
   }
 
   public override async skip(amount: number): Promise<void> {
-    this.offset += amount;
+    this.#offset += amount;
   }
 }
 
 describe('backup/integration', () => {
   before(async () => {
-    await initializeExpiringMessageService(singleProtoJobQueue);
+    await initializeExpiringMessageService();
   });
 
   beforeEach(async () => {
@@ -98,7 +97,12 @@ describe('backup/integration', () => {
       const actualString = actual.comparableString();
       const expectedString = expected.comparableString();
 
-      if (expectedString.includes('ReleaseChannelDonationRequest')) {
+      if (
+        expectedString.includes('ReleaseChannelDonationRequest') ||
+        // TODO (DESKTOP-8025) roundtrip these frames
+        fullPath.includes('chat_folder') ||
+        fullPath.includes('notification_profile')
+      ) {
         // Skip the unsupported tests
         return;
       }

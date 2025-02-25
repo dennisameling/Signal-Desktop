@@ -8,7 +8,6 @@ import { useSelector } from 'react-redux';
 import { getIntl } from '../selectors/user';
 import { getUpdatesState } from '../selectors/updates';
 import { getInstallerState } from '../selectors/installer';
-import { useAppActions } from '../ducks/app';
 import { useInstallerActions } from '../ducks/installer';
 import { useUpdatesActions } from '../ducks/updates';
 import { hasExpired as hasExpiredSelector } from '../selectors/expiration';
@@ -29,7 +28,6 @@ export const SmartInstallScreen = memo(function SmartInstallScreen() {
   const i18n = useSelector(getIntl);
   const installerState = useSelector(getInstallerState);
   const updates = useSelector(getUpdatesState);
-  const { openInbox } = useAppActions();
   const { startInstaller, finishInstall, retryBackupImport } =
     useInstallerActions();
   const { startUpdate, forceUpdate } = useUpdatesActions();
@@ -41,18 +39,23 @@ export const SmartInstallScreen = memo(function SmartInstallScreen() {
   const onSubmitDeviceName = useCallback(async () => {
     if (backupFile != null) {
       // This is only for testing so don't bother catching errors
-      finishInstall({ deviceName, backupFile: await fileToBytes(backupFile) });
+      finishInstall({
+        deviceName,
+        backupFile: await fileToBytes(backupFile),
+        isLinkAndSync: false,
+      });
     } else {
-      finishInstall({ deviceName, backupFile: undefined });
+      finishInstall({
+        deviceName,
+        backupFile: undefined,
+        isLinkAndSync: false,
+      });
     }
   }, [backupFile, deviceName, finishInstall]);
 
   const onCancelBackupImport = useCallback((): void => {
-    backupsService.cancelDownload();
-    if (installerState.step === InstallScreenStep.BackupImport) {
-      openInbox();
-    }
-  }, [installerState.step, openInbox]);
+    backupsService.cancelDownloadAndImport();
+  }, []);
 
   const suggestedDeviceName =
     installerState.step === InstallScreenStep.ChoosingDeviceName
@@ -110,13 +113,10 @@ export const SmartInstallScreen = memo(function SmartInstallScreen() {
         step: InstallScreenStep.BackupImport,
         screenSpecificProps: {
           i18n,
-          backupStep: installerState.backupStep,
-          currentBytes: installerState.currentBytes,
-          totalBytes: installerState.totalBytes,
-          error: installerState.error,
+          ...installerState,
           onCancel: onCancelBackupImport,
           onRetry: retryBackupImport,
-
+          onRestartLink: startInstaller,
           updates,
           currentVersion: window.getVersion(),
           forceUpdate,

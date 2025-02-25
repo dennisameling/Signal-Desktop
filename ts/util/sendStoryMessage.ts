@@ -31,6 +31,7 @@ import { collect } from './iterables';
 import { DurationInSeconds } from './durations';
 import { sanitizeLinkPreview } from '../services/LinkPreview';
 import type { DraftBodyRanges } from '../types/BodyRange';
+import { MessageModel } from '../models/messages';
 
 export async function sendStoryMessage(
   listIds: Array<string>,
@@ -308,18 +309,13 @@ export async function sendStoryMessage(
   // * Add the message to the conversation
   await Promise.all(
     distributionListMessages.map(message => {
-      window.MessageCache.__DEPRECATED$register(
-        message.id,
-        new window.Whisper.Message(message),
-        'sendStoryMessage'
-      );
+      window.MessageCache.register(new MessageModel(message));
 
       void ourConversation.addSingleMessage(message, { isJustSent: true });
 
       log.info(`stories.sendStoryMessage: saving message ${message.timestamp}`);
-      return DataWriter.saveMessage(message, {
+      return window.MessageCache.saveMessage(message, {
         forceSave: true,
-        ourAci: window.textsecure.storage.user.getCheckedAci(),
       });
     })
   );
@@ -359,11 +355,7 @@ export async function sendStoryMessage(
           timestamp: messageAttributes.timestamp,
         },
         async jobToInsert => {
-          window.MessageCache.__DEPRECATED$register(
-            messageAttributes.id,
-            new window.Whisper.Message(messageAttributes),
-            'sendStoryMessage'
-          );
+          window.MessageCache.register(new MessageModel(messageAttributes));
           const conversation =
             window.ConversationController.get(conversationId);
           void conversation?.addSingleMessage(messageAttributes, {
@@ -373,10 +365,9 @@ export async function sendStoryMessage(
           log.info(
             `stories.sendStoryMessage: saving message ${messageAttributes.timestamp}`
           );
-          await DataWriter.saveMessage(messageAttributes, {
+          await window.MessageCache.saveMessage(messageAttributes, {
             forceSave: true,
             jobToInsert,
-            ourAci: window.textsecure.storage.user.getCheckedAci(),
           });
         }
       );

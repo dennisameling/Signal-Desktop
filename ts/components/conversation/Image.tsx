@@ -2,17 +2,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { CSSProperties } from 'react';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 import classNames from 'classnames';
 import { Blurhash } from 'react-blurhash';
 
 import { Spinner } from '../Spinner';
 import type { LocalizerType, ThemeType } from '../../types/Util';
-import type { AttachmentType } from '../../types/Attachment';
-import {
-  isDownloaded as isDownloadedFunction,
-  defaultBlurHash,
+import type {
+  AttachmentForUIType,
+  AttachmentType,
 } from '../../types/Attachment';
+import {
+  defaultBlurHash,
+  isIncremental,
+  isPermanentlyUndownloadable,
+  isReadyToView,
+} from '../../types/Attachment';
+import { ProgressCircle } from '../ProgressCircle';
+import { useUndownloadableMediaHandler } from '../../hooks/useUndownloadableMediaHandler';
 
 export enum CurveType {
   None = 0,
@@ -23,10 +30,9 @@ export enum CurveType {
 
 export type Props = {
   alt: string;
-  attachment: AttachmentType;
+  attachment: AttachmentForUIType;
   url?: string;
 
-  isDownloaded?: boolean;
   className?: string;
   height?: number;
   width?: number;
@@ -51,7 +57,10 @@ export type Props = {
 
   i18n: LocalizerType;
   theme?: ThemeType;
-  onClick?: (attachment: AttachmentType) => void;
+  showMediaNoLongerAvailableToast?: () => void;
+  showVisualAttachment?: (attachment: AttachmentType) => void;
+  cancelDownload?: () => void;
+  startDownload?: () => void;
   onClickClose?: (attachment: AttachmentType) => void;
   onError?: () => void;
 };
@@ -68,12 +77,14 @@ export function Image({
   curveTopLeft,
   curveTopRight,
   darkOverlay,
-  isDownloaded,
   height = 0,
   i18n,
   noBackground,
   noBorder,
-  onClick,
+  showMediaNoLongerAvailableToast,
+  showVisualAttachment,
+  startDownload,
+  cancelDownload,
   onClickClose,
   onError,
   overlayText,
@@ -85,11 +96,6 @@ export function Image({
   cropWidth = 0,
   cropHeight = 0,
 }: Props): JSX.Element {
-  const { caption, pending } = attachment || { caption: null, pending: true };
-  const imgNotDownloaded = isDownloaded
-    ? false
-    : !isDownloadedFunction(attachment);
-
   const resolvedBlurHash = blurHash || defaultBlurHash(theme);
 
   const curveStyles: CSSProperties = {
@@ -99,48 +105,135 @@ export function Image({
     borderEndEndRadius: curveBottomRight || CurveType.None,
   };
 
-  const canClick = useMemo(() => {
-    return onClick != null && !pending;
-  }, [pending, onClick]);
-
-  const handleClick = useCallback(
+  const showVisualAttachmentClick = useCallback(
     (event: React.MouseEvent) => {
-      if (!canClick) {
+      if (showVisualAttachment) {
         event.preventDefault();
         event.stopPropagation();
-
-        return;
-      }
-
-      if (onClick) {
-        event.preventDefault();
-        event.stopPropagation();
-
-        onClick(attachment);
+        showVisualAttachment(attachment);
       }
     },
-    [attachment, canClick, onClick]
+    [attachment, showVisualAttachment]
   );
-
-  const handleKeyDown = useCallback(
+  const showVisualAttachmentKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLButtonElement>) => {
-      if (!canClick) {
+      if (
+        showVisualAttachment &&
+        (event.key === 'Enter' || event.key === 'Space')
+      ) {
         event.preventDefault();
         event.stopPropagation();
-
-        return;
-      }
-
-      if (onClick && (event.key === 'Enter' || event.key === 'Space')) {
-        event.preventDefault();
-        event.stopPropagation();
-        onClick(attachment);
+        showVisualAttachment(attachment);
       }
     },
-    [attachment, canClick, onClick]
+    [attachment, showVisualAttachment]
+  );
+  const cancelDownloadClick = useCallback(
+    (event: React.MouseEvent) => {
+      if (cancelDownload) {
+        event.preventDefault();
+        event.stopPropagation();
+        cancelDownload();
+      }
+    },
+    [cancelDownload]
+  );
+  const cancelDownloadKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (cancelDownload && (event.key === 'Enter' || event.key === 'Space')) {
+        event.preventDefault();
+        event.stopPropagation();
+        cancelDownload();
+      }
+    },
+    [cancelDownload]
+  );
+  const startDownloadClick = useCallback(
+    (event: React.MouseEvent) => {
+      if (startDownload) {
+        event.preventDefault();
+        event.stopPropagation();
+        startDownload();
+      }
+    },
+    [startDownload]
+  );
+  const startDownloadKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (startDownload && (event.key === 'Enter' || event.key === 'Space')) {
+        event.preventDefault();
+        event.stopPropagation();
+        startDownload();
+      }
+    },
+    [startDownload]
+  );
+  const undownloadableClick = useUndownloadableMediaHandler(
+    showMediaNoLongerAvailableToast
   );
 
-  /* eslint-disable no-nested-ternary */
+  const imageOrBlurHash = url ? (
+    <img
+      onError={onError}
+      className="module-image__image"
+      alt={alt}
+      height={height}
+      width={width}
+      src={url}
+    />
+  ) : (
+    <Blurhash
+      hash={resolvedBlurHash}
+      width={width}
+      height={height}
+      style={{ display: 'block' }}
+    />
+  );
+
+  const startDownloadButton =
+    !attachment.path && !attachment.pending && !isIncremental(attachment) ? (
+      <button
+        type="button"
+        className="module-image__overlay-circle"
+        aria-label={i18n('icu:startDownload')}
+        onClick={startDownloadClick}
+        onKeyDown={startDownloadKeyDown}
+        tabIndex={tabIndex}
+      >
+        <div className="module-image__download-icon" />
+      </button>
+    ) : undefined;
+
+  const isUndownloadable = isPermanentlyUndownloadable(attachment);
+
+  // eslint-disable-next-line no-nested-ternary
+  const startDownloadOrUnavailableButton = startDownload ? (
+    isUndownloadable ? (
+      <button
+        type="button"
+        className="module-image__overlay-circle module-image__overlay-circle--undownloadable"
+        aria-label={i18n('icu:mediaNotAvailable')}
+        onClick={undownloadableClick}
+        tabIndex={tabIndex}
+      >
+        <div className="module-image__undownloadable-icon" />
+      </button>
+    ) : (
+      startDownloadButton
+    )
+  ) : null;
+
+  const spinner =
+    isIncremental(attachment) || !cancelDownload
+      ? undefined
+      : getSpinner({
+          attachment,
+          i18n,
+          cancelDownloadClick,
+          cancelDownloadKeyDown,
+          tabIndex,
+        });
+
   return (
     <div
       className={classNames(
@@ -155,70 +248,11 @@ export function Image({
         ...curveStyles,
       }}
     >
-      {pending ? (
-        url || blurHash ? (
-          <div className="module-image__download-pending">
-            {url ? (
-              <img
-                onError={onError}
-                className="module-image__image"
-                alt={alt}
-                height={height}
-                width={width}
-                src={url}
-              />
-            ) : blurHash ? (
-              <Blurhash
-                hash={blurHash}
-                width={width}
-                height={height}
-                style={{ display: 'block' }}
-              />
-            ) : undefined}
-            <div className="module-image__download-pending--spinner-container">
-              <div
-                className="module-image__download-pending--spinner"
-                title={i18n('icu:loading')}
-              >
-                <Spinner
-                  moduleClassName="module-image-spinner"
-                  svgSize="small"
-                />
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div
-            className="module-image__loading-placeholder"
-            style={{
-              height: `${height}px`,
-              width: `${width}px`,
-              lineHeight: `${height}px`,
-              textAlign: 'center',
-            }}
-            title={i18n('icu:loading')}
-          >
-            <Spinner svgSize="normal" />
-          </div>
-        )
-      ) : url ? (
-        <img
-          onError={onError}
-          className="module-image__image"
-          alt={alt}
-          height={height}
-          width={width}
-          src={url}
-        />
-      ) : resolvedBlurHash ? (
-        <Blurhash
-          hash={resolvedBlurHash}
-          width={width}
-          height={height}
-          style={{ display: 'block' }}
-        />
-      ) : null}
-      {caption ? (
+      {imageOrBlurHash}
+      {startDownloadOrUnavailableButton}
+      {spinner}
+
+      {attachment.caption ? (
         <img
           className="module-image__caption-icon"
           src="images/caption-shadow.svg"
@@ -234,9 +268,11 @@ export function Image({
           }}
         />
       ) : null}
-      {!pending && !imgNotDownloaded && playIconOverlay ? (
-        <div className="module-image__play-overlay__circle">
-          <div className="module-image__play-overlay__icon" />
+      {(attachment.path || isIncremental(attachment)) &&
+      !isUndownloadable &&
+      playIconOverlay ? (
+        <div className="module-image__overlay-circle">
+          <div className="module-image__play-icon" />
         </div>
       ) : null}
       {overlayText ? (
@@ -247,22 +283,27 @@ export function Image({
           {overlayText}
         </div>
       ) : null}
-      {canClick ? (
+      {darkOverlay || !noBorder ? (
+        <div
+          className={classNames('module-image__border-overlay', {
+            'module-image__border-overlay--with-border': !noBorder,
+            'module-image__border-overlay--dark': darkOverlay,
+          })}
+          style={curveStyles}
+        />
+      ) : null}
+      {showVisualAttachment && isReadyToView(attachment) ? (
         <button
           type="button"
           className={classNames('module-image__border-overlay', {
-            'module-image__border-overlay--with-border': !noBorder,
-            'module-image__border-overlay--with-click-handler': canClick,
-            'module-image__border-overlay--dark': darkOverlay,
-            'module-image--not-downloaded': imgNotDownloaded,
+            'module-image__border-overlay--with-click-handler': true,
           })}
+          aria-label={i18n('icu:imageOpenAlt')}
           style={curveStyles}
-          onClick={handleClick}
-          onKeyDown={handleKeyDown}
+          onClick={showVisualAttachmentClick}
+          onKeyDown={showVisualAttachmentKeyDown}
           tabIndex={tabIndex}
-        >
-          {imgNotDownloaded ? <span /> : null}
-        </button>
+        />
       ) : null}
       {closeButton ? (
         <button
@@ -282,5 +323,74 @@ export function Image({
       ) : null}
     </div>
   );
-  /* eslint-enable no-nested-ternary */
+}
+
+export function getSpinner({
+  attachment,
+  cancelDownloadClick,
+  cancelDownloadKeyDown,
+  i18n,
+  tabIndex,
+}: {
+  attachment: AttachmentForUIType;
+  cancelDownloadClick: (event: React.MouseEvent) => void;
+  cancelDownloadKeyDown: (
+    event: React.KeyboardEvent<HTMLButtonElement>
+  ) => void;
+  i18n: LocalizerType;
+  tabIndex: number | undefined;
+}): JSX.Element | undefined {
+  const downloadFraction =
+    attachment.pending &&
+    !isIncremental(attachment) &&
+    attachment.size &&
+    attachment.totalDownloaded
+      ? attachment.totalDownloaded / attachment.size
+      : undefined;
+
+  if (downloadFraction) {
+    return (
+      <button
+        type="button"
+        className="module-image__overlay-circle"
+        aria-label={i18n('icu:cancelDownload')}
+        onClick={cancelDownloadClick}
+        onKeyDown={cancelDownloadKeyDown}
+        tabIndex={tabIndex}
+      >
+        <div className="module-image__stop-icon" />
+        <div className="module-image__progress-circle-wrapper">
+          <ProgressCircle
+            fractionComplete={downloadFraction}
+            width={44}
+            strokeWidth={2}
+          />
+        </div>
+      </button>
+    );
+  }
+
+  if (!attachment.pending) {
+    return undefined;
+  }
+
+  return (
+    <button
+      type="button"
+      className="module-image__overlay-circle"
+      aria-label={i18n('icu:cancelDownload')}
+      onClick={cancelDownloadClick}
+      onKeyDown={cancelDownloadKeyDown}
+      tabIndex={tabIndex}
+    >
+      <div className="module-image__spinner-container">
+        <Spinner
+          moduleClassName="module-image-spinner"
+          svgSize="normal"
+          size="44px"
+        />
+        <div className="module-image__stop-icon" />
+      </div>
+    </button>
+  );
 }

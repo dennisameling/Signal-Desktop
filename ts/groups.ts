@@ -12,7 +12,7 @@ import {
 } from 'lodash';
 import Long from 'long';
 import type { ClientZkGroupCipher } from '@signalapp/libsignal-client/zkgroup';
-import LRU from 'lru-cache';
+import { LRUCache } from 'lru-cache';
 import * as log from './logging/log';
 import {
   getCheckedGroupCredentialsForToday,
@@ -102,6 +102,8 @@ import {
 } from './util/groupSendEndorsements';
 import { getProfile } from './util/getProfile';
 import { generateMessageId } from './util/generateMessageId';
+import { postSaveUpdates } from './util/cleanup';
+import { MessageModel } from './models/messages';
 
 type AccessRequiredEnum = Proto.AccessControl.AccessRequired;
 
@@ -253,7 +255,7 @@ export type GroupV2ChangeDetailType =
 
 export type GroupV2ChangeType = {
   from?: ServiceIdString;
-  details: Array<GroupV2ChangeDetailType>;
+  details: ReadonlyArray<GroupV2ChangeDetailType>;
 };
 
 export type GroupFields = {
@@ -264,7 +266,7 @@ export type GroupFields = {
 
 const MAX_CACHED_GROUP_FIELDS = 100;
 
-const groupFieldsCache = new LRU<string, GroupFields>({
+const groupFieldsCache = new LRUCache<string, GroupFields>({
   max: MAX_CACHED_GROUP_FIELDS,
 });
 
@@ -2016,7 +2018,7 @@ export async function createGroupV2(
     revision: groupV2Info.revision,
   });
 
-  const createdTheGroupMessage: MessageAttributesType = {
+  const createdTheGroupMessage = new MessageModel({
     ...generateMessageId(incrementMessageCounter()),
 
     schemaVersion: MAX_MESSAGE_SCHEMA,
@@ -2032,17 +2034,12 @@ export async function createGroupV2(
       from: ourAci,
       details: [{ type: 'create' }],
     },
-  };
-  await DataWriter.saveMessages([createdTheGroupMessage], {
-    forceSave: true,
-    ourAci,
   });
-  window.MessageCache.__DEPRECATED$register(
-    createdTheGroupMessage.id,
-    new window.Whisper.Message(createdTheGroupMessage),
-    'createGroupV2'
-  );
-  conversation.trigger('newmessage', createdTheGroupMessage);
+  await window.MessageCache.saveMessage(createdTheGroupMessage, {
+    forceSave: true,
+  });
+  window.MessageCache.register(createdTheGroupMessage);
+  drop(conversation.onNewMessage(createdTheGroupMessage));
 
   if (expireTimer) {
     await conversation.updateExpirationTimer(expireTimer, {
@@ -3157,7 +3154,12 @@ async function updateGroup(
   // By updating activeAt we force this conversation into the left panel. We don't want
   //   all groups to show up on link, and we don't want Unknown Group in the left pane.
   let activeAt = conversation.get('active_at') || null;
-  if (!viaFirstStorageSync && newAttributes.name) {
+  const justDiscoveredGroupName =
+    !conversation.get('name') && newAttributes.name;
+  if (
+    !viaFirstStorageSync &&
+    (justDiscoveredGroupName || groupChangeMessages.length)
+  ) {
     activeAt = initialSentAt;
   }
 
@@ -3311,7 +3313,10 @@ export function _mergeGroupChangeMessages(
   let isApprovalPending: boolean;
   if (secondDetail.type === 'admin-approval-add-one') {
     isApprovalPending = true;
-  } else if (secondDetail.type === 'admin-approval-remove-one') {
+  } else if (
+    secondDetail.type === 'admin-approval-remove-one' &&
+    (secondChange.from == null || secondChange.from === secondDetail.aci)
+  ) {
     isApprovalPending = false;
   } else {
     return undefined;
@@ -3435,9 +3440,7 @@ async function appendChangeMessages(
     strictAssert(first !== undefined, 'First message must be there');
 
     log.info(`appendChangeMessages/${logId}: updating ${first.id}`);
-    await DataWriter.saveMessage(first, {
-      ourAci,
-
+    await window.MessageCache.saveMessage(first, {
       // We don't use forceSave here because this is an update of existing
       // message.
     });
@@ -3448,6 +3451,7 @@ async function appendChangeMessages(
     await DataWriter.saveMessages(rest, {
       ourAci,
       forceSave: true,
+      postSaveUpdates,
     });
   } else {
     log.info(
@@ -3456,12 +3460,13 @@ async function appendChangeMessages(
     await DataWriter.saveMessages(mergedMessages, {
       ourAci,
       forceSave: true,
+      postSaveUpdates,
     });
   }
 
   let newMessages = 0;
   for (const changeMessage of mergedMessages) {
-    const existing = window.MessageCache.__DEPRECATED$getById(changeMessage.id);
+    const existing = window.MessageCache.getById(changeMessage.id);
 
     // Update existing message
     if (existing) {
@@ -3473,12 +3478,8 @@ async function appendChangeMessages(
       continue;
     }
 
-    window.MessageCache.__DEPRECATED$register(
-      changeMessage.id,
-      new window.Whisper.Message(changeMessage),
-      'appendChangeMessages'
-    );
-    conversation.trigger('newmessage', changeMessage);
+    const model = window.MessageCache.register(new MessageModel(changeMessage));
+    drop(conversation.onNewMessage(model));
     newMessages += 1;
   }
 
@@ -3536,7 +3537,10 @@ async function getGroupUpdates({
       groupChange.changeEpoch <= SUPPORTED_CHANGE_EPOCH;
 
     if (isChangeSupported) {
-      if (!wrappedGroupChange.isTrusted) {
+      const { isTrusted } = wrappedGroupChange;
+      let isUntrustedChangeVerified = false;
+
+      if (!isTrusted) {
         strictAssert(
           groupChange.serverSignature,
           'Server signature must be present in untrusted group change'
@@ -3563,13 +3567,34 @@ async function getGroupUpdates({
             newProfileKeys: new Map(),
           };
         }
+
+        const { groupId: groupIdBytes } = Proto.GroupChange.Actions.decode(
+          groupChange.actions || new Uint8Array(0)
+        );
+        const actionsGroupId: string | undefined =
+          groupIdBytes && groupIdBytes.length !== 0
+            ? Bytes.toBase64(groupIdBytes)
+            : undefined;
+        if (actionsGroupId && actionsGroupId === group.groupId) {
+          isUntrustedChangeVerified = true;
+        } else if (!actionsGroupId) {
+          log.warn(
+            `getGroupUpdates/${logId}: Missing groupId in group change actions`
+          );
+        } else {
+          log.warn(
+            `getGroupUpdates/${logId}: Incorrect groupId in group change actions`
+          );
+        }
       }
 
-      return updateGroupViaSingleChange({
-        group,
-        newRevision,
-        groupChange,
-      });
+      if (isTrusted || isUntrustedChangeVerified) {
+        return updateGroupViaSingleChange({
+          group,
+          newRevision,
+          groupChange,
+        });
+      }
     }
 
     log.info(
@@ -4513,6 +4538,10 @@ async function integrateGroupChange({
   };
 }
 
+function normalizeTextField(text: string | null | undefined): string {
+  return text?.trim() ?? '';
+}
+
 function extractDiffs({
   current,
   dropInitialJoinMessage,
@@ -4617,11 +4646,12 @@ function extractDiffs({
   }
 
   // name
-
-  if (old.name !== current.name) {
+  const oldName = normalizeTextField(old.name);
+  const newName = normalizeTextField(current.name);
+  if (oldName !== newName) {
     details.push({
       type: 'title',
-      newTitle: current.name,
+      newTitle: newName,
     });
   }
 
@@ -4640,11 +4670,13 @@ function extractDiffs({
   }
 
   // description
-  if (old.description !== current.description) {
+  const oldDescription = normalizeTextField(old.description);
+  const newDescription = normalizeTextField(current.description);
+  if (oldDescription !== newDescription) {
     details.push({
       type: 'description',
-      removed: !current.description,
-      description: current.description,
+      removed: !newDescription,
+      description: newDescription,
     });
   }
 
@@ -5373,7 +5405,7 @@ async function applyGroupChange({
   if (actions.modifyTitle) {
     const { title } = actions.modifyTitle;
     if (title && title.content === 'title') {
-      result.name = dropNull(title.title);
+      result.name = dropNull(title.title)?.trim();
     } else {
       log.warn(
         `applyGroupChange/${logId}: Clearing group title due to missing data.`
@@ -5575,7 +5607,7 @@ async function applyGroupChange({
   if (actions.modifyDescription) {
     const { descriptionBytes } = actions.modifyDescription;
     if (descriptionBytes && descriptionBytes.content === 'descriptionText') {
-      result.description = dropNull(descriptionBytes.descriptionText);
+      result.description = dropNull(descriptionBytes.descriptionText)?.trim();
     } else {
       log.warn(
         `applyGroupChange/${logId}: Clearing group description due to missing data.`
@@ -5809,7 +5841,7 @@ async function applyGroupState({
   // Note: During decryption, title becomes a GroupAttributeBlob
   const { title } = groupState;
   if (title && title.content === 'title') {
-    result.name = dropNull(title.title);
+    result.name = dropNull(title.title)?.trim();
   } else {
     result.name = undefined;
   }
@@ -6019,7 +6051,7 @@ async function applyGroupState({
   // descriptionBytes
   const { descriptionBytes } = groupState;
   if (descriptionBytes && descriptionBytes.content === 'descriptionText') {
-    result.description = dropNull(descriptionBytes.descriptionText);
+    result.description = dropNull(descriptionBytes.descriptionText)?.trim();
   } else {
     result.description = undefined;
   }

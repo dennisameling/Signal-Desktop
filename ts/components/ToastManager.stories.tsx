@@ -105,6 +105,8 @@ function getToast(toastType: ToastType): AnyToast {
       return { toastType: ToastType.FailedToFetchUsername };
     case ToastType.FailedToSendWithEndorsements:
       return { toastType: ToastType.FailedToSendWithEndorsements };
+    case ToastType.FailedToImportBackup:
+      return { toastType: ToastType.FailedToImportBackup };
     case ToastType.FileSaved:
       return {
         toastType: ToastType.FileSaved,
@@ -127,6 +129,8 @@ function getToast(toastType: ToastType): AnyToast {
       return { toastType: ToastType.LoadingFullLogs };
     case ToastType.MaxAttachments:
       return { toastType: ToastType.MaxAttachments };
+    case ToastType.MediaNoLongerAvailable:
+      return { toastType: ToastType.MediaNoLongerAvailable };
     case ToastType.MessageBodyTooLong:
       return { toastType: ToastType.MessageBodyTooLong };
     case ToastType.MessageLoop:
@@ -234,6 +238,7 @@ export default {
     openFileInFolder: action('openFileInFolder'),
     onShowDebugLog: action('onShowDebugLog'),
     onUndoArchive: action('onUndoArchive'),
+    showAttachmentNotAvailableModal: action('showAttachmentNotAvailableModal'),
     i18n,
     toastType: ToastType.AddingUserToGroup,
     megaphoneType: MegaphoneType.UsernameOnboarding,

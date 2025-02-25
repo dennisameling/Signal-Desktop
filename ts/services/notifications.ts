@@ -4,6 +4,8 @@
 import os from 'os';
 import { debounce } from 'lodash';
 import EventEmitter from 'events';
+import { v4 as getGuid } from 'uuid';
+
 import { Sound, SoundType } from '../util/Sound';
 import { shouldHideExpiringMessageBody } from '../types/Settings';
 import OS from '../util/os/osMain';
@@ -36,16 +38,14 @@ type NotificationDataType = Readonly<{
 
 export type NotificationClickData = Readonly<{
   conversationId: string;
-  messageId: string | null;
-  storyId: string | null;
+  messageId: string | undefined;
+  storyId: string | undefined;
 }>;
 export type WindowsNotificationData = {
   avatarPath?: string;
   body: string;
-  conversationId: string;
   heading: string;
-  messageId?: string;
-  storyId?: string;
+  token: string;
   type: NotificationType;
 };
 export enum NotificationType {
@@ -79,27 +79,26 @@ export const FALLBACK_NOTIFICATION_TITLE = 'Signal';
 // [0]: https://github.com/electron/electron/issues/15364
 // [1]: https://github.com/electron/electron/issues/21646
 class NotificationService extends EventEmitter {
-  private i18n?: LocalizerType;
-
-  private storage?: StorageInterface;
+  #i18n?: LocalizerType;
+  #storage?: StorageInterface;
 
   public isEnabled = false;
 
-  private lastNotification: null | Notification = null;
-
-  private notificationData: null | NotificationDataType = null;
+  #lastNotification: null | Notification = null;
+  #notificationData: null | NotificationDataType = null;
+  #tokenData: { token: string; data: NotificationClickData } | undefined;
 
   // Testing indicated that trying to create/destroy notifications too quickly
   //   resulted in notifications that stuck around forever, requiring the user
   //   to manually close them. This introduces a minimum amount of time between calls,
   //   and batches up the quick successive update() calls we get from an incoming
   //   read sync, which might have a number of messages referenced inside of it.
-  private update: () => unknown;
+  #update: () => unknown;
 
   constructor() {
     super();
 
-    this.update = debounce(this.fastUpdate.bind(this), 1000);
+    this.#update = debounce(this.#fastUpdate.bind(this), 1000);
   }
 
   public initialize({
@@ -107,13 +106,13 @@ class NotificationService extends EventEmitter {
     storage,
   }: Readonly<{ i18n: LocalizerType; storage: StorageInterface }>): void {
     log.info('NotificationService initialized');
-    this.i18n = i18n;
-    this.storage = storage;
+    this.#i18n = i18n;
+    this.#storage = storage;
   }
 
-  private getStorage(): StorageInterface {
-    if (this.storage) {
-      return this.storage;
+  #getStorage(): StorageInterface {
+    if (this.#storage) {
+      return this.#storage;
     }
 
     log.error(
@@ -122,9 +121,9 @@ class NotificationService extends EventEmitter {
     return window.storage;
   }
 
-  private getI18n(): LocalizerType {
-    if (this.i18n) {
-      return this.i18n;
+  #getI18n(): LocalizerType {
+    if (this.#i18n) {
+      return this.#i18n;
     }
 
     log.error(
@@ -141,8 +140,8 @@ class NotificationService extends EventEmitter {
     log.info(
       'NotificationService: adding a notification and requesting an update'
     );
-    this.notificationData = notificationData;
-    this.update();
+    this.#notificationData = notificationData;
+    this.#update();
   }
 
   /**
@@ -177,20 +176,24 @@ class NotificationService extends EventEmitter {
     log.info('NotificationService: showing a notification', sentAt);
 
     if (OS.isWindows()) {
+      const token = this._createToken({
+        conversationId,
+        messageId,
+        storyId,
+      });
+
       // Note: showing a windows notification clears all previous notifications first
       drop(
         window.IPC.showWindowsNotification({
           avatarPath: iconPath,
           body: message,
-          conversationId,
           heading: title,
-          messageId,
-          storyId,
           type,
+          token,
         })
       );
     } else {
-      this.lastNotification?.close();
+      this.#lastNotification?.close();
 
       const notification = new window.Notification(title, {
         body: OS.isLinux() ? filterNotificationText(message) : message,
@@ -208,8 +211,8 @@ class NotificationService extends EventEmitter {
           window.IPC.showWindow();
           window.Events.showConversationViaNotification({
             conversationId,
-            messageId: messageId ?? null,
-            storyId: storyId ?? null,
+            messageId,
+            storyId,
           });
         } else if (type === NotificationType.IncomingGroupCall) {
           window.IPC.showWindow();
@@ -226,7 +229,7 @@ class NotificationService extends EventEmitter {
         }
       };
 
-      this.lastNotification = notification;
+      this.#lastNotification = notification;
     }
 
     if (!silent) {
@@ -254,7 +257,7 @@ class NotificationService extends EventEmitter {
     targetAuthorAci?: string;
     targetTimestamp?: number;
   }>): void {
-    if (!this.notificationData) {
+    if (!this.#notificationData) {
       log.info('NotificationService#removeBy: no notification data');
       return;
     }
@@ -262,12 +265,12 @@ class NotificationService extends EventEmitter {
     let shouldClear = false;
     if (
       conversationId &&
-      this.notificationData.conversationId === conversationId
+      this.#notificationData.conversationId === conversationId
     ) {
       log.info('NotificationService#removeBy: conversation ID matches');
       shouldClear = true;
     }
-    if (messageId && this.notificationData.messageId === messageId) {
+    if (messageId && this.#notificationData.messageId === messageId) {
       log.info('NotificationService#removeBy: message ID matches');
       shouldClear = true;
     }
@@ -276,7 +279,7 @@ class NotificationService extends EventEmitter {
       return;
     }
 
-    const { reaction } = this.notificationData;
+    const { reaction } = this.#notificationData;
     if (
       reaction &&
       emoji &&
@@ -290,13 +293,13 @@ class NotificationService extends EventEmitter {
     }
 
     this.clear();
-    this.update();
+    this.#update();
   }
 
-  private fastUpdate(): void {
-    const storage = this.getStorage();
-    const i18n = this.getI18n();
-    const { notificationData } = this;
+  #fastUpdate(): void {
+    const storage = this.#getStorage();
+    const i18n = this.#getI18n();
+    const notificationData = this.#notificationData;
     const isAppFocused = window.SignalContext.activeWindowService.isActive();
     const userSetting = this.getNotificationSetting();
 
@@ -306,11 +309,12 @@ class NotificationService extends EventEmitter {
       //   adding anythhing new; just one notification at a time. Electron forces it, so
       //   we replicate it with our Windows notifications.
       if (!notificationData) {
+        this.#tokenData = undefined;
         drop(window.IPC.clearAllWindowsNotifications());
       }
-    } else if (this.lastNotification) {
-      this.lastNotification.close();
-      this.lastNotification = null;
+    } else if (this.#lastNotification) {
+      this.#lastNotification.close();
+      this.#lastNotification = null;
     }
 
     // This isn't a boolean because TypeScript isn't smart enough to know that, if
@@ -326,7 +330,7 @@ class NotificationService extends EventEmitter {
         }notification data`
       );
       if (isAppFocused) {
-        this.notificationData = null;
+        this.#notificationData = null;
       }
       return;
     }
@@ -422,7 +426,7 @@ class NotificationService extends EventEmitter {
 
     log.info('NotificationService: requesting a notification to be shown');
 
-    this.notificationData = {
+    this.#notificationData = {
       ...notificationData,
       wasShown: true,
     };
@@ -444,16 +448,42 @@ class NotificationService extends EventEmitter {
 
   public getNotificationSetting(): NotificationSetting {
     return parseNotificationSetting(
-      this.getStorage().get('notification-setting')
+      this.#getStorage().get('notification-setting')
     );
+  }
+
+  /** @internal */
+  public _createToken(data: NotificationClickData): string {
+    const token = getGuid();
+
+    this.#tokenData = {
+      token,
+      data,
+    };
+
+    return token;
+  }
+
+  public resolveToken(token: string): NotificationClickData | undefined {
+    if (!this.#tokenData) {
+      log.warn(`NotificationService: no data when looking up ${token}`);
+      return undefined;
+    }
+
+    if (this.#tokenData.token !== token) {
+      log.warn(`NotificationService: token mismatch ${token}`);
+      return undefined;
+    }
+
+    return this.#tokenData.data;
   }
 
   public clear(): void {
     log.info(
       'NotificationService: clearing notification and requesting an update'
     );
-    this.notificationData = null;
-    this.update();
+    this.#notificationData = null;
+    this.#update();
   }
 
   // We don't usually call this, but when the process is shutting down, we should at
@@ -461,8 +491,8 @@ class NotificationService extends EventEmitter {
   //   normal debounce.
   public fastClear(): void {
     log.info('NotificationService: clearing notification and updating');
-    this.notificationData = null;
-    this.fastUpdate();
+    this.#notificationData = null;
+    this.#fastUpdate();
   }
 
   public enable(): void {
@@ -470,7 +500,7 @@ class NotificationService extends EventEmitter {
     const needUpdate = !this.isEnabled;
     this.isEnabled = true;
     if (needUpdate) {
-      this.update();
+      this.#update();
     }
   }
 

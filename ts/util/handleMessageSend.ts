@@ -49,13 +49,13 @@ export const sendTypesEnum = z.enum([
   'pniIdentitySyncRequest', // urgent because we need our PNI to be fully functional
 
   // The actual sync messages, which we never send, just receive - non-urgent
-  'blockSync',
   'configurationSync',
   'contactSync',
   'keySync',
   'pniIdentitySync',
 
   // Syncs, default non-urgent
+  'blockSync',
   'deleteForMeSync',
   'fetchLatestManifestSync',
   'fetchLocalProfileSync',
@@ -69,6 +69,7 @@ export const sendTypesEnum = z.enum([
   'callEventSync',
   'callLinkUpdateSync',
   'callLogEventSync',
+  'deviceNameChangeSync',
 
   // No longer used, all non-urgent
   'legacyGroupChange',
@@ -107,19 +108,7 @@ function processError(error: unknown): void {
       'private'
     );
     if (error.code === 401 || error.code === 403) {
-      if (
-        conversation.get('sealedSender') === SEALED_SENDER.ENABLED ||
-        conversation.get('sealedSender') === SEALED_SENDER.UNRESTRICTED
-      ) {
-        log.warn(
-          `handleMessageSend: Got 401/403 for ${conversation.idForLogging()}, removing profile key`
-        );
-
-        void conversation.setProfileKey(undefined, {
-          reason: 'handleMessageSend/processError',
-        });
-      }
-      if (conversation.get('sealedSender') === SEALED_SENDER.UNKNOWN) {
+      if (conversation.get('sealedSender') !== SEALED_SENDER.DISABLED) {
         log.warn(
           `handleMessageSend: Got 401/403 for ${conversation.idForLogging()}, setting sealedSender = DISABLED`
         );

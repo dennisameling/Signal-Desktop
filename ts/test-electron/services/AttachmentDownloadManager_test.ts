@@ -17,7 +17,6 @@ import {
 import type { AttachmentDownloadJobType } from '../../types/AttachmentDownload';
 import { DataReader, DataWriter } from '../../sql/Client';
 import { MINUTE } from '../../util/durations';
-import { type AciString } from '../../types/ServiceId';
 import { type AttachmentType, AttachmentVariant } from '../../types/Attachment';
 import { strictAssert } from '../../util/assert';
 import { AttachmentDownloadSource } from '../../sql/Interface';
@@ -107,7 +106,7 @@ describe('AttachmentDownloadManager/JobManager', () => {
     urgency: AttachmentDownloadUrgency
   ) {
     // Save message first to satisfy foreign key constraint
-    await DataWriter.saveMessage(
+    await window.MessageCache.saveMessage(
       {
         id: job.messageId,
         type: 'incoming',
@@ -117,7 +116,6 @@ describe('AttachmentDownloadManager/JobManager', () => {
         conversationId: 'convoId',
       },
       {
-        ourAci: 'ourAci' as AciString,
         forceSave: true,
       }
     );
@@ -444,8 +442,11 @@ describe('AttachmentDownloadManager/JobManager', () => {
 
 describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
   let sandbox: sinon.SinonSandbox;
+  let deleteDownloadData: sinon.SinonStub;
   let downloadAttachment: sinon.SinonStub;
   let processNewAttachment: sinon.SinonStub;
+  const abortController = new AbortController();
+
   beforeEach(async () => {
     sandbox = sinon.createSandbox();
     downloadAttachment = sandbox.stub().returns({
@@ -470,7 +471,9 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
       const result = await runDownloadAttachmentJobInner({
         job,
         isForCurrentlyVisibleMessage: true,
+        abortSignal: abortController.signal,
         dependencies: {
+          deleteDownloadData,
           downloadAttachment,
           processNewAttachment,
         },
@@ -478,10 +481,13 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
 
       assert.strictEqual(result.downloadedVariant, AttachmentVariant.Default);
       assert.strictEqual(downloadAttachment.callCount, 1);
-      assert.deepStrictEqual(downloadAttachment.getCall(0).args[0], {
-        attachment: job.attachment,
-        variant: AttachmentVariant.Default,
-      });
+
+      const downloadCallArgs = downloadAttachment.getCall(0).args[0];
+      assert.deepStrictEqual(downloadCallArgs.attachment, job.attachment);
+      assert.deepStrictEqual(
+        downloadCallArgs.options.variant,
+        AttachmentVariant.Default
+      );
     });
     it('will download thumbnail if attachment is from backup', async () => {
       const job = composeJob({
@@ -497,7 +503,9 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
       const result = await runDownloadAttachmentJobInner({
         job,
         isForCurrentlyVisibleMessage: true,
+        abortSignal: abortController.signal,
         dependencies: {
+          deleteDownloadData,
           downloadAttachment,
           processNewAttachment,
         },
@@ -521,10 +529,13 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
         '/path/to/file'
       );
       assert.strictEqual(downloadAttachment.callCount, 1);
-      assert.deepStrictEqual(downloadAttachment.getCall(0).args[0], {
-        attachment: job.attachment,
-        variant: AttachmentVariant.ThumbnailFromBackup,
-      });
+
+      const downloadCallArgs = downloadAttachment.getCall(0).args[0];
+      assert.deepStrictEqual(downloadCallArgs.attachment, job.attachment);
+      assert.deepStrictEqual(
+        downloadCallArgs.options.variant,
+        AttachmentVariant.ThumbnailFromBackup
+      );
     });
     it('will download full size if thumbnail already backed up', async () => {
       const job = composeJob({
@@ -543,17 +554,22 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
       const result = await runDownloadAttachmentJobInner({
         job,
         isForCurrentlyVisibleMessage: true,
+        abortSignal: abortController.signal,
         dependencies: {
+          deleteDownloadData,
           downloadAttachment,
           processNewAttachment,
         },
       });
       assert.strictEqual(result.downloadedVariant, AttachmentVariant.Default);
       assert.strictEqual(downloadAttachment.callCount, 1);
-      assert.deepStrictEqual(downloadAttachment.getCall(0).args[0], {
-        attachment: job.attachment,
-        variant: AttachmentVariant.Default,
-      });
+
+      const downloadCallArgs = downloadAttachment.getCall(0).args[0];
+      assert.deepStrictEqual(downloadCallArgs.attachment, job.attachment);
+      assert.deepStrictEqual(
+        downloadCallArgs.options.variant,
+        AttachmentVariant.Default
+      );
     });
 
     it('will attempt to download full size if thumbnail fails', async () => {
@@ -575,7 +591,9 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
         runDownloadAttachmentJobInner({
           job,
           isForCurrentlyVisibleMessage: true,
+          abortSignal: abortController.signal,
           dependencies: {
+            deleteDownloadData,
             downloadAttachment,
             processNewAttachment,
           },
@@ -583,14 +601,20 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
       );
 
       assert.strictEqual(downloadAttachment.callCount, 2);
-      assert.deepStrictEqual(downloadAttachment.getCall(0).args[0], {
-        attachment: job.attachment,
-        variant: AttachmentVariant.ThumbnailFromBackup,
-      });
-      assert.deepStrictEqual(downloadAttachment.getCall(1).args[0], {
-        attachment: job.attachment,
-        variant: AttachmentVariant.Default,
-      });
+
+      const downloadCallArgs0 = downloadAttachment.getCall(0).args[0];
+      assert.deepStrictEqual(downloadCallArgs0.attachment, job.attachment);
+      assert.deepStrictEqual(
+        downloadCallArgs0.options.variant,
+        AttachmentVariant.ThumbnailFromBackup
+      );
+
+      const downloadCallArgs1 = downloadAttachment.getCall(1).args[0];
+      assert.deepStrictEqual(downloadCallArgs1.attachment, job.attachment);
+      assert.deepStrictEqual(
+        downloadCallArgs1.options.variant,
+        AttachmentVariant.Default
+      );
     });
   });
   describe('message not visible', () => {
@@ -608,21 +632,26 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
       const result = await runDownloadAttachmentJobInner({
         job,
         isForCurrentlyVisibleMessage: false,
+        abortSignal: abortController.signal,
         dependencies: {
+          deleteDownloadData,
           downloadAttachment,
           processNewAttachment,
         },
       });
       assert.strictEqual(result.downloadedVariant, AttachmentVariant.Default);
       assert.strictEqual(downloadAttachment.callCount, 1);
-      assert.deepStrictEqual(downloadAttachment.getCall(0).args[0], {
-        attachment: job.attachment,
-        variant: AttachmentVariant.Default,
-      });
+
+      const downloadCallArgs = downloadAttachment.getCall(0).args[0];
+      assert.deepStrictEqual(downloadCallArgs.attachment, job.attachment);
+      assert.deepStrictEqual(
+        downloadCallArgs.options.variant,
+        AttachmentVariant.Default
+      );
     });
     it('will fallback to thumbnail if main download fails and backuplocator exists', async () => {
-      downloadAttachment = sandbox.stub().callsFake(({ variant }) => {
-        if (variant === AttachmentVariant.Default) {
+      downloadAttachment = sandbox.stub().callsFake(({ options }) => {
+        if (options.variant === AttachmentVariant.Default) {
           throw new Error('error while downloading');
         }
         return {
@@ -645,7 +674,9 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
       const result = await runDownloadAttachmentJobInner({
         job,
         isForCurrentlyVisibleMessage: false,
+        abortSignal: abortController.signal,
         dependencies: {
+          deleteDownloadData,
           downloadAttachment,
           processNewAttachment,
         },
@@ -655,19 +686,25 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
         AttachmentVariant.ThumbnailFromBackup
       );
       assert.strictEqual(downloadAttachment.callCount, 2);
-      assert.deepStrictEqual(downloadAttachment.getCall(0).args[0], {
-        attachment: job.attachment,
-        variant: AttachmentVariant.Default,
-      });
-      assert.deepStrictEqual(downloadAttachment.getCall(1).args[0], {
-        attachment: job.attachment,
-        variant: AttachmentVariant.ThumbnailFromBackup,
-      });
+
+      const downloadCallArgs0 = downloadAttachment.getCall(0).args[0];
+      assert.deepStrictEqual(downloadCallArgs0.attachment, job.attachment);
+      assert.deepStrictEqual(
+        downloadCallArgs0.options.variant,
+        AttachmentVariant.Default
+      );
+
+      const downloadCallArgs1 = downloadAttachment.getCall(1).args[0];
+      assert.deepStrictEqual(downloadCallArgs1.attachment, job.attachment);
+      assert.deepStrictEqual(
+        downloadCallArgs1.options.variant,
+        AttachmentVariant.ThumbnailFromBackup
+      );
     });
 
     it("won't fallback to thumbnail if main download fails and no backup locator", async () => {
-      downloadAttachment = sandbox.stub().callsFake(({ variant }) => {
-        if (variant === AttachmentVariant.Default) {
+      downloadAttachment = sandbox.stub().callsFake(({ options }) => {
+        if (options.variant === AttachmentVariant.Default) {
           throw new Error('error while downloading');
         }
         return {
@@ -686,7 +723,9 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
         runDownloadAttachmentJobInner({
           job,
           isForCurrentlyVisibleMessage: false,
+          abortSignal: abortController.signal,
           dependencies: {
+            deleteDownloadData,
             downloadAttachment,
             processNewAttachment,
           },
@@ -694,10 +733,13 @@ describe('AttachmentDownloadManager/runDownloadAttachmentJob', () => {
       );
 
       assert.strictEqual(downloadAttachment.callCount, 1);
-      assert.deepStrictEqual(downloadAttachment.getCall(0).args[0], {
-        attachment: job.attachment,
-        variant: AttachmentVariant.Default,
-      });
+
+      const downloadCallArgs = downloadAttachment.getCall(0).args[0];
+      assert.deepStrictEqual(downloadCallArgs.attachment, job.attachment);
+      assert.deepStrictEqual(
+        downloadCallArgs.options.variant,
+        AttachmentVariant.Default
+      );
     });
   });
 });

@@ -27,6 +27,7 @@ import { generateAci, generatePni } from '../../types/ServiceId';
 import { DataReader, DataWriter } from '../../sql/Client';
 import { getRandomBytes } from '../../Crypto';
 import * as Bytes from '../../Bytes';
+import { postSaveUpdates } from '../../util/cleanup';
 
 export const OUR_ACI = generateAci();
 export const OUR_PNI = generatePni();
@@ -68,9 +69,12 @@ function sortAndNormalize(
       reactions,
       sendStateByConversationId,
       verifiedChanged,
-      attachments,
+
+      // Set to an empty array after message migration
+      attachments = [],
+      contact = [],
+
       preview,
-      contact,
       quote,
       sticker,
 
@@ -106,7 +110,20 @@ function sortAndNormalize(
     // Get rid of unserializable `undefined` values.
     return JSON.parse(
       JSON.stringify({
-        ...rest,
+        // Defaults
+        hasAttachments: false,
+        hasFileAttachments: false,
+        hasVisualMediaAttachments: false,
+        isErased: false,
+        isViewOnce: false,
+        mentionsMe: false,
+        seenStatus: 0,
+        readStatus: 0,
+        unidentifiedDeliveryReceived: false,
+
+        // Drop more `undefined` values
+        ...JSON.parse(JSON.stringify(rest)),
+
         conversationId: mapConvoId(conversationId),
         reactions: reactions?.map(({ fromId, ...restOfReaction }) => {
           return {
@@ -132,14 +149,14 @@ function sortAndNormalize(
           };
         }),
 
-        attachments: attachments?.map(attachment =>
+        attachments: attachments.map(attachment =>
           omit(attachment, 'downloadPath')
         ),
         preview: preview?.map(previewItem => ({
           ...previewItem,
           image: omit(previewItem.image, 'downloadPath'),
         })),
-        contact: contact?.map(contactItem => ({
+        contact: contact.map(contactItem => ({
           ...contactItem,
           avatar: {
             ...contactItem.avatar,
@@ -207,7 +224,11 @@ export async function asymmetricRoundtripHarness(
   try {
     const targetOutputFile = path.join(outDir, 'backup.bin');
 
-    await DataWriter.saveMessages(before, { forceSave: true, ourAci: OUR_ACI });
+    await DataWriter.saveMessages(before, {
+      forceSave: true,
+      ourAci: OUR_ACI,
+      postSaveUpdates,
+    });
 
     await backupsService.exportToDisk(targetOutputFile, options.backupLevel);
 

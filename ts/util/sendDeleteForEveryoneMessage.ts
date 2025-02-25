@@ -3,7 +3,6 @@
 
 import type { ConversationAttributesType } from '../model-types.d';
 import type { ConversationQueueJobData } from '../jobs/conversationJobQueue';
-import { DataWriter } from '../sql/Client';
 import * as Errors from '../types/errors';
 import { DAY } from './durations';
 import * as log from '../logging/log';
@@ -16,7 +15,7 @@ import {
   getConversationIdForLogging,
   getMessageIdForLogging,
 } from './idForLogging';
-import { __DEPRECATED$getMessageById } from '../messages/getMessageById';
+import { getMessageById } from '../messages/getMessageById';
 import { getRecipientConversationIds } from './getRecipientConversationIds';
 import { getRecipients } from './getRecipients';
 import { repeat, zipObject } from './iterables';
@@ -35,7 +34,7 @@ export async function sendDeleteForEveryoneMessage(
     timestamp: targetTimestamp,
     id: messageId,
   } = options;
-  const message = await __DEPRECATED$getMessageById(messageId);
+  const message = await getMessageById(messageId);
   if (!message) {
     throw new Error('sendDeleteForEveryoneMessage: Cannot find message!');
   }
@@ -82,9 +81,8 @@ export async function sendDeleteForEveryoneMessage(
         `sendDeleteForEveryoneMessage: Deleting message ${idForLogging} ` +
           `in conversation ${conversationIdForLogging} with job ${jobToInsert.id}`
       );
-      await DataWriter.saveMessage(message.attributes, {
+      await window.MessageCache.saveMessage(message.attributes, {
         jobToInsert,
-        ourAci: window.textsecure.storage.user.getCheckedAci(),
       });
     });
   } catch (error) {

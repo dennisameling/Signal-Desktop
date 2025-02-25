@@ -166,6 +166,8 @@ describe('backup/attachments', () => {
         // path & iv will not be roundtripped
         [
           composeMessage(1, {
+            hasAttachments: true,
+            hasVisualMediaAttachments: true,
             attachments: [
               omit(longMessageAttachment, NON_ROUNDTRIPPED_FIELDS),
               omit(normalAttachment, NON_ROUNDTRIPPED_FIELDS),
@@ -282,6 +284,8 @@ describe('backup/attachments', () => {
         // path & iv will not be roundtripped
         [
           composeMessage(1, {
+            hasAttachments: true,
+            hasVisualMediaAttachments: true,
             attachments: [
               omit(attachment1, NON_ROUNDTRIPPED_FIELDS),
               omit(attachment2, NON_ROUNDTRIPPED_FIELDS),
@@ -303,6 +307,9 @@ describe('backup/attachments', () => {
         ],
         [
           composeMessage(1, {
+            hasAttachments: true,
+            hasVisualMediaAttachments: true,
+
             // path, iv, and uploadTimestamp will not be roundtripped,
             // but there will be a backupLocator
             attachments: [
@@ -334,6 +341,7 @@ describe('backup/attachments', () => {
         ],
         [
           composeMessage(1, {
+            hasAttachments: true,
             attachments: [
               {
                 ...omit(attachment, NON_ROUNDTRIPPED_BACKUP_LOCATOR_FIELDS),
@@ -356,15 +364,19 @@ describe('backup/attachments', () => {
       await asymmetricRoundtripHarness(
         [
           composeMessage(1, {
-            preview: [{ url: 'url', date: 1, image: attachment }],
+            body: 'https://signal.org',
+            preview: [
+              { url: 'https://signal.org', date: 1, image: attachment },
+            ],
           }),
         ],
         // path & iv will not be roundtripped
         [
           composeMessage(1, {
+            body: 'https://signal.org',
             preview: [
               {
-                url: 'url',
+                url: 'https://signal.org',
                 date: 1,
                 image: omit(attachment, NON_ROUNDTRIPPED_FIELDS),
               },
@@ -381,9 +393,10 @@ describe('backup/attachments', () => {
       await asymmetricRoundtripHarness(
         [
           composeMessage(1, {
+            body: 'https://signal.org',
             preview: [
               {
-                url: 'url',
+                url: 'https://signal.org',
                 date: 1,
                 title: 'title',
                 description: 'description',
@@ -394,9 +407,10 @@ describe('backup/attachments', () => {
         ],
         [
           composeMessage(1, {
+            body: 'https://signal.org',
             preview: [
               {
-                url: 'url',
+                url: 'https://signal.org',
                 date: 1,
                 title: 'title',
                 description: 'description',
@@ -493,12 +507,14 @@ describe('backup/attachments', () => {
       await asymmetricRoundtripHarness(
         [
           composeMessage(1, {
+            body: '123',
             quote: quotedMessage,
           }),
         ],
         // path & iv will not be roundtripped
         [
           composeMessage(1, {
+            body: '123',
             quote: {
               ...quotedMessage,
               attachments: [
@@ -529,11 +545,13 @@ describe('backup/attachments', () => {
       await asymmetricRoundtripHarness(
         [
           composeMessage(1, {
+            body: '123',
             quote: quotedMessage,
           }),
         ],
         [
           composeMessage(1, {
+            body: '123',
             quote: {
               ...quotedMessage,
               attachments: [
@@ -558,6 +576,7 @@ describe('backup/attachments', () => {
       const existingAttachment = composeAttachment(1);
       const existingMessageTimestamp = Date.now();
       const existingMessage = composeMessage(existingMessageTimestamp, {
+        body: '123',
         attachments: [existingAttachment],
       });
 
@@ -576,6 +595,7 @@ describe('backup/attachments', () => {
       };
 
       const quoteMessage = composeMessage(existingMessageTimestamp + 1, {
+        body: 'quote',
         quote: quotedMessage,
       });
 
@@ -584,6 +604,8 @@ describe('backup/attachments', () => {
         [
           {
             ...existingMessage,
+            hasAttachments: true,
+            hasVisualMediaAttachments: true,
             attachments: [
               {
                 ...omit(
@@ -625,7 +647,9 @@ describe('backup/attachments', () => {
     });
 
     it('handles quotes which have been copied over from the original (and lack all encryption info)', async () => {
-      const originalMessage = composeMessage(1);
+      const originalMessage = composeMessage(1, {
+        body: 'original',
+      });
       const quotedMessage: QuotedMessageType = {
         authorAci: originalMessage.sourceServiceId as AciString,
         isViewOnce: false,
@@ -645,6 +669,7 @@ describe('backup/attachments', () => {
       };
 
       const quoteMessage = composeMessage(originalMessage.timestamp + 1, {
+        body: 'quote',
         quote: quotedMessage,
       });
 

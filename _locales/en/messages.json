@@ -83,10 +83,6 @@
     "messageformat": "Terms & Privacy Policy",
     "description": "Shown in the about box for the link to https://signal.org/legal"
   },
-  "icu:appleSilicon": {
-    "messageformat": "Apple silicon",
-    "description": "(Deleted 2024/11/07) Shown in the about box for Apple silicon product name"
-  },
   "icu:About__AppEnvironment": {
     "messageformat": "{appEnv}",
     "description": "AboutWindow > App Environment Info > On non-apple devices"
@@ -309,7 +305,7 @@
   },
   "icu:migratingToSQLCipher": {
     "messageformat": "Optimizing messages... {status} complete.",
-    "description": "Message shown on the loading screen while we are doing application optimizations"
+    "description": "(Deleted 2025/02/06) Message shown on the loading screen while we are doing application optimizations"
   },
   "icu:archivedConversations": {
     "messageformat": "Archived Chats",
@@ -565,7 +561,7 @@
   },
   "icu:messageHistoryUnsynced": {
     "messageformat": "For your security, chat history isn't transferred to new linked devices.",
-    "description": "Shown in the conversation history when a user links a new device to explain what is not supported."
+    "description": "(Deleted 2025/01/29) Shown in the conversation history when a user links a new device to explain what is not supported."
   },
   "icu:youMarkedAsVerified": {
     "messageformat": "You marked your Safety Number with {name} as verified",
@@ -800,6 +796,10 @@
     "messageformat": "Failed to send message with endorsements",
     "description": "An error popup when we attempted and failed to send a message using endorsements, only for internal users."
   },
+  "icu:Toast--FailedToImportBackup": {
+    "messageformat": "Failed to process some frames during backup import. Please share your logs.",
+    "description": "[Only shown to internal users] An error popup when we failed to process some parts of a backup import."
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "You can't select photos and videos along with files.",
     "description": "An error popup when the user has attempted to add an attachment"
@@ -953,7 +953,7 @@
   },
   "icu:noSearchResults--sms-only": {
     "messageformat": "SMS/MMS contacts are not available on Desktop.",
-    "description": "Shown in the search left pane when no results were found and primary device has SMS/MMS handling enabled"
+    "description": "(Deleted 2025/02/06) Shown in the search left pane when no results were found and primary device has SMS/MMS handling enabled"
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "No results for \"{searchTerm}\" in {conversationName}",
@@ -1093,10 +1093,6 @@
   "icu:voiceNoteError": {
     "messageformat": "There was an error with the voice recorder.",
     "description": "Shown in a dialog to inform user that we experienced an unrecoverable error"
-  },
-  "icu:attachmentSaved": {
-    "messageformat": "Attachment saved.",
-    "description": "(Deleted 2024/10/23) Shown after user selects to save to downloads"
   },
   "icu:attachmentSavedPlural": {
     "messageformat": "{count, plural, one {Attachment} other {# attachments}} saved",
@@ -1362,22 +1358,6 @@
     "messageformat": "Info",
     "description": "Shown on the drop-down menu for an individual message, takes you to message detail screen"
   },
-  "icu:deleteMessagesInConversation": {
-    "messageformat": "Delete messages",
-    "description": "(Deleted 2024/10/23) Menu item for deleting all messages in a conversation from your device"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__title": {
-    "messageformat": "Delete messages?",
-    "description": "(Deleted 2024/10/23) Title for confirmation modal to delete all messages in a conversation"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description": {
-    "messageformat": "All messages in this chat will be deleted from this device. You can still search for this chat after you delete messages.",
-    "description": "(Deleted 2024/10/23) Description for confirmation modal to delete all messages in a conversation"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
-    "messageformat": "All messages in this chat will be deleted from all your devices. You can still search for this chat after you delete messages.",
-    "description": "(Deleted 2024/10/23) Description for confirmation modal to delete all messages in a conversation"
-  },
   "icu:deleteConversation": {
     "messageformat": "Delete",
     "description": "Menu item for deleting a conversation (including messages), title case."
@@ -1514,9 +1494,101 @@
     "messageformat": "Image sent in chat",
     "description": "Used in the alt tag for the image shown in a full-screen lightbox view"
   },
+  "icu:lightBoxDownloading": {
+    "messageformat": "Downloading {downloaded} of {total}",
+    "description": "When watching a video while it is downloaded, a toast will appear over the video along with the playback controls showing download progress."
+  },
   "icu:imageCaptionIconAlt": {
     "messageformat": "Icon showing that this image has a caption",
     "description": "Used for the icon layered on top of an image in message bubbles"
+  },
+  "icu:imageOpenAlt": {
+    "messageformat": "Open this attachment in a larger view",
+    "description": "Used for the button that overlays all attachments in the timeline"
+  },
+  "icu:startDownload": {
+    "messageformat": "Start download",
+    "description": "Describes a button shown on an an attachment to kick off the download"
+  },
+  "icu:cancelDownload": {
+    "messageformat": "Cancel download",
+    "description": "Describes a button shown on an existing download to stop that in-progress or pending download"
+  },
+  "icu:downloadNItems": {
+    "messageformat": "{count, plural, one {# item} other {# items}}",
+    "description": "Describes a button shown on a grid of attachments to start of them downloading"
+  },
+  "icu:mediaNoLongerAvailable": {
+    "messageformat": "This media is no longer available.",
+    "description": "(Deleted 2025/01/22) Shown in info toast for messages with old image and video attachments which are no longer available for download. Also used for accessibility label for the download attachment button."
+  },
+  "icu:mediaNotAvailable": {
+    "messageformat": "This media is not available",
+    "description": "Shown in info toast for messages with old image and video attachments which are no longer available for download. Also used for accessibility label for the download attachment button."
+  },
+  "icu:mediaNotAvailable--short": {
+    "messageformat": "Media not available",
+    "description": "(Deleted 2025/02/13) Title of info dialog shown for messages with missing old image and video attachments which are no longer available for download."
+  },
+  "icu:attachmentNoLongerAvailable__learnMore": {
+    "messageformat": "Learn more",
+    "description": "Link in message placeholder and info toast for messages with old attachments which are no longer available for download."
+  },
+  "icu:attachmentNotAvailable__file": {
+    "messageformat": "File not available",
+    "description": "Shown in chat timeline for messages with old file attachments which are no longer available for download."
+  },
+  "icu:attachmentNotAvailable__longMessage": {
+    "messageformat": "This message is incomplete",
+    "description": "Shown in chat timeline for long messages when the complete messages are no longer available for download."
+  },
+  "icu:attachmentNotAvailable__sticker": {
+    "messageformat": "Sticker not available",
+    "description": "Shown in chat timeline for messages with old audio attachments which are no longer available for download."
+  },
+  "icu:attachmentNotAvailable__voice": {
+    "messageformat": "Voice message not available",
+    "description": "Shown in chat timeline for messages with old audio attachments which are no longer available for download."
+  },
+  "icu:AttachmentNotAvailableModal__title--file": {
+    "messageformat": "File not available",
+    "description": "Title for info dialog for messages with old file attachments which are no longer available for download."
+  },
+  "icu:AttachmentNotAvailableModal__title--long-text": {
+    "messageformat": "Complete message not available",
+    "description": "Title for info dialog for long messages which are no longer available for download."
+  },
+  "icu:AttachmentNotAvailableModal__title--media": {
+    "messageformat": "Media not available",
+    "description": "Title for info dialog for messages with old visual media which are no longer available for download."
+  },
+  "icu:AttachmentNotAvailableModal__title--sticker": {
+    "messageformat": "Sticker not available",
+    "description": "Title for info dialog for old sticker messages which are no longer available for download."
+  },
+  "icu:AttachmentNotAvailableModal__title--voice-message": {
+    "messageformat": "Voice message not available",
+    "description": "Title for info dialog for messages with old voice messages which are no longer available for download."
+  },
+  "icu:AttachmentNotAvailableModal__body--file": {
+    "messageformat": "This file was not transferred from your phone when this device was linked. Media and files older than 45 days at the time of device linking can not be synced.",
+    "description": "Body text for info dialog for messages with old file attachments which are no longer available for download."
+  },
+  "icu:AttachmentNotAvailableModal__body--long-text": {
+    "messageformat": "The complete text in this message was not transferred from your phone when this device was linked. Long text messages older than 45 days at the time of device linking can not be synced.",
+    "description": "Body text for info dialog for long messages which are no longer available for download."
+  },
+  "icu:AttachmentNotAvailableModal__body--media": {
+    "messageformat": "This media was not transferred from your phone when this device was linked. Media older than 45 days at the time of device linking can not be synced.",
+    "description": "Body text for info dialog for messages with old visual media which are no longer available for download."
+  },
+  "icu:AttachmentNotAvailableModal__body--sticker": {
+    "messageformat": "This sticker was not transferred from your phone when this device was linked. Media and files older than 45 days at the time of device linking can not be synced.",
+    "description": "Body text for info dialog for old sticker messages which are no longer available for download."
+  },
+  "icu:AttachmentNotAvailableModal__body--voice-message": {
+    "messageformat": "This voice message was not transferred from your phone when this device was linked. Media and files older than 45 days at the time of device linking can not be synced.",
+    "description": "Body text for info dialog for messages with old voice messages which are no longer available for download."
   },
   "icu:save": {
     "messageformat": "Save",
@@ -1574,6 +1646,10 @@
     "messageformat": "Retry",
     "description": "Text of the button shown on the install screen if the QR code fails to load"
   },
+  "icu:Install__qr-max-rotations__retry": {
+    "messageformat": "Refresh code",
+    "description": "Text of the button shown on the install screen if the QR code rotated too many times and needs to be manually refreshed"
+  },
   "icu:Install__qr-failed-load__get-help": {
     "messageformat": "Get help",
     "description": "Text of the link to support page shown on the install screen if the QR code fails to load"
@@ -1597,6 +1673,10 @@
   "icu:Preferences--device-name": {
     "messageformat": "Device Name",
     "description": "The label in settings panel shown for the user-provided name for this desktop instance"
+  },
+  "icu:Preferences--device-name__description": {
+    "messageformat": "To change the name of this device, open Signal on your phone and navigate to Settings > Linked devices",
+    "description": "Shown in the Settings window below the read-only device name"
   },
   "icu:chooseDeviceName": {
     "messageformat": "Choose this device's name",
@@ -1881,6 +1961,10 @@
     "messageformat": "{first}, {second}, and {others, plural, one {#} other {#}} others are in this call",
     "description": "Shown in the calling lobby to describe who is in the call"
   },
+  "icu:calling__pre-call-info--only-unknown-contacts-in-call": {
+    "messageformat": "{count, plural, one {# person is in this call} other {# people are in this call}}",
+    "description": "Shown in the calling lobby to describe people in the call when all are unknown contacts"
+  },
   "icu:calling__pre-call-info--will-ring-1": {
     "messageformat": "Signal will ring {person}",
     "description": "Shown in the calling lobby to describe who will be rung"
@@ -2090,11 +2174,11 @@
     "description": "Header of the full-screen delete data confirmation screen"
   },
   "icu:deleteAllDataBody": {
-    "messageformat": "Delete all data and messages from this version of Signal Desktop? You can always relink this desktop, but your messages will not restore. Your Signal account and data on your phone or other linked devices will not be deleted.",
+    "messageformat": "Delete all data and messages from this version of Signal Desktop? Your Signal account and data on your phone or other linked devices will not be deleted.",
     "description": "Text describing what exactly will happen if the user clicks the button to delete all data"
   },
   "icu:deleteAllDataProgress": {
-    "messageformat": "Disconnecting and deleting all data",
+    "messageformat": "Disconnecting and deleting all data…",
     "description": "Message shown to user when app is disconnected and data deleted"
   },
   "icu:deleteOldIndexedDBData": {
@@ -3627,6 +3711,10 @@
     "messageformat": "{ringer} is calling you, {first}, {second}, and {remaining, plural, one {# other} other {# others}}",
     "description": "Shown in the incoming call bar when someone is ringing you for a group call"
   },
+  "icu:outgoingCallConnecting": {
+    "messageformat": "Connecting...",
+    "description": "Shown in the call screen when placing an outgoing call that is connecting (prior to ringing)"
+  },
   "icu:outgoingCallRinging": {
     "messageformat": "Ringing...",
     "description": "Shown in the call screen when placing an outgoing call that is now ringing"
@@ -3686,6 +3774,14 @@
   "icu:CallControls__MutedToast--unmuted": {
     "messageformat": "Mic on",
     "description": "Shown in a call when the user is muted and then unmutes their audio input using the Mute toggle button."
+  },
+  "icu:CallControls__LowerHandSuggestionToast": {
+    "messageformat": "Lower your hand?",
+    "description": "Shown in a call when the user has their hand raised but has been talking, next to a button to lower their hand."
+  },
+  "icu:CallControls__LowerHandSuggestionToast--button": {
+    "messageformat": "Lower",
+    "description": "Text of button that, when clicked, will lower your raised hand after you've been speaking"
   },
   "icu:CallControls__RingingToast--ringing-on": {
     "messageformat": "Ringing on",
@@ -4723,6 +4819,10 @@
     "messageformat": "next",
     "description": "Generic next label"
   },
+  "icu:ClearingData__description": {
+    "messageformat": "This may take a few minutes",
+    "description": "Description at the bottom of clearing all data screen"
+  },
   "icu:BadgeDialog__become-a-sustainer-button": {
     "messageformat": "Donate to Signal",
     "description": "In the badge dialog. This button is shown under sustainer badges, taking users to some instructions"
@@ -4759,16 +4859,20 @@
     "messageformat": "Finalizing message transfer...",
     "description": "Hint under the progressbar in the backup import screen shown after the backup file is downloaded and while backup data is being processed"
   },
+  "icu:BackupImportScreen__progressbar-hint--canceling": {
+    "messageformat": "Canceling...",
+    "description": "Hint under the progressbar in the backup import screen after user cancels"
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "Preparing to download...",
     "description": "Hint under the progressbar in the backup import screen when download size is not yet known"
   },
   "icu:BackupImportScreen__description": {
-    "messageformat": "This may take a few minutes depending on the size of your backup",
+    "messageformat": "This may take a few minutes",
     "description": "Description at the bottom of backup import screen"
   },
   "icu:BackupImportScreen__cancel": {
-    "messageformat": "Cancel transfer",
+    "messageformat": "Cancel",
     "description": "Text of the cancel button at the bottom of backup import screen"
   },
   "icu:BackupImportScreen__security-description": {
@@ -4776,19 +4880,19 @@
     "description": "Text shown while importing messages & chats from the user's primary device."
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
-    "messageformat": "Cancel transfer?",
+    "messageformat": "Cancel device linking?",
     "description": "Title of the cancel confirmation modal in the backup import screen"
   },
   "icu:BackupImportScreen__cancel-confirmation__body": {
-    "messageformat": "Your messages and media have not completed restoring. If you choose to cancel, you can transfer again from Settings.",
+    "messageformat": "If you choose to cancel, this device will not be linked and no messages or media will be transferred.",
     "description": "Body of the cancel confirmation modal in the backup import screen"
   },
   "icu:BackupImportScreen__cancel-confirmation__cancel": {
-    "messageformat": "Continue transfer",
+    "messageformat": "Continue linking",
     "description": "Text of the continue button of the cancel confirmation modal in the backup import screen"
   },
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
-    "messageformat": "Cancel transfer",
+    "messageformat": "Cancel linking",
     "description": "Text of the confirmation button of the cancel confirmation modal in the backup import screen"
   },
   "icu:BackupImportScreen__error__title": {
@@ -4799,25 +4903,29 @@
     "messageformat": "Your messages could not be transferred. Check your internet connection and try again.",
     "description": "Body of the error modal in the backup import screen"
   },
+  "icu:BackupImportScreen__error-fatal__body": {
+    "messageformat": "Your messages could not be transferred due to an error. Try again by re-linking this desktop.",
+    "description": "Body of the error modal in the backup import screen if we have a non-retriable error."
+  },
   "icu:BackupImportScreen__error__confirm": {
     "messageformat": "Retry",
     "description": "Text of the retry button of the error modal in the backup import screen"
   },
   "icu:BackupImportScreen__skip": {
     "messageformat": "Skip",
-    "description": "Text of the Skip button in the error and skip confirmation modals in the backup import screen"
+    "description": "(Deleted 2025/02/13) Text of the Skip button in the error and skip confirmation modals in the backup import screen"
   },
   "icu:BackupImportScreen__skip-confirmation__title": {
     "messageformat": "Skip message transfer?",
-    "description": "Title of the cancel confirmation modal in the backup import screen"
+    "description": "(Deleted 2025/02/13) Title of the cancel confirmation modal in the backup import screen"
   },
   "icu:BackupImportScreen__skip-confirmation__body": {
     "messageformat": "If you choose to skip, you won’t have access to any of your messages or media on this device. You can start a new transfer after skipping from Settings > Chats > Transfer.",
-    "description": "Body of the cancel confirmation modal in the backup import screen"
+    "description": "(Deleted 2025/02/13) Body of the cancel confirmation modal in the backup import screen"
   },
   "icu:BackupImportScreen__skip-confirmation__cancel": {
     "messageformat": "Cancel",
-    "description": "Text of the cancel button of the skip confirmation modal in the backup import screen"
+    "description": "(Deleted 2025/02/13) Text of the cancel button of the skip confirmation modal in the backup import screen"
   },
   "icu:BackupMediaDownloadProgress__title-in-progress": {
     "messageformat": "Restoring media",
@@ -5604,7 +5712,7 @@
     "description": "Button label for resetting all chat colors"
   },
   "icu:ChatColorPicker__confirm-reset-default": {
-    "messageformat": "Reset default",
+    "messageformat": "Reset default colors",
     "description": "Button label for resetting only global chat color"
   },
   "icu:ChatColorPicker__confirm-reset": {
@@ -5670,6 +5778,10 @@
   "icu:GradientDial__knob-end": {
     "messageformat": "Gradient end",
     "description": "aria-label for the custom color gradient creator knob"
+  },
+  "icu:GIF--download": {
+    "messageformat": "Download GIF attachment",
+    "description": "Aria label for GIF attachment's Download button"
   },
   "icu:customDisappearingTimeOption": {
     "messageformat": "Custom time...",
@@ -6030,6 +6142,14 @@
   "icu:AvatarColorPicker--choose": {
     "messageformat": "Choose a color",
     "description": "Label for when you need to choose your fighter, err color"
+  },
+  "icu:AttachmentDetailPill__retryDownload": {
+    "messageformat": "Retry download",
+    "description": "Label for button shown on an existing download to restart a download that was partially completed"
+  },
+  "icu:AttachmentDetailPill__retryDownloadShort": {
+    "messageformat": "Retry",
+    "description": "Describes a button shown on an existing download to restart a download that was partially completed"
   },
   "icu:LeftPaneSetGroupMetadataHelper__avatar-modal-title": {
     "messageformat": "Group Avatar",
@@ -7668,20 +7788,24 @@
     "description": "Release notes for releases that only include bug fixes",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.33--0": {
-    "messageformat": "This update fixes a bug where the correct context menu wasn't appearing after right-clicking on an emoji while selecting text. Thanks, <linkKhuddite>@khuddite</linkKhuddite>!",
-    "description": "(Deleted 2024/11/13) Release notes for version 7.33"
+  "icu:WhatsNew__v7.39--0": {
+    "messageformat": "Now you can adjust the size of the chat list sidebar on touchscreen devices. So when you try to drag it won't be such a drag, and the smudges on your screen are simply evidence of the power emanating from your fingertips.",
+    "description": "(Deleted 2025/01/22) Release notes for version 7.39"
   },
-  "icu:WhatsNew__v7.34--0": {
-    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say.",
-    "description": "Release notes for version 7.34"
+  "icu:WhatsNew__v7.40--0": {
+    "messageformat": "We fixed a rare bug that prevented some chats from opening correctly after they were selected, so now Signal Desktop doesn't also draw a blank while you're trying to remember what they said.",
+    "description": "(Deleted 2025/01/29) Release notes for version 7.40"
   },
-  "icu:WhatsNew__v7.34--1": {
-    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore.",
-    "description": "Release notes for version 7.34"
+  "icu:WhatsNew__v7.40--1": {
+    "messageformat": "Now when you link your primary Signal device to a new Desktop, you can bring your chat history and your last 45 days of media with you. The transfer process is end-to-end encrypted, and completely optional. When it comes to making the choice about whether or not to leave the past behind, you're left to your own devices.",
+    "description": "(Deleted 2025/02/13) Release notes for version 7.40"
   },
-  "icu:WhatsNew__v7.34--2": {
-    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality.",
-    "description": "Release notes for version 7.34"
+  "icu:WhatsNew__v7.43--0": {
+    "messageformat": "Valentine's Day is all about celebrating a perfect match, so we updated the text label on a single button in the Desktop app to create a cute couple with the same button on your phone. This sounds like a very small change, and it is, but sometimes it's the little things that show how much you care.",
+    "description": "(Deleted 2025/02/19) Release notes for version 7.43"
+  },
+  "icu:WhatsNew__v7.44--0": {
+    "messageformat": "We fixed a minor animation bug during group calls. We apologize in advance if the most exciting part of your day was switching to grid view during a meeting and trying to catch the moment where the video squares from people who joined late sometimes partially obscured the slide deck your boss was presenting.",
+    "description": "Release notes for version 7.44"
   }
 }

@@ -6,6 +6,9 @@ import { createBatcher } from './batcher';
 import { createWaitBatcher } from './waitBatcher';
 import { DataWriter } from '../sql/Client';
 import * as log from '../logging/log';
+import { postSaveUpdates } from './cleanup';
+import { MessageModel } from '../models/messages';
+import { drop } from './drop';
 
 const updateMessageBatcher = createBatcher<ReadonlyMessageAttributesType>({
   name: 'messageBatcher.updateMessageBatcher',
@@ -16,11 +19,12 @@ const updateMessageBatcher = createBatcher<ReadonlyMessageAttributesType>({
 
     // Grab the latest from the cache in case they've changed
     const messagesToSave = messageAttrs.map(
-      message => window.MessageCache.accessAttributes(message.id) ?? message
+      message => window.MessageCache.getById(message.id)?.attributes ?? message
     );
 
     await DataWriter.saveMessages(messagesToSave, {
       ourAci: window.textsecure.storage.user.getCheckedAci(),
+      postSaveUpdates,
     });
   },
 });
@@ -33,9 +37,7 @@ export function queueUpdateMessage(
   if (shouldBatch) {
     updateMessageBatcher.add(messageAttr);
   } else {
-    void DataWriter.saveMessage(messageAttr, {
-      ourAci: window.textsecure.storage.user.getCheckedAci(),
-    });
+    drop(window.MessageCache.saveMessage(messageAttr));
   }
 }
 
@@ -55,12 +57,15 @@ export const saveNewMessageBatcher =
 
       // Grab the latest from the cache in case they've changed
       const messagesToSave = messageAttrs.map(
-        message => window.MessageCache.accessAttributes(message.id) ?? message
+        message =>
+          window.MessageCache.register(new MessageModel(message))?.attributes ??
+          message
       );
 
       await DataWriter.saveMessages(messagesToSave, {
         forceSave: true,
         ourAci: window.textsecure.storage.user.getCheckedAci(),
+        postSaveUpdates,
       });
     },
   });

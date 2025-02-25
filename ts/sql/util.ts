@@ -4,13 +4,15 @@
 
 import { isNumber, last } from 'lodash';
 import type { ReadableDB, WritableDB } from './Interface';
+import type { LoggerType } from '../types/Logging';
 
 export type EmptyQuery = [];
 export type ArrayQuery = Array<ReadonlyArray<null | number | bigint | string>>;
 export type Query = {
   [key: string]: null | number | bigint | string | Uint8Array;
 };
-export type JSONRows = Array<{ readonly json: string }>;
+export type JSONRow = Readonly<{ json: string }>;
+export type JSONRows = Array<JSONRow>;
 
 export type TableType =
   | 'attachment_downloads'
@@ -162,17 +164,6 @@ export function sql(
   return [fragment, fragmentParams];
 }
 
-type QueryPlanRow = Readonly<{
-  id: number;
-  parent: number;
-  details: string;
-}>;
-
-type QueryPlan = Readonly<{
-  query: string;
-  plan: ReadonlyArray<QueryPlanRow>;
-}>;
-
 /**
  * Returns typed objects of the query plan for the given query.
  *
@@ -189,11 +180,19 @@ type QueryPlan = Readonly<{
  */
 export function explainQueryPlan(
   db: ReadableDB,
+  logger: LoggerType,
   template: QueryTemplate
-): QueryPlan {
+): QueryTemplate {
   const [query, params] = template;
   const plan = db.prepare(`EXPLAIN QUERY PLAN ${query}`).all(params);
-  return { query, plan };
+  logger.info('EXPLAIN QUERY PLAN');
+  for (const line of query.split('\n')) {
+    logger.info(line);
+  }
+  for (const row of plan) {
+    logger.info(`id=${row.id}, parent=${row.parent}, detail=${row.detail}`);
+  }
+  return [query, params];
 }
 
 //

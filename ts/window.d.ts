@@ -32,14 +32,12 @@ import type { Receipt } from './types/Receipt';
 import type { ConversationController } from './ConversationController';
 import type { ReduxActions } from './state/types';
 import type { createApp } from './state/roots/createApp';
-import type { MessageModel } from './models/messages';
 import type { ConversationModel } from './models/conversations';
 import type { BatcherType } from './util/batcher';
 import type { ConfirmationDialog } from './components/ConfirmationDialog';
 import type { SignalProtocolStore } from './SignalProtocolStore';
 import type { SocketStatus } from './types/SocketStatus';
 import type { ScreenShareStatus } from './types/Calling';
-import type SyncRequest from './textsecure/SyncRequest';
 import type { MessageCache } from './services/MessageCache';
 import type { StateType } from './state/reducer';
 import type { Address } from './types/Address';
@@ -204,7 +202,6 @@ declare global {
     getSfuUrl: () => string;
     getIceServerOverride: () => string;
     getSocketStatus: () => SocketStatus;
-    getSyncRequest: (timeoutMillis?: number) => SyncRequest;
     getTitle: () => string;
     waitForEmptyEventQueue: () => Promise<void>;
     getVersion: () => string;
@@ -319,7 +316,6 @@ declare global {
 export type WhisperType = {
   Conversation: typeof ConversationModel;
   ConversationCollection: typeof ConversationModelCollectionType;
-  Message: typeof MessageModel;
 
   deliveryReceiptQueue: PQueue;
   deliveryReceiptBatcher: BatcherType<Receipt>;

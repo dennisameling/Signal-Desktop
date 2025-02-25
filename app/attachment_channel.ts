@@ -1,62 +1,65 @@
 // Copyright 2018 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { DefaultStorage, RangeFinder } from '@indutny/range-finder';
+import {
+  DigestingPassThrough,
+  ValidatingPassThrough,
+  inferChunkSize,
+} from '@signalapp/libsignal-client/dist/incremental_mac';
 import { ipcMain, protocol } from 'electron';
-import { createReadStream } from 'node:fs';
+import { LRUCache } from 'lru-cache';
+import { randomBytes } from 'node:crypto';
+import { once } from 'node:events';
+import { createReadStream, rmSync } from 'node:fs';
 import { join, normalize } from 'node:path';
 import { PassThrough, type Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { randomBytes } from 'node:crypto';
-import { once } from 'node:events';
 import z from 'zod';
-import * as rimraf from 'rimraf';
-import LRU from 'lru-cache';
-import {
-  DigestingPassThrough,
-  inferChunkSize,
-  ValidatingPassThrough,
-} from '@signalapp/libsignal-client/dist/incremental_mac';
-import { RangeFinder, DefaultStorage } from '@indutny/range-finder';
-import {
-  getAllAttachments,
-  getAllDownloads,
-  getAvatarsPath,
-  getPath,
-  getStickersPath,
-  getTempPath,
-  getDraftPath,
-  getDownloadsPath,
-  deleteAll as deleteAllAttachments,
-  deleteAllBadges,
-  deleteAllDownloads,
-  deleteStaleDownloads,
-  getAllStickers,
-  deleteAllStickers,
-  getAllDraftAttachments,
-  deleteAllDraftAttachments,
-} from './attachments';
-import type { MainSQL } from '../ts/sql/main';
+import GrowingFile from 'growing-file';
+import { isNumber } from 'lodash';
+
+import { decryptAttachmentV2ToSink } from '../ts/AttachmentCrypto';
+import * as Bytes from '../ts/Bytes';
 import type { MessageAttachmentsCursorType } from '../ts/sql/Interface';
-import * as Errors from '../ts/types/errors';
+import type { MainSQL } from '../ts/sql/main';
 import {
   APPLICATION_OCTET_STREAM,
   MIMETypeToString,
   stringToMIMEType,
 } from '../ts/types/MIME';
-import { sleep } from '../ts/util/sleep';
-import { isPathInside } from '../ts/util/isPathInside';
-import { missingCaseError } from '../ts/util/missingCaseError';
-import { safeParseInteger } from '../ts/util/numbers';
-import { SECOND } from '../ts/util/durations';
-import { drop } from '../ts/util/drop';
-import { strictAssert } from '../ts/util/assert';
-import { toWebStream } from '../ts/util/toWebStream';
+import * as Errors from '../ts/types/errors';
 import {
   isImageTypeSupported,
   isVideoTypeSupported,
 } from '../ts/util/GoogleChrome';
-import { decryptAttachmentV2ToSink } from '../ts/AttachmentCrypto';
+import { strictAssert } from '../ts/util/assert';
+import { drop } from '../ts/util/drop';
+import { SECOND } from '../ts/util/durations';
+import { isPathInside } from '../ts/util/isPathInside';
+import { missingCaseError } from '../ts/util/missingCaseError';
+import { safeParseInteger } from '../ts/util/numbers';
 import { parseLoose } from '../ts/util/schemas';
+import { sleep } from '../ts/util/sleep';
+import { toWebStream } from '../ts/util/toWebStream';
+import {
+  deleteAll as deleteAllAttachments,
+  deleteAllBadges,
+  deleteAllDownloads,
+  deleteAllDraftAttachments,
+  deleteAllStickers,
+  deleteStaleDownloads,
+  getAllAttachments,
+  getAllDownloads,
+  getAllDraftAttachments,
+  getAllStickers,
+  getAvatarsPath,
+  getDownloadsPath,
+  getDraftPath,
+  getPath,
+  getStickersPath,
+  getTempPath,
+} from './attachments';
 
 let initialized = false;
 
@@ -70,10 +73,22 @@ const CLEANUP_ORPHANED_ATTACHMENTS_KEY = 'cleanup-orphaned-attachments';
 
 const INTERACTIVITY_DELAY = 50;
 
+// Matches the value in WebAPI.ts
+const GET_ATTACHMENT_CHUNK_TIMEOUT = 10 * SECOND;
+const GROWING_FILE_TIMEOUT = GET_ATTACHMENT_CHUNK_TIMEOUT * 1.5;
+
 type RangeFinderContextType = Readonly<
   (
     | {
         type: 'ciphertext';
+        keysBase64: string;
+        size: number;
+      }
+    | {
+        type: 'incremental';
+        digest: Uint8Array;
+        incrementalMac: Uint8Array;
+        chunkSize: number;
         keysBase64: string;
         size: number;
       }
@@ -90,8 +105,8 @@ type DigestLRUEntryType = Readonly<{
   digest: Buffer;
 }>;
 
-const digestLRU = new LRU<string, DigestLRUEntryType>({
-  // The size of each entry is roughgly 8kb per digest + 32 bytes per key. We
+const digestLRU = new LRUCache<string, DigestLRUEntryType>({
+  // The size of each entry is roughly 8kb per digest + 32 bytes per key. We
   // mostly need this cache for range requests, so keep it low.
   max: 100,
 });
@@ -100,17 +115,60 @@ async function safeDecryptToSink(
   ctx: RangeFinderContextType,
   sink: Writable
 ): Promise<void> {
-  strictAssert(ctx.type === 'ciphertext', 'Cannot decrypt plaintext');
-
-  const options = {
-    ciphertextPath: ctx.path,
-    idForLogging: 'attachment_channel',
-    keysBase64: ctx.keysBase64,
-    type: 'local' as const,
-    size: ctx.size,
-  };
+  strictAssert(
+    ctx.type === 'ciphertext' || ctx.type === 'incremental',
+    'Cannot decrypt plaintext'
+  );
 
   try {
+    if (ctx.type === 'incremental') {
+      const ciphertextStream = new PassThrough();
+      const file = GrowingFile.open(ctx.path, {
+        timeout: GROWING_FILE_TIMEOUT,
+      });
+      file.on('error', (error: Error) => {
+        console.warn(
+          'safeDecryptToSync/incremental: growing-file emitted an error:',
+          Errors.toLogFormat(error)
+        );
+      });
+      file.pipe(ciphertextStream);
+
+      const options = {
+        ciphertextStream,
+        idForLogging: 'attachment_channel/incremental',
+        keysBase64: ctx.keysBase64,
+        size: ctx.size,
+        theirChunkSize: ctx.chunkSize,
+        theirDigest: ctx.digest,
+        theirIncrementalMac: ctx.incrementalMac,
+        type: 'standard' as const,
+      };
+
+      const controller = new AbortController();
+
+      await Promise.race([
+        // Just use a non-existing event name to wait for an 'error'. We want
+        // to handle errors on `sink` while generating digest in case the whole
+        // request gets cancelled early.
+        once(sink, 'non-error-event', { signal: controller.signal }),
+        decryptAttachmentV2ToSink(options, sink),
+      ]);
+
+      // Stop handling errors on sink
+      controller.abort();
+
+      return;
+    }
+
+    const options = {
+      ciphertextPath: ctx.path,
+      idForLogging: 'attachment_channel/ciphertext',
+      keysBase64: ctx.keysBase64,
+      size: ctx.size,
+      type: 'local' as const,
+    };
+
     const chunkSize = inferChunkSize(ctx.size);
     let entry = digestLRU.get(ctx.path);
     if (!entry) {
@@ -123,9 +181,7 @@ async function safeDecryptToSink(
       const controller = new AbortController();
 
       await Promise.race([
-        // Just use a non-existing event name to wait for an 'error'. We want
-        // to handle errors on `sink` while generating digest in case whole
-        // request get cancelled early.
+        // Same as above usage of the once() pattern
         once(sink, 'non-error-event', { signal: controller.signal }),
         decryptAttachmentV2ToSink(options, digester),
       ]);
@@ -172,7 +228,7 @@ const storage = new DefaultStorage<RangeFinderContextType>(
       return createReadStream(ctx.path);
     }
 
-    if (ctx.type === 'ciphertext') {
+    if (ctx.type === 'ciphertext' || ctx.type === 'incremental') {
       const plaintext = new PassThrough();
       drop(safeDecryptToSink(ctx, plaintext));
       return plaintext;
@@ -184,7 +240,7 @@ const storage = new DefaultStorage<RangeFinderContextType>(
     maxSize: 10,
     ttl: SECOND,
     cacheKey: ctx => {
-      if (ctx.type === 'ciphertext') {
+      if (ctx.type === 'ciphertext' || ctx.type === 'incremental') {
         return `${ctx.type}:${ctx.path}:${ctx.size}:${ctx.keysBase64}`;
       }
       if (ctx.type === 'plaintext') {
@@ -200,10 +256,11 @@ const rangeFinder = new RangeFinder<RangeFinderContextType>(storage, {
 
 const dispositionSchema = z.enum([
   'attachment',
-  'temporary',
-  'draft',
-  'sticker',
   'avatarData',
+  'download',
+  'draft',
+  'temporary',
+  'sticker',
 ]);
 
 type DeleteOrphanedAttachmentsOptionsType = Readonly<{
@@ -429,23 +486,23 @@ export function initialize({
 
   ipcMain.handle(ERASE_TEMP_KEY, () => {
     strictAssert(tempDir != null, 'not initialized');
-    rimraf.sync(tempDir);
+    rmSync(tempDir);
   });
   ipcMain.handle(ERASE_ATTACHMENTS_KEY, () => {
     strictAssert(attachmentsDir != null, 'not initialized');
-    rimraf.sync(attachmentsDir);
+    rmSync(attachmentsDir, { recursive: true, force: true });
   });
   ipcMain.handle(ERASE_STICKERS_KEY, () => {
     strictAssert(stickersDir != null, 'not initialized');
-    rimraf.sync(stickersDir);
+    rmSync(stickersDir, { recursive: true, force: true });
   });
   ipcMain.handle(ERASE_DRAFTS_KEY, () => {
     strictAssert(draftDir != null, 'not initialized');
-    rimraf.sync(draftDir);
+    rmSync(draftDir, { recursive: true, force: true });
   });
   ipcMain.handle(ERASE_DOWNLOADS_KEY, () => {
     strictAssert(downloadsDir != null, 'not initialized');
-    rimraf.sync(downloadsDir);
+    rmSync(downloadsDir, { recursive: true, force: true });
   });
 
   ipcMain.handle(CLEANUP_ORPHANED_ATTACHMENTS_KEY, async () => {
@@ -480,6 +537,7 @@ export async function handleAttachmentRequest(req: Request): Promise<Response> {
 
   strictAssert(attachmentsDir != null, 'not initialized');
   strictAssert(tempDir != null, 'not initialized');
+  strictAssert(downloadsDir != null, 'not initialized');
   strictAssert(draftDir != null, 'not initialized');
   strictAssert(stickersDir != null, 'not initialized');
   strictAssert(avatarDataDir != null, 'not initialized');
@@ -488,6 +546,9 @@ export async function handleAttachmentRequest(req: Request): Promise<Response> {
   switch (disposition) {
     case 'attachment':
       parentDir = attachmentsDir;
+      break;
+    case 'download':
+      parentDir = downloadsDir;
       break;
     case 'temporary':
       parentDir = tempDir;
@@ -535,8 +596,8 @@ export async function handleAttachmentRequest(req: Request): Promise<Response> {
     // Encrypted attachments
 
     // Get AES+MAC key
-    const maybeKeysBase64 = url.searchParams.get('key');
-    if (maybeKeysBase64 == null) {
+    const keysBase64 = url.searchParams.get('key');
+    if (keysBase64 == null) {
       return new Response('Missing key', { status: 400 });
     }
 
@@ -545,12 +606,45 @@ export async function handleAttachmentRequest(req: Request): Promise<Response> {
       return new Response('Missing size', { status: 400 });
     }
 
-    context = {
-      type: 'ciphertext',
-      path,
-      keysBase64: maybeKeysBase64,
-      size: maybeSize,
-    };
+    if (disposition !== 'download') {
+      context = {
+        type: 'ciphertext',
+        keysBase64,
+        path,
+        size: maybeSize,
+      };
+    } else {
+      // When trying to view in-progress downloads, we need more information
+      // to validate the file before returning data.
+
+      const digestBase64 = url.searchParams.get('digest');
+      if (digestBase64 == null) {
+        return new Response('Missing digest', { status: 400 });
+      }
+
+      const incrementalMacBase64 = url.searchParams.get('incrementalMac');
+      if (incrementalMacBase64 == null) {
+        return new Response('Missing incrementalMac', { status: 400 });
+      }
+
+      const chunkSizeString = url.searchParams.get('chunkSize');
+      const chunkSize = chunkSizeString
+        ? parseInt(chunkSizeString, 10)
+        : undefined;
+      if (!isNumber(chunkSize)) {
+        return new Response('Missing chunkSize', { status: 400 });
+      }
+
+      context = {
+        type: 'incremental',
+        chunkSize,
+        digest: Bytes.fromBase64(digestBase64),
+        incrementalMac: Bytes.fromBase64(incrementalMacBase64),
+        keysBase64,
+        path,
+        size: maybeSize,
+      };
+    }
   }
 
   try {

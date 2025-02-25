@@ -9,7 +9,6 @@ import type { SendStateByConversationId } from '../messages/MessageSendState';
 
 import * as Edits from '../messageModifiers/Edits';
 import * as log from '../logging/log';
-import { DataWriter } from '../sql/Client';
 import * as Deletes from '../messageModifiers/Deletes';
 import * as DeletesForMe from '../messageModifiers/DeletesForMe';
 import * as MessageReceipts from '../messageModifiers/MessageReceipts';
@@ -35,6 +34,9 @@ import {
   applyDeleteAttachmentFromMessage,
   applyDeleteMessage,
 } from './deleteForMe';
+import { getMessageIdForLogging } from './idForLogging';
+import { markViewOnceMessageViewed } from '../services/MessageUpdater';
+import { handleReaction } from '../messageModifiers/Reactions';
 
 export enum ModifyTargetMessageResult {
   Modified = 'Modified',
@@ -52,7 +54,7 @@ export async function modifyTargetMessage(
 ): Promise<ModifyTargetMessageResult> {
   const { isFirstRun = false, skipEdits = false } = options ?? {};
 
-  const logId = `modifyTargetMessage/${message.idForLogging()}`;
+  const logId = `modifyTargetMessage/${getMessageIdForLogging(message.attributes)}`;
   const type = message.get('type');
   let changed = false;
   const ourAci = window.textsecure.storage.user.getCheckedAci();
@@ -157,7 +159,7 @@ export async function modifyTargetMessage(
     );
 
     if (!isEqual(oldSendStateByConversationId, newSendStateByConversationId)) {
-      message.set('sendStateByConversationId', newSendStateByConversationId);
+      message.set({ sendStateByConversationId: newSendStateByConversationId });
       changed = true;
     }
   }
@@ -184,10 +186,12 @@ export async function modifyTargetMessage(
         const existingExpirationStartTimestamp = message.get(
           'expirationStartTimestamp'
         );
-        message.set(
-          'expirationStartTimestamp',
-          Math.min(existingExpirationStartTimestamp ?? Date.now(), markReadAt)
-        );
+        message.set({
+          expirationStartTimestamp: Math.min(
+            existingExpirationStartTimestamp ?? Date.now(),
+            markReadAt
+          ),
+        });
         changed = true;
       }
 
@@ -208,8 +212,10 @@ export async function modifyTargetMessage(
       });
       changed = true;
 
-      message.setPendingMarkRead(
-        Math.min(message.getPendingMarkRead() ?? Date.now(), markReadAt)
+      // eslint-disable-next-line no-param-reassign
+      message.pendingMarkRead = Math.min(
+        message.pendingMarkRead ?? Date.now(),
+        markReadAt
       );
     } else if (
       isFirstRun &&
@@ -219,9 +225,10 @@ export async function modifyTargetMessage(
       conversation.setArchived(false);
     }
 
-    if (!isFirstRun && message.getPendingMarkRead()) {
-      const markReadAt = message.getPendingMarkRead();
-      message.setPendingMarkRead(undefined);
+    if (!isFirstRun && message.pendingMarkRead) {
+      const markReadAt = message.pendingMarkRead;
+      // eslint-disable-next-line no-param-reassign
+      message.pendingMarkRead = undefined;
       const newestSentAt = maybeSingleReadSync?.readSync.timestamp;
 
       // This is primarily to allow the conversation to mark all older
@@ -232,9 +239,9 @@ export async function modifyTargetMessage(
       // message and the other ones accompanying it in the batch are fully in
       // the database.
       drop(
-        message
-          .getConversation()
-          ?.onReadMessage(message.attributes, markReadAt, newestSentAt)
+        window.ConversationController.get(
+          message.get('conversationId')
+        )?.onReadMessage(message.attributes, markReadAt, newestSentAt)
       );
     }
 
@@ -242,7 +249,7 @@ export async function modifyTargetMessage(
     if (isTapToView(message.attributes)) {
       const viewOnceOpenSync = ViewOnceOpenSyncs.forMessage(message.attributes);
       if (viewOnceOpenSync) {
-        await message.markViewOnceMessageViewed({ fromSync: true });
+        await markViewOnceMessageViewed(message, { fromSync: true });
         changed = true;
       }
     }
@@ -262,8 +269,10 @@ export async function modifyTargetMessage(
         Date.now(),
         ...viewSyncs.map(({ viewSync }) => viewSync.viewedAt)
       );
-      message.setPendingMarkRead(
-        Math.min(message.getPendingMarkRead() ?? Date.now(), markReadAt)
+      // eslint-disable-next-line no-param-reassign
+      message.pendingMarkRead = Math.min(
+        message.pendingMarkRead ?? Date.now(),
+        markReadAt
       );
     }
 
@@ -272,7 +281,7 @@ export async function modifyTargetMessage(
         expirationStartTimestamp: message.get('timestamp'),
         expireTimer: message.get('expireTimer'),
       });
-      message.set('expirationStartTimestamp', message.get('timestamp'));
+      message.set({ expirationStartTimestamp: message.get('timestamp') });
       changed = true;
     }
   }
@@ -292,12 +301,12 @@ export async function modifyTargetMessage(
           generatedMessage,
           'Story reactions must provide storyReactionMessage'
         );
-        await generatedMessage.handleReaction(reaction, {
+        await handleReaction(generatedMessage, reaction, {
           storyMessage: message.attributes,
         });
       } else {
         changed = true;
-        await message.handleReaction(reaction, { shouldPersist: false });
+        await handleReaction(message, reaction, { shouldPersist: false });
       }
     })
   );
@@ -315,9 +324,7 @@ export async function modifyTargetMessage(
   // We save here before handling any edits because handleEditMessage does its own saves
   if (changed && !isFirstRun) {
     log.info(`${logId}: Changes in second run; saving.`);
-    await DataWriter.saveMessage(message.attributes, {
-      ourAci,
-    });
+    await window.MessageCache.saveMessage(message.attributes);
   }
 
   // We want to make sure the message is saved first before applying any edits

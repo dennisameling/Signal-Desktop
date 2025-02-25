@@ -66,11 +66,7 @@ import type {
   AttachmentForUIType,
   AttachmentType,
 } from '../../types/Attachment';
-import {
-  isVoiceMessage,
-  canBeDownloaded,
-  defaultBlurHash,
-} from '../../types/Attachment';
+import { isVoiceMessage, defaultBlurHash } from '../../types/Attachment';
 import { type DefaultConversationColorType } from '../../types/Colors';
 import { ReadStatus } from '../../messages/MessageReadStatus';
 
@@ -152,11 +148,10 @@ import { CallMode, CallDirection } from '../../types/CallDisposition';
 import { getCallIdFromEra } from '../../util/callDisposition';
 import { LONG_MESSAGE } from '../../types/MIME';
 import type { MessageRequestResponseNotificationData } from '../../components/conversation/MessageRequestResponseNotification';
-import { formatFileSize } from '../../util/formatFileSize';
 
 export { isIncoming, isOutgoing, isStory };
 
-const linkify = LinkifyIt();
+const linkify = new LinkifyIt();
 
 type FormattedContact = Partial<ConversationType> &
   Pick<
@@ -326,7 +321,6 @@ export const getAttachmentsForMessage = ({
   }
   return (
     attachments
-      .filter(attachment => !attachment.error || canBeDownloaded(attachment))
       // Long message attachments are removed from message.attachments quickly,
       // but in case they are still around, let's make sure not to show them
       .filter(attachment => attachment.contentType !== LONG_MESSAGE)
@@ -1837,12 +1831,11 @@ export function getPropsForAttachment(
     return undefined;
   }
 
-  const { path, pending, size, screenshot, thumbnail, thumbnailFromBackup } =
+  const { path, pending, screenshot, thumbnail, thumbnailFromBackup } =
     attachment;
 
   return {
     ...attachment,
-    fileSize: size ? formatFileSize(size) : undefined,
     isVoiceMessage: isVoiceMessage(attachment),
     pending,
     url: path ? getLocalAttachmentUrl(attachment) : undefined,

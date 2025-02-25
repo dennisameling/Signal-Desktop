@@ -124,7 +124,6 @@ export type StorageAccessType = {
   phoneNumberDiscoverability: PhoneNumberDiscoverability;
   pinnedConversationIds: ReadonlyArray<string>;
   preferContactAvatars: boolean;
-  primarySendsSms: boolean;
   textFormatting: boolean;
   typingIndicators: boolean;
   sealedSenderIndicators: boolean;
@@ -152,6 +151,7 @@ export type StorageAccessType = {
   backupMediaDownloadPaused: boolean;
   backupMediaDownloadBannerDismissed: boolean;
   backupMediaDownloadIdle: boolean;
+  messageInsertTriggersDisabled: boolean;
   setBackupMessagesSignatureKey: boolean;
   setBackupMediaSignatureKey: boolean;
   lastReceivedAtCounter: number;
@@ -174,8 +174,8 @@ export type StorageAccessType = {
   subscriberCurrencyCode: string;
   donorSubscriptionManuallyCancelled: boolean;
   backupsSubscriberId: Uint8Array;
-  backupsSubscriberCurrencyCode: string;
-  backupsSubscriptionManuallyCancelled: boolean;
+  backupsSubscriberPurchaseToken: string;
+  backupsSubscriberOriginalTransactionId: string;
   displayBadgesOnProfile: boolean;
   keepMutedChatsArchived: boolean;
   usernameLastIntegrityCheck: number;
@@ -189,12 +189,14 @@ export type StorageAccessType = {
   needOrphanedAttachmentCheck: boolean;
   observedCapabilities: {
     deleteSync?: true;
-    versionedExpirationTimer?: true;
     ssre2?: true;
 
     // Note: Upon capability deprecation - change the value type to `never` and
     // remove it in `ts/background.ts`
   };
+  releaseNotesNextFetchTime: number;
+  releaseNotesVersionWatermark: string;
+  releaseNotesPreviousManifestHash: string;
 
   // If present - we are downloading backup
   backupDownloadPath: string;
@@ -203,8 +205,19 @@ export type StorageAccessType = {
   // link-and-sync backup
   backupEphemeralKey: Uint8Array;
 
+  // If present - we are resuming the download of known transfer archive
+  backupTransitArchive: {
+    cdn: number;
+    key: string;
+  };
+
   // If true Desktop message history was restored from backup
   isRestoredFromBackup: boolean;
+
+  // The `firstAppVersion` present on an BackupInfo from an imported backup.
+  restoredBackupFirstAppVersion: string;
+
+  postRegistrationSyncsStatus: 'incomplete' | 'complete';
 
   // Deprecated
   'challenge:retry-message-ids': never;
@@ -219,6 +232,8 @@ export type StorageAccessType = {
   formattingWarningShown: never;
   hasRegisterSupportForUnauthenticatedDelivery: never;
   masterKeyLastRequestTime: never;
+  versionedExpirationTimer: never;
+  primarySendsSms: never;
 };
 
 export type StorageInterface = {

@@ -78,9 +78,8 @@ describe('MessageReceipts', () => {
       },
     };
 
-    await DataWriter.saveMessage(messageAttributes, {
+    await window.MessageCache.saveMessage(messageAttributes, {
       forceSave: true,
-      ourAci,
     });
 
     await Promise.all([
@@ -155,9 +154,8 @@ describe('MessageReceipts', () => {
       ],
     };
 
-    await DataWriter.saveMessage(messageAttributes, {
+    await window.MessageCache.saveMessage(messageAttributes, {
       forceSave: true,
-      ourAci,
     });
     await DataWriter.saveEditedMessage(messageAttributes, ourAci, {
       conversationId: messageAttributes.conversationId,

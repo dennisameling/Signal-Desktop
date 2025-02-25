@@ -65,6 +65,9 @@ import { useGlobalModalActions } from '../ducks/globalModals';
 import { useStickersActions } from '../ducks/stickers';
 import { useToastActions } from '../ducks/toast';
 import { isShowingAnyModal } from '../selectors/globalModals';
+import { isConversationEverUnregistered } from '../../util/isConversationUnregistered';
+import { isDirectConversation } from '../../util/whatTypeOfConversation';
+import { isConversationMuted } from '../../util/isConversationMuted';
 
 function renderSmartCompositionRecording(
   recProps: SmartCompositionRecordingProps
@@ -230,6 +233,7 @@ export const SmartCompositionArea = memo(function SmartCompositionArea({
     toggleSelectMode,
     scrollToMessage,
     setMessageToEdit,
+    setMuteExpiration,
     showConversation,
   } = useConversationsActions();
   const { cancelRecording, completeRecording, startRecording, errorRecording } =
@@ -255,6 +259,7 @@ export const SmartCompositionArea = memo(function SmartCompositionArea({
       lastEditableMessageId={lastEditableMessageId ?? null}
       messageCompositionId={messageCompositionId}
       platform={platform}
+      ourConversationId={ourConversationId}
       sendCounter={sendCounter}
       shouldHidePopovers={shouldHidePopovers}
       theme={theme}
@@ -317,8 +322,11 @@ export const SmartCompositionArea = memo(function SmartCompositionArea({
       isBlocked={conversation.isBlocked ?? false}
       isReported={conversation.isReported ?? false}
       isHidden={conversation.removalStage != null}
-      isSMSOnly={Boolean(isConversationSMSOnly(conversation))}
-      isSignalConversation={isSignalConversation(conversation)}
+      isSmsOnlyOrUnregistered={
+        isDirectConversation(conversation) &&
+        (isConversationSMSOnly(conversation) ||
+          isConversationEverUnregistered(conversation))
+      }
       isFetchingUUID={conversation.isFetchingUUID ?? null}
       isMissingMandatoryProfileSharing={isMissingRequiredProfileSharing(
         conversation
@@ -328,6 +336,10 @@ export const SmartCompositionArea = memo(function SmartCompositionArea({
       blockConversation={blockConversation}
       reportSpam={reportSpam}
       deleteConversation={deleteConversation}
+      // Signal Conversation
+      isSignalConversation={isSignalConversation(conversation)}
+      isMuted={isConversationMuted(conversation)}
+      setMuteExpiration={setMuteExpiration}
       // Groups
       groupVersion={conversation.groupVersion ?? null}
       isGroupV1AndDisabled={conversation.isGroupV1AndDisabled ?? null}

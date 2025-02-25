@@ -50,9 +50,6 @@
   "icu:privacyPolicy": {
     "messageformat": "Noteikumi un privātuma politika"
   },
-  "icu:appleSilicon": {
-    "messageformat": "Apple silicon"
-  },
   "icu:About__AppEnvironment": {
     "messageformat": "{appEnv}"
   },
@@ -590,6 +587,9 @@
   "icu:Toast--FailedToSendWithEndorsements": {
     "messageformat": "Failed to send message with endorsements"
   },
+  "icu:Toast--FailedToImportBackup": {
+    "messageformat": "Failed to process some frames during backup import. Please share your logs."
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "Jūs nevarat kopā ar failiem atlasīt attēlus un video."
   },
@@ -687,7 +687,7 @@
     "messageformat": "Meklēt"
   },
   "icu:searchUnreadChats": {
-    "messageformat": "Search unread chats"
+    "messageformat": "Meklēt nelasītās sarunās"
   },
   "icu:clearSearch": {
     "messageformat": "Notīrīt meklēšanu"
@@ -699,10 +699,10 @@
     "messageformat": "Vaicājumam \"{searchTerm}\" nav rezultātu"
   },
   "icu:noSearchResultsWithUnreadFilter": {
-    "messageformat": "No results for \"{searchTerm}\" in unread chats"
+    "messageformat": "\"{searchTerm}\" nelasīto ziņu sarakstā nav rezultātu"
   },
   "icu:noSearchResultsOnlyUnreadFilter": {
-    "messageformat": "No unread chats"
+    "messageformat": "Nav nelasītu sarunu"
   },
   "icu:noSearchResults--sms-only": {
     "messageformat": "SMS/MMS kontaktpersonas nav pieejamas Desktop versijā."
@@ -711,13 +711,13 @@
     "messageformat": "Vaicājumam \"{searchTerm}\" nav rezultātu sadaļā {conversationName}"
   },
   "icu:conversationsUnreadHeader": {
-    "messageformat": "Filtered by unread"
+    "messageformat": "Filtrētas pēc nelasītajām ziņām"
   },
   "icu:filterByUnreadButtonLabel": {
-    "messageformat": "Filter by unread"
+    "messageformat": "Filtrēt pēc nelasītajām"
   },
   "icu:clearFilterButton": {
-    "messageformat": "Clear filter"
+    "messageformat": "Noņemt filtru"
   },
   "icu:conversationsHeader": {
     "messageformat": "Sarunas"
@@ -811,9 +811,6 @@
   },
   "icu:voiceNoteError": {
     "messageformat": "Balss ierakstīšanas laikā radās kļūda."
-  },
-  "icu:attachmentSaved": {
-    "messageformat": "Pielikums saglabāts."
   },
   "icu:attachmentSavedPlural": {
     "messageformat": "{count, plural, zero {Saglabāti {count,number} pielikumi} one {Pielikums saglabāts} other {Saglabāti {count,number} pielikumi}}"
@@ -1022,18 +1019,6 @@
   "icu:MessageContextMenu__info": {
     "messageformat": "Informācija"
   },
-  "icu:deleteMessagesInConversation": {
-    "messageformat": "Ziņu dzēšana"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__title": {
-    "messageformat": "Vai dzēst ziņas?"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description": {
-    "messageformat": "Visas ziņas šajā sarunā tiks dzēstas no šīs ierīces. Pēc ziņu dzēšanas joprojām varēsiet atrast šo sarunu, izmantojot meklēšanas funkciju."
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
-    "messageformat": "Visas ziņas šajā sarunā tiks dzēstas no visām jūsu ierīcēm. Pēc ziņu dzēšanas joprojām varēsiet atrast šo sarunu, izmantojot meklēšanas funkciju."
-  },
   "icu:deleteConversation": {
     "messageformat": "Dzēst"
   },
@@ -1136,8 +1121,77 @@
   "icu:lightboxImageAlt": {
     "messageformat": "Attēls nosūtīts sarunā"
   },
+  "icu:lightBoxDownloading": {
+    "messageformat": "Lejupielādē: {downloaded} no {total}"
+  },
   "icu:imageCaptionIconAlt": {
     "messageformat": "Ikona, kas parāda, ka šim attēlam ir paraksts"
+  },
+  "icu:imageOpenAlt": {
+    "messageformat": "Atvērt šo pielikumu lielākā skatā"
+  },
+  "icu:startDownload": {
+    "messageformat": "Sākt lejupielādi"
+  },
+  "icu:cancelDownload": {
+    "messageformat": "Atcelt lejupielādi"
+  },
+  "icu:downloadNItems": {
+    "messageformat": "{count, plural, zero {{count,number} priekšmeti} one {{count,number} priekšmets} other {{count,number} vienumi}}"
+  },
+  "icu:mediaNoLongerAvailable": {
+    "messageformat": "Šī multivide vairs nav pieejama."
+  },
+  "icu:mediaNotAvailable": {
+    "messageformat": "Šī multivide nav pieejama"
+  },
+  "icu:mediaNotAvailable--short": {
+    "messageformat": "Multivide nav pieejama"
+  },
+  "icu:attachmentNoLongerAvailable__learnMore": {
+    "messageformat": "Uzzināt vairāk"
+  },
+  "icu:attachmentNotAvailable__file": {
+    "messageformat": "Fails nav pieejams"
+  },
+  "icu:attachmentNotAvailable__longMessage": {
+    "messageformat": "Šīs ziņas teksts nav pilnīgs"
+  },
+  "icu:attachmentNotAvailable__sticker": {
+    "messageformat": "Uzlīme nav pieejama"
+  },
+  "icu:attachmentNotAvailable__voice": {
+    "messageformat": "Balss ziņa nav pieejama"
+  },
+  "icu:AttachmentNotAvailableModal__title--file": {
+    "messageformat": "Fails nav pieejams"
+  },
+  "icu:AttachmentNotAvailableModal__title--long-text": {
+    "messageformat": "Viss ziņas teksts nav pieejams"
+  },
+  "icu:AttachmentNotAvailableModal__title--media": {
+    "messageformat": "Multivide nav pieejama"
+  },
+  "icu:AttachmentNotAvailableModal__title--sticker": {
+    "messageformat": "Uzlīme nav pieejama"
+  },
+  "icu:AttachmentNotAvailableModal__title--voice-message": {
+    "messageformat": "Balss ziņa nav pieejama"
+  },
+  "icu:AttachmentNotAvailableModal__body--file": {
+    "messageformat": "Kad šī ierīce tika piesaistīta, šis fails no jūsu tālruņa netika pārsūtīts. Multividi un failus, kuri ierīces saistīšanas brīdī ir vecāki par 45 dienām, nevar sinhronizēt."
+  },
+  "icu:AttachmentNotAvailableModal__body--long-text": {
+    "messageformat": "Kad šī ierīce tika piesaistīta, šīs ziņas pilnais saturs no jūsu tālruņa netika pārsūtīts. Garas teksta ziņas, kuras ierīces saistīšanas brīdī ir vecākas par 45 dienām, nevar sinhronizēt."
+  },
+  "icu:AttachmentNotAvailableModal__body--media": {
+    "messageformat": "Kad šī ierīce tika piesaistīta, šī multivide no jūsu tālruņa netika pārsūtīta. Multividi, kas ierīces saistīšanas brīdī ir vecāka par 45 dienām, nevar sinhronizēt."
+  },
+  "icu:AttachmentNotAvailableModal__body--sticker": {
+    "messageformat": "Kad šī ierīce tika piesaistīta, šī uzlīme no jūsu tālruņa netika pārsūtīta. Multividi un failus, kuri ierīces saistīšanas brīdī ir vecāki par 45 dienām, nevar sinhronizēt."
+  },
+  "icu:AttachmentNotAvailableModal__body--voice-message": {
+    "messageformat": "Kad šī ierīce tika piesaistīta, šī balss ziņa no jūsu tālruņa netika pārsūtīta. Multividi un failus, kuri ierīces saistīšanas brīdī ir vecāki par 45 dienām, nevar sinhronizēt."
   },
   "icu:save": {
     "messageformat": "Saglabāt"
@@ -1181,6 +1235,9 @@
   "icu:Install__qr-failed-load__retry": {
     "messageformat": "Mēģināt vēlreiz"
   },
+  "icu:Install__qr-max-rotations__retry": {
+    "messageformat": "Atsvaidzināt kodu"
+  },
   "icu:Install__qr-failed-load__get-help": {
     "messageformat": "Saņemt palīdzību"
   },
@@ -1198,6 +1255,9 @@
   },
   "icu:Preferences--device-name": {
     "messageformat": "Ierīces nosaukums"
+  },
+  "icu:Preferences--device-name__description": {
+    "messageformat": "Lai mainītu šīs ierīces nosaukumu, atveriet tālrunī Signal un dodieties uz Iestatījumi > Saistītās ierīces"
   },
   "icu:chooseDeviceName": {
     "messageformat": "Izvēlieties šīs ierīces nosaukumu"
@@ -1415,6 +1475,9 @@
   "icu:calling__pre-call-info--many-people-in-call": {
     "messageformat": "{others, plural, zero {{first}, {second} un {others,number} citi piedalās šajā zvanā} one {{first}, {second} un {others,number} cits piedalās šajā zvanā} other {{first}, {second} un {others,number} citi piedalās šajā zvanā}}"
   },
+  "icu:calling__pre-call-info--only-unknown-contacts-in-call": {
+    "messageformat": "{count, plural, zero {Šajā zvanā ir {count,number} cilvēku} one {Šajā zvanā ir {count,number} cilvēks} other {Šajā zvanā ir {count,number} cilvēki}}"
+  },
   "icu:calling__pre-call-info--will-ring-1": {
     "messageformat": "Signal atskaņos zvana signālu{person}"
   },
@@ -1572,10 +1635,10 @@
     "messageformat": "Vai dzēst visus datus?"
   },
   "icu:deleteAllDataBody": {
-    "messageformat": "Vai dzēst visus datus un ziņas no šīs Signal Desktop versijas? Jebkurā brīdī varat atkārtoti piesaistīt Signal šim datoram, taču ziņas netiks atjaunotas. Jūsu Signal konts un dati tālrunī vai citās piesaistītās ierīcēs netiks dzēsti."
+    "messageformat": "Vai dzēst visus datus un ziņas no šīs Signal Desktop versijas? Jūsu Signal konts un dati tālrunī vai citās piesaistītās ierīcēs netiks dzēsti."
   },
   "icu:deleteAllDataProgress": {
-    "messageformat": "Atvienojas un dzēš visus datus"
+    "messageformat": "Notiek atvienošana un visu datu dzēšana…"
   },
   "icu:deleteOldIndexedDBData": {
     "messageformat": "Jums ir novecojuši dati no iepriekšējas Signal Desktop versijas instalācijas. Izvēloties turpināt, šie dati tiks dzēsti un jūs sāksiet no nulles."
@@ -2735,6 +2798,9 @@
   "icu:incomingGroupCall__ringing-many": {
     "messageformat": "{remaining, plural, zero {{ringer} zvana Jums, {first}, {second}, un {remaining,number} citiem} one {{ringer} zvana Jums, {first}, {second}, un {remaining,number} citam} other {{ringer} zvana Jums, {first}, {second}, un {remaining,number} citiem}}"
   },
+  "icu:outgoingCallConnecting": {
+    "messageformat": "Notiek savienošanās"
+  },
   "icu:outgoingCallRinging": {
     "messageformat": "Zvana…"
   },
@@ -2779,6 +2845,12 @@
   },
   "icu:CallControls__MutedToast--unmuted": {
     "messageformat": "Mikrofons ieslēgts"
+  },
+  "icu:CallControls__LowerHandSuggestionToast": {
+    "messageformat": "Nolaist roku?"
+  },
+  "icu:CallControls__LowerHandSuggestionToast--button": {
+    "messageformat": "Nolaist"
   },
   "icu:CallControls__RingingToast--ringing-on": {
     "messageformat": "Zvana signāls ieslēgts"
@@ -3557,6 +3629,9 @@
   "icu:next": {
     "messageformat": "tālāk"
   },
+  "icu:ClearingData__description": {
+    "messageformat": "Process var ilgt dažas minūtes"
+  },
   "icu:BadgeDialog__become-a-sustainer-button": {
     "messageformat": "Ziedot Signal"
   },
@@ -3584,35 +3659,41 @@
   "icu:BackupImportScreen__progressbar-hint--processing": {
     "messageformat": "Ziņu pārsūtīšana tiek pabeigta…"
   },
+  "icu:BackupImportScreen__progressbar-hint--canceling": {
+    "messageformat": "Notiek atcelšana…"
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "Gatavo lejupielādi…"
   },
   "icu:BackupImportScreen__description": {
-    "messageformat": "Process var aizņemt dažas minūtes atkarībā no rezerves kopijas izmēra"
+    "messageformat": "Process var ilgt dažas minūtes"
   },
   "icu:BackupImportScreen__cancel": {
-    "messageformat": "Atcelt pārsūtīšanu"
+    "messageformat": "Atcelt"
   },
   "icu:BackupImportScreen__security-description": {
-    "messageformat": "Messages and chat info are protected by end-to-end encryption, including the sync process. <learnMoreLink>Learn more</learnMoreLink>"
+    "messageformat": "Ziņas un sarunu informāciju aizsargā pilnīga šifrēšana, tostarp sinhronizēšanas process. <learnMoreLink>Uzzināt vairāk</learnMoreLink>"
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
-    "messageformat": "Vai atcelt pārsūtīšanu?"
+    "messageformat": "Vai atcelt ierīces saistīšanu?"
   },
   "icu:BackupImportScreen__cancel-confirmation__body": {
-    "messageformat": "Ziņu un multivides atjaunošana nav pabeigta. Ja atcelsiet to, pārsūtīšanu varēsiet veikt vēlreiz iestatījumos."
+    "messageformat": "Ja atcelsiet, šī ierīce netiks saistīta un ziņas un multivide netiks pārsūtīta."
   },
   "icu:BackupImportScreen__cancel-confirmation__cancel": {
-    "messageformat": "Turpināt pārsūtīšanu"
+    "messageformat": "Turpināt saistīšanu"
   },
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
-    "messageformat": "Atcelt pārsūtīšanu"
+    "messageformat": "Atcelt saistīšanu"
   },
   "icu:BackupImportScreen__error__title": {
     "messageformat": "Radās kļūda, pārsūtot ziņas"
   },
   "icu:BackupImportScreen__error__body": {
     "messageformat": "Ziņas neizdevās pārsūtīt. Pārbaudiet interneta savienojumu un mēģiniet vēlreiz."
+  },
+  "icu:BackupImportScreen__error-fatal__body": {
+    "messageformat": "Ziņas neizdevās pārsūtīt kļūdas dēļ. Mēģiniet atkārtot, vēlreiz saistot šo datoru."
   },
   "icu:BackupImportScreen__error__confirm": {
     "messageformat": "Mēģināt vēlreiz"
@@ -4218,7 +4299,7 @@
     "messageformat": "Atiestatīt visu sarunu krāsas"
   },
   "icu:ChatColorPicker__confirm-reset-default": {
-    "messageformat": "Atiestatīt noklusējumu"
+    "messageformat": "Atiestatīt noklusējuma krāsas"
   },
   "icu:ChatColorPicker__confirm-reset": {
     "messageformat": "Atstatīt"
@@ -4538,6 +4619,12 @@
   "icu:AvatarColorPicker--choose": {
     "messageformat": "Izvēlēties krāsu"
   },
+  "icu:AttachmentDetailPill__retryDownload": {
+    "messageformat": "Mēģināt lejupielādēt vēlreiz"
+  },
+  "icu:AttachmentDetailPill__retryDownloadShort": {
+    "messageformat": "Mēģināt vēlreiz"
+  },
   "icu:LeftPaneSetGroupMetadataHelper__avatar-modal-title": {
     "messageformat": "Grupas avatārs"
   },
@@ -4725,13 +4812,13 @@
     "messageformat": "Signal ir tehniskas grūtības. Tiek cītīgi strādāts, lai pēc iespējas ātrāk atjaunotu pakalpojumu."
   },
   "icu:InstallScreenUpdateDialog--update-required__title": {
-    "messageformat": "Update Required"
+    "messageformat": "Nepieciešams atjauninājums"
   },
   "icu:InstallScreenUpdateDialog--update-required__body": {
-    "messageformat": "To complete syncing your messages, update Signal desktop now."
+    "messageformat": "Lai pabeigtu ziņu sinhronizēšanu, atjauniniet Signal Desktop."
   },
   "icu:InstallScreenUpdateDialog--update-required__action-update": {
-    "messageformat": "Update"
+    "messageformat": "Atjaunināt"
   },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "Nepieciešams atjauninājums"
@@ -5572,13 +5659,13 @@
     "messageformat": "Noklikšķiniet uz <newCallButtonIcon></newCallButtonIcon>, lai sāktu jaunu balss vai video zvanu."
   },
   "icu:CallsList__SearchInputPlaceholder--missed-calls": {
-    "messageformat": "Search missed calls"
+    "messageformat": "Meklēt neatbildētos zvanus"
   },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "Meklēt"
   },
   "icu:CallsList__FilteredByMissedHeader": {
-    "messageformat": "Filtered by missed"
+    "messageformat": "Filtrēts pēc neatbildētajiem"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "Filtrēt pēc neatbildētajiem"
@@ -5596,10 +5683,10 @@
     "messageformat": "Vaicājumam “{query}” nav rezultātu"
   },
   "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
-    "messageformat": "No results for “{query}” in missed calls"
+    "messageformat": "\"{query}\" neatbildēto zvanu sarakstā nav rezultātu"
   },
   "icu:CallsList__EmptyState--missedCalls": {
-    "messageformat": "No missed calls"
+    "messageformat": "Nav neatbildētu zvanu"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "Izveidot audiozvana saiti"
@@ -5770,16 +5857,19 @@
     "messageformat": "Nelielas izmaiņas, kļūdu labojumi un darbības uzlabojumi. Paldies, ka lietojat Signal!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.33--0": {
-    "messageformat": "Šajā versijā ir izlabota kļūda saistībā ar emocijzīmju teksta atlasīšanu. Paldies, <linkKhuddite>@khuddite</linkKhuddite>!"
+  "icu:WhatsNew__v7.39--0": {
+    "messageformat": "Tagad ierīcēs ar skārienekrānu varat pielāgot sarunu saraksta sānu joslas izmēru."
   },
-  "icu:WhatsNew__v7.34--0": {
-    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say."
+  "icu:WhatsNew__v7.40--0": {
+    "messageformat": "Mēs izlabojām kļūdu reti sastopamu kļūdu, kuras dēļ nebija iespējams pareizi atvērt dažas sarunas pēc to atlasīšanas. Signal Desktop turpmāk vairs nebūs atmiņas problēmu, cenšoties atcerēties jūsu sarunas."
   },
-  "icu:WhatsNew__v7.34--1": {
-    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore."
+  "icu:WhatsNew__v7.40--1": {
+    "messageformat": "Tagad, piesaistot savu galveno Signal ierīci jaunam datoram, varat pārsūtīt uz jauno ierīci savu sarunu vēsturi un pēdējo 45 dienu multividi."
   },
-  "icu:WhatsNew__v7.34--2": {
-    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality."
+  "icu:WhatsNew__v7.43--0": {
+    "messageformat": "Mēs atjauninājām pogas tekstu datora lietotnē, lai tas būtu tāds pats kā Android un iOS lietotnēs."
+  },
+  "icu:WhatsNew__v7.44--0": {
+    "messageformat": "We fixed a minor animation bug during group calls. We apologize in advance if the most exciting part of your day was switching to grid view during a meeting and trying to catch the moment where the video squares from people who joined late sometimes partially obscured the slide deck your boss was presenting."
   }
 }

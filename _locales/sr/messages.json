@@ -50,9 +50,6 @@
   "icu:privacyPolicy": {
     "messageformat": "Услови коришћења и Правила за заштиту приватности"
   },
-  "icu:appleSilicon": {
-    "messageformat": "Apple silicon"
-  },
   "icu:About__AppEnvironment": {
     "messageformat": "{appEnv}"
   },
@@ -590,6 +587,9 @@
   "icu:Toast--FailedToSendWithEndorsements": {
     "messageformat": "Failed to send message with endorsements"
   },
+  "icu:Toast--FailedToImportBackup": {
+    "messageformat": "Failed to process some frames during backup import. Please share your logs."
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "Није могуће изабрати слике и видео записе заједно са фајловима."
   },
@@ -687,7 +687,7 @@
     "messageformat": "Претрага"
   },
   "icu:searchUnreadChats": {
-    "messageformat": "Search unread chats"
+    "messageformat": "Претражите непрочитана ћаскања"
   },
   "icu:clearSearch": {
     "messageformat": "Поништи претрагу"
@@ -699,10 +699,10 @@
     "messageformat": "Нема резултата за „{searchTerm}“"
   },
   "icu:noSearchResultsWithUnreadFilter": {
-    "messageformat": "No results for \"{searchTerm}\" in unread chats"
+    "messageformat": "Нема резултата за „{searchTerm}“ у непрочитаним ћаскањима"
   },
   "icu:noSearchResultsOnlyUnreadFilter": {
-    "messageformat": "No unread chats"
+    "messageformat": "Нема непрочитаних ћаскања"
   },
   "icu:noSearchResults--sms-only": {
     "messageformat": "SMS/MMS контакти нису доступни на Desktop-у."
@@ -711,13 +711,13 @@
     "messageformat": "Нема резултата за „{searchTerm}“ у ћаскању {conversationName}"
   },
   "icu:conversationsUnreadHeader": {
-    "messageformat": "Filtered by unread"
+    "messageformat": "Филтрирано по непрочитаним"
   },
   "icu:filterByUnreadButtonLabel": {
-    "messageformat": "Filter by unread"
+    "messageformat": "Филтрирај по непрочитаним"
   },
   "icu:clearFilterButton": {
-    "messageformat": "Clear filter"
+    "messageformat": "Уклони филтер"
   },
   "icu:conversationsHeader": {
     "messageformat": "Ћаскања"
@@ -811,9 +811,6 @@
   },
   "icu:voiceNoteError": {
     "messageformat": "Дошло је до грешке са снимањем гласа."
-  },
-  "icu:attachmentSaved": {
-    "messageformat": "Прилог је сачуван."
   },
   "icu:attachmentSavedPlural": {
     "messageformat": "{count, plural, one {Прилог је сачуван} other {Прилози су сачувани ({count,number})}}"
@@ -1022,18 +1019,6 @@
   "icu:MessageContextMenu__info": {
     "messageformat": "Информације"
   },
-  "icu:deleteMessagesInConversation": {
-    "messageformat": "Избриши поруке"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__title": {
-    "messageformat": "Желите ли да избришете поруке?"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description": {
-    "messageformat": "Све поруке у овом ћаскању ће бити избрисане са овог уређаја. И даље можете да тражите ово ћаскање након што избришете поруке."
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
-    "messageformat": "Све поруке у овом ћаскању ће бити избрисане са свих ваших уређаја. И даље можете да тражите ово ћаскање након што избришете поруке."
-  },
   "icu:deleteConversation": {
     "messageformat": "Избриши"
   },
@@ -1136,8 +1121,77 @@
   "icu:lightboxImageAlt": {
     "messageformat": "Слика је послата у ћаскању"
   },
+  "icu:lightBoxDownloading": {
+    "messageformat": "Преузима се {downloaded} од {total}"
+  },
   "icu:imageCaptionIconAlt": {
     "messageformat": "Икона на којој је приказано да ова слика има натпис"
+  },
+  "icu:imageOpenAlt": {
+    "messageformat": "Отвори овај прилог у већем приказу"
+  },
+  "icu:startDownload": {
+    "messageformat": "Започни преузимање"
+  },
+  "icu:cancelDownload": {
+    "messageformat": "Откажи преузимање"
+  },
+  "icu:downloadNItems": {
+    "messageformat": "{count, plural, one {Ставки: {count,number}} other {Ставки: {count,number}}}"
+  },
+  "icu:mediaNoLongerAvailable": {
+    "messageformat": "Овај медиј више није доступан."
+  },
+  "icu:mediaNotAvailable": {
+    "messageformat": "Овај медиј није доступан"
+  },
+  "icu:mediaNotAvailable--short": {
+    "messageformat": "Медиј није доступан"
+  },
+  "icu:attachmentNoLongerAvailable__learnMore": {
+    "messageformat": "Сазнајте више"
+  },
+  "icu:attachmentNotAvailable__file": {
+    "messageformat": "Овај фајл није доступан"
+  },
+  "icu:attachmentNotAvailable__longMessage": {
+    "messageformat": "Ова порука је непотпуна"
+  },
+  "icu:attachmentNotAvailable__sticker": {
+    "messageformat": "Налепница није доступна"
+  },
+  "icu:attachmentNotAvailable__voice": {
+    "messageformat": "Гласовна порука није доступна"
+  },
+  "icu:AttachmentNotAvailableModal__title--file": {
+    "messageformat": "Овај фајл није доступан"
+  },
+  "icu:AttachmentNotAvailableModal__title--long-text": {
+    "messageformat": "Није доступна цела порука"
+  },
+  "icu:AttachmentNotAvailableModal__title--media": {
+    "messageformat": "Медиј није доступан"
+  },
+  "icu:AttachmentNotAvailableModal__title--sticker": {
+    "messageformat": "Налепница није доступна"
+  },
+  "icu:AttachmentNotAvailableModal__title--voice-message": {
+    "messageformat": "Гласовна порука није доступна"
+  },
+  "icu:AttachmentNotAvailableModal__body--file": {
+    "messageformat": "Овај фајл није пребачен са вашег телефона када је овај уређај повезан. Фајлови и медији који су у тренутку повезивања уређаја старији од 45 дана не могу се синхронизовати."
+  },
+  "icu:AttachmentNotAvailableModal__body--long-text": {
+    "messageformat": "Са вашег телефона се није пребацио цео текст ове поруке када је повезан уређај. Дугачке текстуалне поруке које су у тренутку повезивања уређаја старије од 45 дана не могу се синхронизовати."
+  },
+  "icu:AttachmentNotAvailableModal__body--media": {
+    "messageformat": "Овај медиј није пребачен са вашег телефона када је овај уређај повезан. Фајлови и медији који су у тренутку повезивања уређаја старији од 45 дана не могу се синхронизовати."
+  },
+  "icu:AttachmentNotAvailableModal__body--sticker": {
+    "messageformat": "Ова налепница није пребачена са вашег телефона када је овај уређај повезан. Фајлови и медији који су у тренутку повезивања уређаја старији од 45 дана не могу се синхронизовати."
+  },
+  "icu:AttachmentNotAvailableModal__body--voice-message": {
+    "messageformat": "Ова гласовна порука није пребачена са вашег телефона када је овај уређај повезан. Фајлови и медији који су у тренутку повезивања уређаја старији од 45 дана не могу се синхронизовати."
   },
   "icu:save": {
     "messageformat": "Сачувај"
@@ -1181,6 +1235,9 @@
   "icu:Install__qr-failed-load__retry": {
     "messageformat": "Пробај поново"
   },
+  "icu:Install__qr-max-rotations__retry": {
+    "messageformat": "Освежи код"
+  },
   "icu:Install__qr-failed-load__get-help": {
     "messageformat": "Потражите помоћ"
   },
@@ -1198,6 +1255,9 @@
   },
   "icu:Preferences--device-name": {
     "messageformat": "Назив уређаја"
+  },
+  "icu:Preferences--device-name__description": {
+    "messageformat": "Да бисте променили име уређаја, отворите Signal на телефону и идите на Подешавања > Повезани уређаји"
   },
   "icu:chooseDeviceName": {
     "messageformat": "Изаберите назив за овај уређај"
@@ -1415,6 +1475,9 @@
   "icu:calling__pre-call-info--many-people-in-call": {
     "messageformat": "{others, plural, one {У овом позиву су {first}, {second} и још {others,number} особа} other {У овом позиву су {first}, {second} и још њих {others,number}}}"
   },
+  "icu:calling__pre-call-info--only-unknown-contacts-in-call": {
+    "messageformat": "{count, plural, one {Укупан број особа у овом позиву: {count,number}} other {Укупан број особа у овом позиву: {count,number}}}"
+  },
   "icu:calling__pre-call-info--will-ring-1": {
     "messageformat": "Signal ће позвати корисника {person}"
   },
@@ -1572,10 +1635,10 @@
     "messageformat": "Желите ли да избришете све податке?"
   },
   "icu:deleteAllDataBody": {
-    "messageformat": "Желите ли да избришете све податке и поруке из ове верзије Signal Desktop-а? Увек можете поново повезати овај рачунар, али ваше поруке се неће вратити. Ваш налог на Signal-у и подаци на вашем телефону или другим повезаним уређајима неће бити избрисани."
+    "messageformat": "Желите ли да избришете све податке и поруке из ове верзије Signal Desktop-а? Ваш налог на Signal-у и подаци на вашем телефону или другим повезаним уређајима неће бити избрисани."
   },
   "icu:deleteAllDataProgress": {
-    "messageformat": "Прекидамо везу и бришемо све податке"
+    "messageformat": "Прекидамо везу и бришемо све податке…"
   },
   "icu:deleteOldIndexedDBData": {
     "messageformat": "Имате застареле податке из претходне инсталације Signal Desktop-а. Ако наставите, биће избрисани и кренућете од нуле."
@@ -2735,6 +2798,9 @@
   "icu:incomingGroupCall__ringing-many": {
     "messageformat": "{remaining, plural, one {{ringer} позива – у позиву: ви, {first}, {second} и још {remaining,number} особа} other {{ringer} позива – у позиву: ви, {first}, {second} и још њих {remaining,number}}}"
   },
+  "icu:outgoingCallConnecting": {
+    "messageformat": "Повезивање…"
+  },
   "icu:outgoingCallRinging": {
     "messageformat": "Позивамо…"
   },
@@ -2779,6 +2845,12 @@
   },
   "icu:CallControls__MutedToast--unmuted": {
     "messageformat": "Микрофон је укључен"
+  },
+  "icu:CallControls__LowerHandSuggestionToast": {
+    "messageformat": "Желите ли да спустите руку?"
+  },
+  "icu:CallControls__LowerHandSuggestionToast--button": {
+    "messageformat": "Спусти"
   },
   "icu:CallControls__RingingToast--ringing-on": {
     "messageformat": "Звоно је укључено"
@@ -3557,6 +3629,9 @@
   "icu:next": {
     "messageformat": "следеће"
   },
+  "icu:ClearingData__description": {
+    "messageformat": "Може потрајати пар минута"
+  },
   "icu:BadgeDialog__become-a-sustainer-button": {
     "messageformat": "Донирајте за Signal"
   },
@@ -3584,35 +3659,41 @@
   "icu:BackupImportScreen__progressbar-hint--processing": {
     "messageformat": "Пренос порука се приводи крају…"
   },
+  "icu:BackupImportScreen__progressbar-hint--canceling": {
+    "messageformat": "Отказивање..."
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "Припрема за преузимање…"
   },
   "icu:BackupImportScreen__description": {
-    "messageformat": "То може потрајати неколико минута у зависности од величине ваше резервне копије"
+    "messageformat": "Може потрајати пар минута"
   },
   "icu:BackupImportScreen__cancel": {
-    "messageformat": "Откажи пренос"
+    "messageformat": "Откажи"
   },
   "icu:BackupImportScreen__security-description": {
-    "messageformat": "Messages and chat info are protected by end-to-end encryption, including the sync process. <learnMoreLink>Learn more</learnMoreLink>"
+    "messageformat": "Поруке и информације о ћаскањима заштићене су потпуним шифровањем, укључујући процес синхронизације. <learnMoreLink>Сазнајте више</learnMoreLink>"
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
-    "messageformat": "Желите ли да откажете пренос?"
+    "messageformat": "Желите да откажете повезивање уређаја?"
   },
   "icu:BackupImportScreen__cancel-confirmation__body": {
-    "messageformat": "Није завршено враћање ваших порука и медија. Ако откажете, можете поново покренути пренос у подешавањима."
+    "messageformat": "Ако одлучите да откажете, овај уређај неће бити повезан и никакве поруке нити медији неће бити пребачени."
   },
   "icu:BackupImportScreen__cancel-confirmation__cancel": {
-    "messageformat": "Настави пренос"
+    "messageformat": "Настави повезивање"
   },
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
-    "messageformat": "Откажи пренос"
+    "messageformat": "Откажи повезивање"
   },
   "icu:BackupImportScreen__error__title": {
     "messageformat": "Грешка приликом преноса порука"
   },
   "icu:BackupImportScreen__error__body": {
     "messageformat": "Поруке нису пренете. Проверите да ли сте повезани на интернет и покушајте поново."
+  },
+  "icu:BackupImportScreen__error-fatal__body": {
+    "messageformat": "Ваше поруке нису пренете због грешке која се догодила. Пробајте да поново повежете овај рачунар."
   },
   "icu:BackupImportScreen__error__confirm": {
     "messageformat": "Пробај поново"
@@ -4218,7 +4299,7 @@
     "messageformat": "Ресетуј све боје ћаскања"
   },
   "icu:ChatColorPicker__confirm-reset-default": {
-    "messageformat": "Врати на подразумевано"
+    "messageformat": "Ресетуј подразумеване боје"
   },
   "icu:ChatColorPicker__confirm-reset": {
     "messageformat": "Ресетуј"
@@ -4538,6 +4619,12 @@
   "icu:AvatarColorPicker--choose": {
     "messageformat": "Изаберите боју"
   },
+  "icu:AttachmentDetailPill__retryDownload": {
+    "messageformat": "Поново пробај преузимање"
+  },
+  "icu:AttachmentDetailPill__retryDownloadShort": {
+    "messageformat": "Пробај поново"
+  },
   "icu:LeftPaneSetGroupMetadataHelper__avatar-modal-title": {
     "messageformat": "Аватар групе"
   },
@@ -4725,13 +4812,13 @@
     "messageformat": "Signal тренутно има техничких проблема. Трудимо се да што пре поново покренемо услугу."
   },
   "icu:InstallScreenUpdateDialog--update-required__title": {
-    "messageformat": "Update Required"
+    "messageformat": "Неопходно је ажурирање апликације"
   },
   "icu:InstallScreenUpdateDialog--update-required__body": {
-    "messageformat": "To complete syncing your messages, update Signal desktop now."
+    "messageformat": "Да бисте обавили синхронизацију порука, ажурирајте Signal Desktop сада."
   },
   "icu:InstallScreenUpdateDialog--update-required__action-update": {
-    "messageformat": "Update"
+    "messageformat": "Сачувај"
   },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "Неопходно је ажурирање апликације"
@@ -5572,13 +5659,13 @@
     "messageformat": "Кликните на <newCallButtonIcon></newCallButtonIcon> да започнете нови гласовни или видео-позив."
   },
   "icu:CallsList__SearchInputPlaceholder--missed-calls": {
-    "messageformat": "Search missed calls"
+    "messageformat": "Претражите пропуштене позиве"
   },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "Тражи"
   },
   "icu:CallsList__FilteredByMissedHeader": {
-    "messageformat": "Filtered by missed"
+    "messageformat": "Филтрирано према пропуштеним позивима"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "Филтрирај према пропуштеним позивима"
@@ -5596,10 +5683,10 @@
     "messageformat": "Нема резултата за „{query}“"
   },
   "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
-    "messageformat": "No results for “{query}” in missed calls"
+    "messageformat": "Нема резултата за „{query}“ у пропуштеним позивима"
   },
   "icu:CallsList__EmptyState--missedCalls": {
-    "messageformat": "No missed calls"
+    "messageformat": "Нема пропуштених позива"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "Креирајте линк за позив"
@@ -5770,16 +5857,19 @@
     "messageformat": "Обавили смо мања фина прилагођавања, исправке грешака и побољшања перформанси. Хвала што користите Signal!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.33--0": {
-    "messageformat": "У овом ажурирању је исправљена и грешка са одабиром текстуалних емоџија. Хвала, <linkKhuddite>@khuddite</linkKhuddite>!"
+  "icu:WhatsNew__v7.39--0": {
+    "messageformat": "Сада можете да подесите величину бочне траке листе за ћаскање на уређајима са екраном осетљивим на додир."
   },
-  "icu:WhatsNew__v7.34--0": {
-    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say."
+  "icu:WhatsNew__v7.40--0": {
+    "messageformat": "Исправили смо ретку грешку која је спречавала нека ћаскања да се правилно отворе."
   },
-  "icu:WhatsNew__v7.34--1": {
-    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore."
+  "icu:WhatsNew__v7.40--1": {
+    "messageformat": "Сада можете да изаберете да пренесете своју историју ћаскања и последњих 45 дана медија на нови повезани десктоп рачунар."
   },
-  "icu:WhatsNew__v7.34--2": {
-    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality."
+  "icu:WhatsNew__v7.43--0": {
+    "messageformat": "Ажурирали смо текст дугмета на апликацији на десктопу, како би се слагао са дугметом на Android-у и iOS-у."
+  },
+  "icu:WhatsNew__v7.44--0": {
+    "messageformat": "We fixed a minor animation bug during group calls. We apologize in advance if the most exciting part of your day was switching to grid view during a meeting and trying to catch the moment where the video squares from people who joined late sometimes partially obscured the slide deck your boss was presenting."
   }
 }

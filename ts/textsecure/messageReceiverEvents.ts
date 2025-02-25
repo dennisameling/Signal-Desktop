@@ -156,10 +156,10 @@ export class SuccessfulDecryptEvent extends ConfirmableEvent {
 }
 
 export type DecryptionErrorEventData = Readonly<{
-  cipherTextBytes?: Uint8Array;
-  cipherTextType?: number;
-  contentHint?: number;
-  groupId?: string;
+  cipherTextBytes: Uint8Array | undefined;
+  cipherTextType: number | undefined;
+  contentHint: number | undefined;
+  groupId: string | undefined;
   receivedAtCounter: number;
   receivedAtDate: number;
   senderDevice: number;
@@ -208,10 +208,10 @@ export class RetryRequestEvent extends ConfirmableEvent {
 
 export type SentEventData = Readonly<{
   envelopeId: string;
-  destination?: string;
+  destinationE164?: string;
   destinationServiceId?: ServiceIdString;
   timestamp?: number;
-  serverTimestamp?: number;
+  serverTimestamp: number;
   device: number | undefined;
   unidentifiedStatus: ProcessedSent['unidentifiedStatus'];
   message: ProcessedDataMessage;
@@ -254,8 +254,8 @@ export type MessageEventData = Readonly<{
   sourceDevice?: number;
   destinationServiceId: ServiceIdString;
   timestamp: number;
-  serverGuid?: string;
-  serverTimestamp?: number;
+  serverGuid: string;
+  serverTimestamp: number;
   unidentifiedDeliveryReceived: boolean;
   message: ProcessedDataMessage;
   receivedAtCounter: number;
@@ -311,25 +311,21 @@ export class ConfigurationEvent extends ConfirmableEvent {
 }
 
 export type ViewOnceOpenSyncOptions = {
-  source?: string;
   sourceAci?: AciString;
   timestamp?: number;
 };
 
 export class ViewOnceOpenSyncEvent extends ConfirmableEvent {
-  public readonly source?: string;
-
   public readonly sourceAci?: AciString;
 
   public readonly timestamp?: number;
 
   constructor(
-    { source, sourceAci, timestamp }: ViewOnceOpenSyncOptions,
+    { sourceAci, timestamp }: ViewOnceOpenSyncOptions,
     confirm: ConfirmCallback
   ) {
     super('viewOnceOpenSync', confirm);
 
-    this.source = source;
     this.sourceAci = sourceAci;
     this.timestamp = timestamp;
   }
@@ -345,8 +341,6 @@ export type MessageRequestResponseOptions = {
 };
 
 export class MessageRequestResponseEvent extends ConfirmableEvent {
-  public readonly threadE164?: string;
-
   public readonly threadAci?: AciString;
 
   public readonly messageRequestResponseType?: MessageRequestResponseOptions['messageRequestResponseType'];
@@ -360,7 +354,6 @@ export class MessageRequestResponseEvent extends ConfirmableEvent {
   constructor(
     {
       envelopeId,
-      threadE164,
       threadAci,
       messageRequestResponseType,
       groupId,
@@ -371,7 +364,6 @@ export class MessageRequestResponseEvent extends ConfirmableEvent {
     super('messageRequestResponse', confirm);
 
     this.envelopeId = envelopeId;
-    this.threadE164 = threadE164;
     this.threadAci = threadAci;
     this.messageRequestResponseType = messageRequestResponseType;
     this.groupId = groupId;
@@ -490,6 +482,12 @@ export class CallLinkUpdateSyncEvent extends ConfirmableEvent {
     confirm: ConfirmCallback
   ) {
     super('callLinkUpdateSync', confirm);
+  }
+}
+
+export class DeviceNameChangeSyncEvent extends ConfirmableEvent {
+  constructor(confirm: ConfirmCallback) {
+    super('deviceNameChangeSync', confirm);
   }
 }
 

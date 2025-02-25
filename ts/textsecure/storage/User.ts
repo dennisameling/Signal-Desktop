@@ -142,7 +142,8 @@ export class User {
   }
 
   public getDeviceId(): number | undefined {
-    const value = this._getDeviceIdFromUuid() || this._getDeviceIdFromNumber();
+    const value =
+      this.#_getDeviceIdFromUuid() || this.#_getDeviceIdFromNumber();
     if (value === undefined) {
       return undefined;
     }
@@ -151,6 +152,10 @@ export class User {
 
   public getDeviceName(): string | undefined {
     return this.storage.get('device_name');
+  }
+
+  public async setDeviceName(name: string): Promise<void> {
+    return this.storage.put('device_name', name);
   }
 
   public async setDeviceNameEncrypted(): Promise<void> {
@@ -175,9 +180,7 @@ export class User {
       this.storage.put('uuid_id', `${aci}.${deviceId}`),
       this.storage.put('password', password),
       this.setPni(pni),
-      deviceName
-        ? this.storage.put('device_name', deviceName)
-        : Promise.resolve(),
+      deviceName ? this.setDeviceName(deviceName) : Promise.resolve(),
     ]);
   }
 
@@ -200,7 +203,7 @@ export class User {
     };
   }
 
-  private _getDeviceIdFromUuid(): string | undefined {
+  #_getDeviceIdFromUuid(): string | undefined {
     const uuid = this.storage.get('uuid_id');
     if (uuid === undefined) {
       return undefined;
@@ -208,7 +211,7 @@ export class User {
     return Helpers.unencodeNumber(uuid)[1];
   }
 
-  private _getDeviceIdFromNumber(): string | undefined {
+  #_getDeviceIdFromNumber(): string | undefined {
     const numberId = this.storage.get('number_id');
     if (numberId === undefined) {
       return undefined;

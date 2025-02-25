@@ -30,7 +30,11 @@ import {
   isSameCallHistoryGroup,
   CallMode,
 } from '../types/CallDisposition';
-import { formatDateTimeShort, isMoreRecentThan } from '../util/timestamp';
+import {
+  formatDateTimeShort,
+  isMoreRecentThan,
+  toBoundedDate,
+} from '../util/timestamp';
 import type { ConversationType } from '../state/ducks/conversations';
 import * as log from '../logging/log';
 import { refMerger } from '../util/refMerger';
@@ -89,7 +93,7 @@ function Timestamp({
   }, []);
 
   const dateTime = useMemo(() => {
-    return new Date(timestamp).toISOString();
+    return toBoundedDate(timestamp).toISOString();
   }, [timestamp]);
 
   const formatted = useMemo(() => {
@@ -129,7 +133,6 @@ const defaultPendingState: SearchState = {
 
 type CallsListProps = Readonly<{
   activeCall: ActiveCallStateType | undefined;
-  canCreateCallLinks: boolean;
   getCallHistoryGroupsCount: (
     options: CallHistoryFilterOptions
   ) => Promise<number>;
@@ -179,7 +182,6 @@ type Row = CallHistoryGroup | SpecialRows;
 
 export function CallsList({
   activeCall,
-  canCreateCallLinks,
   getCallHistoryGroupsCount,
   getCallHistoryGroups,
   callHistoryEdition,
@@ -228,7 +230,7 @@ export function CallsList({
         : ['EmptyState'];
     }
 
-    if (!searchFiltering && canCreateCallLinks) {
+    if (!searchFiltering) {
       return ['CreateCallLink', ...results];
     }
 
@@ -236,12 +238,7 @@ export function CallsList({
       return ['FilterHeader', ...results, 'ClearFilterButton'];
     }
     return results;
-  }, [
-    searchState.results?.items,
-    searchFiltering,
-    canCreateCallLinks,
-    hasMissedCallFilter,
-  ]);
+  }, [searchState.results?.items, searchFiltering, hasMissedCallFilter]);
 
   const rowCount = rows.length;
 
@@ -1029,6 +1026,7 @@ export function CallsList({
           content={i18n('icu:CallsList__ToggleFilterByMissedLabel')}
           theme={Theme.Dark}
           delay={600}
+          wrapperClassName="CallsList__ToggleFilterByMissedWrapper"
         >
           <button
             className={classNames('CallsList__ToggleFilterByMissed', {

@@ -8,7 +8,6 @@ import { chmod, realpath, writeFile } from 'fs-extra';
 import { randomBytes } from 'crypto';
 import { createParser } from 'dashdash';
 
-import normalizePath from 'normalize-path';
 import fastGlob from 'fast-glob';
 import PQueue from 'p-queue';
 import { get, pick, isNumber, isBoolean, some, debounce, noop } from 'lodash';
@@ -844,6 +843,8 @@ async function createWindow() {
 
   mainWindow.on('resize', captureWindowStats);
   mainWindow.on('move', captureWindowStats);
+  mainWindow.on('maximize', captureWindowStats);
+  mainWindow.on('unmaximize', captureWindowStats);
 
   if (!ciMode && config.get<boolean>('openDevTools')) {
     // Open the DevTools.
@@ -950,6 +951,9 @@ async function createWindow() {
       return;
     }
 
+    // Persist pending window settings to ephemeralConfig
+    debouncedSaveStats.flush();
+
     windowState.markRequestedShutdown();
     await requestShutdown();
     windowState.markReadyForShutdown();
@@ -1005,9 +1009,7 @@ async function createWindow() {
     mainWindow.webContents.send('ci:event', 'db-initialized', {});
 
     const shouldShowWindow =
-      !app.getLoginItemSettings().wasOpenedAsHidden &&
-      !startInTray &&
-      !config.get<boolean>('ciIsBackupIntegration');
+      !app.getLoginItemSettings().wasOpenedAsHidden && !startInTray;
 
     if (shouldShowWindow) {
       getLogger().info('showing main window');
@@ -1970,6 +1972,7 @@ electronProtocol.registerSchemesAsPrivileged([
   {
     scheme: 'attachment',
     privileges: {
+      standard: true,
       supportFetchAPI: true,
       stream: true,
     },
@@ -2004,7 +2007,9 @@ app.on('ready', async () => {
   }
 
   installWebHandler({
-    enableHttp: Boolean(process.env.SIGNAL_ENABLE_HTTP),
+    enableHttp:
+      Boolean(process.env.SIGNAL_ENABLE_HTTP) ||
+      Boolean(process.env.REACT_DEVTOOLS),
     session: session.defaultSession,
   });
 
@@ -2745,12 +2750,11 @@ ipc.on('get-config', async event => {
         : getEnvironment(),
     isMockTestEnvironment: Boolean(process.env.MOCK_TEST),
     ciMode,
+    ciForceUnprocessed: config.get<boolean>('ciForceUnprocessed'),
     devTools: defaultWebPrefs.devTools,
     // Should be already computed and cached at this point
     dnsFallback: await getDNSFallback(),
     disableIPv6: DISABLE_IPV6,
-    ciBackupPath: config.get<string | null>('ciBackupPath') || undefined,
-    ciIsBackupIntegration: config.get<boolean>('ciIsBackupIntegration'),
     nodeVersion: process.versions.node,
     hostname: os.hostname(),
     osRelease: os.release(),
@@ -2899,14 +2903,13 @@ function handleSignalRoute(route: ParsedSignalRoute) {
       value: route.args.encryptedUsername,
     });
   } else if (route.key === 'showConversation') {
-    mainWindow.webContents.send('show-conversation-via-notification', {
-      conversationId: route.args.conversationId,
-      messageId: route.args.messageId,
-      storyId: route.args.storyId,
-    });
+    mainWindow.webContents.send(
+      'show-conversation-via-token',
+      route.args.token
+    );
   } else if (route.key === 'startCallLobby') {
     mainWindow.webContents.send('start-call-lobby', {
-      conversationId: route.args.conversationId,
+      token: route.args.token,
     });
   } else if (route.key === 'linkCall') {
     mainWindow.webContents.send('start-call-link', {
@@ -2946,8 +2949,7 @@ async function ensureFilePermissions(onlyFiles?: Array<string>) {
 
   const start = Date.now();
   const userDataPath = await realpath(app.getPath('userData'));
-  // fast-glob uses `/` for all platforms
-  const userDataGlob = normalizePath(join(userDataPath, '**', '*'));
+  const userDataGlob = attachments.prepareGlobPattern(userDataPath);
 
   // Determine files to touch
   const files = onlyFiles

@@ -35,7 +35,10 @@ import * as Registration from './registration';
 import { lookupConversationWithoutServiceId } from './lookupConversationWithoutServiceId';
 import * as log from '../logging/log';
 import { deleteAllMyStories } from './deleteAllMyStories';
-import type { NotificationClickData } from '../services/notifications';
+import {
+  type NotificationClickData,
+  notificationService,
+} from '../services/notifications';
 import { StoryViewModeType, StoryViewTargetType } from '../types/Stories';
 import { isValidE164 } from './isValidE164';
 import { fromWebSafeBase64 } from './webSafeBase64';
@@ -49,6 +52,7 @@ import type {
 } from './preload';
 import type { SystemTraySetting } from '../types/SystemTraySetting';
 import { drop } from './drop';
+import { sendSyncRequests } from '../textsecure/syncRequests';
 
 type SentMediaQualityType = 'standard' | 'high';
 type NotificationSettingType = 'message' | 'name' | 'count' | 'off';
@@ -121,6 +125,7 @@ export type IPCEventsCallbacksType = {
   resetDefaultChatColor: () => void;
   setMediaPlaybackDisabled: (playbackDisabled: boolean) => void;
   showConversationViaNotification: (data: NotificationClickData) => void;
+  showConversationViaToken: (token: string) => void;
   showConversationViaSignalDotMe: (
     kind: string,
     value: string
@@ -129,6 +134,7 @@ export type IPCEventsCallbacksType = {
   showGroupViaLink: (value: string) => Promise<void>;
   showReleaseNotes: () => void;
   showStickerPack: (packId: string, key: string) => void;
+  startCallingLobbyViaToken: (token: string) => void;
   requestCloseConfirmation: () => Promise<boolean>;
   getIsInCall: () => boolean;
   shutdown: () => Promise<void>;
@@ -482,15 +488,12 @@ export function createIPCEvents(
     },
 
     isPrimary: () => window.textsecure.storage.user.getDeviceId() === 1,
-    syncRequest: () =>
-      new Promise<void>((resolve, reject) => {
-        const FIVE_MINUTES = 5 * durations.MINUTE;
-        const syncRequest = window.getSyncRequest(FIVE_MINUTES);
-        syncRequest.addEventListener('success', () => resolve());
-        syncRequest.addEventListener('timeout', () =>
-          reject(new Error('timeout'))
-        );
-      }),
+    syncRequest: async () => {
+      const { contactSyncComplete } = await sendSyncRequests(
+        5 * durations.MINUTE
+      );
+      return contactSyncComplete;
+    },
     getLastSyncTime: () => window.storage.get('synced_at'),
     setLastSyncTime: value => window.storage.put('synced_at', value),
     getUniversalExpireTimer: () => universalExpireTimer.get(),
@@ -575,23 +578,31 @@ export function createIPCEvents(
       messageId,
       storyId,
     }: NotificationClickData) {
-      if (conversationId) {
-        if (storyId) {
-          window.reduxActions.stories.viewStory({
-            storyId,
-            storyViewMode: StoryViewModeType.Single,
-            viewTarget: StoryViewTargetType.Replies,
-          });
-        } else {
-          window.reduxActions.conversations.showConversation({
-            conversationId,
-            messageId: messageId ?? undefined,
-          });
-        }
-      } else {
+      if (!conversationId) {
         window.reduxActions.app.openInbox();
+      } else if (storyId) {
+        window.reduxActions.stories.viewStory({
+          storyId,
+          storyViewMode: StoryViewModeType.Single,
+          viewTarget: StoryViewTargetType.Replies,
+        });
+      } else {
+        window.reduxActions.conversations.showConversation({
+          conversationId,
+          messageId: messageId ?? undefined,
+        });
       }
     },
+
+    showConversationViaToken(token: string) {
+      const data = notificationService.resolveToken(token);
+      if (!data) {
+        window.reduxActions.app.openInbox();
+      } else {
+        window.Events.showConversationViaNotification(data);
+      }
+    },
+
     async showConversationViaSignalDotMe(kind: string, value: string) {
       if (!Registration.everDone()) {
         log.info(
@@ -638,6 +649,17 @@ export function createIPCEvents(
       showUnknownSgnlLinkModal();
     },
 
+    startCallingLobbyViaToken(token: string) {
+      const data = notificationService.resolveToken(token);
+      if (!data) {
+        return;
+      }
+      window.reduxActions?.calling?.startCallingLobby({
+        conversationId: data.conversationId,
+        isVideoCall: true,
+      });
+    },
+
     requestCloseConfirmation: async (): Promise<boolean> => {
       try {
         await new Promise<void>((resolve, reject) => {
@@ -680,6 +702,7 @@ export function createIPCEvents(
     installStickerPack: async (packId, key) => {
       void Stickers.downloadStickerPack(packId, key, {
         finalStatus: 'installed',
+        actionSource: 'ui',
       });
     },
 

@@ -24,7 +24,6 @@ export type CompositionTextAreaProps = {
   maxLength?: number;
   placeholder?: string;
   whenToShowRemainingCount?: number;
-  scrollerRef?: React.RefObject<HTMLDivElement>;
   onScroll?: (ev: React.UIEvent<HTMLElement, UIEvent>) => void;
   onPickEmoji: (e: EmojiPickDataType) => void;
   onChange: (
@@ -39,6 +38,7 @@ export type CompositionTextAreaProps = {
     timestamp: number
   ) => void;
   onTextTooLong: () => void;
+  ourConversationId: string | undefined;
   platform: string;
   getPreferredBadge: PreferredBadgeSelectorType;
   draftText: string;
@@ -66,10 +66,10 @@ export function CompositionTextArea({
   onSetSkinTone,
   onSubmit,
   onTextTooLong,
+  ourConversationId,
   placeholder,
   platform,
   recentEmojis,
-  scrollerRef,
   skinTone,
   theme,
   whenToShowRemainingCount = Infinity,
@@ -147,10 +147,10 @@ export function CompositionTextArea({
         onScroll={onScroll}
         onSubmit={onSubmit}
         onTextTooLong={onTextTooLong}
+        ourConversationId={ourConversationId}
         placeholder={placeholder}
         platform={platform}
         quotedMessageId={null}
-        scrollerRef={scrollerRef}
         sendCounter={0}
         theme={theme}
         skinTone={skinTone ?? null}

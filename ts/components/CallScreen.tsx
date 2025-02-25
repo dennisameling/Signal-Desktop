@@ -365,6 +365,7 @@ export function CallScreen({
 
   let isRinging: boolean;
   let hasCallStarted: boolean;
+  let isConnecting: boolean;
   let isConnected: boolean;
   let participantCount: number;
   let conversationsByDemuxId: ConversationsByDemuxIdType;
@@ -372,10 +373,11 @@ export function CallScreen({
 
   switch (activeCall.callMode) {
     case CallMode.Direct: {
-      isRinging =
-        activeCall.callState === CallState.Prering ||
-        activeCall.callState === CallState.Ringing;
-      hasCallStarted = !isRinging;
+      isConnecting = activeCall.callState === CallState.Prering;
+      isRinging = activeCall.callState === CallState.Ringing;
+      hasCallStarted =
+        activeCall.callState !== CallState.Prering &&
+        activeCall.callState !== CallState.Ringing;
       isConnected = activeCall.callState === CallState.Accepted;
       participantCount = isConnected ? 2 : 0;
       conversationsByDemuxId = new Map();
@@ -394,6 +396,8 @@ export function CallScreen({
 
       isConnected =
         activeCall.connectionState === GroupCallConnectionState.Connected;
+      isConnecting =
+        activeCall.connectionState === GroupCallConnectionState.Connecting;
       break;
     default:
       throw missingCaseError(activeCall);
@@ -644,6 +648,9 @@ export function CallScreen({
   const raisedHandsCount: number = raisedHands?.size ?? 0;
 
   const callStatus: ReactNode | string = React.useMemo(() => {
+    if (isConnecting) {
+      return i18n('icu:outgoingCallConnecting');
+    }
     if (isRinging) {
       return i18n('icu:outgoingCallRinging');
     }
@@ -672,6 +679,7 @@ export function CallScreen({
     return null;
   }, [
     i18n,
+    isConnecting,
     isRinging,
     isConnected,
     activeCall.callMode,
@@ -797,13 +805,14 @@ export function CallScreen({
           toggleSettings={toggleSettings}
         />
       </div>
-      {isRinging && (
+      {(isConnecting || isRinging) && (
         <>
           <div className="module-CallingPreCallInfo-spacer " />
           <CallingPreCallInfo
             conversation={conversation}
             groupMembers={groupMembers}
             i18n={i18n}
+            isConnecting={isConnecting}
             me={me}
             ringMode={RingMode.IsRinging}
           />
@@ -846,6 +855,13 @@ export function CallScreen({
         outgoingRing={undefined}
         raisedHands={raisedHands}
         renderRaisedHandsToast={renderRaisedHandsToast}
+        handleLowerHand={() => toggleRaiseHand(false)}
+        suggestLowerHand={
+          isGroupOrAdhocActiveCall(activeCall)
+            ? activeCall.suggestLowerHand
+            : false
+        }
+        isHandRaised={localHandRaised}
         i18n={i18n}
       />
       {isCallLinkAdmin ? (

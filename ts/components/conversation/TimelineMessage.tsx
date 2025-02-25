@@ -221,10 +221,7 @@ export function TimelineMessage(props: Props): JSX.Element {
       // check if any attachment needs to be downloaded from servers
       for (const attachment of attachments) {
         if (!isDownloaded(attachment)) {
-          kickOffAttachmentDownload({
-            attachment,
-            messageId: id,
-          });
+          kickOffAttachmentDownload({ messageId: id });
 
           attachmentsInProgress += 1;
         }
@@ -368,6 +365,7 @@ export function TimelineMessage(props: Props): JSX.Element {
         i18n={i18n}
         triggerId={triggerId}
         shouldShowAdditional={shouldShowAdditional}
+        interactionMode={props.interactionMode}
         onDownload={handleDownload}
         onEdit={
           canEditMessage

@@ -50,9 +50,6 @@
   "icu:privacyPolicy": {
     "messageformat": "अटी आणि गोपनीयता धोरण"
   },
-  "icu:appleSilicon": {
-    "messageformat": "Apple सिलिकॉन"
-  },
   "icu:About__AppEnvironment": {
     "messageformat": "{appEnv}"
   },
@@ -590,6 +587,9 @@
   "icu:Toast--FailedToSendWithEndorsements": {
     "messageformat": "Failed to send message with endorsements"
   },
+  "icu:Toast--FailedToImportBackup": {
+    "messageformat": "Failed to process some frames during backup import. Please share your logs."
+  },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "आपण फाईल्ससह फोटो आणि व्हिडिओ निवडू शकत नाही."
   },
@@ -687,7 +687,7 @@
     "messageformat": "शोध"
   },
   "icu:searchUnreadChats": {
-    "messageformat": "Search unread chats"
+    "messageformat": "न वाचलेले चॅटस् शोधा"
   },
   "icu:clearSearch": {
     "messageformat": "शोध साफ करा"
@@ -699,10 +699,10 @@
     "messageformat": "\"{searchTerm}\" करिता कुठलेही परिणाम नाहीत"
   },
   "icu:noSearchResultsWithUnreadFilter": {
-    "messageformat": "No results for \"{searchTerm}\" in unread chats"
+    "messageformat": "न वाचलेल्या चॅट्समध्ये \"{searchTerm}\" साठी कोणतेही परिणाम नाहीत"
   },
   "icu:noSearchResultsOnlyUnreadFilter": {
-    "messageformat": "No unread chats"
+    "messageformat": "न वाचलेले कोणतेही चॅटस् नाहीत"
   },
   "icu:noSearchResults--sms-only": {
     "messageformat": "SMS/MMS संपर्क डेस्कटॉपवर उपलब्ध नाहीत."
@@ -711,13 +711,13 @@
     "messageformat": "{conversationName} मध्ये \"{searchTerm}\" करिता कुठलेही परिणाम नाहीत"
   },
   "icu:conversationsUnreadHeader": {
-    "messageformat": "Filtered by unread"
+    "messageformat": "न वाचलेल्यानुसार फिल्टर केले"
   },
   "icu:filterByUnreadButtonLabel": {
-    "messageformat": "Filter by unread"
+    "messageformat": "न वाचलेल्यानुसार फिल्टर करा"
   },
   "icu:clearFilterButton": {
-    "messageformat": "Clear filter"
+    "messageformat": "फिल्टर साफ करा"
   },
   "icu:conversationsHeader": {
     "messageformat": "चॅट्स"
@@ -811,9 +811,6 @@
   },
   "icu:voiceNoteError": {
     "messageformat": "व्हॉइस रेकॉर्डरमध्ये दोष होते."
-  },
-  "icu:attachmentSaved": {
-    "messageformat": "संलग्नक/अटॅचमेंट सेव्ह झाली"
   },
   "icu:attachmentSavedPlural": {
     "messageformat": "{count, plural, one {संलग्नक जतन केले} other {{count,number} संलग्नके जतन केली}}"
@@ -1022,18 +1019,6 @@
   "icu:MessageContextMenu__info": {
     "messageformat": "माहिती"
   },
-  "icu:deleteMessagesInConversation": {
-    "messageformat": "संदेश हटवा"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__title": {
-    "messageformat": "संदेश हटवायचा?"
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description": {
-    "messageformat": "या चॅट्समधील सर्व संदेश या डिव्हाइस वरून हटवले जातील. आपण संदेश हटवल्यानंतर देखील अद्याप हे चॅट्स शोधू शकता."
-  },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
-    "messageformat": "या चॅट्स मधील सर्व संदेश आपल्या सर्व डिव्हाइसेस वरून हटवण्यात येतील. आपण संदेश हटवल्यानंतर देखील अद्याप आपण हे चॅट्स शोधू शकता."
-  },
   "icu:deleteConversation": {
     "messageformat": "हटवा"
   },
@@ -1136,8 +1121,77 @@
   "icu:lightboxImageAlt": {
     "messageformat": "चॅट्समध्ये प्रतिमा पाठवली"
   },
+  "icu:lightBoxDownloading": {
+    "messageformat": "{total} पैकी {downloaded} डाऊनलोड करत आहोत"
+  },
   "icu:imageCaptionIconAlt": {
     "messageformat": "ह्या चित्रामध्ये कॅप्शन आहे हे दाखवणारे चिन्ह"
+  },
+  "icu:imageOpenAlt": {
+    "messageformat": "हे अटॅचमेंट मोठ्या आकारात उघडून बघा"
+  },
+  "icu:startDownload": {
+    "messageformat": "डाऊनलोड सुरु करा"
+  },
+  "icu:cancelDownload": {
+    "messageformat": "डाउनलोड रद्द करा"
+  },
+  "icu:downloadNItems": {
+    "messageformat": "{count, plural, one {{count,number} आयटम} other {{count,number} आयटम्स}}"
+  },
+  "icu:mediaNoLongerAvailable": {
+    "messageformat": "हा मिडीया यापुढे उपलब्ध नाही."
+  },
+  "icu:mediaNotAvailable": {
+    "messageformat": "हा मिडीया उपलब्ध नाही"
+  },
+  "icu:mediaNotAvailable--short": {
+    "messageformat": "मिडीया उपलब्ध नाही"
+  },
+  "icu:attachmentNoLongerAvailable__learnMore": {
+    "messageformat": "अधिक जाणून घ्या"
+  },
+  "icu:attachmentNotAvailable__file": {
+    "messageformat": "फाईल उपलब्ध नाही"
+  },
+  "icu:attachmentNotAvailable__longMessage": {
+    "messageformat": "हा संदेश अपूर्ण आहे"
+  },
+  "icu:attachmentNotAvailable__sticker": {
+    "messageformat": "स्टिकर उपलब्ध नाही"
+  },
+  "icu:attachmentNotAvailable__voice": {
+    "messageformat": "व्हॉईस संदेश उपलब्ध नाही"
+  },
+  "icu:AttachmentNotAvailableModal__title--file": {
+    "messageformat": "फाईल उपलब्ध नाही"
+  },
+  "icu:AttachmentNotAvailableModal__title--long-text": {
+    "messageformat": "पूर्ण संदेश उपलब्ध नाही"
+  },
+  "icu:AttachmentNotAvailableModal__title--media": {
+    "messageformat": "मिडीया उपलब्ध नाही"
+  },
+  "icu:AttachmentNotAvailableModal__title--sticker": {
+    "messageformat": "स्टिकर उपलब्ध नाही"
+  },
+  "icu:AttachmentNotAvailableModal__title--voice-message": {
+    "messageformat": "व्हॉईस संदेश उपलब्ध नाही"
+  },
+  "icu:AttachmentNotAvailableModal__body--file": {
+    "messageformat": "हा डिव्हाईस लिंक केला तेव्हा ही फाईल तुमच्या फोनवर हस्तांतरित झाली नव्हती. डिव्हाईस सिंक करतेवेळी ४५ दिवसांपेक्षा जुना मीडिया आणि जुन्या फाइल्स स्थलांतरित झाल्या नव्हत्या."
+  },
+  "icu:AttachmentNotAvailableModal__body--long-text": {
+    "messageformat": "हा डिव्हाईस लिंक झाला तेव्हा या संदेशातील पूर्ण मजकूर तुमच्या फोनवरून हस्तांंतरित होऊ शकला नाही. डिव्हाईस लिंक करतेवेळी 45 दिवसांपेक्षा जुने टेक्स्ट संदेश सिंक करता येत नाहीत."
+  },
+  "icu:AttachmentNotAvailableModal__body--media": {
+    "messageformat": "हा डिव्हाईस लिंक केला तेव्हा हा मिडीया तुमच्या फोनवर हस्तांतरित झाला नाही. डिव्हाईस लिंक करतेवेळी ४५ दिवसांपेक्षा जुना मिडीया सिंक करता येत नाही."
+  },
+  "icu:AttachmentNotAvailableModal__body--sticker": {
+    "messageformat": "हा डिव्हाईस लिंक केला तेव्हा हा स्टिकर तुमच्या फोनवरून हस्तांतरण झाला नव्हता. डिव्हाईस सिंक करतेवेळी ४५ दिवसांपेक्षा जुना मिडीया आणि जुन्या फाईल्स सिंक करता येत नाहीत."
+  },
+  "icu:AttachmentNotAvailableModal__body--voice-message": {
+    "messageformat": "हा डिव्हाईस लिंक केला तेव्हा हा व्हॉईस संदेश तुमच्या फोनवरून हस्तांतरण झाला नव्हता. डिव्हाईस सिंक करतेवेळी ४५ दिवसांपेक्षा जुना मिडीया आणि जुन्या फाईल्स सिंक करता येत नाहीत."
   },
   "icu:save": {
     "messageformat": "जतन करा"
@@ -1181,6 +1235,9 @@
   "icu:Install__qr-failed-load__retry": {
     "messageformat": "पुन्हा प्रयत्न करा"
   },
+  "icu:Install__qr-max-rotations__retry": {
+    "messageformat": "कोड रीफ्रेश करा"
+  },
   "icu:Install__qr-failed-load__get-help": {
     "messageformat": "मदत मिळवा"
   },
@@ -1198,6 +1255,9 @@
   },
   "icu:Preferences--device-name": {
     "messageformat": "डिव्हाईस नाव"
+  },
+  "icu:Preferences--device-name__description": {
+    "messageformat": "या डिव्हाईसचे नाव बदलण्यासाठी, तुमच्या फोनवर Signal उघडा आणि सेटिंग्ज > लिंक केलेले डिव्हाइसेस वर जा"
   },
   "icu:chooseDeviceName": {
     "messageformat": "या डिव्हाईसचे नाव निवडा"
@@ -1415,6 +1475,9 @@
   "icu:calling__pre-call-info--many-people-in-call": {
     "messageformat": "{others, plural, one {या कॉल मध्ये {first}, {second}, आणि {others,number} इतर आहेत} other {या कॉल मध्ये {first}, {second}, आणि {others,number} इतर आहेत}}"
   },
+  "icu:calling__pre-call-info--only-unknown-contacts-in-call": {
+    "messageformat": "{count, plural, one {या कॉल मध्ये {count,number} व्यक्ती आहेत} other {या कॉल मध्ये {count,number} लोक आहेत}}"
+  },
   "icu:calling__pre-call-info--will-ring-1": {
     "messageformat": "{person} ना Signal रिंग करेल"
   },
@@ -1572,10 +1635,10 @@
     "messageformat": "सर्व डेटा हटवायचा?"
   },
   "icu:deleteAllDataBody": {
-    "messageformat": "Signal Desktop च्या या आवृत्तीमधील सर्व डेटा आणि संदेश हटवायचे? आपण नेहमी या डेस्कटॉपला रिलिंक करू शकता, मात्र आपले संदेश पुर्नस्थित केले जाणार नाहीत. आपले Signal खाते आणि आपल्या फोनवरील डेटा किंवा इतर लिंंक केलेली डिव्हाइसेस हटवले जाणार नाहीत."
+    "messageformat": "Signal Desktop च्या या आवृत्तीमधील सर्व डेटा आणि संदेश हटवायचे? आपले Signal खाते आणि आपल्या फोनवरील डेटा किंवा इतर लिंंक केलेली डिव्हाइसेस हटवले जाणार नाहीत."
   },
   "icu:deleteAllDataProgress": {
-    "messageformat": "डिसकनेक्ट करत आहे आणि सर्व डेटा हटवत आहे"
+    "messageformat": "डिस्कनेक्ट करत आहे आणि सर्व डेटा हटवत आहे…"
   },
   "icu:deleteOldIndexedDBData": {
     "messageformat": "आपल्याजवळ Signal Desktop च्या मागील स्थापनेचा कालबाह्य डेटा आहे. सुरू ठेवणे निवडल्यास, तो हटवला जाईल आणि आपण सुरुवातीपासून सुरुवात कराल."
@@ -2735,6 +2798,9 @@
   "icu:incomingGroupCall__ringing-many": {
     "messageformat": "{remaining, plural, one {{ringer} तुम्हाला, {first}, {second} आणि इतर {remaining,number} जणांना काॅल करत आहे} other {{ringer} तुम्हाला, {first}, {second} आणि इतर {remaining,number} जणांना काॅल करत आहे}}"
   },
+  "icu:outgoingCallConnecting": {
+    "messageformat": "कनेक्ट करत आहे(...)"
+  },
   "icu:outgoingCallRinging": {
     "messageformat": "रिंग होत आहे…"
   },
@@ -2779,6 +2845,12 @@
   },
   "icu:CallControls__MutedToast--unmuted": {
     "messageformat": "माईक चालू आहे"
+  },
+  "icu:CallControls__LowerHandSuggestionToast": {
+    "messageformat": "आपल्याला हात खाली करायचा आहे?"
+  },
+  "icu:CallControls__LowerHandSuggestionToast--button": {
+    "messageformat": "खाली घ्या"
   },
   "icu:CallControls__RingingToast--ringing-on": {
     "messageformat": "रिंग होणे सुरू झाले"
@@ -3557,6 +3629,9 @@
   "icu:next": {
     "messageformat": "पुढे"
   },
+  "icu:ClearingData__description": {
+    "messageformat": "ह्याला काही मिनिटे लागू शकतात"
+  },
   "icu:BadgeDialog__become-a-sustainer-button": {
     "messageformat": "Signal ला देणगी द्या"
   },
@@ -3584,35 +3659,41 @@
   "icu:BackupImportScreen__progressbar-hint--processing": {
     "messageformat": "संदेश हस्तांतरण पूर्ण करत आहे..."
   },
+  "icu:BackupImportScreen__progressbar-hint--canceling": {
+    "messageformat": "रद्द करत आहोत..."
+  },
   "icu:BackupImportScreen__progressbar-hint--preparing": {
     "messageformat": "डाउनलोड करण्याची तयारी करत आहे..."
   },
   "icu:BackupImportScreen__description": {
-    "messageformat": "आपल्या बॅकअप आकारावर अवलंबून याला काही मिनिटे लागू शकतात"
+    "messageformat": "ह्याला काही मिनिटे लागू शकतात"
   },
   "icu:BackupImportScreen__cancel": {
-    "messageformat": "हस्तांतरण रद्द करा"
+    "messageformat": "रद्द करा"
   },
   "icu:BackupImportScreen__security-description": {
-    "messageformat": "Messages and chat info are protected by end-to-end encryption, including the sync process. <learnMoreLink>Learn more</learnMoreLink>"
+    "messageformat": "संदेश आणि चॅट्ची माहिती एन्ड-टू-एन्ड एन्क्रिप्शनने संरक्षित आहेत, अगदी सिंकची प्रक्रियासुद्धा. <learnMoreLink>अधिक जाणून घ्या</learnMoreLink>"
   },
   "icu:BackupImportScreen__cancel-confirmation__title": {
-    "messageformat": "हस्तांतरण रद्द करायचे?"
+    "messageformat": "डिव्हाइस लिंक करणे रद्द करायचे का?"
   },
   "icu:BackupImportScreen__cancel-confirmation__body": {
-    "messageformat": "आपले ,संदेश आणि मिडीया यांचे पुनर्संचयन पूर्ण झालेले नाहीत. आपण रद्द करणे निवडल्यास, आपण सेटिंग्ज मधून हस्तांतरण पुन्हा करू शकता."
+    "messageformat": "तुम्ही रद्द करायचे ठरवलेत, तर हा डिव्हाइस लिंक होणार नाही आणि कोणतेही संदेश किंवा मिडीया हस्तांतरण होणार नाही."
   },
   "icu:BackupImportScreen__cancel-confirmation__cancel": {
-    "messageformat": "हस्तांतरण सुरू ठेवा"
+    "messageformat": "लिंक करणे सुरु ठेवा"
   },
   "icu:BackupImportScreen__cancel-confirmation__confirm": {
-    "messageformat": "हस्तांतरण रद्द करा"
+    "messageformat": "लिंक करणे रद्द करा"
   },
   "icu:BackupImportScreen__error__title": {
     "messageformat": "आपले संदेश स्थलांतरित करण्यामध्ये त्रुटी"
   },
   "icu:BackupImportScreen__error__body": {
     "messageformat": "आपले संदेश स्थलांतरित केले जाऊ शकत नाहीत. आपले इंटरनेट कनेक्शन तपासा आणि पुन्हा तपासा."
+  },
+  "icu:BackupImportScreen__error-fatal__body": {
+    "messageformat": "आपले संदेश एका त्रुटीमुळे हस्तांतरित करता आले नाहीत. हा डेस्कटॉप पुन्हा लिंक करून पुन्हा प्रयत्न करा."
   },
   "icu:BackupImportScreen__error__confirm": {
     "messageformat": "पुन्हा प्रयत्न करा"
@@ -4218,7 +4299,7 @@
     "messageformat": "सर्व चॅट रंग रीसेट करा"
   },
   "icu:ChatColorPicker__confirm-reset-default": {
-    "messageformat": "पूर्वनिर्धारित रीसेट करा"
+    "messageformat": "पूर्वनिर्धारित रंग रीसेट करा"
   },
   "icu:ChatColorPicker__confirm-reset": {
     "messageformat": "रीसेट करा"
@@ -4538,6 +4619,12 @@
   "icu:AvatarColorPicker--choose": {
     "messageformat": "एक रंग निवडा"
   },
+  "icu:AttachmentDetailPill__retryDownload": {
+    "messageformat": "पुन्हा डाऊनलोड करून पाहा"
+  },
+  "icu:AttachmentDetailPill__retryDownloadShort": {
+    "messageformat": "पुन्हा प्रयत्न करा"
+  },
   "icu:LeftPaneSetGroupMetadataHelper__avatar-modal-title": {
     "messageformat": "ग्रूप अवतार"
   },
@@ -4725,13 +4812,13 @@
     "messageformat": "Signal तांत्रिक समस्या अनुभवत आहे. आम्ही लवकरात लवकर सेवा पुनर्स्थित करण्यासाठी कठोर परिश्रम करत आहोत."
   },
   "icu:InstallScreenUpdateDialog--update-required__title": {
-    "messageformat": "Update Required"
+    "messageformat": "अद्यतन आवश्यक आहे"
   },
   "icu:InstallScreenUpdateDialog--update-required__body": {
-    "messageformat": "To complete syncing your messages, update Signal desktop now."
+    "messageformat": "तुमचे संदेश सिंक करणे पूर्ण करण्यासाठी, Signal डेस्कटॉप आता अद्यतन करा."
   },
   "icu:InstallScreenUpdateDialog--update-required__action-update": {
-    "messageformat": "Update"
+    "messageformat": "अद्यतन"
   },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "अद्यतन आवश्यक आहे"
@@ -5572,13 +5659,13 @@
     "messageformat": "नवीन व्हॉईस किंवा व्हिडिओ कॉल सुरू करण्यासाठी <newCallButtonIcon></newCallButtonIcon> क्लिक करा."
   },
   "icu:CallsList__SearchInputPlaceholder--missed-calls": {
-    "messageformat": "Search missed calls"
+    "messageformat": "मिस्ड कॉल्स शोधा"
   },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "शोध"
   },
   "icu:CallsList__FilteredByMissedHeader": {
-    "messageformat": "Filtered by missed"
+    "messageformat": "मिस्ड कॉलनुसार फिल्टर केले"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "मिस्ड झालेल्यानुसार फिल्टर करा"
@@ -5596,10 +5683,10 @@
     "messageformat": "“{query}” साठी कोणतेही परिणाम नाहीत"
   },
   "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
-    "messageformat": "No results for “{query}” in missed calls"
+    "messageformat": "मिस्ड कॉलमध्ये \"{query} \" साठी कोणतेही परिणाम नाहीत"
   },
   "icu:CallsList__EmptyState--missedCalls": {
-    "messageformat": "No missed calls"
+    "messageformat": "कोणतेही मिस्ड कॉल नाहीत"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "कॉल लिंक तयार करा"
@@ -5770,16 +5857,19 @@
     "messageformat": "लहान ट्विक्स, दोष निवारण, आणि कामगिरी सुधारणा. Signal वापरल्याबद्दल आभारी आहोत!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.33--0": {
-    "messageformat": "या अपडेटमध्ये एक बग दुरुस्त केले आहे ज्यामुळे मजकूर निवडताना इमोजीवर राईट क्लिक केल्यावर योग्य तो संदर्भ मेन्यू उघडत नव्हता. धन्यवाद, <linkKhuddite>@khuddite</linkKhuddite>!"
+  "icu:WhatsNew__v7.39--0": {
+    "messageformat": "आता तुम्ही टचस्क्रीन डिव्हायसेस वर चॅट लिस्ट साइडबारचा आकार कमीजास्त करू शकता. त्यामुळे तुम्ही तो आता सहज ड्रॅग करू शकता आणि स्क्रीनवर उठणारे तुमच्या बोटांचे ठसे तुमच्या या नव्या शक्तीची साक्ष ठरतील."
   },
-  "icu:WhatsNew__v7.34--0": {
-    "messageformat": "The new filter icon next to the search box makes it easy to quickly find unread chats, but feel free to take your time deciding whether or not to leave them on read after seeing what they had to say."
+  "icu:WhatsNew__v7.40--0": {
+    "messageformat": "एक क्वचित आढळणारा बग काही चॅट्स निवडल्यानंतर त्यांना नीट उघडण्यापासून रोखायचा तो आता आम्ही घालवला आहे. आता Signal डेक्सटॉप नीट काम करेल."
   },
-  "icu:WhatsNew__v7.34--1": {
-    "messageformat": "This update introduces support for new processors on Windows like the Snapdragon X Elite, so you don't need to twist your ARM into emulating x86 anymore."
+  "icu:WhatsNew__v7.40--1": {
+    "messageformat": "आता तुम्ही तुमचा प्राथमिक Signal डिव्हाईस एका नव्या डेस्कटॉपला जोडता, तेव्हा त्यासोबत तुम्ही तुमचा चॅट इतिहास आणि गेल्या ४५ दिवसांचा मिडीया आणू शकता."
   },
-  "icu:WhatsNew__v7.34--2": {
-    "messageformat": "We also fixed a bug that broke the dark theme in Signal when your operating system settings were configured to use a light theme. Signal Desktop can now properly handle your thematically split personality."
+  "icu:WhatsNew__v7.43--0": {
+    "messageformat": "व्हॅलेंटाईन्स डे तुमची परफेक्ट जोडी साजरी करण्याचा दिवस असतो, म्हणूनच आम्ही डेस्कटॉप ॲपवरील एका बटणाचे टेक्स्ट लेबल अद्यतन केले आहे आणि तेच बटण तुमच्या फोनवर वापरून तुम्ही एक क्युट जोडा तयार करू शकता. हा बदल छोटासा वाटेल, आणि तो आहेच छोटा, पण कधीकधी अशा छोट्या गोष्टींमधूनच तुम्हाला किती काळजी वाटते हे दिसून येते."
+  },
+  "icu:WhatsNew__v7.44--0": {
+    "messageformat": "We fixed a minor animation bug during group calls. We apologize in advance if the most exciting part of your day was switching to grid view during a meeting and trying to catch the moment where the video squares from people who joined late sometimes partially obscured the slide deck your boss was presenting."
   }
 }

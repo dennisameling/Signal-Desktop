@@ -23,10 +23,8 @@ export type PropsType = {
   getPreferredBadge: PreferredBadgeSelectorType;
   i18n: LocalizerType;
   platform: string;
-  kickOffAttachmentDownload: (options: {
-    attachment: AttachmentType;
-    messageId: string;
-  }) => void;
+  kickOffAttachmentDownload: (options: { messageId: string }) => void;
+  cancelAttachmentDownload: (options: { messageId: string }) => void;
   showLightbox: (options: {
     attachment: AttachmentType;
     messageId: string;
@@ -64,15 +62,18 @@ const MESSAGE_DEFAULT_PROPS = {
   showConversation: noop,
   showEditHistoryModal: noop,
   showAttachmentDownloadStillInProgressToast: shouldNeverBeCalled,
+  showAttachmentNotAvailableModal: shouldNeverBeCalled,
   showExpiredIncomingTapToViewToast: shouldNeverBeCalled,
   showExpiredOutgoingTapToViewToast: shouldNeverBeCalled,
   showLightboxForViewOnceMedia: shouldNeverBeCalled,
+  showMediaNoLongerAvailableToast: shouldNeverBeCalled,
   startConversation: shouldNeverBeCalled,
   textDirection: TextDirection.Default,
   viewStory: shouldNeverBeCalled,
 };
 
 export function EditHistoryMessagesModal({
+  cancelAttachmentDownload,
   closeEditHistoryModal,
   getPreferredBadge,
   editHistoryMessages,
@@ -127,12 +128,8 @@ export function EditHistoryMessagesModal({
           isEditedMessage
           isSpoilerExpanded={revealedSpoilersById[currentMessageId] || {}}
           key={currentMessage.timestamp}
-          kickOffAttachmentDownload={({ attachment }) =>
-            kickOffAttachmentDownload({
-              attachment,
-              messageId: currentMessage.id,
-            })
-          }
+          kickOffAttachmentDownload={kickOffAttachmentDownload}
+          cancelAttachmentDownload={cancelAttachmentDownload}
           messageExpanded={(messageId, displayLimit) => {
             const update = {
               ...displayLimitById,
@@ -195,12 +192,8 @@ export function EditHistoryMessagesModal({
                 getPreferredBadge={getPreferredBadge}
                 i18n={i18n}
                 isSpoilerExpanded={revealedSpoilersById[syntheticId] || {}}
-                kickOffAttachmentDownload={({ attachment }) =>
-                  kickOffAttachmentDownload({
-                    attachment,
-                    messageId: messageAttributes.id,
-                  })
-                }
+                kickOffAttachmentDownload={kickOffAttachmentDownload}
+                cancelAttachmentDownload={cancelAttachmentDownload}
                 messageExpanded={(messageId, displayLimit) => {
                   const update = {
                     ...displayLimitById,

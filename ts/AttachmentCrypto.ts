@@ -3,6 +3,7 @@
 
 import { createReadStream, createWriteStream } from 'fs';
 import { open, unlink, stat } from 'fs/promises';
+import type { FileHandle } from 'fs/promises';
 import { createCipheriv, createHash, createHmac, randomBytes } from 'crypto';
 import type { Hash } from 'crypto';
 import { PassThrough, Transform, type Writable, Readable } from 'stream';
@@ -244,8 +245,10 @@ export async function encryptAttachmentV2({
         }),
         peekAndUpdateHash(digest),
         incrementalDigestCreator,
-        measureSize(finalSize => {
-          ciphertextSize = finalSize;
+        measureSize({
+          onComplete: finalSize => {
+            ciphertextSize = finalSize;
+          },
         }),
         sink ?? new PassThrough().resume(),
       ].filter(isNotNil)
@@ -299,7 +302,6 @@ export async function encryptAttachmentV2({
 
 type DecryptAttachmentToSinkOptionsType = Readonly<
   {
-    ciphertextPath: string;
     idForLogging: string;
     size: number;
     outerEncryption?: {
@@ -308,18 +310,26 @@ type DecryptAttachmentToSinkOptionsType = Readonly<
     };
   } & (
     | {
-        type: 'standard';
-        theirDigest: Readonly<Uint8Array>;
-        theirIncrementalMac: Readonly<Uint8Array> | undefined;
-        theirChunkSize: number | undefined;
+        ciphertextPath: string;
       }
     | {
-        // No need to check integrity for locally reencrypted attachments, or for backup
-        // thumbnails (since we created it)
-        type: 'local' | 'backupThumbnail';
-        theirDigest?: undefined;
+        ciphertextStream: Readable;
       }
   ) &
+    (
+      | {
+          type: 'standard';
+          theirDigest: Readonly<Uint8Array>;
+          theirIncrementalMac: Readonly<Uint8Array> | undefined;
+          theirChunkSize: number | undefined;
+        }
+      | {
+          // No need to check integrity for locally reencrypted attachments, or for backup
+          // thumbnails (since we created it)
+          type: 'local' | 'backupThumbnail';
+          theirDigest?: undefined;
+        }
+    ) &
     (
       | {
           aesKey: Readonly<Uint8Array>;
@@ -381,7 +391,7 @@ export async function decryptAttachmentV2ToSink(
   options: DecryptAttachmentToSinkOptionsType,
   sink: Writable
 ): Promise<Omit<DecryptedAttachmentV2, 'path'>> {
-  const { ciphertextPath, idForLogging, outerEncryption } = options;
+  const { idForLogging, outerEncryption } = options;
 
   let aesKey: Uint8Array;
   let macKey: Uint8Array;
@@ -432,18 +442,27 @@ export async function decryptAttachmentV2ToSink(
     : undefined;
 
   let isPaddingAllZeros = false;
-  let readFd;
+  let readFd: FileHandle | undefined;
   let iv: Uint8Array | undefined;
+  let ciphertextStream: Readable;
+
   try {
-    try {
-      readFd = await open(ciphertextPath, 'r');
-    } catch (cause) {
-      throw new Error(`${logId}: Read path doesn't exist`, { cause });
+    if ('ciphertextPath' in options) {
+      try {
+        readFd = await open(options.ciphertextPath, 'r');
+        ciphertextStream = readFd.createReadStream();
+      } catch (cause) {
+        throw new Error(`${logId}: Read path doesn't exist`, { cause });
+      }
+    } else if ('ciphertextStream' in options) {
+      ciphertextStream = options.ciphertextStream;
+    } else {
+      throw missingCaseError(options);
     }
 
     await pipeline(
       [
-        readFd.createReadStream(),
+        ciphertextStream,
         maybeOuterEncryptionGetMacAndUpdateMac,
         maybeOuterEncryptionGetIvAndDecipher,
         peekAndUpdateHash(digest),
@@ -652,15 +671,27 @@ function peekAndUpdateHash(hash: Hash) {
   });
 }
 
-export function measureSize(onComplete: (size: number) => void): Transform {
+export function measureSize({
+  downloadOffset = 0,
+  onComplete,
+  onSizeUpdate,
+}: {
+  downloadOffset?: number;
+  onComplete: (size: number) => void;
+  onSizeUpdate?: (size: number) => void;
+}): Transform {
   let totalBytes = 0;
+
   const passthrough = new PassThrough();
+
   passthrough.on('data', chunk => {
     totalBytes += chunk.length;
+    onSizeUpdate?.(totalBytes + downloadOffset);
   });
   passthrough.on('end', () => {
     onComplete(totalBytes);
   });
+
   return passthrough;
 }
 

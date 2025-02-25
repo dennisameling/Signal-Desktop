@@ -57,7 +57,6 @@ import { callingTones } from '../../util/callingTones';
 import { requestCameraPermissions } from '../../util/callingPermissions';
 import {
   CALL_LINK_DEFAULT_STATE,
-  isCallLinksCreateEnabled,
   toAdminKeyBytes,
   toCallHistoryFromUnusedCallLink,
 } from '../../util/callLinks';
@@ -193,6 +192,7 @@ export type ActiveCallStateType = {
   settingsDialogOpen: boolean;
   showNeedsScreenRecordingPermissionsWarning?: boolean;
   showParticipantsList: boolean;
+  suggestLowerHand?: boolean;
   reactions?: ActiveCallReactionsType;
 };
 export type WaitingCallStateType = ReadonlyDeep<{
@@ -650,6 +650,7 @@ const SET_OUTGOING_RING = 'calling/SET_OUTGOING_RING';
 const SET_PRESENTING = 'calling/SET_PRESENTING';
 const SET_PRESENTING_SOURCES = 'calling/SET_PRESENTING_SOURCES';
 const SET_CAPTURER_BATON = 'calling/SET_CAPTURER_BATON';
+const SUGGEST_LOWER_HAND = 'calling/SUGGEST_LOWER_HAND';
 const TOGGLE_NEEDS_SCREEN_RECORDING_PERMISSIONS =
   'calling/TOGGLE_NEEDS_SCREEN_RECORDING_PERMISSIONS';
 const START_DIRECT_CALL = 'calling/START_DIRECT_CALL';
@@ -915,6 +916,10 @@ type StartDirectCallActionType = ReadonlyDeep<{
   type: 'calling/START_DIRECT_CALL';
   payload: StartDirectCallType;
 }>;
+type SuggestLowerHandActionType = ReadonlyDeep<{
+  type: 'calling/SUGGEST_LOWER_HAND';
+  payload: { suggestLowerHand: boolean };
+}>;
 
 type ToggleNeedsScreenRecordingPermissionsActionType = ReadonlyDeep<{
   type: 'calling/TOGGLE_NEEDS_SCREEN_RECORDING_PERMISSIONS';
@@ -993,6 +998,7 @@ export type CallingActionType =
   | TogglePipActionType
   | SetPresentingFulfilledActionType
   | ToggleSettingsActionType
+  | SuggestLowerHandActionType
   | SwitchToPresentationViewActionType
   | SwitchFromPresentationViewActionType
   | WaitingForCallingLobbyActionType
@@ -1622,6 +1628,15 @@ function hangUpActiveCall(
   };
 }
 
+function setSuggestLowerHand(
+  suggestLowerHand: boolean
+): SuggestLowerHandActionType {
+  return {
+    type: SUGGEST_LOWER_HAND,
+    payload: { suggestLowerHand },
+  };
+}
+
 function sendGroupCallRaiseHand(
   payload: SendGroupCallRaiseHandType
 ): ThunkAction<void, RootStateType, unknown, SendGroupCallRaiseHandActionType> {
@@ -2086,8 +2101,6 @@ function createCallLink(
   CallHistoryAdd | HandleCallLinkUpdateActionType
 > {
   return async dispatch => {
-    strictAssert(isCallLinksCreateEnabled(), 'Call links creation is disabled');
-
     const callLink = await calling.createCallLink();
     const callHistory = toCallHistoryFromUnusedCallLink(callLink);
     await Promise.all([
@@ -2696,6 +2709,7 @@ export const actions = {
   setLocalVideo,
   setOutgoingRing,
   setRendererCanvas,
+  setSuggestLowerHand,
   startCall,
   startCallLinkLobby,
   startCallLinkLobbyByRoomId,
@@ -4032,6 +4046,24 @@ export function reducer(
     return {
       ...state,
       callLinks: omit(state.callLinks, roomId),
+    };
+  }
+
+  if (action.type === SUGGEST_LOWER_HAND) {
+    const { suggestLowerHand } = action.payload;
+    const { activeCallState } = state;
+
+    if (activeCallState?.state !== 'Active') {
+      log.warn('Cannot suggest lower hand when there is no active call');
+      return state;
+    }
+
+    return {
+      ...state,
+      activeCallState: {
+        ...activeCallState,
+        suggestLowerHand,
+      },
     };
   }
 

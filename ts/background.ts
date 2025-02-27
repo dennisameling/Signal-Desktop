@@ -398,7 +398,10 @@ export async function startApp(): Promise<void> {
 
   window.getSocketStatus = () => {
     if (server === undefined) {
-      return SocketStatus.CLOSED;
+      return {
+        authenticated: { status: SocketStatus.CLOSED },
+        unauthenticated: { status: SocketStatus.CLOSED },
+      };
     }
     return server.getSocketStatus();
   };
@@ -666,7 +669,10 @@ export async function startApp(): Promise<void> {
         drop(onRetryRequestQueue.add(() => onRetryRequest(event)));
       })
     );
-    messageReceiver.addEventListener('empty', queuedEventListener(onEmpty));
+    messageReceiver.addEventListener(
+      'empty',
+      queuedEventListener(() => onEmpty({ isFromMessageReceiver: true }))
+    );
     messageReceiver.addEventListener(
       'configuration',
       queuedEventListener(onConfiguration)
@@ -1141,7 +1147,8 @@ export async function startApp(): Promise<void> {
       setupAppState();
       drop(start());
       window.Signal.Services.initializeNetworkObserver(
-        window.reduxActions.network
+        window.reduxActions.network,
+        () => window.getSocketStatus().authenticated.status
       );
       window.Signal.Services.initializeUpdateListener(
         window.reduxActions.updates
@@ -1629,7 +1636,7 @@ export async function startApp(): Promise<void> {
           log.info(
             'background: offline; initial load not completed; triggering onEmpty'
           );
-          drop(onEmpty()); // this ensures that the inbox loading progress bar is dismissed
+          drop(onEmpty({ isFromMessageReceiver: false })); // this ensures that the inbox loading progress bar is dismissed
         }
       }
     };
@@ -1947,7 +1954,7 @@ export async function startApp(): Promise<void> {
   window.addEventListener('offline', onNavigatorOffline);
 
   window.Whisper.events.on('socketStatusChange', () => {
-    if (window.getSocketStatus() === SocketStatus.OPEN) {
+    if (window.getSocketStatus().authenticated.status === SocketStatus.OPEN) {
       pauseQueuesAndNotificationsOnSocketConnect();
     }
   });
@@ -1976,7 +1983,7 @@ export async function startApp(): Promise<void> {
   }
 
   function isSocketOnline() {
-    const socketStatus = window.getSocketStatus();
+    const socketStatus = window.getSocketStatus().authenticated.status;
     return (
       socketStatus === SocketStatus.CONNECTING ||
       socketStatus === SocketStatus.OPEN
@@ -2027,7 +2034,9 @@ export async function startApp(): Promise<void> {
 
   window.waitForEmptyEventQueue = waitForEmptyEventQueue;
 
-  async function onEmpty(): Promise<void> {
+  async function onEmpty({
+    isFromMessageReceiver,
+  }: { isFromMessageReceiver?: boolean } = {}): Promise<void> {
     const { storage } = window.textsecure;
 
     await Promise.all([
@@ -2075,6 +2084,40 @@ export async function startApp(): Promise<void> {
     drop(usernameIntegrity.start());
 
     drop(ReleaseNotesFetcher.init(window.Whisper.events, newVersion));
+
+    if (isFromMessageReceiver) {
+      drop(
+        (async () => {
+          let lastRowId: number | null = 0;
+          while (lastRowId != null) {
+            const result =
+              // eslint-disable-next-line no-await-in-loop
+              await DataWriter.dequeueOldestSyncTasks({
+                previousRowId: lastRowId,
+                incrementAttempts: false,
+                syncTaskTypes: [
+                  'delete-conversation',
+                  'delete-local-conversation',
+                ],
+              });
+            const syncTasks = result.tasks;
+            if (syncTasks.length > 0) {
+              log.info(
+                `onEmpty/syncTasks: Queueing ${syncTasks.length} sync tasks for reattempt`
+              );
+              // eslint-disable-next-line no-await-in-loop
+              await queueSyncTasks(syncTasks, DataWriter.removeSyncTaskById);
+              // eslint-disable-next-line no-await-in-loop
+              await Promise.resolve(); // one tick
+            }
+
+            lastRowId = result.lastRowId;
+          }
+          log.info('onEmpty/syncTasks: Incrementing all sync task attempts');
+          drop(DataWriter.incrementAllSyncTaskAttempts());
+        })()
+      );
+    }
   }
 
   let initialStartupCount = 0;
@@ -3022,7 +3065,7 @@ export async function startApp(): Promise<void> {
       await window.waitForAllBatchers();
     }
 
-    void onEmpty();
+    void onEmpty({ isFromMessageReceiver: false });
 
     void Registration.remove();
 

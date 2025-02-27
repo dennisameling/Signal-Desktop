@@ -46,9 +46,13 @@ jobs:
         node-version-file: '.nvmrc'
         cache: 'pnpm'
         cache-dependency-path: 'pnpm-lock.yaml'
-
-    - name: Install xvfb
-      run: sudo apt-get install xvfb libpulse0
+    - name: Cache .electron-gyp
+      uses: actions/cache@v4
+      with:
+        path: ~/.electron-gyp
+        key: electron-gyp-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+    - name: Install xvfb and libpulse0
+      run: sudo apt-get install xvfb libpulse0 || (sudo apt-get update && sudo apt-get install xvfb libpulse0)
 
     - name: Install Desktop node_modules
       run: pnpm install
@@ -64,6 +68,11 @@ jobs:
       run: pnpm run build:esbuild:prod
     - name: Create preload cache
       run: xvfb-run --auto-servernum pnpm run build:preload-cache
+
+    - name: Set MAX_CYCLES=2 on main
+      if: ${{ github.ref == 'refs/heads/main' }}
+      run: |
+        echo "MAX_CYCLES=2" >> "$GITHUB_ENV"
 
     - name: Run startup benchmarks
       run: |

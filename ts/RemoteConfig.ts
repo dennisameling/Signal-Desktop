@@ -32,6 +32,8 @@ export type ConfigKeyType =
   | 'desktop.experimentalTransportEnabled.beta'
   | 'desktop.experimentalTransportEnabled.prod'
   | 'desktop.cdsiViaLibsignal'
+  | 'desktop.cdsiViaLibsignal.libsignalRouteBasedCDSILookup'
+  | 'desktop.funPicker'
   | 'desktop.releaseNotes'
   | 'desktop.releaseNotes.beta'
   | 'desktop.releaseNotes.dev'

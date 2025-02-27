@@ -470,6 +470,7 @@ export const DataWriter: ServerWritableInterface = {
 
   removeSyncTaskById,
   saveSyncTasks,
+  incrementAllSyncTaskAttempts,
   dequeueOldestSyncTasks,
 
   getUnprocessedByIdsAndIncrementAttempts,
@@ -2171,20 +2172,38 @@ function saveSyncTask(db: WritableDB, task: SyncTaskType): void {
   db.prepare(query).run(parameters);
 }
 
+export function incrementAllSyncTaskAttempts(db: WritableDB): void {
+  const [updateQuery, updateParams] = sql`
+    UPDATE syncTasks
+    SET attempts = attempts + 1
+  `;
+  return db.transaction(() => {
+    db.prepare(updateQuery).run(updateParams);
+  })();
+}
+
 export function dequeueOldestSyncTasks(
   db: WritableDB,
-  previousRowId: number | null
+  options: {
+    previousRowId: number | null;
+    incrementAttempts?: boolean;
+    syncTaskTypes?: Array<SyncTaskType['type']>;
+  }
 ): { tasks: Array<SyncTaskType>; lastRowId: number | null } {
+  const { previousRowId, incrementAttempts = true, syncTaskTypes } = options;
   return db.transaction(() => {
     const orderBy = sqlFragment`ORDER BY rowid ASC`;
     const limit = sqlFragment`LIMIT 10000`;
-    const predicate = sqlFragment`rowid > ${previousRowId ?? 0}`;
+    let predicate = sqlFragment`rowid > ${previousRowId ?? 0}`;
+    if (syncTaskTypes && syncTaskTypes.length > 0) {
+      predicate = sqlFragment`${predicate} AND type IN (${sqlJoin(syncTaskTypes)})`;
+    }
 
     const [deleteOldQuery, deleteOldParams] = sql`
       DELETE FROM syncTasks
       WHERE
         attempts >= ${MAX_SYNC_TASK_ATTEMPTS} AND
-        createdAt < ${Date.now() - durations.WEEK}
+        createdAt < ${Date.now() - durations.DAY * 2}
     `;
 
     const result = db.prepare(deleteOldQuery).run(deleteOldParams);
@@ -2213,7 +2232,7 @@ export function dequeueOldestSyncTasks(
     strictAssert(firstRowId, 'dequeueOldestSyncTasks: firstRowId is null');
     strictAssert(lastRowId, 'dequeueOldestSyncTasks: lastRowId is null');
 
-    const tasks: Array<SyncTaskType> = rows.map(row => {
+    let tasks: Array<SyncTaskType> = rows.map(row => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { rowid: _rowid, ...rest } = row;
       return {
@@ -2222,14 +2241,35 @@ export function dequeueOldestSyncTasks(
       };
     });
 
-    const [updateQuery, updateParams] = sql`
-      UPDATE syncTasks
-      SET attempts = attempts + 1
-      WHERE rowid >= ${firstRowId}
-      AND rowid <= ${lastRowId}
-    `;
+    if (incrementAttempts) {
+      let updatePredicate = sqlFragment`rowid >= ${firstRowId} AND rowid <= ${lastRowId}`;
+      if (syncTaskTypes && syncTaskTypes.length > 0) {
+        updatePredicate = sqlFragment`${updatePredicate} AND type IN (${sqlJoin(syncTaskTypes)})`;
+      }
+      const [updateQuery, updateParams] = sql`
+        UPDATE syncTasks
+        SET attempts = attempts + 1
+        WHERE ${updatePredicate}
+        RETURNING id, attempts;
+      `;
 
-    db.prepare(updateQuery).run(updateParams);
+      const res = db.prepare(updateQuery).raw().all(updateParams) as Array<
+        [string, number]
+      >;
+
+      if (Array.isArray(res)) {
+        const idToAttempts = new Map<string, number>(res);
+        tasks = tasks.map(task => {
+          const { id } = task;
+          const attempts = idToAttempts.get(id) ?? task.attempts;
+          return { ...task, attempts };
+        });
+      } else {
+        logger.error(
+          'dequeueOldestSyncTasks: failed to get sync task attempts'
+        );
+      }
+    }
 
     return { tasks, lastRowId };
   })();
@@ -6142,41 +6182,54 @@ function getAllBadgeImageFileLocalPaths(db: ReadableDB): Set<string> {
   return new Set(localPaths);
 }
 
-function runCorruptionChecks(db: ReadableDB): void {
-  let writable: WritableDB;
+function runCorruptionChecks(db: WritableDB, isRetrying = false): boolean {
+  let ok = true;
+
   try {
-    writable = toUnsafeWritableDB(db, 'integrity check');
-  } catch (error) {
-    logger.error(
-      'runCorruptionChecks: not running the check, no writable instance',
-      Errors.toLogFormat(error)
-    );
-    return;
-  }
-  try {
-    const result = writable.pragma('integrity_check');
+    const result = db.pragma('integrity_check');
     if (result.length === 1 && result.at(0)?.integrity_check === 'ok') {
       logger.info('runCorruptionChecks: general integrity is ok');
     } else {
       logger.error('runCorruptionChecks: general integrity is not ok', result);
+      ok = false;
     }
   } catch (error) {
     logger.error(
       'runCorruptionChecks: general integrity check error',
       Errors.toLogFormat(error)
     );
+    ok = false;
   }
   try {
-    writable.exec(
-      "INSERT INTO messages_fts(messages_fts) VALUES('integrity-check')"
-    );
+    db.exec("INSERT INTO messages_fts(messages_fts) VALUES('integrity-check')");
     logger.info('runCorruptionChecks: FTS5 integrity ok');
   } catch (error) {
     logger.error(
       'runCorruptionChecks: FTS5 integrity check error.',
       Errors.toLogFormat(error)
     );
+    ok = false;
+
+    if (!isRetrying) {
+      try {
+        db.exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild');");
+
+        logger.info('runCorruptionChecks: FTS5 index rebuilt');
+      } catch (rebuildError) {
+        logger.error(
+          'runCorruptionChecks: FTS5 recovery failed',
+          Errors.toLogFormat(rebuildError)
+        );
+        return false;
+      }
+
+      // Successfully recovered, try again.
+      logger.info('runCorruptionChecks: retrying');
+      return runCorruptionChecks(db, true);
+    }
   }
+
+  return ok;
 }
 
 type StoryDistributionForDatabase = Readonly<

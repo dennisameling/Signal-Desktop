@@ -14,7 +14,6 @@ $image-margin: calc(($button-size - $image-size) / 2);
 $image-radius: $button-radius - $image-margin;
 
 .FunSubNav__Container {
-  grid-area: FunSubNav__Container;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -137,6 +136,7 @@ $image-radius: $button-radius - $image-margin;
 }
 
 .FunSubNav__ListBoxItem {
+  position: relative;
   flex: 1;
   padding: 1px;
   cursor: pointer;
@@ -153,6 +153,13 @@ $image-radius: $button-radius - $image-margin;
   &:last-of-type {
     padding-inline-end: 6px;
   }
+}
+
+.FunSubNav__ListBoxItem__TooltipTarget {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
 }
 
 .FunSubNav__ListBoxItem__Button {

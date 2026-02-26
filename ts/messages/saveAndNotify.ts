@@ -1,7 +1,7 @@
 // Copyright 2024 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 
 import { explodePromise } from '../util/explodePromise';
 
@@ -11,12 +11,14 @@ import {
   modifyTargetMessage,
   ModifyTargetMessageResult,
 } from '../util/modifyTargetMessage';
-import { shouldReplyNotifyUser } from '../util/shouldReplyNotifyUser';
 import { isStory } from './helpers';
 import { drop } from '../util/drop';
 
 import type { ConversationModel } from '../models/conversations';
 import type { MessageModel } from '../models/messages';
+import { maybeNotify } from './maybeNotify';
+
+const log = createLogger('saveAndNotify');
 
 export async function saveAndNotify(
   message: MessageModel,
@@ -48,9 +50,7 @@ export async function saveAndNotify(
 
     drop(conversation.onNewMessage(message));
 
-    if (await shouldReplyNotifyUser(message.attributes, conversation)) {
-      await conversation.notify(message.attributes);
-    }
+    drop(maybeNotify({ message: message.attributes, conversation }));
 
     // Increment the sent message count if this is an outgoing message
     if (message.get('type') === 'outgoing') {
@@ -61,9 +61,7 @@ export async function saveAndNotify(
     confirm();
 
     if (!isStory(message.attributes)) {
-      drop(
-        conversation.queueJob('updateUnread', () => conversation.updateUnread())
-      );
+      conversation.throttledUpdateUnread();
     }
   } finally {
     resolve();

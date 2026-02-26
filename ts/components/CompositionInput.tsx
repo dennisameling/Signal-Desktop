@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as React from 'react';
-
+import type { MouseEvent } from 'react';
+import classNames from 'classnames';
+import { Manager, Reference } from 'react-popper';
 import Quill, { Delta } from '@signalapp/quill-cjs';
 import {
   matchText,
@@ -10,8 +12,7 @@ import {
   matchBreak,
 } from '@signalapp/quill-cjs/modules/clipboard';
 import Emitter from '@signalapp/quill-cjs/core/emitter';
-import classNames from 'classnames';
-import { Manager, Reference } from 'react-popper';
+import type { Context } from '@signalapp/quill-cjs/modules/keyboard';
 import type { Range as RangeStatic } from '@signalapp/quill-cjs';
 
 import { MentionCompletion } from '../quill/mentions/completion';
@@ -58,10 +59,9 @@ import { SignalClipboard } from '../quill/signal-clipboard';
 import { DirectionalBlot } from '../quill/block/blot';
 import { getClassNamesFor } from '../util/getClassNamesFor';
 import { isNotNil } from '../util/isNotNil';
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import * as Errors from '../types/errors';
-import { useEmojiSearch } from '../hooks/useEmojiSearch';
-import type { LinkPreviewType } from '../types/message/LinkPreviews';
+import type { LinkPreviewForUIType } from '../types/message/LinkPreviews';
 import { StagedLinkPreview } from './conversation/StagedLinkPreview';
 import type { DraftEditMessageType } from '../model-types.d';
 import { usePrevious } from '../hooks/usePrevious';
@@ -73,9 +73,17 @@ import {
   matchStrikethrough,
 } from '../quill/formatting/matchers';
 import { missingCaseError } from '../util/missingCaseError';
+import type { AutoSubstituteAsciiEmojisOptions } from '../quill/auto-substitute-ascii-emojis';
 import { AutoSubstituteAsciiEmojis } from '../quill/auto-substitute-ascii-emojis';
 import { dropNull } from '../util/dropNull';
 import { SimpleQuillWrapper } from './SimpleQuillWrapper';
+import type { EmojiSkinTone } from './fun/data/emojis';
+import { FUN_STATIC_EMOJI_CLASS } from './fun/FunEmoji';
+import { useFunEmojiSearch } from './fun/useFunEmojiSearch';
+import type { EmojiCompletionOptions } from '../quill/emoji/completion';
+import { useFunEmojiLocalizer } from './fun/useFunEmojiLocalizer';
+
+const log = createLogger('CompositionInput');
 
 Quill.register(
   {
@@ -117,7 +125,7 @@ export type Props = Readonly<{
   isFormattingEnabled: boolean;
   isActive: boolean;
   sendCounter: number;
-  skinTone: NonNullable<EmojiPickDataType['skinTone']> | null;
+  emojiSkinToneDefault: EmojiSkinTone | null;
   draftText: string | null;
   draftBodyRanges: HydratedBodyRangesType | null;
   moduleClassName?: string;
@@ -147,7 +155,7 @@ export type Props = Readonly<{
   quotedMessageId: string | null;
   shouldHidePopovers: boolean | null;
   linkPreviewLoading?: boolean;
-  linkPreviewResult: LinkPreviewType | null;
+  linkPreviewResult: LinkPreviewForUIType | null;
   onCloseLinkPreview?(conversationId: string): unknown;
 }>;
 
@@ -182,14 +190,14 @@ export function CompositionInput(props: Props): React.ReactElement {
     platform,
     quotedMessageId,
     shouldHidePopovers,
-    skinTone,
+    emojiSkinToneDefault,
     sendCounter,
     sortedGroupMembers,
     theme,
   } = props;
 
   const [emojiCompletionElement, setEmojiCompletionElement] =
-    React.useState<JSX.Element>();
+    React.useState<JSX.Element | null>();
   const [formattingChooserElement, setFormattingChooserElement] =
     React.useState<JSX.Element>();
   const [lastSelectionRange, setLastSelectionRange] =
@@ -342,16 +350,14 @@ export function CompositionInput(props: Props): React.ReactElement {
     }
 
     if (!canSendRef.current) {
-      log.warn(
-        'CompositionInput: Not submitting message - cannot send right now'
-      );
+      log.warn('Not submitting message - cannot send right now');
       return;
     }
 
     const { text, bodyRanges } = getTextAndRanges();
 
     log.info(
-      `CompositionInput: Submitting message ${timestamp} with ${bodyRanges.length} ranges`
+      `Submitting message ${timestamp} with ${bodyRanges.length} ranges`
     );
     canSendRef.current = false;
     const didSend = onSubmit(text, bodyRanges, timestamp);
@@ -519,7 +525,7 @@ export function CompositionInput(props: Props): React.ReactElement {
     return true;
   };
 
-  const onBackspace = (): boolean => {
+  const onBackspace = (_range: RangeStatic, context: Context): boolean => {
     const quill = quillRef.current;
 
     if (quill === undefined) {
@@ -531,23 +537,56 @@ export function CompositionInput(props: Props): React.ReactElement {
       return true;
     }
 
-    const [blotToDelete] = quill.getLeaf(selection.index);
+    let startIndex = selection.index;
+    let additionalDeletions = 0;
+
+    const leaf = quill.getLeaf(startIndex);
+    let blotToDelete = leaf[0];
+    const offset = leaf[1];
+
     if (!blotToDelete) {
       return true;
     }
 
+    // To match macOS option-delete, search back through non-newline whitespace
+    if (context.event.altKey && platform === 'darwin') {
+      const value = blotToDelete.value();
+
+      // Sometimes the value returned here is an object, the target Blot details.
+      if (typeof value === 'string') {
+        const valueBeforeCursor = value.slice(0, offset);
+        if (/^[^\S\r\n]+$/.test(valueBeforeCursor)) {
+          additionalDeletions = offset;
+          startIndex -= offset;
+
+          [blotToDelete] = quill.getLeaf(startIndex);
+          if (!blotToDelete) {
+            return true;
+          }
+        }
+      }
+    }
+
     if (isMentionBlot(blotToDelete)) {
-      const contents = quill.getContents(0, selection.index - 1);
+      const contents = quill.getContents(0, startIndex - 1);
       const restartDelta = getDeltaToRestartMention(contents.ops);
 
+      if (additionalDeletions) {
+        restartDelta.delete(additionalDeletions);
+      }
+
       quill.updateContents(restartDelta);
-      quill.setSelection(selection.index, 0);
+      quill.setSelection(startIndex, 0);
       return false;
     }
 
     if (isEmojiBlot(blotToDelete)) {
-      const contents = quill.getContents(0, selection.index);
+      const contents = quill.getContents(0, startIndex);
       const restartDelta = getDeltaToRestartEmoji(contents.ops);
+
+      if (additionalDeletions) {
+        restartDelta.delete(additionalDeletions);
+      }
 
       quill.updateContents(restartDelta);
       return false;
@@ -567,7 +606,9 @@ export function CompositionInput(props: Props): React.ReactElement {
       // typing new text. This code removes the style tags that we don't want there, and
       // quill doesn't know about. It can result formatting on the resultant message that
       // doesn't match the composer.
-      const withStyles = quill.container.querySelectorAll('[style]');
+      const withStyles = quill.container.querySelectorAll(
+        `[style]:not(.${FUN_STATIC_EMOJI_CLASS})`
+      );
       for (const node of withStyles) {
         node.attributes.removeNamedItem('style');
       }
@@ -656,12 +697,12 @@ export function CompositionInput(props: Props): React.ReactElement {
   React.useEffect(() => {
     const emojiCompletion = emojiCompletionRef.current;
 
-    if (emojiCompletion == null || skinTone == null) {
+    if (emojiCompletion == null) {
       return;
     }
 
-    emojiCompletion.options.skinTone = skinTone;
-  }, [skinTone]);
+    emojiCompletion.options.emojiSkinToneDefault = emojiSkinToneDefault;
+  }, [emojiSkinToneDefault]);
 
   React.useEffect(
     () => () => {
@@ -732,7 +773,8 @@ export function CompositionInput(props: Props): React.ReactElement {
   const callbacksRef = React.useRef(unstaleCallbacks);
   callbacksRef.current = unstaleCallbacks;
 
-  const search = useEmojiSearch(i18n.getLocale());
+  const emojiSearch = useFunEmojiSearch();
+  const emojiLocalizer = useFunEmojiLocalizer();
 
   const reactQuill = React.useMemo(
     () => {
@@ -757,7 +799,9 @@ export function CompositionInput(props: Props): React.ReactElement {
                 ['br', matchBreak],
                 [Node.ELEMENT_NODE, matchNewline],
                 ['IMG', matchEmojiImage],
+                ['SPAN', matchEmojiImage],
                 ['IMG', matchEmojiBlot],
+                ['SPAN', matchEmojiBlot],
                 ['STRONG', matchBold],
                 ['EM', matchItalic],
                 ['SPAN', matchMonospace],
@@ -784,7 +828,13 @@ export function CompositionInput(props: Props): React.ReactElement {
                 },
                 Backspace: {
                   key: 'Backspace',
-                  handler: () => callbacksRef.current.onBackspace(),
+                  // We want to be called no matter the state of these keys
+                  altKey: null,
+                  ctrlKey: null,
+                  shiftKey: null,
+                  metaKey: null,
+                  handler: (_: RangeStatic, context: Context) =>
+                    callbacksRef.current.onBackspace(_, context),
                 },
               },
             },
@@ -792,12 +842,13 @@ export function CompositionInput(props: Props): React.ReactElement {
               setEmojiPickerElement: setEmojiCompletionElement,
               onPickEmoji: (emoji: EmojiPickDataType) =>
                 callbacksRef.current.onPickEmoji(emoji),
-              skinTone,
-              search,
-            },
+              emojiSkinToneDefault,
+              emojiSearch,
+              emojiLocalizer,
+            } satisfies EmojiCompletionOptions,
             autoSubstituteAsciiEmojis: {
-              skinTone,
-            },
+              emojiSkinToneDefault,
+            } satisfies AutoSubstituteAsciiEmojisOptions,
             formattingMenu: {
               i18n,
               isMenuEnabled: isFormattingEnabled,
@@ -900,7 +951,7 @@ export function CompositionInput(props: Props): React.ReactElement {
   const getClassName = getClassNamesFor(BASE_CLASS_NAME, moduleClassName);
 
   const onMouseDown = React.useCallback(
-    event => {
+    (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       try {
         // If the user is actually clicking the format menu, we drop this event
@@ -916,7 +967,7 @@ export function CompositionInput(props: Props): React.ReactElement {
         window.addEventListener('mouseup', onMouseUp);
       } catch (error) {
         log.error(
-          'CompositionInput.onMouseDown: Failed to check event target',
+          'onMouseDown: Failed to check event target',
           Errors.toLogFormat(error)
         );
       }

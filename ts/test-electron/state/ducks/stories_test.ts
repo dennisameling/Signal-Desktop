@@ -27,8 +27,21 @@ import { noopAction } from '../../../state/ducks/noop';
 import { reducer as rootReducer } from '../../../state/reducer';
 import { dropNull } from '../../../util/dropNull';
 import { MessageModel } from '../../../models/messages';
+import { DataWriter } from '../../../sql/Client';
 
 describe('both/state/ducks/stories', () => {
+  const ourAci = generateAci();
+  const deviceId = 2;
+
+  before(async () => {
+    await window.textsecure.storage.put('uuid_id', `${ourAci}.${deviceId}`);
+  });
+
+  after(async () => {
+    await DataWriter.removeAll();
+    await window.storage.fetch();
+  });
+
   const getEmptyRootState = () => ({
     ...rootReducer(undefined, noopAction()),
     stories: getEmptyState(),
@@ -969,6 +982,7 @@ describe('both/state/ducks/stories', () => {
           contentType: IMAGE_JPEG,
           digest: 'digest-1',
           size: 0,
+          isPermanentlyUndownloadable: false,
         },
         isCallLink: false,
       };

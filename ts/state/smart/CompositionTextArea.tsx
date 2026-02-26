@@ -10,6 +10,7 @@ import { useItemsActions } from '../ducks/items';
 import { getPreferredBadgeSelector } from '../selectors/badges';
 import { useComposerActions } from '../ducks/composer';
 import { getTextFormattingEnabled } from '../selectors/items';
+import { getConversationSelector } from '../selectors/conversations';
 
 export type SmartCompositionTextAreaProps = Pick<
   CompositionTextAreaProps,
@@ -23,6 +24,7 @@ export type SmartCompositionTextAreaProps = Pick<
   | 'theme'
   | 'maxLength'
   | 'whenToShowRemainingCount'
+  | 'emojiSkinToneDefault'
 >;
 
 export const SmartCompositionTextArea = memo(function SmartCompositionTextArea(
@@ -33,11 +35,12 @@ export const SmartCompositionTextArea = memo(function SmartCompositionTextArea(
   const ourConversationId = useSelector(getUserConversationId);
 
   const { onUseEmoji: onPickEmoji } = useEmojiActions();
-  const { onSetSkinTone } = useItemsActions();
+  const { setEmojiSkinToneDefault } = useItemsActions();
   const { onTextTooLong } = useComposerActions();
 
   const getPreferredBadge = useSelector(getPreferredBadgeSelector);
   const isFormattingEnabled = useSelector(getTextFormattingEnabled);
+  const conversationSelector = useSelector(getConversationSelector);
 
   return (
     <CompositionTextArea
@@ -47,10 +50,11 @@ export const SmartCompositionTextArea = memo(function SmartCompositionTextArea(
       isActive
       isFormattingEnabled={isFormattingEnabled}
       onPickEmoji={onPickEmoji}
-      onSetSkinTone={onSetSkinTone}
+      onEmojiSkinToneDefaultChange={setEmojiSkinToneDefault}
       onTextTooLong={onTextTooLong}
       platform={platform}
       ourConversationId={ourConversationId}
+      conversationSelector={conversationSelector}
     />
   );
 });

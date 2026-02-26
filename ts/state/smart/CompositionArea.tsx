@@ -26,18 +26,19 @@ import {
   getGroupAdminsSelector,
   getHasPanelOpen,
   getLastEditableMessageId,
+  getMessages,
   getSelectedMessageIds,
   isMissingRequiredProfileSharing,
 } from '../selectors/conversations';
 import { selectRecentEmojis } from '../selectors/emojis';
 import {
   getDefaultConversationColor,
-  getEmojiSkinTone,
+  getEmojiSkinToneDefault,
   getShowStickerPickerHint,
   getShowStickersIntroduction,
   getTextFormattingEnabled,
 } from '../selectors/items';
-import { getPropsForQuote } from '../selectors/message';
+import { canForward, getPropsForQuote } from '../selectors/message';
 import {
   getBlessedStickerPacks,
   getInstalledStickerPacks,
@@ -68,6 +69,7 @@ import { isShowingAnyModal } from '../selectors/globalModals';
 import { isConversationEverUnregistered } from '../../util/isConversationUnregistered';
 import { isDirectConversation } from '../../util/whatTypeOfConversation';
 import { isConversationMuted } from '../../util/isConversationMuted';
+import type { EmojiSkinTone } from '../../components/fun/data/emojis';
 
 function renderSmartCompositionRecording(
   recProps: SmartCompositionRecordingProps
@@ -92,9 +94,10 @@ export const SmartCompositionArea = memo(function SmartCompositionArea({
 
   const i18n = useSelector(getIntl);
   const theme = useSelector(getTheme);
-  const skinTone = useSelector(getEmojiSkinTone);
+  const emojiSkinToneDefault = useSelector(getEmojiSkinToneDefault);
   const recentEmojis = useSelector(selectRecentEmojis);
   const selectedMessageIds = useSelector(getSelectedMessageIds);
+  const messageLookup = useSelector(getMessages);
   const isFormattingEnabled = useSelector(getTextFormattingEnabled);
   const lastEditableMessageId = useSelector(getLastEditableMessageId);
   const receivedPacks = useSelector(getReceivedStickerPacks);
@@ -131,6 +134,16 @@ export const SmartCompositionArea = memo(function SmartCompositionArea({
     sendCounter,
     shouldSendHighQualityAttachments,
   } = composerState;
+
+  const areSelectedMessagesForwardable = useMemo(() => {
+    return selectedMessageIds?.every(messageId => {
+      const message = messageLookup[messageId];
+      if (!message) {
+        return false;
+      }
+      return canForward(message);
+    });
+  }, [messageLookup, selectedMessageIds]);
 
   const isActive = useMemo(() => {
     return !hasGlobalModalOpen && !hasPanelOpen;
@@ -192,9 +205,9 @@ export const SmartCompositionArea = memo(function SmartCompositionArea({
 
   const { putItem, removeItem } = useItemsActions();
 
-  const onSetSkinTone = useCallback(
-    (tone: number) => {
-      putItem('skinTone', tone);
+  const onEmojiSkinToneDefaultChange = useCallback(
+    (emojiSkinTone: EmojiSkinTone) => {
+      putItem('emojiSkinToneDefault', emojiSkinTone);
     },
     [putItem]
   );
@@ -239,8 +252,11 @@ export const SmartCompositionArea = memo(function SmartCompositionArea({
   const { cancelRecording, completeRecording, startRecording, errorRecording } =
     useAudioRecorderActions();
   const { onUseEmoji } = useEmojisActions();
-  const { showGV2MigrationDialog, toggleForwardMessagesModal } =
-    useGlobalModalActions();
+  const {
+    showGV2MigrationDialog,
+    toggleForwardMessagesModal,
+    toggleDraftGifMessageSendModal,
+  } = useGlobalModalActions();
   const { clearInstalledStickerPack } = useStickersActions();
   const { showToast } = useToastActions();
   const { onEditorStateChange } = useComposerActions();
@@ -302,7 +318,7 @@ export const SmartCompositionArea = memo(function SmartCompositionArea({
       setQuoteByMessageId={setQuoteByMessageId}
       // Emojis
       recentEmojis={recentEmojis}
-      skinTone={skinTone}
+      emojiSkinToneDefault={emojiSkinToneDefault}
       onPickEmoji={onUseEmoji}
       // Stickers
       receivedPacks={receivedPacks}
@@ -336,6 +352,7 @@ export const SmartCompositionArea = memo(function SmartCompositionArea({
       blockConversation={blockConversation}
       reportSpam={reportSpam}
       deleteConversation={deleteConversation}
+      sharedGroupNames={conversation.sharedGroupNames}
       // Signal Conversation
       isSignalConversation={isSignalConversation(conversation)}
       isMuted={isConversationMuted(conversation)}
@@ -360,10 +377,13 @@ export const SmartCompositionArea = memo(function SmartCompositionArea({
       sortedGroupMembers={conversation.sortedGroupMembers ?? null}
       // Select Mode
       selectedMessageIds={selectedMessageIds}
+      areSelectedMessagesForwardable={areSelectedMessagesForwardable}
       toggleSelectMode={toggleSelectMode}
       toggleForwardMessagesModal={toggleForwardMessagesModal}
+      // DraftGifMessageSendModal
+      toggleDraftGifMessageSendModal={toggleDraftGifMessageSendModal}
       // Dispatch
-      onSetSkinTone={onSetSkinTone}
+      onEmojiSkinToneDefaultChange={onEmojiSkinToneDefaultChange}
       clearShowIntroduction={clearShowIntroduction}
       clearInstalledStickerPack={clearInstalledStickerPack}
       clearShowPickerHint={clearShowPickerHint}

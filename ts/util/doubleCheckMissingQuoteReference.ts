@@ -7,13 +7,16 @@ import type { MessageModel } from '../models/messages';
 import { hydrateStoryContext } from './hydrateStoryContext';
 import { getMessageIdForLogging } from './idForLogging';
 
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import {
   isQuoteAMatch,
   shouldTryToCopyFromQuotedMessage,
 } from '../messages/helpers';
 import { copyQuoteContentFromOriginal } from '../messages/copyQuote';
 import { queueUpdateMessage } from './messageBatcher';
+import { drop } from './drop';
+
+const log = createLogger('doubleCheckMissingQuoteReference');
 
 export async function doubleCheckMissingQuoteReference(
   message: MessageModel
@@ -22,9 +25,7 @@ export async function doubleCheckMissingQuoteReference(
 
   const storyId = message.get('storyId');
   if (storyId) {
-    log.warn(
-      `doubleCheckMissingQuoteReference/${logId}: missing story reference`
-    );
+    log.warn(`${logId}: missing story reference`);
 
     const storyMessage = await getMessageById(storyId);
     if (!storyMessage) {
@@ -42,7 +43,7 @@ export async function doubleCheckMissingQuoteReference(
 
   const quote = message.get('quote');
   if (!quote) {
-    log.warn(`doubleCheckMissingQuoteReference/${logId}: Missing quote!`);
+    log.warn(`${logId}: Missing quote!`);
     return;
   }
 
@@ -65,9 +66,7 @@ export async function doubleCheckMissingQuoteReference(
     );
 
     if (!matchingMessage) {
-      log.info(
-        `doubleCheckMissingQuoteReference/${logId}: No match for ${sentAt}.`
-      );
+      log.info(`${logId}: No match for ${sentAt}.`);
       return;
     }
 
@@ -78,9 +77,7 @@ export async function doubleCheckMissingQuoteReference(
       },
     });
 
-    log.info(
-      `doubleCheckMissingQuoteReference/${logId}: Found match for ${sentAt}, updating.`
-    );
+    log.info(`${logId}: Found match for ${sentAt}, updating.`);
 
     await copyQuoteContentFromOriginal(matchingMessage, quote);
     message.set({
@@ -89,6 +86,6 @@ export async function doubleCheckMissingQuoteReference(
         referencedMessageNotFound: false,
       },
     });
-    queueUpdateMessage(message.attributes);
+    drop(queueUpdateMessage(message.attributes));
   }
 }

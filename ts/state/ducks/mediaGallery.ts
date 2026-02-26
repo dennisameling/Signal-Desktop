@@ -5,7 +5,7 @@ import { orderBy } from 'lodash';
 import type { ThunkAction } from 'redux-thunk';
 import type { ReadonlyDeep } from 'type-fest';
 
-import * as log from '../../logging/log';
+import { createLogger } from '../../logging/log';
 import * as Errors from '../../types/errors';
 import { DataReader } from '../../sql/Client';
 import {
@@ -34,6 +34,9 @@ import type { MediaItemType } from '../../types/MediaItem';
 import type { StateType as RootStateType } from '../reducer';
 import type { MessageAttributesType } from '../../model-types';
 import { MessageModel } from '../../models/messages';
+import { isTapToView } from '../selectors/message';
+
+const log = createLogger('mediaGallery');
 
 type MediaItemMessage = ReadonlyDeep<{
   attachments: Array<AttachmentType>;
@@ -148,6 +151,11 @@ function _cleanVisualAttachments(
     .flatMap(message => {
       let index = 0;
 
+      // Also checked via the DB query
+      if (isTapToView(message.attributes)) {
+        return [];
+      }
+
       return (message.get('attachments') || []).map(
         (attachment: AttachmentType): MediaType | undefined => {
           if (
@@ -186,6 +194,9 @@ function _cleanFileAttachments(
 ): ReadonlyArray<MediaItemType> {
   return rawDocuments
     .map(message => {
+      if (isTapToView(message.attributes)) {
+        return;
+      }
       const attachments = message.get('attachments') || [];
       const attachment = attachments[0];
       if (!attachment) {

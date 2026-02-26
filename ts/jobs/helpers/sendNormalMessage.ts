@@ -38,6 +38,7 @@ import type {
   ConversationQueueJobBundle,
   NormalMessageSendJobData,
 } from '../conversationJobQueue';
+import type { QuotedMessageType } from '../../model-types.d';
 
 import { handleMultipleSendErrors } from './handleMultipleSendErrors';
 import { ourProfileKeyService } from '../../services/ourProfileKey';
@@ -440,14 +441,18 @@ export async function sendNormalMessage(
 
     await messageSendPromise;
 
-    const didFullySend =
-      !messageSendErrors.length ||
-      didSendToEveryone({
-        log,
-        message,
-        targetTimestamp: editedMessageTimestamp || messageTimestamp,
-      });
+    const didFullySend = didSendToEveryone({
+      isSendingInGroup: conversation.get('type') === 'group',
+      log,
+      message,
+      targetTimestamp: editedMessageTimestamp || messageTimestamp,
+    });
     if (!didFullySend) {
+      if (!messageSendErrors.length) {
+        log.warn(
+          'Did not send to everyone, but no errors returned - maybe all errors were UnregisteredUserErrors?'
+        );
+      }
       throw new Error('message did not fully send');
     }
   } catch (thrownError: unknown) {
@@ -525,7 +530,7 @@ function getMessageRecipients({
         const serviceId = recipient.getServiceId();
         if (!serviceId) {
           log.error(
-            `sendNormalMessage/getMessageRecipients: Untrusted conversation ${recipient.idForLogging()} missing serviceId.`
+            `getMessageRecipients: Untrusted conversation ${recipient.idForLogging()} missing serviceId.`
           );
           return;
         }
@@ -840,10 +845,43 @@ async function uploadMessageQuote({
     prop: 'quote',
     targetTimestamp,
   });
-  const loadedQuote = await loadQuoteData(startingQuote);
+  let loadedQuote: QuotedMessageType | null;
 
-  if (!loadedQuote) {
-    return undefined;
+  // We are resilient to this because it's easy for quote thumbnails to be deleted out
+  // from under us, since the attachment is shared with the original message. Delete for
+  // Everyone on the original message, and the shared attachment will be deleted.
+  try {
+    loadedQuote = await loadQuoteData(startingQuote);
+    if (!loadedQuote) {
+      return undefined;
+    }
+  } catch (error) {
+    log.error(
+      'uplodateMessageQuote: Failed to load quote thumbnail',
+      Errors.toLogFormat(error)
+    );
+    if (!startingQuote) {
+      return undefined;
+    }
+
+    return {
+      isGiftBadge: startingQuote.isGiftBadge,
+      id: startingQuote.id ?? undefined,
+      authorAci: startingQuote.authorAci
+        ? normalizeAci(
+            startingQuote.authorAci,
+            'sendNormalMessage.quote.authorAci'
+          )
+        : undefined,
+      text: startingQuote.text,
+      bodyRanges: startingQuote.bodyRanges,
+      attachments: (startingQuote.attachments || []).map(attachment => {
+        return {
+          contentType: attachment.contentType,
+          fileName: attachment.fileName,
+        };
+      }),
+    };
   }
 
   const attachmentsAfterThumbnailUpload = await uploadQueue.addAll(
@@ -1171,10 +1209,12 @@ async function markMessageFailed({
 }
 
 function didSendToEveryone({
+  isSendingInGroup,
   log,
   message,
   targetTimestamp,
 }: {
+  isSendingInGroup: boolean;
   log: LoggerType;
   message: MessageModel;
   targetTimestamp: number;
@@ -1186,7 +1226,27 @@ function didSendToEveryone({
       prop: 'sendStateByConversationId',
       targetTimestamp,
     }) || {};
-  return Object.values(sendStateByConversationId).every(sendState =>
-    isSent(sendState.status)
+  const ourConversationId =
+    window.ConversationController.getOurConversationIdOrThrow();
+  const areWePrimaryDevice = window.ConversationController.areWePrimaryDevice();
+
+  return Object.entries(sendStateByConversationId).every(
+    ([conversationId, sendState]) => {
+      const conversation = window.ConversationController.get(conversationId);
+      if (isSendingInGroup) {
+        if (!conversation) {
+          return true;
+        }
+        if (conversation.isUnregistered()) {
+          return true;
+        }
+      }
+
+      if (conversationId === ourConversationId && areWePrimaryDevice) {
+        return true;
+      }
+
+      return isSent(sendState.status);
+    }
   );
 }

@@ -8,13 +8,16 @@ import { notificationService } from './notifications';
 import { SeenStatus } from '../MessageSeenStatus';
 import { queueUpdateMessage } from '../util/messageBatcher';
 import * as Errors from '../types/errors';
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import { isValidTapToView } from '../util/isValidTapToView';
 import { getMessageIdForLogging } from '../util/idForLogging';
 import { eraseMessageContents } from '../util/cleanup';
 import { getSource, getSourceServiceId } from '../messages/helpers';
 import { isAciString } from '../util/isAciString';
 import { viewOnceOpenJobQueue } from '../jobs/viewOnceOpenJobQueue';
+import { drop } from '../util/drop';
+
+const log = createLogger('MessageUpdater');
 
 function markReadOrViewed(
   messageAttrs: Readonly<MessageAttributesType>,
@@ -44,7 +47,7 @@ function markReadOrViewed(
   notificationService.removeBy({ messageId });
 
   if (!skipSave) {
-    queueUpdateMessage(nextMessageAttributes);
+    drop(queueUpdateMessage(nextMessageAttributes));
   }
 
   return nextMessageAttributes;
@@ -72,17 +75,16 @@ export async function markViewOnceMessageViewed(
 ): Promise<void> {
   const { fromSync } = options || {};
 
-  if (!isValidTapToView(message.attributes)) {
-    log.warn(
-      `markViewOnceMessageViewed: Message ${getMessageIdForLogging(message.attributes)} is not a valid tap to view message!`
-    );
-    return;
-  }
   if (message.attributes.isErased) {
     log.warn(
       `markViewOnceMessageViewed: Message ${getMessageIdForLogging(message.attributes)} is already erased!`
     );
     return;
+  }
+  if (!isValidTapToView(message.attributes)) {
+    log.warn(
+      `markViewOnceMessageViewed: Message ${getMessageIdForLogging(message.attributes)} is not a valid tap to view message!`
+    );
   }
 
   if (message.get('readStatus') !== ReadStatus.Viewed) {

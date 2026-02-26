@@ -53,9 +53,11 @@ $color-white-alpha-20: rgba($color-white, 0.2);
 $color-white-alpha-30: rgba($color-white, 0.3);
 $color-white-alpha-40: rgba($color-white, 0.4);
 $color-white-alpha-50: rgba($color-white, 0.5);
+$color-white-alpha-55: rgba($color-white, 0.55);
 $color-white-alpha-60: rgba($color-white, 0.6);
 $color-white-alpha-70: rgba($color-white, 0.7);
 $color-white-alpha-80: rgba($color-white, 0.8);
+$color-white-alpha-85: rgba($color-white, 0.85);
 $color-white-alpha-90: rgba($color-white, 0.9);
 
 $color-black-alpha-05: rgba($color-black, 0.05);
@@ -74,6 +76,7 @@ $color-black-alpha-50: rgba($color-black, 0.5);
 $color-black-alpha-60: rgba($color-black, 0.6);
 $color-black-alpha-70: rgba($color-black, 0.7);
 $color-black-alpha-80: rgba($color-black, 0.8);
+$color-black-alpha-85: rgba($color-black, 0.85);
 $color-black-alpha-90: rgba($color-black, 0.9);
 
 $color-transparent: rgba(0, 0, 0, 0);
@@ -103,6 +106,7 @@ $color-taupe: #8f616a;
 $color-steel: #71717f;
 $color-bright-gray: #ebeae8;
 $color-borage-blue: #506ecd;
+$color-orange: #ff9500;
 
 // Gradient colors
 
@@ -272,11 +276,12 @@ $color-selected-message-background-dark: $color-gray-65;
 $header-height: 52px;
 
 $ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+$ease-out-local-preview: cubic-bezier(0.17, 0.17, 0, 1);
 
 $calling-background-color: $color-gray-90;
 
 // Maintain aspect ratio 960x720 with $local-preview-height
-$calling-local-preview-width: 106.67px;
+$calling-local-preview-normal-width: 106.67px;
 
 // General
 
@@ -315,3 +320,6 @@ $NavTabs__ItemButton__blockPadding: 10px;
 $CallControls__height: 80px;
 $CallControls__max-width: 640px;
 $CallControls__initial-width: 480px;
+
+$scrollbar_height: 9px;
+$scrollbar_width: 9px;

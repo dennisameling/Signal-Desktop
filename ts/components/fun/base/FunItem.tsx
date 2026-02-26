@@ -1,77 +1,148 @@
 // Copyright 2025 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { MouseEvent, ReactNode } from 'react';
-import React from 'react';
-import { FunImage } from './FunImage';
+import type {
+  ForwardedRef,
+  ReactNode,
+  DOMAttributes,
+  PointerEvent,
+} from 'react';
+import React, { forwardRef, useCallback, useEffect, useMemo } from 'react';
+import { mergeProps } from '@react-aria/utils';
+import { strictAssert } from '../../../util/assert';
 
 /**
  * Button
  */
 
-export type FunItemButtonProps = Readonly<{
-  'aria-label': string;
-  'aria-describedby'?: string;
-  tabIndex: number;
-  onClick: (event: MouseEvent) => void;
-  children: ReactNode;
-}>;
+export type FunItemButtonLongPressProps = Readonly<
+  | {
+      longPressAccessibilityDescription?: never;
+      onLongPress?: never;
+    }
+  | {
+      longPressAccessibilityDescription: string;
+      onLongPress: (event: LongPressEvent) => void;
+    }
+>;
 
-export function FunItemButton(props: FunItemButtonProps): JSX.Element {
+export type FunItemButtonProps = Readonly<
+  {
+    'aria-label': string;
+    excludeFromTabOrder: boolean;
+    onClick: (event: PointerEvent) => void;
+    onContextMenu?: (event: PointerEvent) => void;
+    children: ReactNode;
+  } & FunItemButtonLongPressProps
+>;
+
+export const FunItemButton = forwardRef(function FunItemButton(
+  props: FunItemButtonProps,
+  ref: ForwardedRef<HTMLButtonElement>
+): JSX.Element {
+  const {
+    'aria-label': ariaLabel,
+    excludeFromTabOrder,
+    onClick,
+    onContextMenu,
+    children,
+    longPressAccessibilityDescription,
+    onLongPress,
+    ...rest
+  } = props;
+
+  const longPressProps = useLongPress(onLongPress ?? null);
+
+  const handleClick = useCallback(
+    (event: PointerEvent) => {
+      if (!event.defaultPrevented) {
+        onClick(event);
+      }
+    },
+    [onClick]
+  );
+
   return (
+    // eslint-disable-next-line jsx-a11y/role-supports-aria-props
     <button
+      ref={ref}
       type="button"
       className="FunItem__Button"
-      aria-label={props['aria-label']}
-      aria-describedby={props['aria-describedby']}
-      onClick={props.onClick}
-      tabIndex={props.tabIndex}
+      aria-label={ariaLabel}
+      aria-description={longPressAccessibilityDescription}
+      tabIndex={excludeFromTabOrder ? -1 : undefined}
+      {...mergeProps(
+        longPressProps,
+        {
+          onClick: handleClick,
+          onContextMenu,
+        },
+        rest
+      )}
     >
-      {props.children}
+      {children}
     </button>
   );
-}
+});
 
-/**
- * Sticker
- */
-
-export type FunItemStickerProps = Readonly<{
-  src: string;
+type LongPressEvent = Readonly<{
+  pointerType: PointerEvent['pointerType'];
 }>;
 
-export function FunItemSticker(props: FunItemStickerProps): JSX.Element {
-  return (
-    <FunImage
-      role="presentation"
-      className="FunItem__Sticker"
-      src={props.src}
-      width={68}
-      height={68}
-      alt=""
-    />
-  );
-}
+function useLongPress(
+  onLongPress: ((event: LongPressEvent) => void) | null
+): DOMAttributes<Element> {
+  const { cleanup, props } = useMemo(() => {
+    if (onLongPress == null) {
+      return { props: {} };
+    }
 
-/**
- * Gif
- */
+    let timer: ReturnType<typeof setTimeout>;
+    let isLongPressed = false;
+    let lastLongPress: number | null = null;
 
-export type FunItemGifProps = Readonly<{
-  src: string;
-  width: number;
-  height: number;
-}>;
+    function reset() {
+      clearTimeout(timer);
+      isLongPressed = false;
+    }
 
-export function FunItemGif(props: FunItemGifProps): JSX.Element {
-  return (
-    <FunImage
-      role="presentation"
-      className="FunItem__Gif"
-      src={props.src}
-      width={props.width}
-      height={props.height}
-      // For presentation only
-      alt=""
-    />
-  );
+    function handleCancel(event: PointerEvent) {
+      if (isLongPressed) {
+        lastLongPress = event.timeStamp;
+      }
+      reset();
+    }
+
+    function handleStart(event: PointerEvent) {
+      const press: LongPressEvent = { pointerType: event.pointerType };
+      reset();
+      timer = setTimeout(() => {
+        isLongPressed = true;
+        strictAssert(onLongPress != null, 'Missing callback');
+        onLongPress(press);
+      }, 500);
+    }
+
+    function handleClick(event: PointerEvent) {
+      if (event.timeStamp === lastLongPress) {
+        event.preventDefault();
+      }
+    }
+
+    return {
+      cleanup: reset,
+      props: {
+        onPointerDown: handleStart,
+        onPointerUp: handleCancel,
+        onPointerCancel: handleCancel,
+        onPointerLeave: handleCancel,
+        onClick: handleClick,
+      } satisfies DOMAttributes<Element>,
+    };
+  }, [onLongPress]);
+
+  useEffect(() => {
+    return cleanup;
+  }, [cleanup]);
+
+  return props;
 }

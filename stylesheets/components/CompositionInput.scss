@@ -24,11 +24,13 @@
         inset-inline: 0;
         font-style: normal;
       }
-
-      .emoji-blot {
-        width: 20px;
-        height: 20px;
-        vertical-align: text-bottom;
+      &::-webkit-scrollbar-thumb {
+        @include mixins.light-theme {
+          border-color: variables.$color-gray-05;
+        }
+        @include mixins.dark-theme {
+          border-color: variables.$color-gray-75;
+        }
       }
     }
   }
@@ -93,10 +95,10 @@
 
       &::-webkit-scrollbar-thumb {
         @include mixins.light-theme {
-          border: 2px solid variables.$color-gray-05;
+          border-color: variables.$color-gray-05;
         }
         @include mixins.dark-theme {
-          border: 2px solid variables.$color-gray-75;
+          border-color: variables.$color-gray-75;
         }
       }
 
@@ -111,6 +113,11 @@
 
         .DraftEditor-root {
           height: $largeHeightContentBox;
+        }
+
+        .ql-editor {
+          margin-inline-end: calc(-1 * variables.$scrollbar_width);
+          padding-inline-end: variables.$scrollbar_width;
         }
       }
 
@@ -500,8 +507,8 @@ button.CompositionInput__link-preview__close-button {
   -webkit-mask: none;
   @include mixins.rounded-corners;
   align-items: center;
-  backdrop-filter: blur(32px);
-  background: variables.$color-white-alpha-80;
+  backdrop-filter: blur(12px);
+  background: rgba(variables.$color-gray-05, 0.8);
   display: flex;
   height: 20px;
   justify-content: center;
@@ -509,19 +516,25 @@ button.CompositionInput__link-preview__close-button {
   top: 6px;
   width: 20px;
 
+  @include mixins.dark-theme {
+    background-color: rgba(variables.$color-gray-75, 0.8);
+    -webkit-mask: none;
+  }
+
   &::before {
     @include mixins.color-svg(
       '../images/icons/v3/x/x.svg',
-      variables.$color-gray-75
+      variables.$color-black-alpha-50
     );
+
+    @include mixins.dark-theme {
+      background-color: variables.$color-white-alpha-55;
+    }
+
     & {
       content: '';
       height: 16px;
       width: 16px;
-    }
-
-    @include mixins.dark-theme {
-      background-color: variables.$color-gray-05;
     }
   }
 }

@@ -1,22 +1,24 @@
 // Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Buffer } from 'buffer';
 import Long from 'long';
-import { Aci, HKDF } from '@signalapp/libsignal-client';
+import { sample } from 'lodash';
+import { Aci, Pni, hkdf } from '@signalapp/libsignal-client';
+import type { PublicKey, PrivateKey } from '@signalapp/libsignal-client';
 import { AccountEntropyPool } from '@signalapp/libsignal-client/dist/AccountKeys';
 
 import * as Bytes from './Bytes';
 import { Crypto } from './context/Crypto';
 import { calculateAgreement, generateKeyPair } from './Curve';
 import { HashType, CipherType } from './types/Crypto';
+import { AVATAR_COLOR_COUNT, AvatarColors } from './types/Colors';
 import { ProfileDecryptError } from './types/errors';
 import { getBytesSubarray } from './util/uuidToBytes';
 import { logPadSize } from './util/logPadding';
 import { Environment, getEnvironment } from './environment';
 import { toWebSafeBase64 } from './util/webSafeBase64';
 
-import type { AciString } from './types/ServiceId';
+import type { AciString, PniString } from './types/ServiceId';
 
 export { HashType, CipherType };
 
@@ -55,14 +57,12 @@ export function deriveSecrets(
   salt: Uint8Array,
   info: Uint8Array
 ): [Uint8Array, Uint8Array, Uint8Array] {
-  const hkdf = HKDF.new(3);
-  const output = hkdf.deriveSecrets(
-    3 * 32,
-    Buffer.from(input),
-    Buffer.from(info),
-    Buffer.from(salt)
-  );
-  return [output.slice(0, 32), output.slice(32, 64), output.slice(64, 96)];
+  const output = hkdf(3 * 32, input, info, salt);
+  return [
+    output.subarray(0, 32),
+    output.subarray(32, 64),
+    output.subarray(64, 96),
+  ];
 }
 
 export function deriveMasterKeyFromGroupV1(groupV1Id: Uint8Array): Uint8Array {
@@ -101,20 +101,20 @@ export function computeHash(data: Uint8Array): string {
 // High-level Operations
 
 export type EncryptedDeviceName = {
-  ephemeralPublic: Uint8Array;
+  ephemeralPublic: PublicKey;
   syntheticIv: Uint8Array;
   ciphertext: Uint8Array;
 };
 
 export function encryptDeviceName(
   deviceName: string,
-  identityPublic: Uint8Array
+  identityPublic: PublicKey
 ): EncryptedDeviceName {
   const plaintext = Bytes.fromString(deviceName);
   const ephemeralKeyPair = generateKeyPair();
   const masterSecret = calculateAgreement(
     identityPublic,
-    ephemeralKeyPair.privKey
+    ephemeralKeyPair.privateKey
   );
 
   const key1 = hmacSha256(masterSecret, Bytes.fromString('auth'));
@@ -127,7 +127,7 @@ export function encryptDeviceName(
   const ciphertext = encryptAesCtr(cipherKey, plaintext, counter);
 
   return {
-    ephemeralPublic: ephemeralKeyPair.pubKey,
+    ephemeralPublic: ephemeralKeyPair.publicKey,
     syntheticIv,
     ciphertext,
   };
@@ -135,7 +135,7 @@ export function encryptDeviceName(
 
 export function decryptDeviceName(
   { ephemeralPublic, syntheticIv, ciphertext }: EncryptedDeviceName,
-  identityPrivate: Uint8Array
+  identityPrivate: PrivateKey
 ): string {
   const masterSecret = calculateAgreement(ephemeralPublic, identityPrivate);
 
@@ -190,15 +190,14 @@ export function deriveStorageItemKey({
     return hmacSha256(storageServiceKey, Bytes.fromString(`Item_${itemID}`));
   }
 
-  const hkdf = HKDF.new(3);
-  return hkdf.deriveSecrets(
+  return hkdf(
     STORAGE_SERVICE_ITEM_KEY_LEN,
-    Buffer.from(recordIkm),
-    Buffer.concat([
-      Buffer.from(STORAGE_SERVICE_ITEM_KEY_INFO_PREFIX),
-      Buffer.from(key),
+    recordIkm,
+    Bytes.concatenate([
+      Bytes.fromString(STORAGE_SERVICE_ITEM_KEY_INFO_PREFIX),
+      key,
     ]),
-    Buffer.alloc(0)
+    new Uint8Array(0)
   );
 }
 
@@ -427,7 +426,7 @@ export function trimForDisplay(padded: Uint8Array): Uint8Array {
       break;
     }
   }
-  return padded.slice(0, paddingEnd);
+  return padded.subarray(0, paddingEnd);
 }
 
 function verifyDigest(data: Uint8Array, theirDigest: Uint8Array): void {
@@ -454,13 +453,16 @@ export function decryptAttachmentV1(
     throw new Error('Got invalid length attachment');
   }
 
-  const aesKey = keys.slice(0, 32);
-  const macKey = keys.slice(32, 64);
+  const aesKey = keys.subarray(0, 32);
+  const macKey = keys.subarray(32, 64);
 
-  const iv = encryptedBin.slice(0, 16);
-  const ciphertext = encryptedBin.slice(16, encryptedBin.byteLength - 32);
-  const ivAndCiphertext = encryptedBin.slice(0, encryptedBin.byteLength - 32);
-  const mac = encryptedBin.slice(
+  const iv = encryptedBin.subarray(0, 16);
+  const ciphertext = encryptedBin.subarray(16, encryptedBin.byteLength - 32);
+  const ivAndCiphertext = encryptedBin.subarray(
+    0,
+    encryptedBin.byteLength - 32
+  );
+  const mac = encryptedBin.subarray(
     encryptedBin.byteLength - 32,
     encryptedBin.byteLength
   );
@@ -499,8 +501,8 @@ export function encryptAttachment({
   }
 
   const iv = dangerousTestOnlyIv || getRandomBytes(16);
-  const aesKey = keys.slice(0, 32);
-  const macKey = keys.slice(32, 64);
+  const aesKey = keys.subarray(0, 32);
+  const macKey = keys.subarray(32, 64);
 
   const ciphertext = encryptAes256CbcPkcsPadding(aesKey, plaintext, iv);
 
@@ -539,7 +541,7 @@ export function padAndEncryptAttachment({
     // We generate the plaintext hash here for forwards-compatibility with streaming
     // attachment encryption, which may be the only place that the whole attachment flows
     // through memory
-    plaintextHash: Buffer.from(sha256(plaintext)).toString('hex'),
+    plaintextHash: Bytes.toHex(sha256(plaintext)),
   };
 }
 
@@ -559,8 +561,8 @@ export function decryptProfile(data: Uint8Array, key: Uint8Array): Uint8Array {
   if (data.byteLength < 12 + 16 + 1) {
     throw new Error(`Got too short input: ${data.byteLength}`);
   }
-  const iv = data.slice(0, PROFILE_IV_LENGTH);
-  const ciphertext = data.slice(PROFILE_IV_LENGTH, data.byteLength);
+  const iv = data.subarray(0, PROFILE_IV_LENGTH);
+  const ciphertext = data.subarray(PROFILE_IV_LENGTH, data.byteLength);
   if (key.byteLength !== PROFILE_KEY_LENGTH) {
     throw new Error('Got invalid length profile key');
   }
@@ -619,8 +621,8 @@ export function decryptProfileName(
   const foundFamilyName = familyEnd > givenEnd + 1;
 
   return {
-    given: padded.slice(0, givenEnd),
-    family: foundFamilyName ? padded.slice(givenEnd + 1, familyEnd) : null,
+    given: padded.subarray(0, givenEnd),
+    family: foundFamilyName ? padded.subarray(givenEnd + 1, familyEnd) : null,
   };
 }
 
@@ -666,4 +668,52 @@ export function constantTimeEqual(
   right: Uint8Array
 ): boolean {
   return crypto.constantTimeEqual(left, right);
+}
+
+export function getIdentifierHash({
+  aci,
+  e164,
+  pni,
+  groupId,
+}: {
+  aci: AciString | undefined;
+  e164: string | undefined;
+  pni: PniString | undefined;
+  groupId: string | undefined;
+}): number | null {
+  let identifier: Uint8Array;
+  if (aci != null) {
+    identifier = Aci.parseFromServiceIdString(aci).getServiceIdBinary();
+  } else if (e164 != null) {
+    identifier = Bytes.fromString(e164);
+  } else if (pni != null) {
+    identifier = Pni.parseFromServiceIdString(pni).getServiceIdBinary();
+  } else if (groupId != null) {
+    identifier = Bytes.fromBase64(groupId);
+  } else {
+    return null;
+  }
+
+  const digest = hash(HashType.size256, identifier);
+  return digest[0];
+}
+
+export function generateAvatarColor({
+  aci,
+  e164,
+  pni,
+  groupId,
+}: {
+  aci: AciString | undefined;
+  e164: string | undefined;
+  pni: PniString | undefined;
+  groupId: string | undefined;
+}): string {
+  const hashValue = getIdentifierHash({ aci, e164, pni, groupId });
+
+  if (hashValue == null) {
+    return sample(AvatarColors) || AvatarColors[0];
+  }
+
+  return AvatarColors[hashValue % AVATAR_COLOR_COUNT];
 }

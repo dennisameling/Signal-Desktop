@@ -3,7 +3,7 @@
 
 import PQueue from 'p-queue';
 import { isNumber, omit, orderBy } from 'lodash';
-import type { KyberPreKeyRecord } from '@signalapp/libsignal-client';
+import { PublicKey, type KyberPreKeyRecord } from '@signalapp/libsignal-client';
 import {
   AccountEntropyPool,
   BackupKey,
@@ -48,6 +48,7 @@ import {
 import type { AciString, PniString, ServiceIdString } from '../types/ServiceId';
 import {
   isUntaggedPniString,
+  normalizePni,
   ServiceIdKind,
   toTaggedPni,
 } from '../types/ServiceId';
@@ -60,12 +61,14 @@ import { getRegionCodeForNumber } from '../util/libphonenumberUtil';
 import { isNotNil } from '../util/isNotNil';
 import { missingCaseError } from '../util/missingCaseError';
 import { SignalService as Proto } from '../protobuf';
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import type { StorageAccessType } from '../types/Storage';
 import { getRelativePath, createName } from '../util/attachmentPath';
-import { isBackupEnabled } from '../util/isBackupEnabled';
 import { isLinkAndSyncEnabled } from '../util/isLinkAndSyncEnabled';
 import { getMessageQueueTime } from '../util/getMessageQueueTime';
+import { canAttemptRemoteBackupDownload } from '../util/isBackupEnabled';
+
+const log = createLogger('AccountManager');
 
 type StorageKeyByServiceIdKind = {
   [kind in ServiceIdKind]: keyof StorageAccessType;
@@ -192,10 +195,10 @@ function getNextKeyId(
 
 function kyberPreKeyToUploadSignedPreKey(
   record: KyberPreKeyRecord
-): UploadSignedPreKeyType {
+): UploadKyberPreKeyType {
   return {
     keyId: record.id(),
-    publicKey: record.publicKey().serialize(),
+    publicKey: record.publicKey(),
     signature: record.signature(),
   };
 }
@@ -221,7 +224,7 @@ function signedPreKeyToUploadSignedPreKey({
 }: CompatSignedPreKeyType): UploadSignedPreKeyType {
   return {
     keyId,
-    publicKey: keyPair.pubKey,
+    publicKey: keyPair.publicKey,
     signature,
   };
 }
@@ -256,10 +259,10 @@ export default class AccountManager extends EventTarget {
     if (!name) {
       return undefined;
     }
-    const encrypted = encryptDeviceName(name, identityKey.pubKey);
+    const encrypted = encryptDeviceName(name, identityKey.publicKey);
 
     const proto = new Proto.DeviceName();
-    proto.ephemeralPublic = encrypted.ephemeralPublic;
+    proto.ephemeralPublic = encrypted.ephemeralPublic.serialize();
     proto.syntheticIv = encrypted.syntheticIv;
     proto.ciphertext = encrypted.ciphertext;
 
@@ -286,11 +289,11 @@ export default class AccountManager extends EventTarget {
 
     const name = decryptDeviceName(
       {
-        ephemeralPublic: proto.ephemeralPublic,
+        ephemeralPublic: PublicKey.deserialize(proto.ephemeralPublic),
         syntheticIv: proto.syntheticIv,
         ciphertext: proto.ciphertext,
       },
-      identityKey.privKey
+      identityKey.privateKey
     );
 
     return name;
@@ -414,7 +417,7 @@ export default class AccountManager extends EventTarget {
 
     return toSave.map(key => ({
       keyId: key.keyId,
-      publicKey: key.keyPair.pubKey,
+      publicKey: key.keyPair.publicKey,
     }));
   }
 
@@ -453,7 +456,7 @@ export default class AccountManager extends EventTarget {
       });
       toUpload.push({
         keyId,
-        publicKey: record.publicKey().serialize(),
+        publicKey: record.publicKey(),
         signature: record.signature(),
       });
     }
@@ -512,7 +515,7 @@ export default class AccountManager extends EventTarget {
       let pqPreKeys: Array<UploadKyberPreKeyType> | undefined;
       if (
         kyberPreKeyCount < PRE_KEY_MINIMUM ||
-        preKeyCount > PRE_KEY_MAX_COUNT ||
+        kyberPreKeyCount > PRE_KEY_MAX_COUNT ||
         forceUpdate
       ) {
         log.info(
@@ -556,7 +559,7 @@ export default class AccountManager extends EventTarget {
       log.info(`${logId}: Uploading with ${keySummary.join(', ')}`);
 
       const toUpload = {
-        identityKey: identityKey.pubKey,
+        identityKey: identityKey.publicKey,
         preKeys,
         pqPreKeys,
         pqLastResortPreKey,
@@ -698,7 +701,7 @@ export default class AccountManager extends EventTarget {
   async #maybeUpdateLastResortKyberKey(
     serviceIdKind: ServiceIdKind,
     forceUpdate = false
-  ): Promise<UploadSignedPreKeyType | undefined> {
+  ): Promise<UploadKyberPreKeyType | undefined> {
     const ourServiceId =
       window.textsecure.storage.user.getCheckedServiceId(serviceIdKind);
     const identityKey = this.#getIdentityKeyOrThrow(ourServiceId);
@@ -1065,17 +1068,19 @@ export default class AccountManager extends EventTarget {
         pniRegistrationId,
         accessKey: options.accessKey,
         sessionId: options.sessionId,
-        aciPublicKey: aciKeyPair.pubKey,
-        pniPublicKey: pniKeyPair.pubKey,
+        aciPublicKey: aciKeyPair.publicKey,
+        pniPublicKey: pniKeyPair.publicKey,
         ...keysToUpload,
       });
 
-      ourAci = normalizeAci(response.uuid, 'createAccount');
-      strictAssert(
-        isUntaggedPniString(response.pni),
-        'Response pni must be untagged'
+      ourAci = normalizeAci(
+        response.aci.getServiceIdString(),
+        '#doCreateAccount'
       );
-      ourPni = toTaggedPni(response.pni);
+      ourPni = normalizePni(
+        response.pni.getServiceIdString(),
+        '#doCreateAccount'
+      );
       deviceId = 1;
     } else if (options.type === AccountType.Linked) {
       const encryptedDeviceName = this.encryptDeviceName(
@@ -1115,7 +1120,7 @@ export default class AccountManager extends EventTarget {
     }
 
     const shouldDownloadBackup =
-      isBackupEnabled() ||
+      canAttemptRemoteBackupDownload() ||
       (isLinkAndSyncEnabled() && options.ephemeralBackupKey);
 
     // Set backup download path before storing credentials to ensure that
@@ -1123,8 +1128,10 @@ export default class AccountManager extends EventTarget {
     // until the backup is downloaded and imported.
     if (shouldDownloadBackup && cleanStart) {
       if (options.type === AccountType.Linked && options.ephemeralBackupKey) {
+        log.info('createAccount: setting ephemeral key');
         await storage.put('backupEphemeralKey', options.ephemeralBackupKey);
       }
+      log.info('createAccount: setting backup download path');
       await storage.put('backupDownloadPath', getRelativePath(createName()));
     }
 
@@ -1167,24 +1174,28 @@ export default class AccountManager extends EventTarget {
     await Promise.all([
       storage.protocol.saveIdentityWithAttributes(ourAci, {
         ...identityAttrs,
-        publicKey: aciKeyPair.pubKey,
+        publicKey: aciKeyPair.publicKey.serialize(),
       }),
       storage.protocol.saveIdentityWithAttributes(ourPni, {
         ...identityAttrs,
-        publicKey: pniKeyPair.pubKey,
+        publicKey: pniKeyPair.publicKey.serialize(),
       }),
     ]);
 
-    const identityKeyMap = {
-      ...(storage.get('identityKeyMap') || {}),
-      [ourAci]: aciKeyPair,
-      [ourPni]: pniKeyPair,
+    const identityKeyMap = storage.get('identityKeyMap') || {};
+
+    identityKeyMap[ourAci] = {
+      pubKey: aciKeyPair.publicKey.serialize(),
+      privKey: aciKeyPair.privateKey.serialize(),
     };
-    const registrationIdMap = {
-      ...(storage.get('registrationIdMap') || {}),
-      [ourAci]: registrationId,
-      [ourPni]: pniRegistrationId,
+    identityKeyMap[ourPni] = {
+      pubKey: pniKeyPair.publicKey.serialize(),
+      privKey: pniKeyPair.privateKey.serialize(),
     };
+
+    const registrationIdMap = storage.get('registrationIdMap') || {};
+    registrationIdMap[ourAci] = registrationId;
+    registrationIdMap[ourPni] = pniRegistrationId;
 
     await storage.put('identityKeyMap', identityKeyMap);
     await storage.put('registrationIdMap', registrationIdMap);
@@ -1201,6 +1212,8 @@ export default class AccountManager extends EventTarget {
     }
     if (accountEntropyPool) {
       await storage.put('accountEntropyPool', accountEntropyPool);
+    } else {
+      log.warn('createAccount: accountEntropyPool was missing!');
     }
     let derivedMasterKey = masterKey;
     if (derivedMasterKey == null) {
@@ -1290,7 +1303,7 @@ export default class AccountManager extends EventTarget {
       pqLastResortPreKey,
     }: Readonly<{
       signedPreKey?: UploadSignedPreKeyType;
-      pqLastResortPreKey?: UploadSignedPreKeyType;
+      pqLastResortPreKey?: UploadKyberPreKeyType;
     }>,
     serviceIdKind: ServiceIdKind
   ): Promise<void> {
@@ -1350,7 +1363,7 @@ export default class AccountManager extends EventTarget {
     await this._cleanKyberPreKeys(serviceIdKind);
 
     return {
-      identityKey: this.#getIdentityKeyOrThrow(ourServiceId).pubKey,
+      identityKey: this.#getIdentityKeyOrThrow(ourServiceId).publicKey,
       preKeys,
       pqPreKeys,
     };

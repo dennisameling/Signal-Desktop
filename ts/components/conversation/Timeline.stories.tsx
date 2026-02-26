@@ -6,16 +6,14 @@ import { times } from 'lodash';
 import { v4 as uuid } from 'uuid';
 import { action } from '@storybook/addon-actions';
 import type { Meta } from '@storybook/react';
-import { setupI18n } from '../../util/setupI18n';
 import { DurationInSeconds } from '../../util/durations';
-import enMessages from '../../../_locales/en/messages.json';
 import type { PropsType } from './Timeline';
 import { Timeline } from './Timeline';
 import type { TimelineItemType } from './TimelineItem';
 import { TimelineItem } from './TimelineItem';
 import { StorybookThemeContext } from '../../../.storybook/StorybookThemeContext';
 import { ConversationHero } from './ConversationHero';
-import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
+import { getDefaultConversation } from '../../test-helpers/getDefaultConversation';
 import { TypingBubble } from './TypingBubble';
 import { ContactSpoofingType } from '../../util/contactSpoofing';
 import { ReadStatus } from '../../messages/MessageReadStatus';
@@ -26,7 +24,7 @@ import { PaymentEventKind } from '../../types/Payment';
 import type { PropsData as TimelineMessageProps } from './TimelineMessage';
 import { CollidingAvatars } from '../CollidingAvatars';
 
-const i18n = setupI18n('en', enMessages);
+const { i18n } = window.SignalContext;
 
 const alice = getDefaultConversation();
 const bob = getDefaultConversation();
@@ -53,6 +51,7 @@ function mockMessageTimelineItem(
       canDeleteForEveryone: false,
       canDownload: true,
       canEditMessage: true,
+      canForward: true,
       canReact: true,
       canReply: true,
       canRetry: true,
@@ -318,6 +317,7 @@ const actions = () => ({
     'showExpiredOutgoingTapToViewToast'
   ),
   showMediaNoLongerAvailableToast: action('showMediaNoLongerAvailableToast'),
+  showTapToViewNotAvailableModal: action('showTapToViewNotAvailableModal'),
   toggleDeleteMessagesModal: action('toggleDeleteMessagesModal'),
   toggleForwardMessagesModal: action('toggleForwardMessagesModal'),
 
@@ -335,8 +335,6 @@ const actions = () => ({
   closeContactSpoofingReview: action('closeContactSpoofingReview'),
   reviewConversationNameCollision: action('reviewConversationNameCollision'),
 
-  unblurAvatar: action('unblurAvatar'),
-
   peekGroupCallForTheFirstTime: action('peekGroupCallForTheFirstTime'),
   peekGroupCallIfItHasMembers: action('peekGroupCallIfItHasMembers'),
 
@@ -347,6 +345,8 @@ const actions = () => ({
   onOpenMessageRequestActionsConfirmation: action(
     'onOpenMessageRequestActionsConfirmation'
   ),
+
+  startAvatarDownload: action('startAvatarDownload'),
 });
 
 const renderItem = ({
@@ -415,12 +415,15 @@ const renderHeroRow = () => {
         phoneNumber={getPhoneNumber()}
         profileName={getProfileName()}
         sharedGroupNames={['NYC Rock Climbers', 'Dinner Party']}
+        memberships={[]}
         theme={theme}
         title={getTitle()}
-        unblurAvatar={action('unblurAvatar')}
+        startAvatarDownload={action('startAvatarDownload')}
+        pendingAvatarDownload={false}
         updateSharedGroups={noop}
         viewUserStories={action('viewUserStories')}
         toggleAboutContactModal={action('toggleAboutContactModal')}
+        toggleProfileNameWarningModal={action('toggleProfileNameWarningModal')}
       />
     );
   }

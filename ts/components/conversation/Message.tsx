@@ -9,15 +9,14 @@ import type {
   ReactNode,
   RefObject,
 } from 'react';
-import React from 'react';
+import React, { forwardRef, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import classNames from 'classnames';
 import getDirection from 'direction';
-import { drop, groupBy, orderBy, take, unescape } from 'lodash';
+import { drop, take, unescape } from 'lodash';
 import { Manager, Popper, Reference } from 'react-popper';
 import type { PreventOverflowModifier } from '@popperjs/core/lib/modifiers/preventOverflow';
 import type { ReadonlyDeep } from 'type-fest';
-
 import type {
   ConversationType,
   ConversationTypeType,
@@ -28,10 +27,9 @@ import type {
   ShowConversationType,
 } from '../../state/ducks/conversations';
 import type { ViewStoryActionCreatorType } from '../../state/ducks/stories';
-import type { ReadStatus } from '../../messages/MessageReadStatus';
+import { ReadStatus } from '../../messages/MessageReadStatus';
 import { Avatar, AvatarSize } from '../Avatar';
 import { AvatarSpacer } from '../AvatarSpacer';
-import { Spinner } from '../Spinner';
 import { MessageBodyReadMore } from './MessageBodyReadMore';
 import { MessageMetadata } from './MessageMetadata';
 import { MessageTextMetadataSpacer } from './MessageTextMetadataSpacer';
@@ -42,15 +40,18 @@ import { ContactName } from './ContactName';
 import type { QuotedAttachmentForUIType } from './Quote';
 import { Quote } from './Quote';
 import { EmbeddedContact } from './EmbeddedContact';
-import type { OwnProps as ReactionViewerProps } from './ReactionViewer';
+import type {
+  OwnProps as ReactionViewerProps,
+  Reaction,
+} from './ReactionViewer';
 import { ReactionViewer } from './ReactionViewer';
-import { Emoji } from '../emoji/Emoji';
 import { LinkPreviewDate } from './LinkPreviewDate';
-import type { LinkPreviewType } from '../../types/message/LinkPreviews';
+import type { LinkPreviewForUIType } from '../../types/message/LinkPreviews';
+import { toLogFormat } from '../../types/errors';
 import { shouldUseFullSizeLinkPreviewImage } from '../../linkPreviews/shouldUseFullSizeLinkPreviewImage';
 import type { WidthBreakpoint } from '../_util';
 import { OutgoingGiftBadgeModal } from '../OutgoingGiftBadgeModal';
-import * as log from '../../logging/log';
+import { createLogger } from '../../logging/log';
 import { StoryViewModeType } from '../../types/Stories';
 import type {
   AttachmentForUIType,
@@ -60,24 +61,22 @@ import {
   canDisplayImage,
   getExtensionForDisplay,
   getGridDimensions,
-  getImageDimensions,
+  getImageDimensionsForTimeline,
   hasImage,
-  isDownloaded,
   hasVideoScreenshot,
   isAudio,
+  isDownloaded,
+  isDownloading,
+  isGIF,
   isImage,
   isImageAttachment,
-  isVideo,
-  isGIF,
   isPlayed,
-  isPermanentlyUndownloadable,
-  canRenderAudio,
+  isVideo,
 } from '../../types/Attachment';
-import type { EmbeddedContactType } from '../../types/EmbeddedContact';
+import type { EmbeddedContactForUIType } from '../../types/EmbeddedContact';
 
 import { getIncrement } from '../../util/timer';
 import { clearTimeoutIfNecessary } from '../../util/clearTimeoutIfNecessary';
-import { isFileDangerous } from '../../util/isFileDangerous';
 import { missingCaseError } from '../../util/missingCaseError';
 import type { HydratedBodyRangesType } from '../../types/BodyRange';
 import type { LocalizerType, ThemeType } from '../../types/Util';
@@ -89,7 +88,6 @@ import type {
   CustomColorType,
 } from '../../types/Colors';
 import { createRefMerger } from '../../util/refMerger';
-import { emojiToData, getEmojiCount, hasNonEmojiText } from '../emoji/lib';
 import { getCustomColorStyle } from '../../util/getCustomColorStyle';
 import type { ServiceIdString } from '../../types/ServiceId';
 import { DAY, HOUR, MINUTE, SECOND } from '../../util/durations';
@@ -108,7 +106,24 @@ import { getKeyFromCallLink } from '../../util/callLinks';
 import { InAnotherCallTooltip } from './InAnotherCallTooltip';
 import { formatFileSize } from '../../util/formatFileSize';
 import { AttachmentNotAvailableModalType } from '../AttachmentNotAvailableModal';
-import { assertDev } from '../../util/assert';
+import { assertDev, strictAssert } from '../../util/assert';
+import { AttachmentStatusIcon } from './AttachmentStatusIcon';
+import { isFileDangerous } from '../../util/isFileDangerous';
+import { TapToViewNotAvailableType } from '../TapToViewNotAvailableModal';
+import type { DataPropsType as TapToViewNotAvailablePropsType } from '../TapToViewNotAvailableModal';
+import { FunStaticEmoji } from '../fun/FunEmoji';
+import {
+  type EmojifyData,
+  getEmojifyData,
+  getEmojiParentByKey,
+  getEmojiParentKeyByVariantKey,
+  getEmojiVariantByKey,
+  getEmojiVariantKeyByValue,
+  isEmojiVariantValue,
+} from '../fun/data/emojis';
+import { useGroupedAndOrderedReactions } from '../../util/groupAndOrderReactions';
+
+const log = createLogger('Message');
 
 const GUESS_METADATA_WIDTH_TIMESTAMP_SIZE = 16;
 const GUESS_METADATA_WIDTH_EXPIRE_TIMER_SIZE = 18;
@@ -142,7 +157,7 @@ const GIFT_BADGE_UPDATE_INTERVAL = 30 * SECOND;
 
 enum MetadataPlacement {
   NotRendered,
-  RenderedByMessageAudioComponent,
+  RenderedElsewhere,
   InlineWithText,
   Bottom,
 }
@@ -198,6 +213,7 @@ export type AudioAttachmentProps = {
   timestamp: number;
 
   kickOffAttachmentDownload(): void;
+  cancelAttachmentDownload(): void;
   onCorrupted(): void;
 };
 
@@ -221,6 +237,26 @@ export type GiftBadgeType =
   | {
       state: GiftBadgeStates.Failed;
     };
+
+function ReactionEmoji(props: { emojiVariantValue: string }) {
+  strictAssert(
+    isEmojiVariantValue(props.emojiVariantValue),
+    'Expected a valid emoji variant value'
+  );
+  const emojiVariantKey = getEmojiVariantKeyByValue(props.emojiVariantValue);
+  const emojiVariant = getEmojiVariantByKey(emojiVariantKey);
+  const emojiParentKey = getEmojiParentKeyByVariantKey(emojiVariantKey);
+  const emojiParent = getEmojiParentByKey(emojiParentKey);
+
+  return (
+    <FunStaticEmoji
+      role="img"
+      aria-label={emojiParent.englishShortNameDefault}
+      size={16}
+      emoji={emojiVariant}
+    />
+  );
+}
 
 export type PropsData = {
   id: string;
@@ -247,20 +283,22 @@ export type PropsData = {
   timestamp: number;
   receivedAtMS?: number;
   status?: MessageStatusType;
-  contact?: ReadonlyDeep<EmbeddedContactType>;
+  contact?: ReadonlyDeep<EmbeddedContactForUIType>;
   author: Pick<
     ConversationType,
+    | 'avatarPlaceholderGradient'
     | 'acceptedMessageRequest'
     | 'avatarUrl'
     | 'badges'
     | 'color'
+    | 'firstName'
+    | 'hasAvatar'
     | 'id'
     | 'isMe'
     | 'phoneNumber'
     | 'profileName'
     | 'sharedGroupNames'
     | 'title'
-    | 'unblurredAvatarUrl'
   >;
   conversationType: ConversationTypeType;
   attachments?: ReadonlyArray<AttachmentForUIType>;
@@ -295,7 +333,7 @@ export type PropsData = {
     storyId?: string;
     text: string;
   };
-  previews: ReadonlyArray<LinkPreviewType>;
+  previews: ReadonlyArray<LinkPreviewForUIType>;
 
   isTapToView?: boolean;
   isTapToViewExpired?: boolean;
@@ -317,7 +355,6 @@ export type PropsData = {
   bodyRanges?: HydratedBodyRangesType;
 
   renderMenu?: () => JSX.Element | undefined;
-  onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 
   item?: never;
   // test-only, to force GIF's reduced motion experience
@@ -383,6 +420,9 @@ export type PropsActions = {
   showExpiredIncomingTapToViewToast: () => unknown;
   showExpiredOutgoingTapToViewToast: () => unknown;
   showMediaNoLongerAvailableToast: () => unknown;
+  showTapToViewNotAvailableModal: (
+    props: TapToViewNotAvailablePropsType
+  ) => void;
   viewStory: ViewStoryActionCreatorType;
 
   onToggleSelect: (selected: boolean, shift: boolean) => void;
@@ -410,6 +450,191 @@ type State = {
   hasDeleteForEveryoneTimerExpired: boolean;
 };
 
+// Function component for reactions that can use hooks
+type MessageReactionsProps = {
+  reactions: Array<Reaction>;
+  getPreferredBadge: PreferredBadgeSelectorType;
+  i18n: LocalizerType;
+  theme: ThemeType;
+  outgoing: boolean;
+  toggleReactionViewer: (onlyRemove?: boolean) => void;
+  reactionViewerRoot: HTMLDivElement | null;
+  popperPreventOverflowModifier: () => Partial<PreventOverflowModifier>;
+};
+
+const MessageReactions = forwardRef(function MessageReactions(
+  {
+    reactions,
+    getPreferredBadge,
+    i18n,
+    theme,
+    outgoing,
+    toggleReactionViewer,
+    reactionViewerRoot,
+    popperPreventOverflowModifier,
+  }: MessageReactionsProps,
+  parentRef
+): JSX.Element {
+  const ordered = useGroupedAndOrderedReactions(reactions);
+
+  const reactionsContainerRefMerger = useRef(createRefMerger());
+
+  // Take the first three groups for rendering
+  const toRender = take(ordered, 3).map(res => {
+    const isMe = res.some(re => Boolean(re.from.isMe));
+    const count = res.length;
+    const { emoji } = res[0];
+
+    let label: string;
+    if (isMe) {
+      label = i18n('icu:Message__reaction-emoji-label--you', { emoji });
+    } else if (count === 1) {
+      label = i18n('icu:Message__reaction-emoji-label--single', {
+        title: res[0].from.title,
+        emoji,
+      });
+    } else {
+      label = i18n('icu:Message__reaction-emoji-label--many', {
+        count,
+        emoji,
+      });
+    }
+
+    return {
+      count,
+      emoji,
+      isMe,
+      label,
+    };
+  });
+  const someNotRendered = ordered.length > 3;
+  // We only drop two here because the third emoji would be replaced by the
+  // more button
+  const maybeNotRendered = drop(ordered, 2);
+  const maybeNotRenderedTotal = maybeNotRendered.reduce(
+    (sum, res) => sum + res.length,
+    0
+  );
+  const notRenderedIsMe =
+    someNotRendered &&
+    maybeNotRendered.some(res => res.some(re => Boolean(re.from.isMe)));
+
+  const popperPlacement = outgoing ? 'bottom-end' : 'bottom-start';
+
+  return (
+    <Manager>
+      <Reference>
+        {({ ref: popperRef }) => (
+          <div
+            ref={reactionsContainerRefMerger.current(parentRef, popperRef)}
+            className={classNames(
+              'module-message__reactions',
+              outgoing
+                ? 'module-message__reactions--outgoing'
+                : 'module-message__reactions--incoming'
+            )}
+            onDoubleClick={ev => {
+              ev.stopPropagation();
+            }}
+          >
+            {toRender.map((re, i) => {
+              const isLast = i === toRender.length - 1;
+              const isMore = isLast && someNotRendered;
+              const isMoreWithMe = isMore && notRenderedIsMe;
+
+              return (
+                <button
+                  aria-label={re.label}
+                  type="button"
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={`${re.emoji}-${i}`}
+                  className={classNames(
+                    'module-message__reactions__reaction',
+                    re.count > 1
+                      ? 'module-message__reactions__reaction--with-count'
+                      : null,
+                    outgoing
+                      ? 'module-message__reactions__reaction--outgoing'
+                      : 'module-message__reactions__reaction--incoming',
+                    isMoreWithMe || (re.isMe && !isMoreWithMe)
+                      ? 'module-message__reactions__reaction--is-me'
+                      : null
+                  )}
+                  onClick={e => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    toggleReactionViewer(false);
+                  }}
+                  onKeyDown={e => {
+                    // Prevent enter key from opening stickers/attachments
+                    if (e.key === 'Enter') {
+                      e.stopPropagation();
+                    }
+                  }}
+                >
+                  {isMore ? (
+                    <span
+                      className={classNames(
+                        'module-message__reactions__reaction__count',
+                        'module-message__reactions__reaction__count--no-emoji',
+                        isMoreWithMe
+                          ? 'module-message__reactions__reaction__count--is-me'
+                          : null
+                      )}
+                    >
+                      +{maybeNotRenderedTotal}
+                    </span>
+                  ) : (
+                    <>
+                      <ReactionEmoji emojiVariantValue={re.emoji} />
+                      {re.count > 1 ? (
+                        <span
+                          className={classNames(
+                            'module-message__reactions__reaction__count',
+                            re.isMe
+                              ? 'module-message__reactions__reaction__count--is-me'
+                              : null
+                          )}
+                        >
+                          {re.count}
+                        </span>
+                      ) : null}
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Reference>
+      {reactionViewerRoot &&
+        createPortal(
+          <Popper
+            placement={popperPlacement}
+            strategy="fixed"
+            modifiers={[popperPreventOverflowModifier()]}
+          >
+            {({ ref, style }) => (
+              <ReactionViewer
+                ref={ref}
+                style={{
+                  ...style,
+                  zIndex: 2,
+                }}
+                getPreferredBadge={getPreferredBadge}
+                reactions={reactions}
+                i18n={i18n}
+                onClose={toggleReactionViewer}
+                theme={theme}
+              />
+            )}
+          </Popper>,
+          reactionViewerRoot
+        )}
+    </Manager>
+  );
+});
+
 export class Message extends React.PureComponent<Props, State> {
   public focusRef: React.RefObject<HTMLDivElement> = React.createRef();
 
@@ -423,8 +648,6 @@ export class Message extends React.PureComponent<Props, State> {
   };
 
   #metadataRef: React.RefObject<HTMLDivElement> = React.createRef();
-
-  public reactionsContainerRefMerger = createRefMerger();
 
   public expirationCheckInterval: NodeJS.Timeout | undefined;
 
@@ -497,9 +720,7 @@ export class Message extends React.PureComponent<Props, State> {
 
   public handleImageError = (): void => {
     const { id } = this.props;
-    log.info(
-      `Message ${id}: Image failed to load; failing over to placeholder`
-    );
+    log.info(`${id}: Image failed to load; failing over to placeholder`);
     this.setState({
       imageBroken: true,
     });
@@ -592,26 +813,32 @@ export class Message extends React.PureComponent<Props, State> {
         delta,
       });
       log.info(
-        `Message.tsx: Rendered 'send complete' for message ${timestamp}; took ${delta}ms`
+        `tsx: Rendered 'send complete' for message ${timestamp}; took ${delta}ms`
       );
     }
   }
 
   #getMetadataPlacement(
     {
-      attachments,
       attachmentDroppedDueToSize,
+      attachments,
       deletedForEveryone,
       direction,
       expirationLength,
       expirationTimestamp,
       giftBadge,
       i18n,
+      isTapToView,
+      isTapToViewError,
+      isTapToViewExpired,
+      readStatus,
       shouldHideMetadata,
       status,
       text,
     }: Readonly<Props> = this.props
   ): MetadataPlacement {
+    const { imageBroken } = this.state;
+
     if (
       !expirationLength &&
       !expirationTimestamp &&
@@ -635,10 +862,32 @@ export class Message extends React.PureComponent<Props, State> {
       return MetadataPlacement.Bottom;
     }
 
+    if (isTapToView) {
+      if (
+        readStatus !== ReadStatus.Viewed &&
+        direction !== 'outgoing' &&
+        (isTapToViewExpired || isTapToViewError)
+      ) {
+        return MetadataPlacement.Bottom;
+      }
+
+      return MetadataPlacement.RenderedElsewhere;
+    }
+
     if (!text && !deletedForEveryone && !attachmentDroppedDueToSize) {
-      return canRenderAudio(attachments)
-        ? MetadataPlacement.RenderedByMessageAudioComponent
-        : MetadataPlacement.Bottom;
+      const firstAttachment = attachments && attachments[0];
+      const isAttachmentNotAvailable =
+        firstAttachment?.isPermanentlyUndownloadable;
+
+      if (this.isGenericAttachment(attachments, imageBroken)) {
+        return MetadataPlacement.RenderedElsewhere;
+      }
+
+      if (isAudio(attachments) && !isAttachmentNotAvailable) {
+        return MetadataPlacement.RenderedElsewhere;
+      }
+
+      return MetadataPlacement.Bottom;
     }
 
     if (!text && attachmentDroppedDueToSize) {
@@ -788,6 +1037,8 @@ export class Message extends React.PureComponent<Props, State> {
     );
   }
 
+  #cachedEmojifyData: EmojifyData | null = null;
+
   #canRenderStickerLikeEmoji(): boolean {
     const {
       attachments,
@@ -798,16 +1049,34 @@ export class Message extends React.PureComponent<Props, State> {
       text,
     } = this.props;
 
-    return Boolean(
-      text &&
-        !hasNonEmojiText(text) &&
-        getEmojiCount(text) < 6 &&
-        !quote &&
-        !storyReplyContext &&
-        (!attachments || !attachments.length) &&
-        (!bodyRanges || !bodyRanges.length) &&
-        (!previews || !previews.length)
-    );
+    if (
+      text == null ||
+      quote != null ||
+      storyReplyContext != null ||
+      (attachments != null && attachments.length > 0) ||
+      (bodyRanges != null && bodyRanges.length > 0) ||
+      (previews != null && previews.length > 0)
+    ) {
+      return false;
+    }
+
+    if (
+      this.#cachedEmojifyData == null ||
+      this.#cachedEmojifyData.text !== text
+    ) {
+      this.#cachedEmojifyData = getEmojifyData(text);
+    }
+    const emojifyData = this.#cachedEmojifyData;
+
+    if (
+      !emojifyData.isEmojiOnlyText ||
+      emojifyData.emojiCount === 0 ||
+      emojifyData.emojiCount >= 6
+    ) {
+      return false;
+    }
+
+    return true;
   }
 
   #updateMetadataWidth = (newMetadataWidth: number): void => {
@@ -830,7 +1099,7 @@ export class Message extends React.PureComponent<Props, State> {
     const metadataPlacement = this.#getMetadataPlacement();
     switch (metadataPlacement) {
       case MetadataPlacement.NotRendered:
-      case MetadataPlacement.RenderedByMessageAudioComponent:
+      case MetadataPlacement.RenderedElsewhere:
         return null;
       case MetadataPlacement.InlineWithText:
         isInline = true;
@@ -839,7 +1108,7 @@ export class Message extends React.PureComponent<Props, State> {
         isInline = false;
         break;
       default:
-        log.error(missingCaseError(metadataPlacement));
+        log.error(toLogFormat(missingCaseError(metadataPlacement)));
         isInline = false;
         break;
     }
@@ -855,7 +1124,6 @@ export class Message extends React.PureComponent<Props, State> {
       isEditedMessage,
       isSMS,
       isSticker,
-      isTapToViewExpired,
       retryMessageSend,
       pushPanelForConversation,
       showEditHistoryModal,
@@ -884,7 +1152,6 @@ export class Message extends React.PureComponent<Props, State> {
         }
         isShowingImage={this.isShowingImage()}
         isSticker={isStickerLike}
-        isTapToViewExpired={isTapToViewExpired}
         onWidthMeasured={isInline ? this.#updateMetadataWidth : undefined}
         pushPanelForConversation={pushPanelForConversation}
         ref={this.#metadataRef}
@@ -898,26 +1165,14 @@ export class Message extends React.PureComponent<Props, State> {
   }
 
   #renderAuthor(): ReactNode {
-    const {
-      author,
-      contactNameColor,
-      i18n,
-      isSticker,
-      isTapToView,
-      isTapToViewExpired,
-    } = this.props;
+    const { author, contactNameColor, i18n, isSticker } = this.props;
 
     if (!this.#shouldRenderAuthor()) {
       return null;
     }
 
-    const withTapToViewExpired = isTapToView && isTapToViewExpired;
-
     const stickerSuffix = isSticker ? '_with_sticker' : '';
-    const tapToViewSuffix = withTapToViewExpired
-      ? '--with-tap-to-view-expired'
-      : '';
-    const moduleName = `module-message__author${stickerSuffix}${tapToViewSuffix}`;
+    const moduleName = `module-message__author${stickerSuffix}`;
 
     return (
       <div className={moduleName}>
@@ -932,14 +1187,14 @@ export class Message extends React.PureComponent<Props, State> {
 
   public renderAttachment(): JSX.Element | null {
     const {
-      attachments,
+      _forceTapToPlay,
       attachmentDroppedDueToSize,
+      attachments,
       cancelAttachmentDownload,
       conversationId,
       direction,
       expirationLength,
       expirationTimestamp,
-      _forceTapToPlay,
       i18n,
       id,
       isSticker,
@@ -950,9 +1205,11 @@ export class Message extends React.PureComponent<Props, State> {
       readStatus,
       renderAudioAttachment,
       renderingContext,
+      retryMessageSend,
+      shouldHideMetadata,
       shouldCollapseAbove,
       shouldCollapseBelow,
-      showAttachmentNotAvailableModal,
+      showEditHistoryModal,
       showLightbox,
       showMediaNoLongerAvailableToast,
       status,
@@ -979,7 +1236,7 @@ export class Message extends React.PureComponent<Props, State> {
 
     // attachmentDroppedDueToSize is handled in renderAttachmentTooBig
     const isAttachmentNotAvailable =
-      isPermanentlyUndownloadable(firstAttachment) &&
+      firstAttachment.isPermanentlyUndownloadable &&
       !attachmentDroppedDueToSize;
 
     if (
@@ -1034,7 +1291,7 @@ export class Message extends React.PureComponent<Props, State> {
         );
       }
 
-      if (isImage(attachments) || isVideo(attachments)) {
+      if (isSticker || isImage(attachments) || isVideo(attachments)) {
         const bottomOverlay = !isSticker && !collapseMetadata;
         // We only want users to tab into this if there's more than one
         const tabIndex = attachments.length > 1 ? 0 : -1;
@@ -1073,65 +1330,7 @@ export class Message extends React.PureComponent<Props, State> {
     const isAttachmentAudio = isAudio(attachments);
 
     if (isAttachmentNotAvailable && (isAttachmentAudio || isSticker)) {
-      let attachmentType: string;
-      let info: string;
-      let modalType: AttachmentNotAvailableModalType;
-      if (isAttachmentAudio) {
-        attachmentType = 'audio';
-        info = i18n('icu:attachmentNotAvailable__voice');
-        modalType = AttachmentNotAvailableModalType.VoiceMessage;
-      } else if (isSticker) {
-        attachmentType = 'sticker';
-        info = i18n('icu:attachmentNotAvailable__sticker');
-        modalType = AttachmentNotAvailableModalType.Sticker;
-      } else {
-        assertDev(
-          false,
-          'renderAttachment(): Invalid case for permanently undownloadable attachment'
-        );
-        return null;
-      }
-
-      const containerClassName = classNames(
-        'module-message__undownloadable-attachment',
-        withContentAbove
-          ? 'module-message__undownloadable-attachment--with-content-above'
-          : null,
-        withContentBelow
-          ? 'module-message__undownloadable-attachment--with-content-below'
-          : null,
-        text ? null : 'module-message__undownloadable-attachment--no-text'
-      );
-      const iconClassName = classNames(
-        'module-message__undownloadable-attachment__icon',
-        `module-message__undownloadable-attachment__icon--${attachmentType}`
-      );
-
-      return (
-        <div className={containerClassName}>
-          <div className="module-message__undownloadable-attachment__icon-container">
-            <div className={iconClassName} />
-          </div>
-          <div>
-            <div className="module-message__undownloadable-attachment-info">
-              {info}
-            </div>
-            <div className="module-message__undownloadable-attachment-learn-more-container">
-              <button
-                className="module-message__undownloadable-attachment-learn-more"
-                onClick={e => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  showAttachmentNotAvailableModal(modalType);
-                }}
-                type="button"
-              >
-                {i18n('icu:attachmentNoLongerAvailable__learnMore')}
-              </button>
-            </div>
-          </div>
-        </div>
-      );
+      return this.renderSimpleAttachmentNotAvailable();
     }
 
     if (isAttachmentAudio) {
@@ -1158,6 +1357,9 @@ export class Message extends React.PureComponent<Props, State> {
         textPending: textAttachment?.pending,
         timestamp,
 
+        cancelAttachmentDownload() {
+          cancelAttachmentDownload({ messageId: id });
+        },
         kickOffAttachmentDownload() {
           kickOffAttachmentDownload({ messageId: id });
         },
@@ -1169,117 +1371,271 @@ export class Message extends React.PureComponent<Props, State> {
         },
       });
     }
+    const { fileName, size, contentType } = firstAttachment;
+    const isIncoming = direction === 'incoming';
 
-    const { pending, fileName, size, contentType } = firstAttachment;
-    const extension = getExtensionForDisplay({ contentType, fileName });
-    const isDangerous = isFileDangerous(fileName || '');
+    const renderAttachmentDownloaded = () => {
+      const extension = getExtensionForDisplay({ contentType, fileName });
+      const isDangerous = isFileDangerous(fileName || '');
+      const moreChar = extension && extension.length > 3;
+      const extensionForDisplay =
+        extension && extension.length > 4
+          ? `${extension.slice(0, 3)}…`
+          : extension;
 
-    return (
-      <button
-        type="button"
-        className={classNames(
-          'module-message__generic-attachment',
-          withContentBelow
-            ? 'module-message__generic-attachment--with-content-below'
-            : null,
-          withContentAbove
-            ? 'module-message__generic-attachment--with-content-above'
-            : null,
-          isAttachmentNotAvailable
-            ? 'module-message__generic-attachment--undownloadable'
-            : null,
-          isAttachmentNotAvailable && !text
-            ? 'module-message__generic-attachment--undownloadable-no-text'
-            : null
-        )}
-        // There's only ever one of these, so we don't want users to tab into it
-        tabIndex={-1}
-        onClick={event => {
-          event.stopPropagation();
-          event.preventDefault();
-
-          if (!isDownloaded(firstAttachment)) {
-            if (isAttachmentNotAvailable) {
-              showAttachmentNotAvailableModal(
-                AttachmentNotAvailableModalType.File
-              );
-            } else {
-              kickOffAttachmentDownload({
-                messageId: id,
-              });
-            }
-          } else {
-            this.openGenericAttachment();
-          }
-        }}
-      >
-        {pending ? (
-          <div className="module-message__generic-attachment__spinner-container">
-            <Spinner svgSize="small" size="24px" direction={direction} />
-          </div>
-        ) : (
-          <div className="module-message__generic-attachment__icon-container">
-            <div className="module-message__generic-attachment__icon">
-              {extension ? (
-                <div className="module-message__generic-attachment__icon__extension">
-                  {extension}
-                </div>
-              ) : null}
-            </div>
-            {isDangerous ? (
-              <div className="module-message__generic-attachment__icon-dangerous-container">
-                <div className="module-message__generic-attachment__icon-dangerous" />
+      return (
+        <>
+          <div className="module-message__simple-attachment__icon">
+            {extension ? (
+              <div
+                className={classNames(
+                  'module-message__simple-attachment__icon__extension',
+                  moreChar
+                    ? 'module-message__simple-attachment__icon__extension--more-char'
+                    : undefined
+                )}
+              >
+                {extensionForDisplay}
               </div>
             ) : null}
           </div>
+          {isDangerous ? (
+            <div className="module-message__simple-attachment__icon-dangerous-container {">
+              <div className="module-message__simple-attachment__icon-dangerous" />
+            </div>
+          ) : null}
+        </>
+      );
+    };
+
+    const willShowMetadata =
+      expirationLength || expirationTimestamp || !shouldHideMetadata;
+
+    // Note: this has to be interactive for the case where text comes along with the
+    // attachment. But we don't want the user to tab here unless that text exists.
+    const tabIndex = text ? 0 : -1;
+    return (
+      <button
+        className={classNames(
+          'module-message__simple-attachment',
+          withContentBelow
+            ? 'module-message__simple-attachment--with-content-below'
+            : null,
+          withContentAbove
+            ? 'module-message__simple-attachment--with-content-above'
+            : null
         )}
-        <div className="module-message__generic-attachment__text">
+        type="button"
+        onClick={(event: React.MouseEvent) => {
+          event.stopPropagation();
+          event.preventDefault();
+
+          this.openGenericAttachment();
+        }}
+        onKeyDown={(event: React.KeyboardEvent) => {
+          if (event.key !== 'Enter' && event.key !== ' ') {
+            return;
+          }
+
+          event.stopPropagation();
+          event.preventDefault();
+
+          this.openGenericAttachment();
+        }}
+        tabIndex={tabIndex}
+        aria-label={
+          isDownloading(firstAttachment)
+            ? i18n('icu:cancelDownload')
+            : i18n('icu:startDownload')
+        }
+      >
+        <AttachmentStatusIcon
+          key={id}
+          attachment={firstAttachment}
+          isAttachmentNotAvailable={isAttachmentNotAvailable}
+          isIncoming={isIncoming}
+          renderAttachmentDownloaded={renderAttachmentDownloaded}
+        />
+        <div className="module-message__simple-attachment__text">
           <div
             className={classNames(
-              'module-message__generic-attachment__file-name',
-              `module-message__generic-attachment__file-name--${direction}`,
+              'module-message__simple-attachment__file-name',
+              `module-message__simple-attachment__file-name--${direction}`,
               isAttachmentNotAvailable
-                ? 'module-message__generic-attachment__file-name--undownloadable'
+                ? 'module-message__simple-attachment__file-name--undownloadable'
                 : null
             )}
           >
             {fileName}
           </div>
-          {isAttachmentNotAvailable ? (
-            <div className="module-message__undownloadable-attachment-file">
-              <div className="module-message__undownloadable-attachment__icon-container--file">
-                <div className="module-message__undownloadable-attachment__icon module-message__undownloadable-attachment__icon--file module-message__undownloadable-attachment__icon--small" />
+          <div className="module-message__simple-attachment__bottom-row">
+            {isAttachmentNotAvailable ? (
+              <div className="module-message__undownloadable-attachment-file">
+                <div className="module-message__undownloadable-attachment__icon-container--file">
+                  <div className="module-message__undownloadable-attachment__icon module-message__undownloadable-attachment__icon--file module-message__undownloadable-attachment__icon--small" />
+                </div>
+                <div className="module-message__undownloadable-attachment-info--file">
+                  {i18n('icu:attachmentNotAvailable__file')}
+                </div>
               </div>
-              <div className="module-message__undownloadable-attachment-info--file">
-                {i18n('icu:attachmentNotAvailable__file')}
+            ) : (
+              <div
+                className={classNames(
+                  'module-message__simple-attachment__file-size',
+                  `module-message__simple-attachment__file-size--${direction}`
+                )}
+              >
+                {formatFileSize(size)}
               </div>
-            </div>
-          ) : (
-            <div
-              className={classNames(
-                'module-message__generic-attachment__file-size',
-                `module-message__generic-attachment__file-size--${direction}`
-              )}
-            >
-              {formatFileSize(size)}
-            </div>
-          )}
+            )}
+            {text || !willShowMetadata ? undefined : (
+              <div className="module-message__simple-attachment__metadata-container">
+                <MessageMetadata
+                  deletedForEveryone={false}
+                  direction={direction}
+                  expirationLength={expirationLength}
+                  expirationTimestamp={expirationTimestamp}
+                  hasText={false}
+                  i18n={i18n}
+                  id={id}
+                  isEditedMessage={false}
+                  isSMS={false}
+                  isInline={false}
+                  isOutlineOnlyBubble={false}
+                  isShowingImage={false}
+                  isSticker={false}
+                  onWidthMeasured={undefined}
+                  pushPanelForConversation={pushPanelForConversation}
+                  ref={this.#metadataRef}
+                  retryMessageSend={retryMessageSend}
+                  showEditHistoryModal={showEditHistoryModal}
+                  status={status}
+                  textPending={false}
+                  timestamp={timestamp}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </button>
+    );
+  }
+
+  public renderSimpleAttachmentNotAvailable(): JSX.Element | null {
+    const {
+      attachmentDroppedDueToSize,
+      attachments,
+      author,
+      i18n,
+      isSticker,
+      isTapToView,
+      isTapToViewError,
+      isTapToViewExpired,
+      readStatus,
+      showAttachmentNotAvailableModal,
+      showTapToViewNotAvailableModal,
+      text,
+      quote,
+    } = this.props;
+
+    const isAttachmentAudio = isAudio(attachments);
+    const withContentBelow = Boolean(text || attachmentDroppedDueToSize);
+    const withContentAbove = Boolean(quote) || this.#shouldRenderAuthor();
+    const isViewed = readStatus === ReadStatus.Viewed;
+
+    let attachmentType: string;
+    let info: string;
+    let attachmentModalType: AttachmentNotAvailableModalType | undefined;
+    let tapToViewModalType: TapToViewNotAvailableType | undefined;
+    if (isAttachmentAudio) {
+      attachmentType = 'audio';
+      info = i18n('icu:attachmentNotAvailable__voice');
+      attachmentModalType = AttachmentNotAvailableModalType.VoiceMessage;
+    } else if (isSticker) {
+      attachmentType = 'sticker';
+      info = i18n('icu:attachmentNotAvailable__sticker');
+      attachmentModalType = AttachmentNotAvailableModalType.Sticker;
+    } else if (isTapToView && !isViewed && isTapToViewExpired) {
+      attachmentType = 'tap-to-view';
+      info = i18n('icu:attachmentNotAvailable__tapToView');
+      tapToViewModalType = TapToViewNotAvailableType.Expired;
+    } else if (isTapToView && !isViewed && isTapToViewError) {
+      attachmentType = 'tap-to-view';
+      info = i18n('icu:attachmentNotAvailable__tapToViewCannotDownload');
+      tapToViewModalType = TapToViewNotAvailableType.Error;
+    } else {
+      assertDev(
+        false,
+        'renderAttachment(): Invalid case for permanently undownloadable attachment'
+      );
+      return null;
+    }
+
+    const containerClassName = classNames(
+      'module-message__undownloadable-attachment',
+      withContentAbove
+        ? 'module-message__undownloadable-attachment--with-content-above'
+        : null,
+      withContentBelow
+        ? 'module-message__undownloadable-attachment--with-content-below'
+        : null,
+      text ? null : 'module-message__undownloadable-attachment--no-text'
+    );
+    const iconClassName = classNames(
+      'module-message__undownloadable-attachment__icon',
+      `module-message__undownloadable-attachment__icon--${attachmentType}`
+    );
+
+    return (
+      <div className={containerClassName}>
+        <div className="module-message__undownloadable-attachment__icon-container">
+          <div className={iconClassName} />
+        </div>
+        <div>
+          <div className="module-message__undownloadable-attachment-info">
+            {info}
+          </div>
+          <div className="module-message__undownloadable-attachment-learn-more-container">
+            <button
+              className="module-message__undownloadable-attachment-learn-more"
+              onClick={e => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (attachmentModalType) {
+                  showAttachmentNotAvailableModal(attachmentModalType);
+                } else if (tapToViewModalType) {
+                  showTapToViewNotAvailableModal({
+                    type: tapToViewModalType,
+                    parameters: {
+                      name: author.firstName || author.title,
+                    },
+                  });
+                } else {
+                  throw new Error(
+                    'renderSimpleAttachmentNotAvailable: No type set!'
+                  );
+                }
+              }}
+              type="button"
+            >
+              {i18n('icu:attachmentNoLongerAvailable__learnMore')}
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
   public renderUndownloadableTextAttachment(): JSX.Element | null {
     const { i18n, textAttachment, showAttachmentNotAvailableModal } =
       this.props;
-    if (!textAttachment || !isPermanentlyUndownloadable(textAttachment)) {
+    if (!textAttachment || !textAttachment.isPermanentlyUndownloadable) {
       return null;
     }
-
     return (
       <button
         type="button"
-        className="module-message__generic-attachment module-message__undownloadable-attachment-text"
+        className="module-message__simple-attachment module-message__undownloadable-attachment-text"
         tabIndex={-1}
         onClick={event => {
           event.stopPropagation();
@@ -1434,12 +1790,10 @@ export class Message extends React.PureComponent<Props, State> {
           {first.isCallLink && (
             <div className="module-message__link-preview__call-link-icon">
               <Avatar
-                acceptedMessageRequest
                 badge={undefined}
                 color={getColorForCallLink(getKeyFromCallLink(first.url))}
                 conversationType="callLink"
                 i18n={i18n}
-                isMe={false}
                 sharedGroupNames={[]}
                 size={64}
                 title={title ?? i18n('icu:calling__call-link-default-title')}
@@ -1905,10 +2259,13 @@ export class Message extends React.PureComponent<Props, State> {
 
   public renderEmbeddedContact(): JSX.Element | null {
     const {
+      cancelAttachmentDownload,
       contact,
       conversationType,
       direction,
       i18n,
+      id,
+      kickOffAttachmentDownload,
       pushPanelForConversation,
       text,
     } = this.props;
@@ -1925,7 +2282,13 @@ export class Message extends React.PureComponent<Props, State> {
 
     const otherContent =
       (contact && contact.firstNumber && contact.serviceId) || withCaption;
-    const tabIndex = otherContent ? 0 : -1;
+
+    const attachment = contact.avatar?.avatar;
+    const avatarNeedsAction =
+      attachment &&
+      !isDownloaded(attachment) &&
+      !attachment.isPermanentlyUndownloadable;
+    const tabIndex = otherContent || avatarNeedsAction ? 0 : -1;
 
     return (
       <EmbeddedContact
@@ -1933,19 +2296,20 @@ export class Message extends React.PureComponent<Props, State> {
         isIncoming={direction === 'incoming'}
         i18n={i18n}
         onClick={() => {
-          const signalAccount =
-            contact.firstNumber && contact.serviceId
-              ? {
-                  phoneNumber: contact.firstNumber,
-                  serviceId: contact.serviceId,
-                }
-              : undefined;
+          if (avatarNeedsAction) {
+            if (isDownloading(attachment)) {
+              cancelAttachmentDownload({ messageId: id });
+            } else {
+              kickOffAttachmentDownload({ messageId: id });
+            }
+
+            return;
+          }
 
           pushPanelForConversation({
             type: PanelType.ContactDetails,
             args: {
-              contact,
-              signalAccount,
+              messageId: id,
             },
           });
         }}
@@ -2019,13 +2383,11 @@ export class Message extends React.PureComponent<Props, State> {
           <AvatarSpacer size={GROUP_AVATAR_SIZE} />
         ) : (
           <Avatar
-            acceptedMessageRequest={author.acceptedMessageRequest}
             avatarUrl={author.avatarUrl}
             badge={getPreferredBadge(author.badges)}
             color={author.color}
             conversationType="direct"
             i18n={i18n}
-            isMe={author.isMe}
             onClick={event => {
               event.stopPropagation();
               event.preventDefault();
@@ -2038,7 +2400,6 @@ export class Message extends React.PureComponent<Props, State> {
             size={GROUP_AVATAR_SIZE}
             theme={theme}
             title={author.title}
-            unblurredAvatarUrl={author.unblurredAvatarUrl}
           />
         )}
       </div>
@@ -2227,7 +2588,12 @@ export class Message extends React.PureComponent<Props, State> {
   }
 
   public getWidth(): number | undefined {
-    const { attachments, giftBadge, isSticker, previews } = this.props;
+    const { attachments, giftBadge, isSticker, isTapToView, previews } =
+      this.props;
+
+    if (isTapToView) {
+      return undefined;
+    }
 
     if (giftBadge) {
       return 240;
@@ -2256,7 +2622,7 @@ export class Message extends React.PureComponent<Props, State> {
       firstLinkPreview.image &&
       shouldUseFullSizeLinkPreviewImage(firstLinkPreview)
     ) {
-      const dimensions = getImageDimensions(firstLinkPreview.image);
+      const dimensions = getImageDimensionsForTimeline(firstLinkPreview.image);
       if (dimensions) {
         return dimensions.width;
       }
@@ -2306,102 +2672,258 @@ export class Message extends React.PureComponent<Props, State> {
   }
 
   public renderTapToViewIcon(): JSX.Element {
-    const { direction, isTapToViewExpired } = this.props;
-    const isDownloadPending = this.isAttachmentPending();
+    const { direction, isTapToViewError, isTapToViewExpired, readStatus } =
+      this.props;
+    const isIncoming = direction === 'incoming';
 
-    return !isTapToViewExpired && isDownloadPending ? (
-      <div className="module-message__tap-to-view__spinner-container">
-        <Spinner svgSize="small" size="20px" direction={direction} />
-      </div>
-    ) : (
+    let state = 'ready';
+    let isDisabled = false;
+    if (!isIncoming) {
+      state = 'outgoing';
+      isDisabled = true;
+    } else if (readStatus === ReadStatus.Viewed) {
+      state = 'viewed';
+      isDisabled = true;
+    } else if (isTapToViewError || isTapToViewExpired) {
+      throw new Error(
+        'renderTapToViewIcon: This state is handled in renderSimpleAttachmentNotAvailable'
+      );
+    }
+
+    return (
       <div
         className={classNames(
-          'module-message__tap-to-view__icon',
-          `module-message__tap-to-view__icon--${direction}`,
-          isTapToViewExpired
-            ? 'module-message__tap-to-view__icon--expired'
+          'AttachmentStatusIcon__circle-icon-container',
+          isIncoming
+            ? 'AttachmentStatusIcon__circle-icon-container--incoming'
+            : null,
+          isDisabled
+            ? 'AttachmentStatusIcon__circle-icon-container--disabled'
             : null
         )}
-      />
+      >
+        <div
+          className={classNames(
+            'AttachmentStatusIcon__circle-icon',
+            isIncoming ? 'AttachmentStatusIcon__circle-icon--incoming' : null,
+            state === 'ready'
+              ? 'module-message__tap-to-view__icon--ready'
+              : null,
+            state === 'outgoing'
+              ? 'module-message__tap-to-view__icon--outgoing'
+              : null,
+            state === 'viewed'
+              ? 'module-message__tap-to-view__icon--viewed'
+              : null
+          )}
+        />
+      </div>
     );
   }
 
-  public renderTapToViewText(): string | undefined {
+  public renderTapToViewText(): { title: string; detail: string | undefined } {
     const {
       attachments,
       direction,
       i18n,
       isTapToViewExpired,
       isTapToViewError,
+      readStatus,
     } = this.props;
 
-    const isDownloadPending = this.isAttachmentPending();
-    if (isDownloadPending) {
-      return;
-    }
-    if (isTapToViewError) {
-      return i18n('icu:incomingError');
-    }
     if (direction === 'outgoing') {
-      return i18n('icu:Message--tap-to-view--outgoing');
+      return {
+        title: i18n('icu:Message--tap-to-view--media'),
+        detail: undefined,
+      };
     }
-    if (isTapToViewExpired) {
-      return i18n('icu:Message--tap-to-view-expired');
+    if (readStatus === ReadStatus.Viewed) {
+      return {
+        title: i18n('icu:Message--tap-to-view--viewed'),
+        detail: undefined,
+      };
     }
-    if (isVideo(attachments)) {
-      return i18n('icu:Message--tap-to-view--incoming-video');
+    if (isTapToViewExpired || isTapToViewError) {
+      throw new Error(
+        'renderTapToViewText: This state is handled in renderSimpleAttachmentNotAvailable'
+      );
     }
-    return i18n('icu:Message--tap-to-view--incoming');
+
+    let detail = i18n('icu:Message--tap-to-view--helper-text');
+    const firstAttachment = attachments?.[0];
+    if (firstAttachment && !firstAttachment.path) {
+      detail = formatFileSize(firstAttachment.size);
+    }
+
+    if (isVideo(attachments) || isGIF(attachments)) {
+      return {
+        title: i18n('icu:Message--tap-to-view--video'),
+        detail,
+      };
+    }
+    return {
+      title: i18n('icu:Message--tap-to-view--photo'),
+      detail,
+    };
   }
 
-  public renderTapToView(): JSX.Element {
+  public renderTapToView(): JSX.Element | null {
     const {
+      attachments,
+      attachmentDroppedDueToSize,
       conversationType,
       direction,
-      isTapToViewExpired,
+      expirationLength,
+      expirationTimestamp,
+      i18n,
+      id,
       isTapToViewError,
+      isTapToViewExpired,
+      pushPanelForConversation,
+      readStatus,
+      retryMessageSend,
+      showEditHistoryModal,
+      status,
+      timestamp,
     } = this.props;
+
+    const firstAttachment = attachments?.[0];
+
+    const isIncoming = direction === 'incoming';
+    const isViewed = readStatus === ReadStatus.Viewed;
+    const isExpired = Boolean(
+      !isViewed &&
+        (isTapToViewExpired || firstAttachment?.isPermanentlyUndownloadable)
+    );
+    const isError = isTapToViewError || attachmentDroppedDueToSize;
 
     const collapseMetadata =
       this.#getMetadataPlacement() === MetadataPlacement.NotRendered;
-    const withContentBelow = !collapseMetadata;
     const withContentAbove =
       !collapseMetadata &&
       conversationType === 'group' &&
       direction === 'incoming';
 
+    if (isIncoming && !isViewed && (isError || isExpired)) {
+      return this.renderSimpleAttachmentNotAvailable();
+    }
+
+    const text = this.renderTapToViewText();
+    let content: JSX.Element;
+    if (text.title && text.detail) {
+      content = (
+        <div className="module-message__simple-attachment__text">
+          <div
+            className={classNames(
+              'module-message__simple-attachment__file-name',
+              `module-message__simple-attachment__file-name--${direction}`
+            )}
+          >
+            {text.title}
+          </div>
+          <div className="module-message__simple-attachment__bottom-row">
+            <div
+              className={classNames(
+                'module-message__simple-attachment__file-size',
+                `module-message__simple-attachment__file-size--${direction}`
+              )}
+            >
+              {text.detail}
+            </div>
+            {collapseMetadata ? undefined : (
+              <div className="module-message__simple-attachment__metadata-container">
+                <MessageMetadata
+                  deletedForEveryone={false}
+                  direction={direction}
+                  expirationLength={expirationLength}
+                  expirationTimestamp={expirationTimestamp}
+                  hasText={false}
+                  i18n={i18n}
+                  id={id}
+                  isEditedMessage={false}
+                  isSMS={false}
+                  isInline={false}
+                  isOutlineOnlyBubble={false}
+                  isShowingImage={false}
+                  isSticker={false}
+                  onWidthMeasured={undefined}
+                  pushPanelForConversation={pushPanelForConversation}
+                  ref={this.#metadataRef}
+                  retryMessageSend={retryMessageSend}
+                  showEditHistoryModal={showEditHistoryModal}
+                  status={status}
+                  textPending={false}
+                  timestamp={timestamp}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    } else {
+      content = (
+        <>
+          <div
+            className={classNames(
+              'module-message__simple-attachment__file-name',
+              `module-message__simple-attachment__file-name--${direction}`
+            )}
+          >
+            {text.title}
+          </div>
+          {collapseMetadata ? undefined : (
+            <div className="module-message__simple-attachment__metadata-container">
+              <MessageMetadata
+                deletedForEveryone={false}
+                direction={direction}
+                expirationLength={expirationLength}
+                expirationTimestamp={expirationTimestamp}
+                hasText={false}
+                i18n={i18n}
+                id={id}
+                isEditedMessage={false}
+                isSMS={false}
+                isInline={false}
+                isOutlineOnlyBubble={false}
+                isShowingImage={false}
+                isSticker={false}
+                onWidthMeasured={undefined}
+                pushPanelForConversation={pushPanelForConversation}
+                ref={this.#metadataRef}
+                retryMessageSend={retryMessageSend}
+                showEditHistoryModal={showEditHistoryModal}
+                status={status}
+                textPending={false}
+                timestamp={timestamp}
+              />
+            </div>
+          )}
+        </>
+      );
+    }
+
     return (
       <div
         className={classNames(
-          'module-message__tap-to-view',
-          withContentBelow
-            ? 'module-message__tap-to-view--with-content-below'
-            : null,
+          'module-message__simple-attachment',
           withContentAbove
-            ? 'module-message__tap-to-view--with-content-above'
+            ? 'module-message__simple-attachment--with-content-above'
             : null
         )}
       >
-        {isTapToViewError ? null : this.renderTapToViewIcon()}
-        <div
-          className={classNames(
-            'module-message__tap-to-view__text',
-            `module-message__tap-to-view__text--${direction}`,
-            isTapToViewExpired
-              ? `module-message__tap-to-view__text--${direction}-expired`
-              : null,
-            isTapToViewError
-              ? `module-message__tap-to-view__text--${direction}-error`
-              : null
-          )}
-        >
-          {this.renderTapToViewText()}
-        </div>
+        <AttachmentStatusIcon
+          key={id}
+          attachment={firstAttachment}
+          isAttachmentNotAvailable={isExpired}
+          isIncoming={isIncoming}
+          renderAttachmentDownloaded={() => this.renderTapToViewIcon()}
+        />
+        {content}
       </div>
     );
   }
 
-  #popperPreventOverflowModifier(): Partial<PreventOverflowModifier> {
+  #popperPreventOverflowModifier = (): Partial<PreventOverflowModifier> => {
     const { containerElementRef } = this.props;
     return {
       name: 'preventOverflow',
@@ -2416,7 +2938,7 @@ export class Message extends React.PureComponent<Props, State> {
         },
       },
     };
-  }
+  };
 
   public toggleReactionViewer = (onlyRemove = false): void => {
     this.setState(oldState => {
@@ -2464,185 +2986,22 @@ export class Message extends React.PureComponent<Props, State> {
       return null;
     }
 
-    const reactionsWithEmojiData = reactions.map(reaction => ({
-      ...reaction,
-      ...emojiToData(reaction.emoji),
-    }));
-
-    // Group by emoji and order each group by timestamp descending
-    const groupedAndSortedReactions = Object.values(
-      groupBy(reactionsWithEmojiData, 'short_name')
-    ).map(groupedReactions =>
-      orderBy(
-        groupedReactions,
-        [reaction => reaction.from.isMe, 'timestamp'],
-        ['desc', 'desc']
-      )
-    );
-    // Order groups by length and subsequently by most recent reaction
-    const ordered = orderBy(
-      groupedAndSortedReactions,
-      ['length', ([{ timestamp }]) => timestamp],
-      ['desc', 'desc']
-    );
-    // Take the first three groups for rendering
-    const toRender = take(ordered, 3).map(res => {
-      const isMe = res.some(re => Boolean(re.from.isMe));
-      const count = res.length;
-      const { emoji } = res[0];
-
-      let label: string;
-      if (isMe) {
-        label = i18n('icu:Message__reaction-emoji-label--you', { emoji });
-      } else if (count === 1) {
-        label = i18n('icu:Message__reaction-emoji-label--single', {
-          title: res[0].from.title,
-          emoji,
-        });
-      } else {
-        label = i18n('icu:Message__reaction-emoji-label--many', {
-          count,
-          emoji,
-        });
-      }
-
-      return {
-        count,
-        emoji,
-        isMe,
-        label,
-      };
-    });
-    const someNotRendered = ordered.length > 3;
-    // We only drop two here because the third emoji would be replaced by the
-    // more button
-    const maybeNotRendered = drop(ordered, 2);
-    const maybeNotRenderedTotal = maybeNotRendered.reduce(
-      (sum, res) => sum + res.length,
-      0
-    );
-    const notRenderedIsMe =
-      someNotRendered &&
-      maybeNotRendered.some(res => res.some(re => Boolean(re.from.isMe)));
-
     const { reactionViewerRoot } = this.state;
 
-    const popperPlacement = outgoing ? 'bottom-end' : 'bottom-start';
-
     return (
-      <Manager>
-        <Reference>
-          {({ ref: popperRef }) => (
-            <div
-              ref={this.reactionsContainerRefMerger(
-                this.reactionsContainerRef,
-                popperRef
-              )}
-              className={classNames(
-                'module-message__reactions',
-                outgoing
-                  ? 'module-message__reactions--outgoing'
-                  : 'module-message__reactions--incoming'
-              )}
-              onDoubleClick={ev => {
-                ev.stopPropagation();
-              }}
-            >
-              {toRender.map((re, i) => {
-                const isLast = i === toRender.length - 1;
-                const isMore = isLast && someNotRendered;
-                const isMoreWithMe = isMore && notRenderedIsMe;
-
-                return (
-                  <button
-                    aria-label={re.label}
-                    type="button"
-                    // eslint-disable-next-line react/no-array-index-key
-                    key={`${re.emoji}-${i}`}
-                    className={classNames(
-                      'module-message__reactions__reaction',
-                      re.count > 1
-                        ? 'module-message__reactions__reaction--with-count'
-                        : null,
-                      outgoing
-                        ? 'module-message__reactions__reaction--outgoing'
-                        : 'module-message__reactions__reaction--incoming',
-                      isMoreWithMe || (re.isMe && !isMoreWithMe)
-                        ? 'module-message__reactions__reaction--is-me'
-                        : null
-                    )}
-                    onClick={e => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      this.toggleReactionViewer(false);
-                    }}
-                    onKeyDown={e => {
-                      // Prevent enter key from opening stickers/attachments
-                      if (e.key === 'Enter') {
-                        e.stopPropagation();
-                      }
-                    }}
-                  >
-                    {isMore ? (
-                      <span
-                        className={classNames(
-                          'module-message__reactions__reaction__count',
-                          'module-message__reactions__reaction__count--no-emoji',
-                          isMoreWithMe
-                            ? 'module-message__reactions__reaction__count--is-me'
-                            : null
-                        )}
-                      >
-                        +{maybeNotRenderedTotal}
-                      </span>
-                    ) : (
-                      <>
-                        <Emoji size={16} emoji={re.emoji} />
-                        {re.count > 1 ? (
-                          <span
-                            className={classNames(
-                              'module-message__reactions__reaction__count',
-                              re.isMe
-                                ? 'module-message__reactions__reaction__count--is-me'
-                                : null
-                            )}
-                          >
-                            {re.count}
-                          </span>
-                        ) : null}
-                      </>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </Reference>
-        {reactionViewerRoot &&
-          createPortal(
-            <Popper
-              placement={popperPlacement}
-              strategy="fixed"
-              modifiers={[this.#popperPreventOverflowModifier()]}
-            >
-              {({ ref, style }) => (
-                <ReactionViewer
-                  ref={ref}
-                  style={{
-                    ...style,
-                    zIndex: 2,
-                  }}
-                  getPreferredBadge={getPreferredBadge}
-                  reactions={reactions}
-                  i18n={i18n}
-                  onClose={this.toggleReactionViewer}
-                  theme={theme}
-                />
-              )}
-            </Popper>,
-            reactionViewerRoot
-          )}
-      </Manager>
+      <MessageReactions
+        reactions={reactions}
+        getPreferredBadge={getPreferredBadge}
+        i18n={i18n}
+        theme={theme}
+        outgoing={outgoing}
+        toggleReactionViewer={() => {
+          this.toggleReactionViewer();
+        }}
+        reactionViewerRoot={reactionViewerRoot}
+        popperPreventOverflowModifier={this.#popperPreventOverflowModifier}
+        ref={this.reactionsContainerRef}
+      />
     );
   }
 
@@ -2689,28 +3048,29 @@ export class Message extends React.PureComponent<Props, State> {
     );
   }
 
-  public handleOpen = (
-    event: React.KeyboardEvent<HTMLDivElement> | React.MouseEvent
-  ): void => {
+  public handleOpen = (event: React.KeyboardEvent | React.MouseEvent): void => {
     const {
       attachments,
+      cancelAttachmentDownload,
       contact,
-      showLightboxForViewOnceMedia,
       direction,
       giftBadge,
       id,
       isSticker,
       isTapToView,
+      isTapToViewError,
       isTapToViewExpired,
       kickOffAttachmentDownload,
-      startConversation,
       openGiftBadge,
       pushPanelForConversation,
+      readStatus,
       showAttachmentNotAvailableModal,
-      showLightbox,
       showExpiredIncomingTapToViewToast,
       showExpiredOutgoingTapToViewToast,
+      showLightbox,
+      showLightboxForViewOnceMedia,
       showMediaNoLongerAvailableToast,
+      startConversation,
     } = this.props;
     const { imageBroken } = this.state;
 
@@ -2721,11 +3081,39 @@ export class Message extends React.PureComponent<Props, State> {
       return;
     }
 
-    if (
-      attachments &&
-      attachments.length > 0 &&
-      isPermanentlyUndownloadable(attachments[0])
-    ) {
+    if (isTapToView) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (direction === 'outgoing') {
+        showExpiredOutgoingTapToViewToast();
+        return;
+      }
+      if (readStatus === ReadStatus.Viewed) {
+        showExpiredIncomingTapToViewToast();
+        return;
+      }
+
+      if (isTapToViewError || isTapToViewExpired) {
+        // The only interactive element is the Learn More button
+        return;
+      }
+
+      if (attachments && !isDownloaded(attachments[0])) {
+        if (isDownloading(attachments[0])) {
+          cancelAttachmentDownload({ messageId: id });
+        } else {
+          kickOffAttachmentDownload({ messageId: id });
+        }
+        return;
+      }
+
+      showLightboxForViewOnceMedia(id);
+
+      return;
+    }
+
+    if (attachments?.[0]?.isPermanentlyUndownloadable) {
       event.preventDefault();
       event.stopPropagation();
 
@@ -2747,35 +3135,40 @@ export class Message extends React.PureComponent<Props, State> {
       return;
     }
 
-    if (isTapToView) {
-      if (isAttachmentPending) {
-        log.info(
-          '<Message> handleOpen: tap-to-view attachment is pending; not showing the lightbox'
-        );
-        return;
-      }
+    if (contact && contact.firstNumber && contact.serviceId) {
+      startConversation(contact.firstNumber, contact.serviceId);
 
       event.preventDefault();
       event.stopPropagation();
+      return;
+    }
+    if (contact) {
+      pushPanelForConversation({
+        type: PanelType.ContactDetails,
+        args: {
+          messageId: id,
+        },
+      });
 
-      if (isTapToViewExpired) {
-        const action =
-          direction === 'outgoing'
-            ? showExpiredOutgoingTapToViewToast
-            : showExpiredIncomingTapToViewToast;
-        action();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
 
-        return;
-      }
+    if (this.isGenericAttachment(attachments, imageBroken)) {
+      this.openGenericAttachment();
+      return;
+    }
 
-      if (attachments && !isDownloaded(attachments[0])) {
-        kickOffAttachmentDownload({ messageId: id });
+    if (
+      isAudio(attachments) &&
+      this.audioButtonRef &&
+      this.audioButtonRef.current
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
 
-        return;
-      }
-
-      showLightboxForViewOnceMedia(id);
-
+      this.audioButtonRef.current.click();
       return;
     }
 
@@ -2809,63 +3202,6 @@ export class Message extends React.PureComponent<Props, State> {
       const attachment = attachments[0];
 
       showLightbox({ attachment, messageId: id });
-
-      return;
-    }
-
-    if (
-      attachments &&
-      attachments.length === 1 &&
-      !isAttachmentPending &&
-      !isAudio(attachments)
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      this.openGenericAttachment();
-
-      return;
-    }
-
-    if (
-      !isAttachmentPending &&
-      isAudio(attachments) &&
-      this.audioButtonRef &&
-      this.audioButtonRef.current
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      this.audioButtonRef.current.click();
-      return;
-    }
-
-    if (contact && contact.firstNumber && contact.serviceId) {
-      startConversation(contact.firstNumber, contact.serviceId);
-
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
-
-    if (contact) {
-      const signalAccount =
-        contact.firstNumber && contact.serviceId
-          ? {
-              phoneNumber: contact.firstNumber,
-              serviceId: contact.serviceId,
-            }
-          : undefined;
-      pushPanelForConversation({
-        type: PanelType.ContactDetails,
-        args: {
-          contact,
-          signalAccount,
-        },
-      });
-
-      event.preventDefault();
-      event.stopPropagation();
     }
   };
 
@@ -2876,6 +3212,9 @@ export class Message extends React.PureComponent<Props, State> {
       saveAttachment,
       timestamp,
       kickOffAttachmentDownload,
+      attachmentDroppedDueToSize,
+      showAttachmentNotAvailableModal,
+      cancelAttachmentDownload,
     } = this.props;
 
     if (event) {
@@ -2883,17 +3222,27 @@ export class Message extends React.PureComponent<Props, State> {
       event.stopPropagation();
     }
 
-    if (!attachments || attachments.length !== 1) {
+    const firstAttachment = attachments?.[0];
+    if (!firstAttachment) {
       return;
     }
+    const isAttachmentNotAvailable =
+      firstAttachment.isPermanentlyUndownloadable &&
+      !attachmentDroppedDueToSize;
 
-    const attachment = attachments[0];
-    if (!isDownloaded(attachment)) {
-      kickOffAttachmentDownload({ messageId: id });
-      return;
+    if (isAttachmentNotAvailable) {
+      showAttachmentNotAvailableModal(AttachmentNotAvailableModalType.File);
+    } else if (firstAttachment.pending) {
+      cancelAttachmentDownload({
+        messageId: id,
+      });
+    } else if (!firstAttachment.path) {
+      kickOffAttachmentDownload({
+        messageId: id,
+      });
+    } else {
+      saveAttachment(firstAttachment, timestamp);
     }
-
-    saveAttachment(attachment, timestamp);
   };
 
   public handleClick = (event: React.MouseEvent): void => {
@@ -2906,10 +3255,31 @@ export class Message extends React.PureComponent<Props, State> {
     this.handleOpen(event);
   };
 
+  public handleKeyDown = (event: React.KeyboardEvent): void => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    this.handleOpen(event);
+  };
+
+  private isGenericAttachment(
+    attachments: ReadonlyArray<AttachmentForUIType> | undefined,
+    imageBroken: boolean
+  ) {
+    return (
+      attachments?.length &&
+      (!isImage(attachments) || !canDisplayImage(attachments) || imageBroken) &&
+      (!isVideo(attachments) || !canDisplayImage(attachments) || imageBroken) &&
+      !isAudio(attachments)
+    );
+  }
+
   public renderContainer(): JSX.Element {
     const {
       attachments,
       attachmentDroppedDueToSize,
+      contact,
       conversationColor,
       customColor,
       deletedForEveryone,
@@ -2917,16 +3287,12 @@ export class Message extends React.PureComponent<Props, State> {
       id,
       isSticker,
       isTapToView,
-      isTapToViewExpired,
-      isTapToViewError,
       onContextMenu,
-      onKeyDown,
       text,
       textDirection,
     } = this.props;
-    const { isTargeted } = this.state;
+    const { isTargeted, imageBroken } = this.state;
 
-    const isAttachmentPending = this.isAttachmentPending();
     const width = this.getWidth();
     const isEmojiOnly = this.#canRenderStickerLikeEmoji();
     const isStickerLike =
@@ -2934,7 +3300,7 @@ export class Message extends React.PureComponent<Props, State> {
       (isSticker &&
         attachments &&
         attachments[0] &&
-        !isPermanentlyUndownloadable(attachments[0]));
+        !attachments[0].isPermanentlyUndownloadable);
 
     // If it's a mostly-normal gray incoming text box, we don't want to darken it as much
     const lighterSelect =
@@ -2942,30 +3308,24 @@ export class Message extends React.PureComponent<Props, State> {
       direction === 'incoming' &&
       !isStickerLike &&
       (text || (!isVideo(attachments) && !isImage(attachments)));
+    const isClickable =
+      isTapToView ||
+      (this.isGenericAttachment(attachments, imageBroken) && !text) ||
+      contact;
 
     const containerClassnames = classNames(
       'module-message__container',
-      isGIF(attachments) ? 'module-message__container--gif' : null,
+      isGIF(attachments) && !isTapToView
+        ? 'module-message__container--gif'
+        : null,
       isTargeted ? 'module-message__container--targeted' : null,
       lighterSelect ? 'module-message__container--targeted-lighter' : null,
       !isStickerLike ? `module-message__container--${direction}` : null,
       isEmojiOnly ? 'module-message__container--emoji' : null,
-      isTapToView ? 'module-message__container--with-tap-to-view' : null,
-      isTapToView && isTapToViewExpired
-        ? 'module-message__container--with-tap-to-view-expired'
-        : null,
       !isStickerLike && direction === 'outgoing'
         ? `module-message__container--outgoing-${conversationColor}`
         : null,
-      isTapToView && isAttachmentPending && !isTapToViewExpired
-        ? 'module-message__container--with-tap-to-view-pending'
-        : null,
-      isTapToView && isAttachmentPending && !isTapToViewExpired
-        ? `module-message__container--${direction}-${conversationColor}-tap-to-view-pending`
-        : null,
-      isTapToViewError
-        ? 'module-message__container--with-tap-to-view-error'
-        : null,
+      isClickable ? 'module-message__container--is-clickable' : null,
       this.#hasReactions() ? 'module-message__container--with-reactions' : null,
       deletedForEveryone
         ? 'module-message__container--deleted-for-everyone'
@@ -2985,13 +3345,14 @@ export class Message extends React.PureComponent<Props, State> {
 
     return (
       <div className="module-message__container-outer">
+        {/* the keyboard handler is a level higher in hierarchy due to selection */}
+        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events */}
         <div
           className={containerClassnames}
           id={`message-accessibility-contents:${id}`}
           style={containerStyles}
           onContextMenu={onContextMenu}
           role="row"
-          onKeyDown={onKeyDown}
           onClick={this.handleClick}
           onDoubleClick={ev => {
             // Prevent double click from triggering the replyToMessage action
@@ -3037,7 +3398,6 @@ export class Message extends React.PureComponent<Props, State> {
       isSticker,
       isSelected,
       isSelectMode,
-      onKeyDown,
       platform,
       renderMenu,
       shouldCollapseAbove,
@@ -3085,7 +3445,7 @@ export class Message extends React.PureComponent<Props, State> {
         onMouseDown: () => {
           this.#hasSelectedTextRef.current = false;
         },
-        // We use `onClickCapture` here and preven default/stop propagation to
+        // We use `onClickCapture` here and prevent default/stop propagation to
         // prevent other click handlers from firing.
         onClickCapture: event => {
           if (isMacOS ? event.metaKey : event.ctrlKey) {
@@ -3112,6 +3472,7 @@ export class Message extends React.PureComponent<Props, State> {
             onReplyToMessage();
           }
         },
+        onKeyDown: event => this.handleKeyDown(event),
       };
     }
 
@@ -3150,7 +3511,6 @@ export class Message extends React.PureComponent<Props, State> {
           // We need to have a role because screenreaders need to be able to focus here to
           //   read the message, but we can't be a button; that would break inner buttons.
           role="row"
-          onKeyDown={onKeyDown}
           onFocus={this.handleFocus}
           ref={this.focusRef}
           // @ts-expect-error -- React/TS doesn't know about inert

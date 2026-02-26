@@ -117,16 +117,25 @@ export type BootstrapOptions = Readonly<{
   contactPreKeyCount?: number;
 
   useLegacyStorageEncryption?: boolean;
+
+  // Optional. specify a server to use instead of creating and initializing one.
+  server?: Server;
 }>;
 
-export type EphemeralBackupType = Readonly<{
-  cdn: 3;
-  key: string;
-}>;
+export type EphemeralBackupType = Readonly<
+  | {
+      cdn: 3;
+      key: string;
+    }
+  | {
+      error: 'RELINK_REQUESTED';
+    }
+>;
 
 export type LinkOptionsType = Readonly<{
   extraConfig?: Partial<RendererConfigType>;
   ephemeralBackup?: EphemeralBackupType;
+  localBackup?: string;
 }>;
 
 type BootstrapInternalOptions = BootstrapOptions &
@@ -168,8 +177,8 @@ function sanitizePathComponent(component: string): string {
 const DEFAULT_REMOTE_CONFIG = [
   ['desktop.backup.credentialFetch', { enabled: true }],
   ['desktop.internalUser', { enabled: true }],
-  ['desktop.releaseNotes', { enabled: true }],
   ['desktop.senderKey.retry', { enabled: true }],
+  ['global.backups.mediaTierFallbackCdnNumber', { enabled: true, value: '3' }],
   ['global.groupsv2.groupSizeHardLimit', { enabled: true, value: '64' }],
   ['global.groupsv2.maxGroupSize', { enabled: true, value: '32' }],
 ] as const;
@@ -201,7 +210,7 @@ const DEFAULT_REMOTE_CONFIG = [
 //
 export class Bootstrap {
   public readonly server: Server;
-  public readonly cdn3Path: string;
+  public readonly cdn3Path?: string;
 
   readonly #options: BootstrapInternalOptions;
   #privContacts?: ReadonlyArray<PrimaryDevice>;
@@ -215,16 +224,18 @@ export class Bootstrap {
   readonly #randomId = crypto.randomBytes(8).toString('hex');
 
   constructor(options: BootstrapOptions = {}) {
-    this.cdn3Path = path.join(
-      os.tmpdir(),
-      `mock-signal-cdn3-${this.#randomId}`
-    );
-    this.server = new Server({
-      // Limit number of storage read keys for easier testing
-      maxStorageReadKeys: MAX_STORAGE_READ_KEYS,
-      cdn3Path: this.cdn3Path,
-      updates2Path: path.join(__dirname, 'updates-data'),
-    });
+    this.cdn3Path =
+      options.server === undefined
+        ? path.join(os.tmpdir(), `mock-signal-cdn3-${this.#randomId}`)
+        : undefined;
+    this.server =
+      options.server ??
+      new Server({
+        // Limit number of storage read keys for easier testing
+        maxStorageReadKeys: MAX_STORAGE_READ_KEYS,
+        cdn3Path: this.cdn3Path,
+        updates2Path: path.join(__dirname, 'updates-data'),
+      });
 
     this.#options = {
       linkedDevices: 5,
@@ -248,10 +259,14 @@ export class Bootstrap {
   public async init(): Promise<void> {
     debug('initializing');
 
-    await this.server.listen(0);
+    if (this.#options.server === undefined) {
+      await this.server.listen(0);
 
-    const { port } = this.server.address();
-    debug('started server on port=%d', port);
+      const { port } = this.server.address();
+      debug('started server on port=%d', port);
+    } else {
+      debug('existing server listening on port = ', this.server.address().port);
+    }
 
     const totalContactCount =
       this.#options.contactCount +
@@ -361,7 +376,9 @@ export class Bootstrap {
         ...[this.#storagePath, this.cdn3Path].map(tmpPath =>
           tmpPath ? fs.rm(tmpPath, { recursive: true }) : Promise.resolve()
         ),
-        this.server.close(),
+        this.#options.server === undefined
+          ? this.server.close()
+          : Promise.resolve(),
         this.#lastApp?.close(),
       ]),
       new Promise(resolve => setTimeout(resolve, CLOSE_TIMEOUT).unref()),
@@ -371,12 +388,17 @@ export class Bootstrap {
   public async link({
     extraConfig,
     ephemeralBackup,
+    localBackup,
   }: LinkOptionsType = {}): Promise<App> {
     debug('linking');
 
     const app = await this.startApp(extraConfig);
 
     const window = await app.getWindow();
+
+    if (localBackup != null) {
+      await app.stageLocalBackupForImport(localBackup);
+    }
 
     debug('looking for QR code or relink button');
     const qrCode = window.locator(
@@ -404,6 +426,11 @@ export class Bootstrap {
 
     if (ephemeralBackup != null) {
       await this.server.provideTransferArchive(this.desktop, ephemeralBackup);
+
+      // Desktop won't get linked
+      if ('error' in ephemeralBackup) {
+        return app;
+      }
     }
 
     debug('new desktop device %j', this.desktop.debugId);
@@ -548,8 +575,9 @@ export class Bootstrap {
     test?: Mocha.Runnable
   ): Promise<(app: App) => Promise<void>> {
     const snapshots = new Array<{ name: string; data: Buffer }>();
-
+    const viewportSize = { width: 1000, height: 2000 } as const;
     const window = await app.getWindow();
+    await window.setViewportSize(viewportSize);
     await callback(window, async (name: string) => {
       debug('creating screenshot');
       snapshots.push({
@@ -568,7 +596,7 @@ export class Bootstrap {
         const before = snapshots.shift();
         assert(before != null, 'No previous snapshot');
         assert.strictEqual(before.name, name, 'Wrong snapshot order');
-
+        await anotherWindow.setViewportSize(viewportSize);
         const after = await anotherWindow.screenshot();
 
         const beforePng = PNG.sync.read(before.data);

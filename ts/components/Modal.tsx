@@ -15,13 +15,15 @@ import { assertDev } from '../util/assert';
 import { getClassNamesFor } from '../util/getClassNamesFor';
 import { useAnimated } from '../hooks/useAnimated';
 import { useHasWrapped } from '../hooks/useHasWrapped';
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import {
   isScrollOverflowVertical,
   isScrollAtTop,
   isScrollAtBottom,
   useScrollObserver,
 } from '../hooks/useSizeObserver';
+
+const log = createLogger('Modal');
 
 type PropsType = {
   children: ReactNode;
@@ -36,7 +38,6 @@ type PropsType = {
   onBackButtonClick?: () => unknown;
   onClose?: () => void;
   title?: ReactNode;
-  useFocusTrap?: boolean;
   padded?: boolean;
   ['aria-describedby']?: string;
 };
@@ -64,7 +65,6 @@ export function Modal({
   onClose = noop,
   theme,
   title,
-  useFocusTrap,
   hasHeaderDivider = false,
   hasFooterDivider = false,
   noTransform = false,
@@ -100,7 +100,7 @@ export function Modal({
     }
 
     const timer = setTimeout(() => {
-      log.error(`Modal ${modalName} is closed, but still visible`);
+      log.error(`${modalName} is closed, but still visible`);
       assertDev(false, `Invisible modal ${modalName}`);
     }, 0);
     return () => {
@@ -122,7 +122,6 @@ export function Modal({
       onEscape={onBackButtonClick}
       overlayStyles={overlayStyles}
       theme={theme}
-      useFocusTrap={useFocusTrap}
     >
       <animated.div style={modalStyles}>
         <ModalPage
@@ -324,7 +323,6 @@ type PagedModalProps = Readonly<{
   children: RenderModalPage;
   moduleClassName?: string;
   onClose?: () => void;
-  useFocusTrap?: boolean;
   noMouseClose?: boolean;
   theme?: Theme;
 }>;
@@ -344,7 +342,6 @@ export function PagedModal({
   noMouseClose,
   onClose = noop,
   theme,
-  useFocusTrap,
 }: PagedModalProps): JSX.Element | null {
   const { close, isClosed, modalStyles, overlayStyles } = useAnimated(onClose, {
     getFrom: () => ({ opacity: 0, transform: 'translateY(48px)' }),
@@ -380,7 +377,6 @@ export function PagedModal({
       onClose={close}
       overlayStyles={overlayStyles}
       theme={theme}
-      useFocusTrap={useFocusTrap}
     >
       <animated.div style={modalStyles}>{children(close)}</animated.div>
     </ModalHost>

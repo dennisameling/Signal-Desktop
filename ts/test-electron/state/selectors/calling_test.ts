@@ -29,7 +29,7 @@ import { getEmptyState } from '../../../state/ducks/calling';
 import {
   FAKE_CALL_LINK,
   FAKE_CALL_LINK_WITH_ADMIN_KEY,
-} from '../../../test-both/helpers/fakeCallLink';
+} from '../../../test-helpers/fakeCallLink';
 
 const OUR_ACI = generateAci();
 const ACI_1 = generateAci();
@@ -60,6 +60,7 @@ describe('state/selectors/calling', () => {
         isIncoming: false,
         isVideoCall: false,
         hasRemoteVideo: false,
+        remoteAudioLevel: 0,
       },
     },
   };
@@ -77,6 +78,7 @@ describe('state/selectors/calling', () => {
       showParticipantsList: false,
       outgoingRing: true,
       pip: false,
+      selfViewExpanded: false,
       settingsDialogOpen: false,
       joinedAt: null,
     },
@@ -89,6 +91,7 @@ describe('state/selectors/calling', () => {
     isIncoming: true,
     isVideoCall: false,
     hasRemoteVideo: false,
+    remoteAudioLevel: 0,
   };
 
   const stateWithIncomingDirectCall: CallingStateType = {
@@ -151,6 +154,7 @@ describe('state/selectors/calling', () => {
             isIncoming: false,
             isVideoCall: false,
             hasRemoteVideo: false,
+            remoteAudioLevel: 0,
           },
         }
       );
@@ -176,6 +180,7 @@ describe('state/selectors/calling', () => {
           isIncoming: false,
           isVideoCall: false,
           hasRemoteVideo: false,
+          remoteAudioLevel: 0,
         }
       );
     });

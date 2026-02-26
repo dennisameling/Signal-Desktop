@@ -1,19 +1,31 @@
 // Copyright 2025 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { MouseEvent } from 'react';
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, PointerEvent } from 'react';
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type {
   StickerPackType,
   StickerType,
 } from '../../../state/ducks/stickers';
 import type { LocalizerType } from '../../../types/I18N';
 import { strictAssert } from '../../../util/assert';
-import type { FunStickersSection } from '../FunConstants';
+import type {
+  FunStickersPackSection,
+  FunStickersSection,
+  FunTimeStickerStyle,
+} from '../constants';
 import {
   FunSectionCommon,
   FunStickersSectionBase,
+  FunTimeStickerStylesOrder,
   toFunStickersPackSection,
-} from '../FunConstants';
+} from '../constants';
 import {
   FunGridCell,
   FunGridContainer,
@@ -23,8 +35,13 @@ import {
   FunGridRowGroup,
   FunGridScrollerSection,
 } from '../base/FunGrid';
-import { FunItemButton, FunItemSticker } from '../base/FunItem';
-import { FunPanel } from '../base/FunPanel';
+import { FunItemButton } from '../base/FunItem';
+import {
+  FunPanel,
+  FunPanelBody,
+  FunPanelFooter,
+  FunPanelHeader,
+} from '../base/FunPanel';
 import { FunScroller } from '../base/FunScroller';
 import { FunSearch } from '../base/FunSearch';
 import {
@@ -38,10 +55,10 @@ import {
   FunSubNavScroller,
 } from '../base/FunSubNav';
 import {
+  type EmojiParentKey,
   emojiVariantConstant,
   getEmojiParentKeyByValue,
   isEmojiParentValue,
-  useEmojiSearch,
 } from '../data/emojis';
 import { FunKeyboard } from '../keyboard/FunKeyboard';
 import type { GridKeyboardState } from '../keyboard/GridKeyboardDelegate';
@@ -54,7 +71,18 @@ import type {
 import { useFunVirtualGrid } from '../virtual/useFunVirtualGrid';
 import { useFunContext } from '../FunProvider';
 import { FunResults, FunResultsHeader } from '../base/FunResults';
-import { FunEmoji } from '../FunEmoji';
+import { FunStaticEmoji } from '../FunEmoji';
+import {
+  FunLightboxPortal,
+  FunLightboxBackdrop,
+  FunLightboxDialog,
+  FunLightboxProvider,
+  useFunLightboxKey,
+} from '../base/FunLightbox';
+import { FunSticker } from '../FunSticker';
+import { getAnalogTime } from '../../../util/getAnalogTime';
+import { getDateTimeFormatter } from '../../../util/formatTimestamp';
+import { useFunEmojiSearch } from '../useFunEmojiSearch';
 
 const STICKER_GRID_COLUMNS = 4;
 const STICKER_GRID_CELL_WIDTH = 80;
@@ -64,16 +92,35 @@ const STICKER_GRID_SECTION_GAP = 20;
 const STICKER_GRID_HEADER_SIZE = 28;
 const STICKER_GRID_ROW_SIZE = STICKER_GRID_CELL_HEIGHT;
 
-type StickerLookup = Record<string, StickerType>;
+type StickerLookupItemSticker = { kind: 'sticker'; sticker: StickerType };
+type StickerLookupItemTimeSticker = {
+  kind: 'timeSticker';
+  style: FunTimeStickerStyle;
+};
+type StickerLookupItem =
+  | StickerLookupItemSticker
+  | StickerLookupItemTimeSticker;
+
+type StickerLookup = Record<string, StickerLookupItem>;
 type StickerPackLookup = Record<string, StickerPackType>;
 
 function getStickerId(sticker: StickerType): string {
   return `${sticker.packId}-${sticker.id}`;
 }
 
+function getTimeStickerId(style: FunTimeStickerStyle): string {
+  return `_timeSticker:${style}`;
+}
+
+function toStickerIds(
+  stickers: ReadonlyArray<StickerType>
+): ReadonlyArray<string> {
+  return stickers.map(sticker => getStickerId(sticker));
+}
+
 function toGridSectionNode(
   section: FunStickersSection,
-  stickers: ReadonlyArray<StickerType>
+  values: ReadonlyArray<string>
 ): GridSectionNode {
   return {
     id: section,
@@ -81,8 +128,7 @@ function toGridSectionNode(
     header: {
       key: `header-${section}`,
     },
-    cells: stickers.map(sticker => {
-      const value = getStickerId(sticker);
+    cells: values.map(value => {
       return {
         key: `cell-${section}-${value}`,
         value,
@@ -105,7 +151,12 @@ function getTitleForSection(
   if (section === FunStickersSectionBase.StickersSetup) {
     return '';
   }
-  const packId = section.replace(/^StickerPack:/, '');
+  if (section === FunStickersSectionBase.Featured) {
+    return i18n('icu:FunPanelStickers__SectionTitle--Featured');
+  }
+  // To assert the typescript type:
+  const stickerPackSection: FunStickersPackSection = section;
+  const packId = stickerPackSection.replace(/^StickerPack:/, '');
   const pack = packs[packId];
   strictAssert(pack != null, `Missing pack for ${packId}`);
   return pack.title;
@@ -114,15 +165,20 @@ function getTitleForSection(
 export type FunStickerSelection = Readonly<{
   stickerPackId: string;
   stickerId: number;
+  stickerUrl: string;
 }>;
 
 export type FunPanelStickersProps = Readonly<{
+  showTimeStickers: boolean;
+  onSelectTimeSticker?: (style: FunTimeStickerStyle) => void;
   onSelectSticker: (stickerSelection: FunStickerSelection) => void;
   onAddStickerPack: (() => void) | null;
   onClose: () => void;
 }>;
 
 export function FunPanelStickers({
+  showTimeStickers,
+  onSelectTimeSticker,
   onSelectSticker,
   onAddStickerPack,
   onClose,
@@ -136,6 +192,7 @@ export function FunPanelStickers({
     onChangeSelectedStickersSection,
     recentStickers,
     installedStickerPacks,
+    onSelectSticker: onFunSelectSticker,
   } = fun;
 
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -151,24 +208,31 @@ export function FunPanelStickers({
   const stickerLookup = useMemo(() => {
     const result: StickerLookup = {};
     for (const sticker of recentStickers) {
-      result[getStickerId(sticker)] = sticker;
+      result[getStickerId(sticker)] = { kind: 'sticker', sticker };
     }
     for (const installedStickerPack of installedStickerPacks) {
       for (const sticker of installedStickerPack.stickers) {
-        result[getStickerId(sticker)] = sticker;
+        result[getStickerId(sticker)] = { kind: 'sticker', sticker };
       }
+    }
+    for (const style of FunTimeStickerStylesOrder) {
+      result[getTimeStickerId(style)] = { kind: 'timeSticker', style };
     }
     return result;
   }, [recentStickers, installedStickerPacks]);
 
   const [focusedCellKey, setFocusedCellKey] = useState<CellKey | null>(null);
 
-  const searchEmojis = useEmojiSearch(i18n);
+  const searchEmojis = useFunEmojiSearch();
   const searchQuery = useMemo(() => searchInput.trim(), [searchInput]);
 
   const sections = useMemo(() => {
     if (searchQuery !== '') {
-      const emojiKeys = new Set(searchEmojis(searchQuery));
+      const emojiKeys = new Set<EmojiParentKey>();
+
+      for (const result of searchEmojis(searchQuery)) {
+        emojiKeys.add(result.parentKey);
+      }
 
       const allStickers = installedStickerPacks.flatMap(pack => pack.stickers);
       const matchingStickers = allStickers.filter(sticker => {
@@ -183,23 +247,48 @@ export function FunPanelStickers({
       });
 
       return [
-        toGridSectionNode(FunSectionCommon.SearchResults, matchingStickers),
+        toGridSectionNode(
+          FunSectionCommon.SearchResults,
+          toStickerIds(matchingStickers)
+        ),
       ];
     }
 
     const result: Array<GridSectionNode> = [];
 
+    if (showTimeStickers) {
+      result.push(
+        toGridSectionNode(
+          FunStickersSectionBase.Featured,
+          FunTimeStickerStylesOrder.map(style => {
+            return getTimeStickerId(style);
+          })
+        )
+      );
+    }
+
     if (recentStickers.length > 0) {
-      result.push(toGridSectionNode(FunSectionCommon.Recents, recentStickers));
+      result.push(
+        toGridSectionNode(
+          FunSectionCommon.Recents,
+          toStickerIds(recentStickers)
+        )
+      );
     }
 
     for (const pack of installedStickerPacks) {
       const section = toFunStickersPackSection(pack);
-      result.push(toGridSectionNode(section, pack.stickers));
+      result.push(toGridSectionNode(section, toStickerIds(pack.stickers)));
     }
 
     return result;
-  }, [recentStickers, installedStickerPacks, searchEmojis, searchQuery]);
+  }, [
+    showTimeStickers,
+    recentStickers,
+    installedStickerPacks,
+    searchEmojis,
+    searchQuery,
+  ]);
 
   const [virtualizer, layout] = useFunVirtualGrid({
     scrollerRef,
@@ -254,145 +343,168 @@ export function FunPanelStickers({
     return searchInput.length > 0;
   }, [searchInput]);
 
-  const handlePressSticker = useCallback(
-    (event: MouseEvent, stickerSelection: FunStickerSelection) => {
+  const handleClickSticker = useCallback(
+    (event: PointerEvent, stickerSelection: FunStickerSelection) => {
+      onFunSelectSticker(stickerSelection);
       onSelectSticker(stickerSelection);
+      if (!(event.ctrlKey || event.metaKey)) {
+        setFocusedCellKey(null);
+        onClose();
+      }
+    },
+    [onFunSelectSticker, onSelectSticker, onClose]
+  );
+
+  const handleClickTimeSticker = useCallback(
+    (event: PointerEvent, style: FunTimeStickerStyle) => {
+      onSelectTimeSticker?.(style);
       if (!(event.ctrlKey || event.metaKey)) {
         onClose();
       }
     },
-    [onSelectSticker, onClose]
+    [onSelectTimeSticker, onClose]
   );
 
   return (
     <FunPanel>
-      <FunSearch
-        searchInput={searchInput}
-        onSearchInputChange={onSearchInputChange}
-        placeholder={i18n('icu:FunPanelStickers__SearchPlaceholder')}
-        aria-label={i18n('icu:FunPanelStickers__SearchLabel')}
-      />
+      <FunPanelHeader>
+        <FunSearch
+          i18n={i18n}
+          searchInput={searchInput}
+          onSearchInputChange={onSearchInputChange}
+          placeholder={i18n('icu:FunPanelStickers__SearchPlaceholder')}
+          aria-label={i18n('icu:FunPanelStickers__SearchLabel')}
+        />
+      </FunPanelHeader>
       {!hasSearchQuery && (
-        <FunSubNav>
-          <FunSubNavScroller>
-            {selectedStickersSection != null && (
-              <FunSubNavListBox
-                aria-label={i18n('icu:FunPanelSticker__SubNavLabel')}
-                selected={selectedStickersSection}
-                onSelect={handleSelectSection}
-              >
-                {recentStickers.length > 0 && (
-                  <FunSubNavListBoxItem
-                    id={FunSectionCommon.Recents}
-                    label={i18n(
-                      'icu:FunPanelStickers__SubNavCategoryLabel--Recents'
-                    )}
-                  >
-                    <FunSubNavIcon iconClassName="FunSubNav__Icon--Recents" />
-                  </FunSubNavListBoxItem>
-                )}
-                {installedStickerPacks.map(installedStickerPack => {
-                  return (
+        <FunPanelFooter>
+          <FunSubNav>
+            <FunSubNavScroller>
+              {selectedStickersSection != null && (
+                <FunSubNavListBox
+                  aria-label={i18n('icu:FunPanelSticker__SubNavLabel')}
+                  selected={selectedStickersSection}
+                  onSelect={handleSelectSection}
+                >
+                  {recentStickers.length > 0 && (
                     <FunSubNavListBoxItem
-                      key={installedStickerPack.id}
-                      id={toFunStickersPackSection(installedStickerPack)}
-                      label={installedStickerPack.title}
-                    >
-                      {installedStickerPack.cover && (
-                        <FunSubNavImage src={installedStickerPack.cover?.url} />
+                      id={FunSectionCommon.Recents}
+                      label={i18n(
+                        'icu:FunPanelStickers__SubNavCategoryLabel--Recents'
                       )}
+                    >
+                      <FunSubNavIcon iconClassName="FunSubNav__Icon--Recents" />
                     </FunSubNavListBoxItem>
+                  )}
+                  {installedStickerPacks.map(installedStickerPack => {
+                    return (
+                      <FunSubNavListBoxItem
+                        key={installedStickerPack.id}
+                        id={toFunStickersPackSection(installedStickerPack)}
+                        label={installedStickerPack.title}
+                      >
+                        {installedStickerPack.cover && (
+                          <FunSubNavImage
+                            src={installedStickerPack.cover?.url}
+                          />
+                        )}
+                      </FunSubNavListBoxItem>
+                    );
+                  })}
+                </FunSubNavListBox>
+              )}
+            </FunSubNavScroller>
+            {onAddStickerPack != null && (
+              <FunSubNavButtons>
+                <FunSubNavButton onClick={onAddStickerPack}>
+                  <FunSubNavIcon iconClassName="FunSubNav__Icon--Plus" />
+                </FunSubNavButton>
+              </FunSubNavButtons>
+            )}
+          </FunSubNav>
+        </FunPanelFooter>
+      )}
+      <FunPanelBody>
+        <FunScroller
+          ref={scrollerRef}
+          sectionGap={STICKER_GRID_SECTION_GAP}
+          onScrollSectionChange={handleScrollSectionChange}
+        >
+          {layout.sections.length === 0 && (
+            <FunResults aria-busy={false}>
+              <FunResultsHeader>
+                {i18n('icu:FunPanelStickers__SearchResults__EmptyHeading')}{' '}
+                <FunStaticEmoji
+                  size={16}
+                  role="presentation"
+                  emoji={emojiVariantConstant('\u{1F641}')}
+                />
+              </FunResultsHeader>
+            </FunResults>
+          )}
+          <FunLightboxProvider containerRef={scrollerRef}>
+            <StickersLightbox i18n={i18n} stickerLookup={stickerLookup} />
+            <FunKeyboard
+              scrollerRef={scrollerRef}
+              keyboard={keyboard}
+              onStateChange={handleKeyboardStateChange}
+            >
+              <FunGridContainer
+                totalSize={layout.totalHeight}
+                cellWidth={STICKER_GRID_CELL_WIDTH}
+                cellHeight={STICKER_GRID_CELL_HEIGHT}
+                columnCount={STICKER_GRID_COLUMNS}
+              >
+                {layout.sections.map(section => {
+                  return (
+                    <FunGridScrollerSection
+                      key={section.key}
+                      id={section.id}
+                      sectionOffset={section.sectionOffset}
+                      sectionSize={section.sectionSize}
+                    >
+                      <FunGridHeader
+                        id={section.header.key}
+                        headerOffset={section.header.headerOffset}
+                        headerSize={section.header.headerSize}
+                      >
+                        <FunGridHeaderText>
+                          {getTitleForSection(
+                            i18n,
+                            section.id as FunStickersSection,
+                            packsLookup
+                          )}
+                        </FunGridHeaderText>
+                      </FunGridHeader>
+                      <FunGridRowGroup
+                        aria-labelledby={section.header.key}
+                        colCount={section.colCount}
+                        rowCount={section.rowCount}
+                        rowGroupOffset={section.rowGroup.rowGroupOffset}
+                        rowGroupSize={section.rowGroup.rowGroupSize}
+                      >
+                        {section.rowGroup.rows.map(row => {
+                          return (
+                            <Row
+                              key={row.key}
+                              rowIndex={row.rowIndex}
+                              cells={row.cells}
+                              stickerLookup={stickerLookup}
+                              focusedCellKey={focusedCellKey}
+                              onClickSticker={handleClickSticker}
+                              onClickTimeSticker={handleClickTimeSticker}
+                            />
+                          );
+                        })}
+                      </FunGridRowGroup>
+                    </FunGridScrollerSection>
                   );
                 })}
-              </FunSubNavListBox>
-            )}
-          </FunSubNavScroller>
-          {onAddStickerPack != null && (
-            <FunSubNavButtons>
-              <FunSubNavButton onClick={onAddStickerPack}>
-                <FunSubNavIcon iconClassName="FunSubNav__Icon--Plus" />
-              </FunSubNavButton>
-            </FunSubNavButtons>
-          )}
-        </FunSubNav>
-      )}
-      <FunScroller
-        ref={scrollerRef}
-        sectionGap={STICKER_GRID_SECTION_GAP}
-        onScrollSectionChange={handleScrollSectionChange}
-      >
-        {layout.sections.length === 0 && (
-          <FunResults aria-busy={false}>
-            <FunResultsHeader>
-              {i18n('icu:FunPanelStickers__SearchResults__EmptyHeading')}{' '}
-              <FunEmoji
-                size={16}
-                role="presentation"
-                // For presentation only
-                aria-label=""
-                emoji={emojiVariantConstant('\u{1F641}')}
-              />
-            </FunResultsHeader>
-          </FunResults>
-        )}
-        <FunKeyboard
-          scrollerRef={scrollerRef}
-          keyboard={keyboard}
-          onStateChange={handleKeyboardStateChange}
-        >
-          <FunGridContainer
-            totalSize={layout.totalHeight}
-            cellWidth={STICKER_GRID_CELL_WIDTH}
-            cellHeight={STICKER_GRID_CELL_HEIGHT}
-            columnCount={STICKER_GRID_COLUMNS}
-          >
-            {layout.sections.map(section => {
-              return (
-                <FunGridScrollerSection
-                  key={section.key}
-                  id={section.id}
-                  sectionOffset={section.sectionOffset}
-                  sectionSize={section.sectionSize}
-                >
-                  <FunGridHeader
-                    id={section.header.key}
-                    headerOffset={section.header.headerOffset}
-                    headerSize={section.header.headerSize}
-                  >
-                    <FunGridHeaderText>
-                      {getTitleForSection(
-                        i18n,
-                        section.id as FunStickersSection,
-                        packsLookup
-                      )}
-                    </FunGridHeaderText>
-                  </FunGridHeader>
-                  <FunGridRowGroup
-                    aria-labelledby={section.header.key}
-                    colCount={section.colCount}
-                    rowCount={section.rowCount}
-                    rowGroupOffset={section.rowGroup.rowGroupOffset}
-                    rowGroupSize={section.rowGroup.rowGroupSize}
-                  >
-                    {section.rowGroup.rows.map(row => {
-                      return (
-                        <Row
-                          key={row.key}
-                          rowIndex={row.rowIndex}
-                          cells={row.cells}
-                          stickerLookup={stickerLookup}
-                          focusedCellKey={focusedCellKey}
-                          onPressSticker={handlePressSticker}
-                        />
-                      );
-                    })}
-                  </FunGridRowGroup>
-                </FunGridScrollerSection>
-              );
-            })}
-          </FunGridContainer>
-        </FunKeyboard>
-      </FunScroller>
+              </FunGridContainer>
+            </FunKeyboard>
+          </FunLightboxProvider>
+        </FunScroller>
+      </FunPanelBody>
     </FunPanel>
   );
 }
@@ -402,10 +514,11 @@ const Row = memo(function Row(props: {
   stickerLookup: StickerLookup;
   cells: ReadonlyArray<CellLayoutNode>;
   focusedCellKey: CellKey | null;
-  onPressSticker: (
-    event: MouseEvent,
+  onClickSticker: (
+    event: PointerEvent,
     stickerSelection: FunStickerSelection
   ) => void;
+  onClickTimeSticker: (event: PointerEvent, style: FunTimeStickerStyle) => void;
 }): JSX.Element {
   return (
     <FunGridRow rowIndex={props.rowIndex}>
@@ -423,7 +536,8 @@ const Row = memo(function Row(props: {
             colIndex={cell.colIndex}
             stickerLookup={props.stickerLookup}
             isTabbable={isTabbable}
-            onPressSticker={props.onPressSticker}
+            onClickSticker={props.onClickSticker}
+            onClickTimeSticker={props.onClickTimeSticker}
           />
         );
       })}
@@ -438,22 +552,28 @@ const Cell = memo(function Cell(props: {
   rowIndex: number;
   stickerLookup: StickerLookup;
   isTabbable: boolean;
-  onPressSticker: (
-    event: MouseEvent,
+  onClickSticker: (
+    event: PointerEvent,
     stickerSelection: FunStickerSelection
   ) => void;
+  onClickTimeSticker: (event: PointerEvent, style: FunTimeStickerStyle) => void;
 }): JSX.Element {
-  const { onPressSticker } = props;
-  const sticker = props.stickerLookup[props.value];
+  const { onClickSticker, onClickTimeSticker } = props;
+  const stickerLookupItem = props.stickerLookup[props.value];
 
   const handleClick = useCallback(
-    (event: MouseEvent) => {
-      onPressSticker(event, {
-        stickerPackId: sticker.packId,
-        stickerId: sticker.id,
-      });
+    (event: PointerEvent) => {
+      if (stickerLookupItem.kind === 'sticker') {
+        onClickSticker(event, {
+          stickerPackId: stickerLookupItem.sticker.packId,
+          stickerId: stickerLookupItem.sticker.id,
+          stickerUrl: stickerLookupItem.sticker.url,
+        });
+      } else if (stickerLookupItem.kind === 'timeSticker') {
+        onClickTimeSticker(event, stickerLookupItem.style);
+      }
     },
-    [sticker, onPressSticker]
+    [stickerLookupItem, onClickSticker, onClickTimeSticker]
   );
 
   return (
@@ -463,12 +583,165 @@ const Cell = memo(function Cell(props: {
       rowIndex={props.rowIndex}
     >
       <FunItemButton
-        tabIndex={props.isTabbable ? 0 : -1}
-        aria-label={sticker.emoji ?? 'Sticker'}
+        excludeFromTabOrder={!props.isTabbable}
+        aria-label={
+          stickerLookupItem.kind === 'sticker'
+            ? (stickerLookupItem.sticker.emoji ?? '')
+            : stickerLookupItem.style
+        }
         onClick={handleClick}
       >
-        <FunItemSticker src={sticker.url} />
+        {stickerLookupItem.kind === 'sticker' && (
+          <FunSticker
+            role="presentation"
+            src={stickerLookupItem.sticker.url}
+            size={68}
+          />
+        )}
+        {stickerLookupItem.kind === 'timeSticker' &&
+          stickerLookupItem.style === 'digital' && (
+            <DigitalTimeSticker size={68} />
+          )}
+        {stickerLookupItem.kind === 'timeSticker' &&
+          stickerLookupItem.style === 'analog' && (
+            <AnalogTimeSticker size={68} />
+          )}
       </FunItemButton>
     </FunGridCell>
   );
 });
+
+function StickersLightbox(props: {
+  i18n: LocalizerType;
+  stickerLookup: StickerLookup;
+}) {
+  const { i18n } = props;
+  const key = useFunLightboxKey();
+  const stickerLookupItem = useMemo(() => {
+    if (key == null) {
+      return null;
+    }
+    const [, , ...stickerIdParts] = key.split('-');
+    const stickerId = stickerIdParts.join('-');
+    const found = props.stickerLookup[stickerId];
+    strictAssert(found, `Must have sticker for "${stickerId}"`);
+    return found;
+  }, [props.stickerLookup, key]);
+  if (stickerLookupItem == null) {
+    return null;
+  }
+  return (
+    <FunLightboxPortal>
+      <FunLightboxBackdrop>
+        <FunLightboxDialog
+          aria-label={i18n('icu:FunPanelStickers__LightboxDialog__Label')}
+        >
+          {stickerLookupItem.kind === 'sticker' && (
+            <FunSticker
+              role="img"
+              aria-label={stickerLookupItem.sticker.emoji ?? ''}
+              src={stickerLookupItem.sticker.url}
+              size={512}
+              ignoreReducedMotion
+            />
+          )}
+          {stickerLookupItem.kind === 'timeSticker' &&
+            stickerLookupItem.style === 'digital' && (
+              <DigitalTimeSticker size={512} />
+            )}
+          {stickerLookupItem.kind === 'timeSticker' &&
+            stickerLookupItem.style === 'analog' && (
+              <AnalogTimeSticker size={512} />
+            )}
+        </FunLightboxDialog>
+      </FunLightboxBackdrop>
+    </FunLightboxPortal>
+  );
+}
+
+function getDigitalTime() {
+  return getDateTimeFormatter({ hour: 'numeric', minute: 'numeric' })
+    .formatToParts(Date.now())
+    .filter(x => x.type !== 'dayPeriod')
+    .reduce((acc, { value }) => `${acc}${value}`, '')
+    .trim();
+}
+
+function DigitalTimeSticker(props: { size: number }) {
+  const [digitalTime, setDigitalTime] = useState(() => getDigitalTime());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDigitalTime(getDigitalTime());
+    }, 1000);
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
+
+  return (
+    <svg
+      className="FunPanelStickers__TimeStickerWrapper"
+      width={props.size}
+      height={props.size}
+      viewBox="0 0 512 512"
+    >
+      <foreignObject x={0} y={0} width={512} height={512}>
+        <span className="FunPanelStickers__DigitalTimeSticker">
+          {digitalTime}
+        </span>
+      </foreignObject>
+    </svg>
+  );
+}
+
+function AnalogTimeSticker(props: { size: number }) {
+  const [analogTime, setAnalogTime] = useState(() => {
+    return getAnalogTime();
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAnalogTime(prev => {
+        const current = getAnalogTime();
+        if (current.hour === prev.hour && current.minute === prev.minute) {
+          return prev;
+        }
+        return current;
+      });
+    }, 1000);
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
+
+  return (
+    <svg
+      className="FunPanelStickers__TimeStickerWrapper"
+      width={props.size}
+      height={props.size}
+      viewBox="0 0 512 512"
+    >
+      <foreignObject x={0} y={0} width={512} height={512}>
+        <span className="FunPanelStickers__AnalogTimeSticker">
+          <span
+            className="FunPanelStickers__AnalogTimeSticker__HourHand"
+            style={
+              {
+                '--fun-analog-time-sticker-hour': `${analogTime.hour}deg`,
+              } as CSSProperties
+            }
+          />
+          <span
+            className="FunPanelStickers__AnalogTimeSticker__MinuteHand"
+            style={
+              {
+                '--fun-analog-time-sticker-minute': `${analogTime.minute}deg`,
+              } as CSSProperties
+            }
+          />
+        </span>
+      </foreignObject>
+    </svg>
+  );
+}

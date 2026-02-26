@@ -3,7 +3,7 @@
 
 import { isNumber } from 'lodash';
 
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import * as Errors from '../types/errors';
 import * as LinkPreview from '../types/LinkPreview';
 
@@ -48,7 +48,6 @@ import { isValidTapToView } from '../util/isValidTapToView';
 import { getNotificationTextForMessage } from '../util/getNotificationTextForMessage';
 import { getMessageAuthorText } from '../util/getMessageAuthorText';
 import { GiftBadgeStates } from '../components/conversation/Message';
-import { getUserLanguages } from '../util/userLanguages';
 import { parseBoostBadgeListFromServer } from '../badges/parseBadgesFromServer';
 import { SignalService as Proto } from '../protobuf';
 import {
@@ -65,6 +64,9 @@ import type {
 } from '../textsecure/Types';
 import type { ServiceIdString } from '../types/ServiceId';
 import type { LinkPreviewType } from '../types/message/LinkPreviews';
+import { getCachedSubscriptionConfiguration } from '../util/subscriptionConfiguration';
+
+const log = createLogger('handleDataMessage');
 
 const CURRENT_PROTOCOL_VERSION = Proto.DataMessage.ProtocolVersion.CURRENT;
 const INITIAL_PROTOCOL_VERSION = Proto.DataMessage.ProtocolVersion.INITIAL;
@@ -554,9 +556,6 @@ export async function handleDataMessage(
         errors: [],
         flags: dataMessage.flags,
         giftBadge: initialMessage.giftBadge,
-        hasAttachments: dataMessage.hasAttachments,
-        hasFileAttachments: dataMessage.hasFileAttachments,
-        hasVisualMediaAttachments: dataMessage.hasVisualMediaAttachments,
         isViewOnce: Boolean(dataMessage.isViewOnce),
         mentionsMe: (dataMessage.bodyRanges ?? []).some(bodyRange => {
           if (!BodyRange.isMention(bodyRange)) {
@@ -762,16 +761,7 @@ export async function handleDataMessage(
           typeof updatesUrl === 'string',
           'getProfile: expected updatesUrl to be a defined string'
         );
-        const userLanguages = getUserLanguages(
-          window.SignalContext.getPreferredSystemLocales(),
-          window.SignalContext.getResolvedMessagesLocale()
-        );
-        const { messaging } = window.textsecure;
-        if (!messaging) {
-          throw new Error(`${idLog}: messaging is not available`);
-        }
-        const response =
-          await messaging.server.getSubscriptionConfiguration(userLanguages);
+        const response = await getCachedSubscriptionConfiguration();
         const boostBadgesByLevel = parseBoostBadgeListFromServer(
           response,
           updatesUrl

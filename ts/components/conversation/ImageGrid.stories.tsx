@@ -14,12 +14,22 @@ import {
   VIDEO_MP4,
   stringToMIMEType,
 } from '../../types/MIME';
-import { setupI18n } from '../../util/setupI18n';
-import enMessages from '../../../_locales/en/messages.json';
 import { pngUrl, squareStickerUrl } from '../../storybook/Fixtures';
-import { fakeAttachment } from '../../test-both/helpers/fakeAttachment';
+import { fakeAttachment } from '../../test-helpers/fakeAttachment';
+import { strictAssert } from '../../util/assert';
+import { isDownloadable } from '../../types/Attachment';
+import { toBase64 } from '../../Bytes';
+import { DIGEST_LENGTH, KEY_SET_LENGTH } from '../../types/Crypto';
 
-const i18n = setupI18n('en', enMessages);
+const { i18n } = window.SignalContext;
+
+const getRandomBytes = (length: number): Uint8Array => {
+  const arr = new Uint8Array(length);
+  return window.crypto.getRandomValues(arr);
+};
+
+const MOCK_KEY = toBase64(getRandomBytes(KEY_SET_LENGTH));
+const MOCK_DIGEST = toBase64(getRandomBytes(DIGEST_LENGTH));
 
 export default {
   title: 'Components/Conversation/ImageGrid',
@@ -913,6 +923,7 @@ export function MixedContentTypes(args: Props): JSX.Element {
           screenshot: {
             height: 112,
             width: 112,
+            size: 128000,
             url: '/fixtures/kitten-4-112-112.jpg',
             contentType: IMAGE_JPEG,
             path: 'originalpath',
@@ -1041,4 +1052,38 @@ export function ContentAboveAndBelow(args: Props): JSX.Element {
 
 export function BottomOverlay(args: Props): JSX.Element {
   return <ImageGrid {...args} bottomOverlay />;
+}
+
+export function DownloadPill(args: Props): JSX.Element {
+  const attachment1 = fakeAttachment({
+    contentType: IMAGE_JPEG,
+    fileName: 'tina-rolf-269345-unsplash.jpg',
+    height: 1680,
+    width: 3000,
+    path: undefined,
+    blurHash: 'LDA,FDBnm+I=p{tkIUI;~UkpELV]',
+    key: MOCK_KEY,
+    digest: MOCK_DIGEST,
+    cdnKey: 'mock-cdn-key',
+    cdnNumber: 4000,
+  });
+
+  const attachment2 = fakeAttachment({
+    contentType: IMAGE_JPEG,
+    fileName: 'tina-rolf-269345-unsplash.jpg',
+    height: 1680,
+    width: 3000,
+    path: undefined,
+    blurHash: 'LDA,FDBnm+I=p{tkIUI;~UkpELV]',
+    key: MOCK_KEY,
+    digest: MOCK_DIGEST,
+    cdnKey: 'mock-cdn-key',
+    cdnNumber: 4000,
+  });
+
+  // Pill only shows if the attachments are downloadable
+  strictAssert(isDownloadable(attachment1), 'attachment1 must be downloadable');
+  strictAssert(isDownloadable(attachment2), 'attachment2 must be downloadable');
+
+  return <ImageGrid {...args} attachments={[attachment1, attachment2]} />;
 }

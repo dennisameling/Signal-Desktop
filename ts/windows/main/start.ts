@@ -4,7 +4,12 @@
 import { clone, has } from 'lodash';
 import { contextBridge } from 'electron';
 
-import * as log from '../../logging/log';
+import { createLogger } from '../../logging/log';
+
+import '../context';
+
+// Connect websocket early
+import '../../textsecure/preconnect';
 
 import './phase0-devtools';
 import './phase1-ipc';
@@ -25,10 +30,8 @@ import { initMessageCleanup } from '../../services/messageStateCleanup';
 import { Environment, getEnvironment } from '../../environment';
 import { isProduction } from '../../util/version';
 import { benchmarkConversationOpen } from '../../CI/benchmarkConversationOpen';
-import {
-  removeUseRingrtcAdm,
-  setUseRingrtcAdm,
-} from '../../util/ringrtc/ringrtcAdm';
+
+const log = createLogger('start');
 
 window.addEventListener('contextmenu', e => {
   const node = e.target as Element | null;
@@ -61,9 +64,16 @@ if (
     cdsLookup: (options: CdsLookupOptionsType) =>
       window.textsecure.server?.cdsLookup(options),
     getSelectedConversation: () => {
-      return window.ConversationController.get(
-        window.reduxStore.getState().conversations.selectedConversationId
-      )?.attributes;
+      const conversationId =
+        window.reduxStore.getState().conversations.selectedConversationId;
+      return window.ConversationController.get(conversationId)?.attributes;
+    },
+    archiveSessionsForCurrentConversation: async () => {
+      const conversationId =
+        window.reduxStore.getState().conversations.selectedConversationId;
+      await window.ConversationController.archiveSessionsForConversation(
+        conversationId
+      );
     },
     getConversation: (id: string) => window.ConversationController.get(id),
     getMessageById: (id: string) => window.MessageCache.getById(id)?.attributes,
@@ -84,10 +94,6 @@ if (
       name: K,
       value: StorageAccessType[K]
     ) => window.storage.put(name, value),
-    removeUseRingrtcAdm: async () => {
-      await removeUseRingrtcAdm();
-      log.info('Restart to make ADM change take effect!');
-    },
     setFlag: (name: keyof FeatureFlagType, value: boolean) => {
       if (!has(window.Flags, name)) {
         return;
@@ -96,10 +102,6 @@ if (
     },
     setSfuUrl: (url: string) => {
       window.Signal.Services.calling._sfuUrl = url;
-    },
-    setUseRingrtcAdm: async (value: boolean) => {
-      await setUseRingrtcAdm(value);
-      log.info('Restart to make ADM change take effect!');
     },
     setIceServerOverride: (
       override: GetIceServersResultType | string | undefined
@@ -130,6 +132,14 @@ if (getEnvironment() === Environment.Test) {
   contextBridge.exposeInMainWorld('RETRY_DELAY', window.RETRY_DELAY);
   contextBridge.exposeInMainWorld('assert', window.assert);
   contextBridge.exposeInMainWorld('testUtilities', window.testUtilities);
+}
+
+// See ts/logging/log.ts
+if (getEnvironment() !== Environment.PackagedApp) {
+  const debug = (...args: Array<string>) => {
+    localStorage.setItem('debug', args.join(','));
+  };
+  contextBridge.exposeInMainWorld('debug', debug);
 }
 
 if (window.SignalContext.config.ciMode === 'full') {

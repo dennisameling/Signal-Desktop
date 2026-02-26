@@ -15,13 +15,13 @@ import type {
 import type { ConversationModel } from './models/conversations';
 
 import { DataReader, DataWriter } from './sql/Client';
-import * as log from './logging/log';
+import { createLogger } from './logging/log';
 import * as Errors from './types/errors';
 import { getAuthorId } from './messages/helpers';
 import { maybeDeriveGroupV2Id } from './groups';
 import { assertDev, strictAssert } from './util/assert';
 import { drop } from './util/drop';
-import { isGroupV1, isGroupV2 } from './util/whatTypeOfConversation';
+import { isGroup, isGroupV1, isGroupV2 } from './util/whatTypeOfConversation';
 import type { ServiceIdString, AciString, PniString } from './types/ServiceId';
 import {
   isServiceIdString,
@@ -39,6 +39,11 @@ import * as StorageService from './services/storage';
 import type { ConversationPropsForUnreadStats } from './util/countUnreadStats';
 import { countAllConversationsUnreadStats } from './util/countUnreadStats';
 import { isTestOrMockEnvironment } from './environment';
+import { isConversationAccepted } from './util/isConversationAccepted';
+import { areWePending } from './util/groupMembershipUtils';
+import { conversationJobQueue } from './jobs/conversationJobQueue';
+
+const log = createLogger('ConversationController');
 
 type ConvoMatchType =
   | {
@@ -851,7 +856,7 @@ export class ConversationController {
   // Note: `doCombineConversations` is directly used within this function since both
   //   run on `_combineConversationsQueue` queue and we don't want deadlocks.
   async #doCheckForConflicts(): Promise<void> {
-    log.info('ConversationController.checkForConflicts: starting...');
+    log.info('checkForConflicts: starting...');
     const byServiceId = Object.create(null);
     const byE164 = Object.create(null);
     const byGroupV2Id = Object.create(null);
@@ -1306,11 +1311,11 @@ export class ConversationController {
 
   setReadOnly(value: boolean): void {
     if (this.#isReadOnly === value) {
-      log.warn(`ConversationController: already at readOnly=${value}`);
+      log.warn(`already at readOnly=${value}`);
       return;
     }
 
-    log.info(`ConversationController: readOnly=${value}`);
+    log.info(`readOnly=${value}`);
     this.#isReadOnly = value;
   }
 
@@ -1371,6 +1376,52 @@ export class ConversationController {
     this.get(conversationId)?.onOpenComplete(loadStart);
   }
 
+  migrateAvatarsForNonAcceptedConversations(): void {
+    if (window.storage.get('avatarsHaveBeenMigrated')) {
+      return;
+    }
+    const conversations = this.getAll();
+    let numberOfConversationsMigrated = 0;
+    for (const conversation of conversations) {
+      const attrs = conversation.attributes;
+      if (
+        !isConversationAccepted(attrs) ||
+        (isGroup(attrs) && areWePending(attrs))
+      ) {
+        const avatarPath = attrs.avatar?.path;
+        const profileAvatarPath = attrs.profileAvatar?.path;
+
+        if (avatarPath || profileAvatarPath) {
+          drop(
+            (async () => {
+              const { doesAttachmentExist, deleteAttachmentData } =
+                window.Signal.Migrations;
+              if (avatarPath && (await doesAttachmentExist(avatarPath))) {
+                await deleteAttachmentData(avatarPath);
+              }
+
+              if (
+                profileAvatarPath &&
+                (await doesAttachmentExist(profileAvatarPath))
+              ) {
+                await deleteAttachmentData(profileAvatarPath);
+              }
+            })()
+          );
+        }
+
+        conversation.set('avatar', undefined);
+        conversation.set('profileAvatar', undefined);
+        drop(updateConversation(conversation.attributes));
+        numberOfConversationsMigrated += 1;
+      }
+    }
+    log.info(
+      `unset avatars for ${numberOfConversationsMigrated} unaccepted conversations`
+    );
+    drop(window.storage.put('avatarsHaveBeenMigrated', true));
+  }
+
   repairPinnedConversations(): void {
     const pinnedIds = window.storage.get('pinnedConversationIds', []);
 
@@ -1381,9 +1432,7 @@ export class ConversationController {
         continue;
       }
 
-      log.warn(
-        `ConversationController: Repairing ${convo.idForLogging()}'s isPinned`
-      );
+      log.warn(`Repairing ${convo.idForLogging()}'s isPinned`);
       convo.set('isPinned', true);
 
       drop(updateConversation(convo.attributes));
@@ -1398,7 +1447,7 @@ export class ConversationController {
     }
 
     log.info(
-      'ConversationController.clearShareMyPhoneNumber: ' +
+      'clearShareMyPhoneNumber: ' +
         `updating ${sharedWith.length} conversations`
     );
 
@@ -1420,7 +1469,7 @@ export class ConversationController {
     const e164ToUse = transformedE164s.get(e164) ?? e164;
     const pni = serviceIdMap.get(e164ToUse)?.pni;
 
-    log.info(`ConversationController: forgetting e164=${e164ToUse} pni=${pni}`);
+    log.info(`forgetting e164=${e164ToUse} pni=${pni}`);
 
     const convos = [this.get(e164ToUse), this.get(pni)];
 
@@ -1437,7 +1486,7 @@ export class ConversationController {
   }
 
   async #doLoad(): Promise<void> {
-    log.info('ConversationController: starting initial fetch');
+    log.info('starting initial fetch');
 
     if (this._conversations.length) {
       throw new Error('ConversationController: Already loaded!');
@@ -1453,7 +1502,7 @@ export class ConversationController {
 
       if (temporaryConversations.length) {
         log.warn(
-          `ConversationController: Removing ${temporaryConversations.length} temporary conversations`
+          `Removing ${temporaryConversations.length} temporary conversations`
         );
       }
       const queue = new PQueue({
@@ -1514,22 +1563,60 @@ export class ConversationController {
             }
           } catch (error) {
             log.error(
-              'ConversationController.load/map: Failed to prepare a conversation',
+              'load/map: Failed to prepare a conversation',
               Errors.toLogFormat(error)
             );
           }
         })
       );
       log.info(
-        'ConversationController: done with initial fetch, ' +
+        'done with initial fetch, ' +
           `got ${this._conversations.length} conversations`
       );
     } catch (error) {
-      log.error(
-        'ConversationController: initial fetch failed',
-        Errors.toLogFormat(error)
-      );
+      log.error('initial fetch failed', Errors.toLogFormat(error));
       throw error;
     }
+  }
+  async archiveSessionsForConversation(
+    conversationId: string | undefined
+  ): Promise<void> {
+    const conversation = window.ConversationController.get(conversationId);
+    if (!conversation) {
+      return;
+    }
+
+    const logId = `archiveSessionsForConversation/${conversation.idForLogging()}`;
+
+    log.info(`${logId}: Starting. First archiving sessions...`);
+    const recipients = conversation.getRecipients();
+    const queue = new PQueue({ concurrency: 1 });
+    recipients.forEach(serviceId => {
+      drop(
+        queue.add(async () => {
+          await window.textsecure.storage.protocol.archiveAllSessions(
+            serviceId
+          );
+        })
+      );
+    });
+    await queue.onEmpty();
+
+    if (conversation.get('senderKeyInfo')) {
+      log.info(`${logId}: Next, clearing senderKeyInfo...`);
+      conversation.set({ senderKeyInfo: undefined });
+      await DataWriter.updateConversation(conversation.attributes);
+    }
+
+    log.info(`${logId}: Now queuing null message send...`);
+    const job = await conversationJobQueue.add({
+      type: 'NullMessage',
+      conversationId: conversation.id,
+    });
+
+    log.info(`${logId}: Send queued; waiting for send completion...`);
+    await job.completion;
+
+    log.info(`${logId}: Complete!`);
   }
 }

@@ -5,30 +5,30 @@ import { batch } from 'react-redux';
 import { debounce } from 'lodash';
 
 import * as Errors from '../types/errors';
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import { DataReader, DataWriter } from '../sql/Client';
 import { clearTimeoutIfNecessary } from '../util/clearTimeoutIfNecessary';
 import { sleep } from '../util/sleep';
 import { SECOND } from '../util/durations';
 import { MessageModel } from '../models/messages';
 import { cleanupMessages } from '../util/cleanup';
+import { drop } from '../util/drop';
+
+const log = createLogger('expiringMessagesDeletion');
 
 class ExpiringMessagesDeletionService {
-  public update: () => void;
-
   #timeout?: ReturnType<typeof setTimeout>;
+  #debouncedCheckExpiringMessages = debounce(this.#checkExpiringMessages, 1000);
 
-  constructor() {
-    this.update = debounce(this.#checkExpiringMessages, 1000);
+  update() {
+    drop(this.#debouncedCheckExpiringMessages());
   }
 
   async #destroyExpiredMessages() {
     try {
-      window.SignalContext.log.info(
-        'destroyExpiredMessages: Loading messages...'
-      );
+      log.info('destroyExpiredMessages: Loading messages...');
       const messages = await DataReader.getExpiredMessages();
-      window.SignalContext.log.info(
+      log.info(
         `destroyExpiredMessages: found ${messages.length} messages to expire`
       );
 
@@ -49,7 +49,7 @@ class ExpiringMessagesDeletionService {
 
       batch(() => {
         inMemoryMessages.forEach(message => {
-          window.SignalContext.log.info('Message expired', {
+          log.info('Message expired', {
             sentAt: message.get('sent_at'),
           });
 
@@ -58,32 +58,26 @@ class ExpiringMessagesDeletionService {
         });
       });
     } catch (error) {
-      window.SignalContext.log.error(
+      log.error(
         'destroyExpiredMessages: Error deleting expired messages',
         Errors.toLogFormat(error)
       );
-      window.SignalContext.log.info(
+      log.info(
         'destroyExpiredMessages: Waiting 30 seconds before trying again'
       );
       await sleep(30 * SECOND);
     }
 
-    window.SignalContext.log.info(
-      'destroyExpiredMessages: done, scheduling another check'
-    );
+    log.info('destroyExpiredMessages: done, scheduling another check');
     void this.update();
   }
 
   async #checkExpiringMessages() {
-    window.SignalContext.log.info(
-      'checkExpiringMessages: checking for expiring messages'
-    );
+    log.info('checkExpiringMessages: checking for expiring messages');
 
     const soonestExpiry = await DataReader.getSoonestMessageExpiry();
     if (!soonestExpiry) {
-      window.SignalContext.log.info(
-        'checkExpiringMessages: found no messages to expire'
-      );
+      log.info('checkExpiringMessages: found no messages to expire');
       return;
     }
 
@@ -99,7 +93,7 @@ class ExpiringMessagesDeletionService {
       wait = 2147483647;
     }
 
-    window.SignalContext.log.info(
+    log.info(
       `checkExpiringMessages: next message expires ${new Date(
         soonestExpiry
       ).toISOString()}; waiting ${wait} ms before clearing`
@@ -118,11 +112,11 @@ export function initialize(): void {
   instance = new ExpiringMessagesDeletionService();
 }
 
-export async function update(): Promise<void> {
+export function update(): void {
   if (!instance) {
     throw new Error('Expiring Messages Deletion service not yet initialized!');
   }
-  await instance.update();
+  instance.update();
 }
 
 let instance: ExpiringMessagesDeletionService;

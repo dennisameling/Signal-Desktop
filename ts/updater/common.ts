@@ -34,18 +34,15 @@ import {
   isNotUpdatable,
   isStaging,
 } from '../util/version';
+import { isPathInside } from '../util/isPathInside';
 
 import * as packageJson from '../../package.json';
-import type { SettingsChannel } from '../main/settingsChannel';
-import { isPathInside } from '../util/isPathInside';
+
 import {
   getSignatureFileName,
   hexToBinary,
   verifySignature,
 } from './signature';
-
-import type { LoggerType } from '../types/Logging';
-import type { PrepareDownloadResultType as DifferentialDownloadDataType } from './differential';
 import {
   download as downloadDifferentialData,
   getBlockMapFileName,
@@ -53,7 +50,16 @@ import {
   prepareDownload as prepareDifferentialDownload,
 } from './differential';
 import { getGotOptions } from './got';
-import { checkIntegrity, gracefulRename, gracefulRmRecursive } from './util';
+import {
+  checkIntegrity,
+  gracefulRename,
+  gracefulRmRecursive,
+  isTimeToUpdate,
+} from './util';
+
+import type { LoggerType } from '../types/Logging';
+import type { PrepareDownloadResultType as DifferentialDownloadDataType } from './differential';
+import type { MainSQL } from '../sql/main';
 
 const POLL_INTERVAL = 30 * durations.MINUTE;
 
@@ -61,6 +67,11 @@ type JSONVendorSchema = {
   minOSVersion?: string;
   requireManualUpdate?: 'true' | 'false';
   requireUserConfirmation?: 'true' | 'false';
+
+  // If 'true' - the update will be autodownloaded as soon as it becomes
+  // available. Otherwise a delay up to 6h might be applied. See
+  // `isTimeToUpdate`.
+  noDelay?: 'true' | 'false';
 };
 
 type JSONUpdateSchema = {
@@ -99,10 +110,10 @@ type DownloadUpdateResultType = Readonly<{
 }>;
 
 export type UpdaterOptionsType = Readonly<{
-  settingsChannel: SettingsChannel;
-  logger: LoggerType;
-  getMainWindow: () => BrowserWindow | undefined;
   canRunSilently: () => boolean;
+  getMainWindow: () => BrowserWindow | undefined;
+  logger: LoggerType;
+  sql: MainSQL;
 }>;
 
 enum CheckType {
@@ -124,7 +135,7 @@ export abstract class Updater {
 
   protected readonly logger: LoggerType;
 
-  readonly #settingsChannel: SettingsChannel;
+  readonly #sql: MainSQL;
 
   protected readonly getMainWindow: () => BrowserWindow | undefined;
 
@@ -142,16 +153,20 @@ export abstract class Updater {
   #autoRetryAttempts = 0;
   #autoRetryAfter: number | undefined;
 
+  // Just a stable randomness that is used for determining the update time. The
+  // value does not have to be consistent across restarts.
+  #pollId = getGuid();
+
   constructor({
-    settingsChannel,
-    logger,
-    getMainWindow,
     canRunSilently,
+    getMainWindow,
+    logger,
+    sql,
   }: UpdaterOptionsType) {
-    this.#settingsChannel = settingsChannel;
-    this.logger = logger;
-    this.getMainWindow = getMainWindow;
     this.#canRunSilently = canRunSilently;
+    this.getMainWindow = getMainWindow;
+    this.logger = logger;
+    this.#sql = sql;
 
     this.#throttledSendDownloadingUpdate = throttle(
       (downloadedSize: number, downloadSize: number) => {
@@ -580,6 +595,26 @@ export abstract class Updater {
       return;
     }
 
+    if (checkType === CheckType.Normal && vendor?.noDelay !== 'true') {
+      try {
+        const releasedAt = new Date(parsedYaml.releaseDate).getTime();
+
+        if (
+          !isTimeToUpdate({
+            logger: this.logger,
+            pollId: this.#pollId,
+            releasedAt,
+          })
+        ) {
+          return;
+        }
+      } catch (error) {
+        this.logger.warn(
+          `checkForUpdates: failed to compute delay for ${parsedYaml.releaseDate}`
+        );
+      }
+    }
+
     this.logger.info(
       `checkForUpdates: found newer version ${version} ` +
         `checkType=${checkType}`
@@ -887,9 +922,11 @@ export abstract class Updater {
 
   async #getAutoDownloadUpdateSetting(): Promise<boolean> {
     try {
-      return await this.#settingsChannel.getSettingFromMainWindow(
-        'autoDownloadUpdate'
+      const result = await this.#sql.sqlRead(
+        'getItemById',
+        'auto-download-update'
       );
+      return result?.value ?? true;
     } catch (error) {
       this.logger.warn(
         'getAutoDownloadUpdateSetting: Failed to fetch, returning false',

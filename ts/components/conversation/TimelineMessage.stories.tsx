@@ -27,10 +27,8 @@ import {
 import { ReadStatus } from '../../messages/MessageReadStatus';
 import { MessageAudio } from './MessageAudio';
 import { computePeaks } from '../VoiceNotesPlaybackContext';
-import { setupI18n } from '../../util/setupI18n';
-import enMessages from '../../../_locales/en/messages.json';
 import { pngUrl } from '../../storybook/Fixtures';
-import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
+import { getDefaultConversation } from '../../test-helpers/getDefaultConversation';
 import { WidthBreakpoint } from '../_util';
 import { DAY, HOUR, MINUTE, SECOND } from '../../util/durations';
 import { ContactFormType } from '../../types/EmbeddedContact';
@@ -39,13 +37,14 @@ import { generateAci } from '../../types/ServiceId';
 import {
   fakeAttachment,
   fakeThumbnail,
-} from '../../test-both/helpers/fakeAttachment';
-import { getFakeBadge } from '../../test-both/helpers/getFakeBadge';
+} from '../../test-helpers/fakeAttachment';
+import { getFakeBadge } from '../../test-helpers/getFakeBadge';
 import { ThemeType } from '../../types/Util';
 import { BadgeCategory } from '../../badges/BadgeCategory';
 import { PaymentEventKind } from '../../types/Payment';
+import { EmojiSkinTone } from '../fun/data/emojis';
 
-const i18n = setupI18n('en', enMessages);
+const { i18n } = window.SignalContext;
 
 const quoteOptions = {
   none: undefined,
@@ -113,9 +112,11 @@ const renderEmojiPicker: Props['renderEmojiPicker'] = ({
   ref,
 }) => (
   <EmojiPicker
-    i18n={setupI18n('en', enMessages)}
-    skinTone={0}
-    onSetSkinTone={action('EmojiPicker::onSetSkinTone')}
+    i18n={i18n}
+    emojiSkinToneDefault={EmojiSkinTone.None}
+    onEmojiSkinToneDefaultChange={action(
+      'EmojiPicker::onEmojiSkinToneDefaultChange'
+    )}
     ref={ref}
     onClose={onClose}
     onPickEmoji={onPickEmoji}
@@ -254,6 +255,7 @@ const createProps = (overrideProps: Partial<Props> = {}): Props => ({
   canReply: true,
   canDownload: true,
   canDeleteForEveryone: overrideProps.canDeleteForEveryone || false,
+  canForward: true,
   canRetry: overrideProps.canRetry || false,
   canRetryDeleteForEveryone: overrideProps.canRetryDeleteForEveryone || false,
   checkForAccount: action('checkForAccount'),
@@ -265,7 +267,6 @@ const createProps = (overrideProps: Partial<Props> = {}): Props => ({
   conversationId: overrideProps.conversationId ?? '',
   conversationType: overrideProps.conversationType || 'direct',
   contact: overrideProps.contact,
-  deletedForEveryone: overrideProps.deletedForEveryone,
   // disableMenu: overrideProps.disableMenu,
   disableScroll: overrideProps.disableScroll,
   direction: overrideProps.direction || 'incoming',
@@ -353,6 +354,7 @@ const createProps = (overrideProps: Partial<Props> = {}): Props => ({
     'showExpiredOutgoingTapToViewToast'
   ),
   showMediaNoLongerAvailableToast: action('showMediaNoLongerAvailableToast'),
+  showTapToViewNotAvailableModal: action('showTapToViewNotAvailableModal'),
   toggleDeleteMessagesModal: action('toggleDeleteMessagesModal'),
   toggleForwardMessagesModal: action('toggleForwardMessagesModal'),
   showLightbox: action('showLightbox'),
@@ -364,6 +366,7 @@ const createProps = (overrideProps: Partial<Props> = {}): Props => ({
     contentType: LONG_MESSAGE,
     size: 123,
     pending: false,
+    isPermanentlyUndownloadable: false,
   },
   theme: ThemeType.light,
   timestamp: overrideProps.timestamp ?? Date.now(),
@@ -374,7 +377,7 @@ const renderMany = (propsArray: ReadonlyArray<Props>) => (
   <>
     {propsArray.map((message, index) => (
       <TimelineMessage
-        key={message.text}
+        key={`${message.text}_${index}_${message.direction}`}
         {...message}
         shouldCollapseAbove={Boolean(propsArray[index - 1])}
         shouldCollapseBelow={Boolean(propsArray[index + 1])}
@@ -383,7 +386,12 @@ const renderMany = (propsArray: ReadonlyArray<Props>) => (
   </>
 );
 
-const renderThree = (props: Props) => renderMany([props, props, props]);
+const renderThree = (props: Props) =>
+  renderMany([
+    { ...props, shouldHideMetadata: true },
+    { ...props, shouldHideMetadata: true },
+    props,
+  ]);
 
 const renderBothDirections = (props: Props) => (
   <>
@@ -547,6 +555,7 @@ Pending.args = {
     contentType: LONG_MESSAGE,
     size: 123,
     pending: true,
+    isPermanentlyUndownloadable: false,
   },
 };
 
@@ -560,6 +569,7 @@ LongBodyCanBeDownloaded.args = {
     error: true,
     digest: 'abc',
     key: 'def',
+    isPermanentlyUndownloadable: false,
   },
 };
 
@@ -786,11 +796,13 @@ export function Deleted(): JSX.Element {
   const propsSent = createProps({
     conversationType: 'direct',
     deletedForEveryone: true,
+    canForward: false,
     status: 'sent',
   });
   const propsSending = createProps({
     conversationType: 'direct',
     deletedForEveryone: true,
+    canForward: false,
     status: 'sending',
   });
 
@@ -807,6 +819,7 @@ DeletedWithExpireTimer.args = {
   timestamp: Date.now() - 60 * 1000,
   conversationType: 'group',
   deletedForEveryone: true,
+  canForward: false,
   expirationLength: 5 * 60 * 1000,
   expirationTimestamp: Date.now() + 3 * 60 * 1000,
   status: 'sent',
@@ -857,6 +870,7 @@ const bigAttachment = {
   id: undefined,
   error: true,
   wasTooBig: true,
+  isPermanentlyUndownloadable: true,
 };
 
 export function AttachmentTooBig(): JSX.Element {
@@ -1036,6 +1050,110 @@ LinkPreviewWithSmallImage.args = {
         height: 50,
         url: pngUrl,
         width: 50,
+      }),
+      isStickerPack: false,
+      isCallLink: false,
+      title: 'Signal',
+      description:
+        'Say "hello" to a different messaging experience. An unexpected focus on privacy, combined with all of the features you expect.',
+      url: 'https://www.signal.org',
+      date: new Date(2020, 2, 10).valueOf(),
+    },
+  ],
+  status: 'sent',
+  text: 'Be sure to look at https://www.signal.org',
+};
+
+export const LinkPreviewWithUndownloadedImage = Template.bind({});
+LinkPreviewWithUndownloadedImage.args = {
+  previews: [
+    {
+      domain: 'signal.org',
+      image: fakeAttachment({
+        contentType: IMAGE_PNG,
+        fileName: 'sax.png',
+        path: undefined,
+        size: 5300000,
+      }),
+      isStickerPack: false,
+      isCallLink: false,
+      title: 'Signal',
+      description:
+        'Say "hello" to a different messaging experience. An unexpected focus on privacy, combined with all of the features you expect.',
+      url: 'https://www.signal.org',
+      date: new Date(2020, 2, 10).valueOf(),
+    },
+  ],
+  status: 'sent',
+  text: 'Be sure to look at https://www.signal.org',
+};
+
+export const LinkPreviewWithDownloadingImage = Template.bind({});
+LinkPreviewWithDownloadingImage.args = {
+  previews: [
+    {
+      domain: 'signal.org',
+      image: fakeAttachment({
+        contentType: IMAGE_PNG,
+        fileName: 'sax.png',
+        path: undefined,
+        pending: true,
+        size: 5300000,
+        totalDownloaded: 1230000,
+      }),
+      isStickerPack: false,
+      isCallLink: false,
+      title: 'Signal',
+      description:
+        'Say "hello" to a different messaging experience. An unexpected focus on privacy, combined with all of the features you expect.',
+      url: 'https://www.signal.org',
+      date: new Date(2020, 2, 10).valueOf(),
+    },
+  ],
+  status: 'sent',
+  text: 'Be sure to look at https://www.signal.org',
+};
+
+export const LinkPreviewWithUndownloadedSmallImage = Template.bind({});
+LinkPreviewWithUndownloadedSmallImage.args = {
+  previews: [
+    {
+      domain: 'signal.org',
+      image: fakeAttachment({
+        contentType: IMAGE_PNG,
+        fileName: 'the-sax.png',
+        height: 50,
+        width: 50,
+        path: undefined,
+        size: 5300000,
+      }),
+      isStickerPack: false,
+      isCallLink: false,
+      title: 'Signal',
+      description:
+        'Say "hello" to a different messaging experience. An unexpected focus on privacy, combined with all of the features you expect.',
+      url: 'https://www.signal.org',
+      date: new Date(2020, 2, 10).valueOf(),
+    },
+  ],
+  status: 'sent',
+  text: 'Be sure to look at https://www.signal.org',
+};
+
+export const LinkPreviewWithDownloadingSmallImage = Template.bind({});
+LinkPreviewWithDownloadingSmallImage.args = {
+  previews: [
+    {
+      domain: 'signal.org',
+      image: fakeAttachment({
+        contentType: IMAGE_PNG,
+        fileName: 'the-sax.png',
+        height: 50,
+        width: 50,
+        path: undefined,
+        pending: true,
+        size: 5300000,
+        totalDownloaded: 1230000,
       }),
       isStickerPack: false,
       isCallLink: false,
@@ -1261,6 +1379,226 @@ export function Image(): JSX.Element {
         width: 320,
       }),
     ],
+    status: 'sent',
+  });
+
+  return (
+    <>
+      {renderBothDirections(darkImageProps)}
+      {renderBothDirections(lightImageProps)}
+    </>
+  );
+}
+
+export function BrokenImage(): JSX.Element {
+  const darkImageProps = createProps({
+    attachments: [
+      fakeAttachment({
+        url: 'nonexistent.jpg',
+        fileName: 'tina-rolf-269345-unsplash.jpg',
+        contentType: IMAGE_JPEG,
+        width: 128,
+        height: 128,
+      }),
+    ],
+    status: 'sent',
+  });
+  const lightImageProps = createProps({
+    attachments: [
+      fakeAttachment({
+        url: 'nonexistent.jpg',
+        fileName: 'the-sax.png',
+        contentType: IMAGE_PNG,
+        height: 240,
+        width: 320,
+      }),
+    ],
+    status: 'sent',
+  });
+
+  return (
+    <>
+      {renderBothDirections(darkImageProps)}
+      {renderBothDirections(lightImageProps)}
+    </>
+  );
+}
+
+export function BrokenImageWithExpirationTimer(): JSX.Element {
+  const darkImageProps = createProps({
+    attachments: [
+      fakeAttachment({
+        url: 'nonexistent.jpg',
+        fileName: 'tina-rolf-269345-unsplash.jpg',
+        contentType: IMAGE_JPEG,
+        width: 128,
+        height: 128,
+      }),
+    ],
+    expirationLength: 30 * 1000,
+    expirationTimestamp: Date.now() + 30 * 1000,
+    status: 'sent',
+  });
+  const lightImageProps = createProps({
+    attachments: [
+      fakeAttachment({
+        url: 'nonexistent.jpg',
+        fileName: 'the-sax.png',
+        contentType: IMAGE_PNG,
+        height: 240,
+        width: 320,
+      }),
+    ],
+    expirationLength: 30 * 1000,
+    expirationTimestamp: Date.now() + 30 * 1000,
+    status: 'sent',
+  });
+
+  return (
+    <>
+      {renderBothDirections(darkImageProps)}
+      {renderBothDirections(lightImageProps)}
+    </>
+  );
+}
+
+export function Video(): JSX.Element {
+  const darkImageProps = createProps({
+    attachments: [
+      fakeAttachment({
+        url: 'nonexistent.mp4',
+        screenshot: {
+          url: '/fixtures/tina-rolf-269345-unsplash.jpg',
+          size: 100000,
+          width: 3000,
+          height: 1680,
+          contentType: IMAGE_JPEG,
+        },
+        fileName: 'tina-rolf-269345-unsplash.jpg',
+        contentType: VIDEO_MP4,
+        width: 128,
+        height: 128,
+      }),
+    ],
+    status: 'sent',
+  });
+  const lightImageProps = createProps({
+    attachments: [
+      fakeAttachment({
+        url: 'nonexistent.mp4',
+        screenshot: {
+          url: pngUrl,
+          width: 800,
+          height: 1200,
+          size: 100000,
+          contentType: IMAGE_PNG,
+        },
+        fileName: 'the-sax.png',
+        contentType: VIDEO_MP4,
+        height: 240,
+        width: 320,
+      }),
+    ],
+    status: 'sent',
+  });
+
+  return (
+    <>
+      {renderBothDirections(darkImageProps)}
+      {renderBothDirections(lightImageProps)}
+    </>
+  );
+}
+
+export function BrokenVideo(): JSX.Element {
+  const darkImageProps = createProps({
+    attachments: [
+      fakeAttachment({
+        url: 'nonexistent.mp4',
+        screenshot: {
+          url: '/fixtures/tina-rolf-269345-unsplash.jpg',
+          size: 100000,
+          width: 7680,
+          height: 3200,
+          contentType: IMAGE_JPEG,
+        },
+        fileName: 'tina-rolf-269345-unsplash.jpg',
+        contentType: VIDEO_MP4,
+        height: 3200,
+        width: 7680,
+      }),
+    ],
+    status: 'sent',
+  });
+  const lightImageProps = createProps({
+    attachments: [
+      fakeAttachment({
+        url: 'nonexistent.mp4',
+        screenshot: {
+          url: pngUrl,
+          width: 7680,
+          height: 3200,
+          size: 100000,
+          contentType: IMAGE_PNG,
+        },
+        fileName: 'the-sax.png',
+        contentType: VIDEO_MP4,
+        height: 3200,
+        width: 7680,
+      }),
+    ],
+    status: 'sent',
+  });
+
+  return (
+    <>
+      {renderBothDirections(darkImageProps)}
+      {renderBothDirections(lightImageProps)}
+    </>
+  );
+}
+
+export function BrokenVideoWithExpirationTimer(): JSX.Element {
+  const darkImageProps = createProps({
+    attachments: [
+      fakeAttachment({
+        url: 'nonexistent.mp4',
+        screenshot: {
+          url: '/fixtures/tina-rolf-269345-unsplash.jpg',
+          size: 100000,
+          width: 7680,
+          height: 3200,
+          contentType: IMAGE_JPEG,
+        },
+        fileName: 'tina-rolf-269345-unsplash.jpg',
+        contentType: VIDEO_MP4,
+        height: 3200,
+        width: 7680,
+      }),
+    ],
+    expirationLength: 30 * 1000,
+    expirationTimestamp: Date.now() + 30 * 1000,
+    status: 'sent',
+  });
+  const lightImageProps = createProps({
+    attachments: [
+      fakeAttachment({
+        url: 'nonexistent.mp4',
+        screenshot: {
+          url: pngUrl,
+          width: 7680,
+          height: 3200,
+          size: 100000,
+          contentType: IMAGE_PNG,
+        },
+        fileName: 'the-sax.png',
+        contentType: VIDEO_MP4,
+        height: 3200,
+        width: 7680,
+      }),
+    ],
+    expirationLength: 30 * 1000,
+    expirationTimestamp: Date.now() + 30 * 1000,
     status: 'sent',
   });
 
@@ -1576,51 +1914,32 @@ PartialDownloadNotPendingGif.args = {
   status: 'sent',
 };
 
-export const _Audio = (): JSX.Element => {
-  function Wrapper() {
-    const [isPlayed, setIsPlayed] = React.useState(false);
+export const _Audio = Template.bind({});
+_Audio.args = {
+  attachments: [
+    fakeAttachment({
+      contentType: AUDIO_MP3,
+      fileName: 'incompetech-com-Agnus-Dei-X.mp3',
+      url: messageIdToAudioUrl['incompetech-com-Agnus-Dei-X'],
+      path: 'somepath',
+    }),
+  ],
+  status: 'read',
+  readStatus: ReadStatus.Read,
+};
 
-    const messageProps = createProps({
-      id: 'incompetech-com-Agnus-Dei-X',
-      attachments: [
-        fakeAttachment({
-          contentType: AUDIO_MP3,
-          fileName: 'incompetech-com-Agnus-Dei-X.mp3',
-          url: messageIdToAudioUrl['incompetech-com-Agnus-Dei-X'],
-          path: 'somepath',
-        }),
-      ],
-      ...(isPlayed
-        ? {
-            status: 'viewed',
-            readStatus: ReadStatus.Viewed,
-          }
-        : {
-            status: 'read',
-            readStatus: ReadStatus.Read,
-          }),
-    });
-
-    return (
-      <>
-        <button
-          type="button"
-          onClick={() => {
-            setIsPlayed(old => !old);
-          }}
-          style={{
-            display: 'block',
-            marginBottom: '2em',
-          }}
-        >
-          Toggle played
-        </button>
-        {renderBothDirections(messageProps)}
-      </>
-    );
-  }
-
-  return <Wrapper />;
+export const AudioViewed = Template.bind({});
+AudioViewed.args = {
+  attachments: [
+    fakeAttachment({
+      contentType: AUDIO_MP3,
+      fileName: 'incompetech-com-Agnus-Dei-X.mp3',
+      url: messageIdToAudioUrl['incompetech-com-Agnus-Dei-X'],
+      path: 'somepath',
+    }),
+  ],
+  status: 'viewed',
+  readStatus: ReadStatus.Viewed,
 };
 
 export const LongAudio = Template.bind({});
@@ -1656,6 +1975,7 @@ AudioWithNotDownloadedAttachment.args = {
     fakeAttachment({
       contentType: AUDIO_MP3,
       fileName: 'incompetech-com-Agnus-Dei-X.mp3',
+      path: undefined,
     }),
   ],
   status: 'sent',
@@ -1668,6 +1988,8 @@ AudioWithPendingAttachment.args = {
       contentType: AUDIO_MP3,
       fileName: 'incompetech-com-Agnus-Dei-X.mp3',
       pending: true,
+      size: 1000000,
+      totalDownloaded: 570000,
     }),
   ],
   status: 'sent',
@@ -1678,8 +2000,80 @@ OtherFileType.args = {
   attachments: [
     fakeAttachment({
       contentType: stringToMIMEType('text/plain'),
-      fileName: 'my-resume.txt',
-      url: 'my-resume.txt',
+      fileName: 'things.zip',
+      url: 'things.zip',
+      size: 10200000,
+    }),
+  ],
+  status: 'sent',
+};
+
+export const OtherFileTypeWithExpirationTimer = Template.bind({});
+OtherFileTypeWithExpirationTimer.args = {
+  attachments: [
+    fakeAttachment({
+      contentType: stringToMIMEType('text/plain'),
+      fileName: 'things.zip',
+      url: 'things.zip',
+      size: 10200000,
+    }),
+  ],
+  expirationLength: 30 * 1000,
+  expirationTimestamp: Date.now() + 30 * 1000,
+  status: 'sent',
+};
+
+export const OtherFileTypeFourChar = Template.bind({});
+OtherFileTypeFourChar.args = {
+  attachments: [
+    fakeAttachment({
+      contentType: stringToMIMEType('text/plain'),
+      fileName: 'things.four',
+      url: 'things.four',
+      size: 10200000,
+    }),
+  ],
+  status: 'sent',
+};
+
+export const OtherFileTypeFiveChar = Template.bind({});
+OtherFileTypeFiveChar.args = {
+  attachments: [
+    fakeAttachment({
+      contentType: stringToMIMEType('text/plain'),
+      fileName: 'things.cinco',
+      url: 'things.cinco',
+      size: 10200000,
+    }),
+  ],
+  status: 'sent',
+};
+
+export const OtherFileTypeUndownloaded = Template.bind({});
+OtherFileTypeUndownloaded.args = {
+  attachments: [
+    fakeAttachment({
+      contentType: stringToMIMEType('text/plain'),
+      fileName: 'things.zip',
+      url: 'things.zip',
+      size: 10200000,
+      path: undefined,
+    }),
+  ],
+  status: 'sent',
+};
+
+export const OtherFileTypeDownloading = Template.bind({});
+OtherFileTypeDownloading.args = {
+  attachments: [
+    fakeAttachment({
+      contentType: stringToMIMEType('text/plain'),
+      fileName: 'things.zip',
+      url: 'things.zip',
+      size: 10200000,
+      path: undefined,
+      pending: true,
+      totalDownloaded: 7500000,
     }),
   ],
   status: 'sent',
@@ -1709,7 +2103,34 @@ OtherFileTypeWithLongFilename.args = {
     }),
   ],
   status: 'sent',
+};
+
+export const OtherFileTypeWithLongFilenameAndCaption = Template.bind({});
+OtherFileTypeWithLongFilenameAndCaption.args = {
+  attachments: [
+    fakeAttachment({
+      contentType: stringToMIMEType('text/plain'),
+      fileName:
+        'INSERT-APP-NAME_INSERT-APP-APPLE-ID_AppStore_AppsGamesWatch.psd.zip',
+      url: 'a2/a2334324darewer4234',
+    }),
+  ],
+  status: 'sent',
   text: 'This is what I have done.',
+};
+
+export const DangerousFileType = Template.bind({});
+DangerousFileType.args = {
+  attachments: [
+    fakeAttachment({
+      contentType: stringToMIMEType(
+        'application/vnd.microsoft.portable-executable'
+      ),
+      fileName: 'terrible.exe',
+      url: 'terrible.exe',
+    }),
+  ],
+  status: 'sent',
 };
 
 export const TapToViewImage = Template.bind({});
@@ -1725,6 +2146,22 @@ TapToViewImage.args = {
   ],
   isTapToView: true,
   status: 'sent',
+};
+
+export const TapToViewImageInGroup = Template.bind({});
+TapToViewImageInGroup.args = {
+  attachments: [
+    fakeAttachment({
+      url: '/fixtures/tina-rolf-269345-unsplash.jpg',
+      fileName: 'tina-rolf-269345-unsplash.jpg',
+      contentType: IMAGE_JPEG,
+      width: 128,
+      height: 128,
+    }),
+  ],
+  isTapToView: true,
+  status: 'sent',
+  conversationType: 'group',
 };
 
 export const TapToViewVideo = Template.bind({});
@@ -1758,17 +2195,50 @@ TapToViewGif.args = {
   status: 'sent',
 };
 
-export const TapToViewExpired = Template.bind({});
-TapToViewExpired.args = {
+export const TapToViewImageUndownloaded = Template.bind({});
+TapToViewImageUndownloaded.args = {
   attachments: [
     fakeAttachment({
-      url: '/fixtures/tina-rolf-269345-unsplash.jpg',
       fileName: 'tina-rolf-269345-unsplash.jpg',
       contentType: IMAGE_JPEG,
       width: 128,
       height: 128,
+      path: undefined,
+      size: 1800000,
     }),
   ],
+  isTapToView: true,
+  status: 'sent',
+};
+
+export const TapToViewImageDownloading = Template.bind({});
+TapToViewImageDownloading.args = {
+  attachments: [
+    fakeAttachment({
+      fileName: 'tina-rolf-269345-unsplash.jpg',
+      contentType: IMAGE_JPEG,
+      width: 128,
+      height: 128,
+      path: undefined,
+      pending: true,
+      size: 1800000,
+      totalDownloaded: 500000,
+    }),
+  ],
+  isTapToView: true,
+  status: 'sent',
+};
+
+export const TapToViewViewed = Template.bind({});
+TapToViewViewed.args = {
+  readStatus: ReadStatus.Viewed,
+  isTapToView: true,
+  isTapToViewExpired: true,
+  status: 'sent',
+};
+
+export const TapToViewExpired = Template.bind({});
+TapToViewExpired.args = {
   isTapToView: true,
   isTapToViewExpired: true,
   status: 'sent',
@@ -1776,31 +2246,8 @@ TapToViewExpired.args = {
 
 export const TapToViewError = Template.bind({});
 TapToViewError.args = {
-  attachments: [
-    fakeAttachment({
-      url: '/fixtures/tina-rolf-269345-unsplash.jpg',
-      fileName: 'tina-rolf-269345-unsplash.jpg',
-      contentType: IMAGE_JPEG,
-      width: 128,
-      height: 128,
-    }),
-  ],
   isTapToView: true,
   isTapToViewError: true,
-  status: 'sent',
-};
-
-export const DangerousFileType = Template.bind({});
-DangerousFileType.args = {
-  attachments: [
-    fakeAttachment({
-      contentType: stringToMIMEType(
-        'application/vnd.microsoft.portable-executable'
-      ),
-      fileName: 'terrible.exe',
-      url: 'terrible.exe',
-    }),
-  ],
   status: 'sent',
 };
 
@@ -2056,6 +2503,80 @@ const fullContact = {
 export const EmbeddedContactFullContact = Template.bind({});
 EmbeddedContactFullContact.args = {
   contact: fullContact,
+  canForward: false,
+};
+
+export const EmbeddedContactAvatarUndownloaded = Template.bind({});
+EmbeddedContactAvatarUndownloaded.args = {
+  contact: {
+    ...fullContact,
+    avatar: {
+      avatar: fakeAttachment({
+        path: undefined,
+        contentType: IMAGE_GIF,
+      }),
+      isProfile: true,
+    },
+  },
+  canForward: false,
+};
+export const EmbeddedContactAvatarDownloading = Template.bind({});
+EmbeddedContactAvatarDownloading.args = {
+  contact: {
+    ...fullContact,
+    avatar: {
+      avatar: fakeAttachment({
+        path: undefined,
+        pending: true,
+        contentType: IMAGE_GIF,
+        size: 1000000,
+        totalDownloaded: 500000,
+      }),
+      isProfile: true,
+    },
+  },
+  canForward: false,
+};
+export const EmbeddedContactAvatarTransientError = Template.bind({});
+EmbeddedContactAvatarTransientError.args = {
+  contact: {
+    ...fullContact,
+    avatar: {
+      avatar: fakeAttachment({
+        key: 'something',
+        digest: 'something',
+        cdnKey: 'something',
+        cdnNumber: 2,
+        path: undefined,
+        error: true,
+        contentType: IMAGE_GIF,
+        size: 1000000,
+        totalDownloaded: 500000,
+      }),
+      isProfile: true,
+    },
+  },
+  canForward: false,
+};
+export const EmbeddedContactAvatarPermanentError = Template.bind({});
+EmbeddedContactAvatarPermanentError.args = {
+  contact: {
+    ...fullContact,
+    avatar: {
+      avatar: fakeAttachment({
+        id: undefined,
+        key: undefined,
+        error: true,
+        isPermanentlyUndownloadable: true,
+        path: undefined,
+        contentType: IMAGE_GIF,
+        size: 1000000,
+        totalDownloaded: 500000,
+      }),
+      isProfile: true,
+    },
+  },
+  canForward: false,
 };
 
 export const EmbeddedContactWithSendMessage = Template.bind({});
@@ -2066,6 +2587,7 @@ EmbeddedContactWithSendMessage.args = {
     serviceId: generateAci(),
   },
   direction: 'incoming',
+  canForward: false,
 };
 
 export const EmbeddedContactOnlyEmail = Template.bind({});
@@ -2073,6 +2595,7 @@ EmbeddedContactOnlyEmail.args = {
   contact: {
     email: fullContact.email,
   },
+  canForward: false,
 };
 
 export const EmbeddedContactGivenName = Template.bind({});
@@ -2082,6 +2605,7 @@ EmbeddedContactGivenName.args = {
       givenName: 'Jerry',
     },
   },
+  canForward: false,
 };
 
 export const EmbeddedContactOrganization = Template.bind({});
@@ -2089,6 +2613,7 @@ EmbeddedContactOrganization.args = {
   contact: {
     organization: 'Company 5',
   },
+  canForward: false,
 };
 
 export const EmbeddedContactGivenFamilyName = Template.bind({});
@@ -2099,6 +2624,7 @@ EmbeddedContactGivenFamilyName.args = {
       familyName: 'FamilyName',
     },
   },
+  canForward: false,
 };
 
 export const EmbeddedContactFamilyName = Template.bind({});
@@ -2108,22 +2634,7 @@ EmbeddedContactFamilyName.args = {
       familyName: 'FamilyName',
     },
   },
-};
-
-export const EmbeddedContactLoadingAvatar = Template.bind({});
-EmbeddedContactLoadingAvatar.args = {
-  contact: {
-    name: {
-      nickname: 'Jerry',
-    },
-    avatar: {
-      avatar: fakeAttachment({
-        pending: true,
-        contentType: IMAGE_GIF,
-      }),
-      isProfile: true,
-    },
-  },
+  canForward: false,
 };
 
 export const GiftBadgeUnopened = Template.bind({});
@@ -2134,6 +2645,7 @@ GiftBadgeUnopened.args = {
     level: 3,
     state: GiftBadgeStates.Unopened,
   },
+  canForward: false,
 };
 
 export const GiftBadgeFailed = Template.bind({});
@@ -2141,6 +2653,7 @@ GiftBadgeFailed.args = {
   giftBadge: {
     state: GiftBadgeStates.Failed,
   },
+  canForward: false,
 };
 
 const getPreferredBadge = () => ({
@@ -2167,6 +2680,7 @@ GiftBadgeRedeemed30Days.args = {
     level: 3,
     state: GiftBadgeStates.Redeemed,
   },
+  canForward: false,
 };
 
 export const GiftBadgeRedeemed24Hours = Template.bind({});
@@ -2178,6 +2692,7 @@ GiftBadgeRedeemed24Hours.args = {
     level: 3,
     state: GiftBadgeStates.Redeemed,
   },
+  canForward: false,
 };
 
 export const GiftBadgeOpened60Minutes = Template.bind({});
@@ -2189,6 +2704,7 @@ GiftBadgeOpened60Minutes.args = {
     level: 3,
     state: GiftBadgeStates.Opened,
   },
+  canForward: false,
 };
 
 export const GiftBadgeRedeemed1Minute = Template.bind({});
@@ -2200,6 +2716,7 @@ GiftBadgeRedeemed1Minute.args = {
     level: 3,
     state: GiftBadgeStates.Redeemed,
   },
+  canForward: false,
 };
 
 export const GiftBadgeOpenedExpired = Template.bind({});
@@ -2211,6 +2728,7 @@ GiftBadgeOpenedExpired.args = {
     level: 3,
     state: GiftBadgeStates.Opened,
   },
+  canForward: false,
 };
 
 export const GiftBadgeMissingBadge = Template.bind({});
@@ -2222,12 +2740,14 @@ GiftBadgeMissingBadge.args = {
     level: 3,
     state: GiftBadgeStates.Redeemed,
   },
+  canForward: false,
 };
 
 export const PaymentNotification = Template.bind({});
 PaymentNotification.args = {
   canReply: false,
   canReact: false,
+  canForward: false,
   payment: {
     kind: PaymentEventKind.Notification,
     note: 'Hello there',
@@ -2284,6 +2804,7 @@ export function PermanentlyUndownloadableAttachments(): JSX.Element {
         key: undefined,
         id: undefined,
         error: true,
+        isPermanentlyUndownloadable: true,
       }),
     ],
     status: 'sent',
@@ -2300,6 +2821,7 @@ export function PermanentlyUndownloadableAttachments(): JSX.Element {
         key: undefined,
         id: undefined,
         error: true,
+        isPermanentlyUndownloadable: true,
       }),
       fakeAttachment({
         contentType: IMAGE_JPEG,
@@ -2311,6 +2833,7 @@ export function PermanentlyUndownloadableAttachments(): JSX.Element {
         key: undefined,
         id: undefined,
         error: true,
+        isPermanentlyUndownloadable: true,
       }),
     ],
     status: 'sent',
@@ -2328,6 +2851,7 @@ export function PermanentlyUndownloadableAttachments(): JSX.Element {
         key: undefined,
         id: undefined,
         error: true,
+        isPermanentlyUndownloadable: true,
       }),
     ],
     status: 'sent',
@@ -2344,6 +2868,7 @@ export function PermanentlyUndownloadableAttachments(): JSX.Element {
         key: undefined,
         id: undefined,
         error: true,
+        isPermanentlyUndownloadable: true,
       }),
     ],
     status: 'sent',
@@ -2359,6 +2884,7 @@ export function PermanentlyUndownloadableAttachments(): JSX.Element {
         key: undefined,
         id: undefined,
         error: true,
+        isPermanentlyUndownloadable: true,
       }),
     ],
     status: 'sent',
@@ -2378,6 +2904,7 @@ export function PermanentlyUndownloadableAttachments(): JSX.Element {
         key: undefined,
         id: undefined,
         error: true,
+        isPermanentlyUndownloadable: true,
       }),
     ],
     status: 'sent',
@@ -2394,6 +2921,7 @@ export function PermanentlyUndownloadableAttachments(): JSX.Element {
         width: 128,
         height: 128,
         error: true,
+        isPermanentlyUndownloadable: true,
       }),
     ],
     isSticker: true,
@@ -2407,6 +2935,7 @@ export function PermanentlyUndownloadableAttachments(): JSX.Element {
       pending: false,
       key: undefined,
       error: true,
+      isPermanentlyUndownloadable: true,
     },
   });
 

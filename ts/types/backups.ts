@@ -29,3 +29,47 @@ export type BackupCdnReadCredentialType = Readonly<{
   retrievedAtMs: number;
   cdnNumber: number;
 }>;
+
+export type SubscriptionCostType = {
+  amount: number;
+  currencyCode: string;
+};
+
+export type BackupStatusType = {
+  createdTimestamp?: number;
+  protoSize?: number;
+};
+
+export type BackupMediaDownloadStatusType = {
+  totalBytes: number;
+  completedBytes: number;
+  isPaused: boolean;
+  isIdle: boolean;
+};
+
+export type BackupsSubscriptionType =
+  | {
+      status: 'off' | 'not-found' | 'expired';
+    }
+  | {
+      status: 'free';
+      mediaIncludedInBackupDurationDays: number;
+    }
+  | (
+      | {
+          status: 'active';
+          renewalTimestamp?: number;
+          cost?: SubscriptionCostType;
+        }
+      | {
+          status: 'pending-cancellation';
+          expiryTimestamp?: number;
+          cost?: SubscriptionCostType;
+        }
+    );
+
+export type LocalBackupMetadataVerificationType = {
+  snapshotDir: string;
+  backupId: Uint8Array;
+  metadataKey: Uint8Array;
+};

@@ -21,7 +21,7 @@ import { DataReader, DataWriter } from '../../sql/Client';
 import type { AttachmentType } from '../../types/Attachment';
 import type { StateType as RootStateType } from '../reducer';
 import * as groups from '../../groups';
-import * as log from '../../logging/log';
+import { createLogger } from '../../logging/log';
 import { calling } from '../../services/calling';
 import { getOwn } from '../../util/getOwn';
 import { assertDev, strictAssert } from '../../util/assert';
@@ -29,19 +29,16 @@ import { drop } from '../../util/drop';
 import type { DurationInSeconds } from '../../util/durations';
 import * as universalExpireTimer from '../../util/universalExpireTimer';
 import * as Attachment from '../../types/Attachment';
+import type { LocalizerType } from '../../types/I18N';
+import { AttachmentDownloadUrgency } from '../../types/AttachmentDownload';
 import { isFileDangerous } from '../../util/isFileDangerous';
 import { getLocalAttachmentUrl } from '../../util/getLocalAttachmentUrl';
 import { instance as libphonenumberInstance } from '../../util/libphonenumberInstance';
 import type {
   ShowSendAnywayDialogActionType,
   ShowErrorModalActionType,
-  ToggleProfileEditorErrorActionType,
 } from './globalModals';
-import {
-  SHOW_SEND_ANYWAY_DIALOG,
-  SHOW_ERROR_MODAL,
-  TOGGLE_PROFILE_EDITOR_ERROR,
-} from './globalModals';
+import { SHOW_SEND_ANYWAY_DIALOG, SHOW_ERROR_MODAL } from './globalModals';
 import {
   MODIFY_LIST,
   DELETE_LIST,
@@ -96,6 +93,7 @@ import {
   getConversationSelector,
   getMe,
   getMessagesByConversation,
+  getPendingAvatarDownloadSelector,
 } from '../selectors/conversations';
 import { getIntl } from '../selectors/user';
 import type {
@@ -181,8 +179,9 @@ import {
   isWithinMaxEdits,
   MESSAGE_MAX_EDIT_COUNT,
 } from '../../util/canEditMessage';
-import type { ChangeNavTabActionType } from './nav';
-import { CHANGE_NAV_TAB, NavTab, actions as navActions } from './nav';
+import type { ChangeLocationAction } from './nav';
+import { CHANGE_LOCATION, changeLocation, actions as navActions } from './nav';
+import { NavTab, ProfileEditorPage, SettingsPage } from '../../types/Nav';
 import { sortByMessageOrder } from '../../types/ForwardDraft';
 import { getAddedByForOurPendingInvitation } from '../../util/getAddedByForOurPendingInvitation';
 import {
@@ -191,18 +190,15 @@ import {
 } from '../../util/idForLogging';
 import { singleProtoJobQueue } from '../../jobs/singleProtoJobQueue';
 import MessageSender from '../../textsecure/SendMessage';
-import {
-  AttachmentDownloadManager,
-  AttachmentDownloadUrgency,
-} from '../../jobs/AttachmentDownloadManager';
+import { AttachmentDownloadManager } from '../../jobs/AttachmentDownloadManager';
 import type {
   DeleteForMeSyncEventData,
-  MessageToDelete,
+  AddressableMessage,
 } from '../../textsecure/messageReceiverEvents';
 import {
-  getConversationToDelete,
-  getMessageToDelete,
-} from '../../util/deleteForMe';
+  getConversationIdentifier,
+  getAddressableMessage,
+} from '../../util/syncIdentifiers';
 import { MAX_MESSAGE_COUNT } from '../../util/deleteForMe.types';
 import { markCallHistoryReadInConversation } from './callHistory';
 import type { CapabilitiesType } from '../../textsecure/WebAPI';
@@ -210,7 +206,7 @@ import { actions as searchActions } from './search';
 import type { SearchActionType } from './search';
 import { getNotificationTextForMessage } from '../../util/getNotificationTextForMessage';
 import { doubleCheckMissingQuoteReference as doDoubleCheckMissingQuoteReference } from '../../util/doubleCheckMissingQuoteReference';
-import { queueAttachmentDownloadsForMessage } from '../../util/queueAttachmentDownloads';
+import { queueAttachmentDownloads } from '../../util/queueAttachmentDownloads';
 import { markAttachmentAsCorrupted as doMarkAttachmentAsCorrupted } from '../../messageModifiers/AttachmentDownloads';
 import {
   isSent,
@@ -221,6 +217,9 @@ import { markFailed } from '../../test-node/util/messageFailures';
 import { cleanupMessages } from '../../util/cleanup';
 import { MessageModel } from '../../models/messages';
 import type { ConversationModel } from '../../models/conversations';
+import { MessageRequestResponseSource } from '../../types/MessageRequestResponseEvent';
+
+const log = createLogger('conversations');
 
 // State
 
@@ -304,8 +303,9 @@ export type ConversationType = ReadonlyDeep<
     avatarUrl?: string;
     rawAvatarPath?: string;
     avatarHash?: string;
+    avatarPlaceholderGradient?: Readonly<[string, string]>;
     profileAvatarUrl?: string;
-    unblurredAvatarUrl?: string;
+    hasAvatar?: boolean;
     areWeAdmin?: boolean;
     areWePending?: boolean;
     areWePendingApproval?: boolean;
@@ -366,6 +366,7 @@ export type ConversationType = ReadonlyDeep<
     title: string;
     titleNoDefault?: string;
     titleNoNickname?: string;
+    titleShortNoDefault?: string;
     searchableTitle?: string;
     unreadCount?: number;
     unreadMentionsCount?: number;
@@ -580,7 +581,12 @@ export type ConversationsStateType = ReadonlyDeep<{
   messagesLookup: MessageLookupType;
   messagesByConversation: MessagesByConversationType;
 
+  // Map of conversation IDs to a boolean indicating whether an avatar download
+  // was requested
+  pendingRequestedAvatarDownload: Record<string, boolean>;
+
   preloadData?: ConversationPreloadDataType;
+  hasProfileUpdateError?: boolean;
 }>;
 
 // Helpers
@@ -642,6 +648,10 @@ export const SET_VOICE_NOTE_PLAYBACK_RATE =
   'conversations/SET_VOICE_NOTE_PLAYBACK_RATE';
 export const CONVERSATION_UNLOADED = 'CONVERSATION_UNLOADED';
 export const SHOW_SPOILER = 'conversations/SHOW_SPOILER';
+export const SET_PENDING_REQUESTED_AVATAR_DOWNLOAD =
+  'conversations/SET_PENDING_REQUESTED_AVATAR_DOWNLOAD';
+export const SET_PROFILE_UPDATE_ERROR =
+  'conversations/SET_PROFILE_UPDATE_ERROR';
 
 export type CancelVerificationDataByConversationActionType = ReadonlyDeep<{
   type: typeof CANCEL_CONVERSATION_PENDING_VERIFICATION;
@@ -829,6 +839,20 @@ export type ShowSpoilerActionType = ReadonlyDeep<{
   payload: {
     id: string;
     data: Record<number, boolean>;
+  };
+}>;
+
+export type SetPendingRequestedAvatarDownloadActionType = ReadonlyDeep<{
+  type: typeof SET_PENDING_REQUESTED_AVATAR_DOWNLOAD;
+  payload: {
+    conversationId: string;
+    value: boolean;
+  };
+}>;
+export type SetProfileUpdateErrorActionType = ReadonlyDeep<{
+  type: typeof SET_PROFILE_UPDATE_ERROR;
+  payload: {
+    newErrorState: boolean;
   };
 }>;
 
@@ -1066,6 +1090,8 @@ export type ConversationActionType =
   | ReplaceAvatarsActionType
   | ReviewConversationNameCollisionActionType
   | ScrollToMessageActionType
+  | SetPendingRequestedAvatarDownloadActionType
+  | SetProfileUpdateErrorActionType
   | TargetedConversationChangedActionType
   | SetComposeGroupAvatarActionType
   | SetComposeGroupExpireTimerActionType
@@ -1181,6 +1207,8 @@ export const actions = {
   saveAvatarToDisk,
   scrollToMessage,
   scrollToOldestUnreadMention,
+  setPendingRequestedAvatarDownload,
+  startAvatarDownload,
   showSpoiler,
   targetMessage,
   setAccessControlAddFromInviteLinkSetting,
@@ -1201,6 +1229,7 @@ export const actions = {
   setMuteExpiration,
   setPinned,
   setPreJoinConversation,
+  setProfileUpdateError,
   setVoiceNotePlaybackRate,
   showArchivedConversations,
   showAttachmentDownloadStillInProgressToast,
@@ -1222,7 +1251,6 @@ export const actions = {
   toggleHideStories,
   toggleSelectMessage,
   toggleSelectMode,
-  unblurAvatar,
   updateConversationModelSharedGroups,
   updateGroupAttributes,
   updateLastMessage,
@@ -1434,8 +1462,7 @@ function markMessageRead(
       throw new Error(`markMessageRead: failed to load message ${messageId}`);
     }
 
-    await conversation.markRead(message.get('received_at'), {
-      newestSentAt: message.get('sent_at'),
+    await conversation.markRead(message.attributes, {
       sendReadReceipts: true,
     });
 
@@ -1467,19 +1494,7 @@ function removeMember(
     payload: null,
   };
 }
-function unblurAvatar(conversationId: string): NoopActionType {
-  const conversation = window.ConversationController.get(conversationId);
-  if (!conversation) {
-    throw new Error('unblurAvatar: Conversation not found!');
-  }
 
-  conversation.unblurAvatar();
-
-  return {
-    type: 'NOOP',
-    payload: null,
-  };
-}
 function updateSharedGroups(conversationId: string): NoopActionType {
   const conversation = window.ConversationController.get(conversationId);
   if (!conversation) {
@@ -1782,7 +1797,7 @@ function deleteMessages({
     const messages = (
       await Promise.all(
         messageIds.map(
-          async (messageId): Promise<MessageToDelete | undefined> => {
+          async (messageId): Promise<AddressableMessage | undefined> => {
             const message = await getMessageById(messageId);
             if (!message) {
               throw new Error(`deleteMessages: Message ${messageId} missing!`);
@@ -1795,7 +1810,7 @@ function deleteMessages({
               );
             }
 
-            return getMessageToDelete(message.attributes);
+            return getAddressableMessage(message.attributes);
           }
         )
       )
@@ -1839,7 +1854,7 @@ function deleteMessages({
     }
 
     const chunks = chunk(messages, MAX_MESSAGE_COUNT);
-    const conversationToDelete = getConversationToDelete(
+    const conversationToDelete = getConversationIdentifier(
       conversation.attributes
     );
     const timestamp = Date.now();
@@ -2209,12 +2224,7 @@ function saveAvatarToDisk(
 function myProfileChanged(
   profileData: ProfileDataType,
   avatarUpdateOptions: AvatarUpdateOptionsType
-): ThunkAction<
-  void,
-  RootStateType,
-  unknown,
-  NoopActionType | ToggleProfileEditorErrorActionType
-> {
+): ThunkAction<void, RootStateType, unknown, SetProfileUpdateErrorActionType> {
   return async (dispatch, getState) => {
     const conversation = getMe(getState());
 
@@ -2230,13 +2240,32 @@ function myProfileChanged(
       // writeProfile above updates the backbone model which in turn updates
       // redux through it's on:change event listener. Once we lose Backbone
       // we'll need to manually sync these new changes.
+
+      // We just want to clear whatever error was there before:
       dispatch({
-        type: 'NOOP',
-        payload: null,
+        type: SET_PROFILE_UPDATE_ERROR,
+        payload: {
+          newErrorState: false,
+        },
       });
     } catch (err) {
       log.error('myProfileChanged', Errors.toLogFormat(err));
-      dispatch({ type: TOGGLE_PROFILE_EDITOR_ERROR });
+
+      // Make sure the user sees an error dialog
+      dispatch({
+        type: SET_PROFILE_UPDATE_ERROR,
+        payload: {
+          newErrorState: true,
+        },
+      });
+      // And take them to the profile editor to resolve it
+      changeLocation({
+        tab: NavTab.Settings,
+        details: {
+          page: SettingsPage.Profile,
+          state: ProfileEditorPage.None,
+        },
+      });
     }
   };
 }
@@ -2308,10 +2337,10 @@ function kickOffAttachmentDownload(
         `kickOffAttachmentDownload: Message ${options.messageId} missing!`
       );
     }
-    const didUpdateValues = await queueAttachmentDownloadsForMessage(
-      message,
-      AttachmentDownloadUrgency.IMMEDIATE
-    );
+    const didUpdateValues = await queueAttachmentDownloads(message, {
+      urgency: AttachmentDownloadUrgency.IMMEDIATE,
+      isManualDownload: true,
+    });
 
     if (didUpdateValues) {
       drop(window.MessageCache.saveMessage(message.attributes));
@@ -2695,7 +2724,10 @@ export function cancelConversationVerification(
         activeCall.conversationId === conversationId &&
         activeCall.callMode === CallMode.Direct
       ) {
-        calling.hangup(conversationId, 'canceled conversation verification');
+        calling.hangup({
+          conversationId,
+          reason: 'canceled conversation verification',
+        });
       }
       conversationJobQueue.resolveVerificationWaiter(conversationId);
     });
@@ -3011,11 +3043,7 @@ function getProfilesForConversation(conversationId: string): NoopActionType {
     throw new Error('getProfilesForConversation: no conversation found');
   }
 
-  drop(
-    conversation.getProfiles().catch(() => {
-      /* nothing to do here; logging already happened */
-    })
-  );
+  drop(conversation.getProfiles());
 
   return {
     type: 'NOOP',
@@ -3039,11 +3067,7 @@ function conversationStoppedByMissingVerification(payload: {
     }
 
     // Intentionally not awaiting here
-    drop(
-      conversation.getProfiles().catch(() => {
-        /* nothing to do here; logging already happened */
-      })
-    );
+    drop(conversation.getProfiles());
   });
 
   return {
@@ -3059,7 +3083,7 @@ export function markOpenConversationRead(
     const state = getState();
     const { nav } = state;
 
-    if (nav.selectedNavTab !== NavTab.Chats) {
+    if (nav.selectedLocation.tab !== NavTab.Chats) {
       return;
     }
 
@@ -3294,6 +3318,16 @@ function setIsFetchingUUID(
     payload: {
       identifier,
       isFetching,
+    },
+  };
+}
+function setProfileUpdateError(
+  newErrorState: boolean
+): SetProfileUpdateErrorActionType {
+  return {
+    type: SET_PROFILE_UPDATE_ERROR,
+    payload: {
+      newErrorState,
     },
   };
 }
@@ -3587,7 +3621,14 @@ async function syncMessageRequestResponse(
 ): Promise<void> {
   // In GroupsV2, this may modify the server. We only want to continue if those
   //   server updates were successful.
-  await conversation.applyMessageRequestResponse(response, { shouldSave });
+  await conversation.applyMessageRequestResponse(
+    response,
+    {
+      source: MessageRequestResponseSource.LOCAL,
+      timestamp: Date.now(),
+    },
+    { shouldSave }
+  );
 
   const groupId = conversation.getGroupIdBuffer();
 
@@ -3800,8 +3841,10 @@ function acceptConversation(
       await conversation.applyMessageRequestResponse(
         messageRequestEnum.ACCEPT,
         {
-          shouldSave: true,
-        }
+          source: MessageRequestResponseSource.LOCAL,
+          timestamp: Date.now(),
+        },
+        { shouldSave: true }
       );
 
       try {
@@ -3876,9 +3919,14 @@ function blockConversation(
     } else {
       // In GroupsV2, this may modify the server. We only want to continue if those
       //   server updates were successful.
-      await conversation.applyMessageRequestResponse(messageRequestEnum.BLOCK, {
-        shouldSave: true,
-      });
+      await conversation.applyMessageRequestResponse(
+        messageRequestEnum.BLOCK,
+        {
+          source: MessageRequestResponseSource.LOCAL,
+          timestamp: Date.now(),
+        },
+        { shouldSave: true }
+      );
 
       try {
         await singleProtoJobQueue.add(
@@ -4050,12 +4098,13 @@ function saveAttachment(
       return;
     }
 
-    const { readAttachmentData, saveAttachmentToDisk } =
+    const { getUnusedFilename, readAttachmentData, saveAttachmentToDisk } =
       window.Signal.Migrations;
 
     const fullPath = await Attachment.save({
       attachment,
       index: index + 1,
+      getUnusedFilename,
       readAttachmentData,
       saveAttachmentToDisk,
       timestamp,
@@ -4075,11 +4124,17 @@ function saveAttachment(
   };
 }
 
-const showSaveMultiDialog = (): Promise<{
+const showSaveMultiDialog = (
+  i18n: LocalizerType
+): Promise<{
   canceled: boolean;
   dirPath?: string;
 }> => {
-  return ipcRenderer.invoke('show-save-multi-dialog');
+  return ipcRenderer.invoke('show-open-folder-dialog', {
+    useMainWindow: true,
+    title: i18n('icu:SaveMultiDialog__title'),
+    buttonLabel: i18n('icu:save'),
+  });
 };
 
 export type SaveAttachmentsActionCreatorType = ReadonlyDeep<
@@ -4094,7 +4149,7 @@ function saveAttachments(
   attachments: ReadonlyArray<AttachmentType>,
   timestamp = Date.now()
 ): ThunkAction<void, RootStateType, unknown, ShowToastActionType> {
-  return async dispatch => {
+  return async (dispatch, getState) => {
     // check if any of the attachments could be dangerous
     for (const attachment of attachments) {
       const { fileName = '' } = attachment;
@@ -4111,48 +4166,63 @@ function saveAttachments(
       }
     }
 
-    const { canceled, dirPath } = await showSaveMultiDialog();
+    const { canceled, dirPath } = await showSaveMultiDialog(
+      getIntl(getState())
+    );
     if (canceled || !dirPath) {
       return;
     }
 
-    const { readAttachmentData, saveAttachmentToDisk } =
+    const { getUnusedFilename, readAttachmentData, saveAttachmentToDisk } =
       window.Signal.Migrations;
 
     let fullPath;
     let index = 0;
-    for (const attachment of attachments) {
-      index += 1;
+    try {
+      for (const attachment of attachments) {
+        index += 1;
 
-      // eslint-disable-next-line no-await-in-loop
-      const result = await Attachment.save({
-        attachment,
-        index,
-        readAttachmentData,
-        saveAttachmentToDisk,
-        timestamp,
-        baseDir: dirPath,
-      });
+        // eslint-disable-next-line no-await-in-loop
+        const result = await Attachment.save({
+          attachment,
+          index,
+          getUnusedFilename,
+          readAttachmentData,
+          saveAttachmentToDisk,
+          timestamp,
+          baseDir: dirPath,
+        });
 
-      if (fullPath === undefined) {
-        fullPath = result;
+        if (fullPath === undefined) {
+          fullPath = result;
+        }
       }
-    }
 
-    if (fullPath == null) {
-      throw new Error('saveAttachments: Returned path to attachment is null!');
-    }
+      if (fullPath == null) {
+        throw new Error(
+          'saveAttachments: Returned path to attachment is null!'
+        );
+      }
 
-    dispatch({
-      type: SHOW_TOAST,
-      payload: {
-        toastType: ToastType.FileSaved,
-        parameters: {
-          countOfFiles: attachments.length,
-          fullPath,
+      dispatch({
+        type: SHOW_TOAST,
+        payload: {
+          toastType: ToastType.FileSaved,
+          parameters: {
+            countOfFiles: attachments.length,
+            fullPath,
+          },
         },
-      },
-    });
+      });
+    } catch (e) {
+      log.error('Error in saveAttachments():', Errors.toLogFormat(e));
+      dispatch({
+        type: SHOW_TOAST,
+        payload: {
+          toastType: ToastType.Error,
+        },
+      });
+    }
   };
 }
 
@@ -4654,13 +4724,13 @@ function showConversation({
   void,
   RootStateType,
   unknown,
-  TargetedConversationChangedActionType | ChangeNavTabActionType
+  TargetedConversationChangedActionType | ChangeLocationAction
 > {
   return (dispatch, getState) => {
     const { conversations, nav } = getState();
 
-    if (nav.selectedNavTab !== NavTab.Chats) {
-      dispatch(navActions.changeNavTab(NavTab.Chats));
+    if (nav.selectedLocation.tab !== NavTab.Chats) {
+      dispatch(navActions.changeLocation({ tab: NavTab.Chats }));
       const conversation = window.ConversationController.get(conversationId);
       conversation?.setMarkedUnread(false);
     }
@@ -4745,7 +4815,7 @@ function onConversationOpened(
         Promise.all([
           conversation.loadNewestMessages(undefined, undefined),
           conversation.updateLastMessage(),
-          conversation.updateUnread(),
+          conversation.throttledUpdateUnread(),
         ])
       );
     };
@@ -4875,6 +4945,73 @@ function doubleCheckMissingQuoteReference(messageId: string): NoopActionType {
   };
 }
 
+function setPendingRequestedAvatarDownload(
+  conversationId: string,
+  value: boolean
+): SetPendingRequestedAvatarDownloadActionType {
+  return {
+    type: SET_PENDING_REQUESTED_AVATAR_DOWNLOAD,
+    payload: {
+      conversationId,
+      value,
+    },
+  };
+}
+
+function startAvatarDownload(
+  conversationId: string
+): ThunkAction<
+  void,
+  RootStateType,
+  unknown,
+  SetPendingRequestedAvatarDownloadActionType
+> {
+  return async (dispatch, getState) => {
+    const isAlreadyLoading =
+      getPendingAvatarDownloadSelector(getState())(conversationId);
+    if (isAlreadyLoading) {
+      return;
+    }
+    dispatch(setPendingRequestedAvatarDownload(conversationId, true));
+
+    try {
+      const conversation = window.ConversationController.get(conversationId);
+      if (!conversation) {
+        throw new Error('startAvatarDownload: Conversation not found');
+      }
+
+      if (!conversation.attributes.remoteAvatarUrl) {
+        throw new Error('startAvatarDownload: no avatar URL');
+      }
+
+      if (isGroup(conversation.attributes)) {
+        const updateAttrs = await groups.applyNewAvatar({
+          newAvatarUrl: conversation.attributes.remoteAvatarUrl,
+          attributes: conversation.attributes,
+          logId: 'startAvatarDownload',
+          forceDownload: true,
+        });
+        conversation.set(updateAttrs);
+      } else {
+        await conversation.setAndMaybeFetchProfileAvatar({
+          avatarUrl: conversation.attributes.remoteAvatarUrl,
+          decryptionKey: null,
+          forceFetch: true,
+        });
+      }
+
+      await DataWriter.updateConversation(conversation.attributes);
+    } catch (error) {
+      log.error(
+        'startAvatarDownload: Failed to download avatar',
+        Errors.toLogFormat(error)
+      );
+    } finally {
+      dispatch(setPendingRequestedAvatarDownload(conversationId, false));
+    }
+  };
+}
+
 // Reducer
 
 export function getEmptyState(): ConversationsStateType {
@@ -4894,6 +5031,7 @@ export function getEmptyState(): ConversationsStateType {
     selectedMessageIds: undefined,
     showArchived: false,
     hasContactSpoofingReview: false,
+    pendingRequestedAvatarDownload: {},
     targetedConversationPanels: {
       isAnimating: false,
       wasAnimated: false,
@@ -5379,7 +5517,7 @@ export function reducer(
   action: Readonly<
     | ConversationActionType
     | StoryDistributionListsActionType
-    | ChangeNavTabActionType
+    | ChangeLocationAction
   >
 ): ConversationsStateType {
   if (action.type === CLEAR_CONVERSATIONS_PENDING_VERIFICATION) {
@@ -5564,6 +5702,15 @@ export function reducer(
     return {
       ...state,
       preJoinConversation: data,
+    };
+  }
+  if (action.type === SET_PROFILE_UPDATE_ERROR) {
+    const { payload } = action;
+    const { newErrorState } = payload;
+
+    return {
+      ...state,
+      hasProfileUpdateError: newErrorState,
     };
   }
   if (action.type === 'CONVERSATIONS_UPDATED') {
@@ -7209,8 +7356,8 @@ export function reducer(
   }
 
   if (
-    action.type === CHANGE_NAV_TAB &&
-    action.payload.selectedNavTab === NavTab.Chats
+    action.type === CHANGE_LOCATION &&
+    action.payload.selectedLocation.tab === NavTab.Chats
   ) {
     const { messagesByConversation, selectedConversationId } = state;
     if (selectedConversationId == null) {
@@ -7230,6 +7377,18 @@ export function reducer(
           ...existingConversation,
           isNearBottom: true,
         },
+      },
+    };
+  }
+
+  if (action.type === SET_PENDING_REQUESTED_AVATAR_DOWNLOAD) {
+    const { conversationId, value } = action.payload;
+
+    return {
+      ...state,
+      pendingRequestedAvatarDownload: {
+        ...state.pendingRequestedAvatarDownload,
+        [conversationId]: value,
       },
     };
   }

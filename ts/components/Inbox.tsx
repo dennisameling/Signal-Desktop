@@ -5,9 +5,11 @@ import type { ReactNode } from 'react';
 import React, { useEffect, useState, useMemo } from 'react';
 import classNames from 'classnames';
 import type { LocalizerType } from '../types/Util';
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import { SECOND, DAY } from '../util/durations';
 import type { SmartNavTabsProps } from '../state/smart/NavTabs';
+
+const log = createLogger('Inbox');
 
 export type PropsType = {
   firstEnvelopeTimestamp: number | undefined;
@@ -23,6 +25,7 @@ export type PropsType = {
   renderCustomizingPreferredReactionsModal: () => JSX.Element;
   renderNavTabs: (props: SmartNavTabsProps) => JSX.Element;
   renderStoriesTab: () => JSX.Element;
+  renderSettingsTab: () => JSX.Element;
 };
 
 const PART_COUNT = 16;
@@ -41,6 +44,7 @@ export function Inbox({
   renderCustomizingPreferredReactionsModal,
   renderNavTabs,
   renderStoriesTab,
+  renderSettingsTab,
 }: PropsType): JSX.Element {
   const [internalHasInitialLoadCompleted, setInternalHasInitialLoadCompleted] =
     useState(hasInitialLoadCompleted);
@@ -200,6 +204,7 @@ export function Inbox({
           renderChatsTab,
           renderCallsTab,
           renderStoriesTab,
+          renderSettingsTab,
         })}
       </div>
       {activeModal}

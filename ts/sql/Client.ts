@@ -10,7 +10,7 @@ import type { ReadonlyDeep } from 'type-fest';
 // their imports too. That circularity causes problems. Anything that would do that needs
 // to be passed in, like cleanupMessages below.
 import * as Bytes from '../Bytes';
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import * as Errors from '../types/errors';
 
 import { deleteExternalFiles } from '../types/Conversation';
@@ -49,7 +49,6 @@ import type {
   ItemType,
   StoredItemType,
   MessageType,
-  MessageTypeUnhydrated,
   PreKeyIdType,
   PreKeyType,
   StoredPreKeyType,
@@ -62,9 +61,10 @@ import type {
   ClientOnlyReadableInterface,
   ClientOnlyWritableInterface,
 } from './Interface';
-import { hydrateMessage } from './hydration';
 import type { MessageAttributesType } from '../model-types';
 import type { AttachmentDownloadJobType } from '../types/AttachmentDownload';
+
+const log = createLogger('Client');
 
 const ERASE_SQL_KEY = 'erase-sql-key';
 const ERASE_ATTACHMENTS_KEY = 'erase-attachments';
@@ -295,7 +295,7 @@ function specFromBytes<Input, Output>(
 // Top-level calls
 
 async function shutdown(): Promise<void> {
-  log.info('Client.shutdown');
+  log.info('shutdown');
 
   // Stop accepting new SQL jobs, flush outstanding queue
   await doShutdown();
@@ -546,7 +546,6 @@ function handleSearchMessageJSON(
   messages: Array<ServerSearchResultMessageType>
 ): Array<ClientSearchResultMessageType> {
   return messages.map<ClientSearchResultMessageType>(message => {
-    const parsedMessage = hydrateMessage(message);
     assertDev(
       message.ftsSnippet ?? typeof message.mentionStart === 'number',
       'Neither ftsSnippet nor matching mention returned from message search'
@@ -554,7 +553,7 @@ function handleSearchMessageJSON(
     const snippet =
       message.ftsSnippet ??
       generateSnippetAroundMention({
-        body: parsedMessage.body || '',
+        body: message.body || '',
         mentionStart: message.mentionStart ?? 0,
         mentionLength: message.mentionLength ?? 1,
       });
@@ -562,7 +561,7 @@ function handleSearchMessageJSON(
     return {
       // Empty array is a default value. `message.json` has the real field
       bodyRanges: [],
-      ...parsedMessage,
+      ...message,
       snippet,
     };
   });
@@ -629,15 +628,17 @@ async function saveMessages(
     forceSave,
     ourAci,
     postSaveUpdates,
+    _testOnlyAvoidNormalizingAttachments,
   }: {
     forceSave?: boolean;
     ourAci: AciString;
     postSaveUpdates: () => Promise<void>;
+    _testOnlyAvoidNormalizingAttachments?: boolean;
   }
 ): Promise<Array<string>> {
   const result = await writableChannel.saveMessages(
     arrayOfMessages.map(message => _cleanMessageData(message)),
-    { forceSave, ourAci }
+    { forceSave, ourAci, _testOnlyAvoidNormalizingAttachments }
   );
 
   drop(postSaveUpdates?.());
@@ -730,19 +731,13 @@ async function removeMessages(
   await writableChannel.removeMessages(messageIds);
 }
 
-function handleMessageJSON(
-  messages: Array<MessageTypeUnhydrated>
-): Array<MessageType> {
-  return messages.map(message => hydrateMessage(message));
-}
-
 async function getNewerMessagesByConversation(
   options: AdjacentMessagesByConversationOptionsType
 ): Promise<Array<MessageType>> {
   const messages =
     await readableChannel.getNewerMessagesByConversation(options);
 
-  return handleMessageJSON(messages);
+  return messages;
 }
 
 async function getRecentStoryReplies(
@@ -754,7 +749,7 @@ async function getRecentStoryReplies(
     options
   );
 
-  return handleMessageJSON(messages);
+  return messages;
 }
 
 async function getOlderMessagesByConversation(
@@ -763,7 +758,7 @@ async function getOlderMessagesByConversation(
   const messages =
     await readableChannel.getOlderMessagesByConversation(options);
 
-  return handleMessageJSON(messages);
+  return messages;
 }
 
 async function getConversationRangeCenteredOnMessage(
@@ -772,11 +767,7 @@ async function getConversationRangeCenteredOnMessage(
   const result =
     await readableChannel.getConversationRangeCenteredOnMessage(options);
 
-  return {
-    ...result,
-    older: handleMessageJSON(result.older),
-    newer: handleMessageJSON(result.newer),
-  };
+  return result;
 }
 
 async function removeMessagesInConversation(
@@ -832,9 +823,13 @@ async function saveAttachmentDownloadJob(
 
 // Other
 
-async function cleanupOrphanedAttachments(): Promise<void> {
+async function cleanupOrphanedAttachments({
+  _block = false,
+}: {
+  _block?: boolean;
+} = {}): Promise<void> {
   try {
-    await invokeWithTimeout(CLEANUP_ORPHANED_ATTACHMENTS_KEY);
+    await invokeWithTimeout(CLEANUP_ORPHANED_ATTACHMENTS_KEY, { _block });
   } catch (error) {
     log.warn(
       'sql/Client: cleanupOrphanedAttachments failure',
@@ -859,9 +854,12 @@ async function removeOtherData(): Promise<void> {
   ]);
 }
 
-async function invokeWithTimeout(name: string): Promise<void> {
+async function invokeWithTimeout(
+  name: string,
+  ...args: Array<unknown>
+): Promise<void> {
   return createTaskWithTimeout(
-    () => ipc.invoke(name),
+    () => ipc.invoke(name, ...args),
     `callChannel call to ${name}`
   )();
 }

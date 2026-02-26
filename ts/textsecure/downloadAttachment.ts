@@ -9,14 +9,16 @@ import { Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import { ensureFile } from 'fs-extra';
 
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import * as Errors from '../types/errors';
 import { strictAssert } from '../util/assert';
 import {
   AttachmentSizeError,
-  mightBeOnBackupTier,
   type AttachmentType,
   AttachmentVariant,
+  AttachmentPermanentlyUndownloadableError,
+  hasRequiredInformationForBackup,
+  type BackupableAttachmentType,
 } from '../types/Attachment';
 import * as Bytes from '../Bytes';
 import {
@@ -26,6 +28,7 @@ import {
   type ReencryptedAttachmentV2,
   decryptAndReencryptLocally,
   measureSize,
+  type IntegrityCheckType,
 } from '../AttachmentCrypto';
 import type { ProcessedAttachment } from './Types.d';
 import type { WebAPIType } from './WebAPI';
@@ -45,8 +48,10 @@ import { MAX_BACKUP_THUMBNAIL_SIZE } from '../types/VisualAttachment';
 import { missingCaseError } from '../util/missingCaseError';
 import { IV_LENGTH, MAC_LENGTH } from '../types/Crypto';
 import { BackupCredentialType } from '../types/backups';
+import { getValue } from '../RemoteConfig';
+import { parseIntOrThrow } from '../util/parseIntOrThrow';
 
-const DEFAULT_BACKUP_CDN_NUMBER = 3;
+const log = createLogger('downloadAttachment');
 
 export function getCdnKey(attachment: ProcessedAttachment): string {
   const cdnKey = attachment.cdnId || attachment.cdnKey;
@@ -54,8 +59,8 @@ export function getCdnKey(attachment: ProcessedAttachment): string {
   return cdnKey;
 }
 
-function getBackupMediaOuterEncryptionKeyMaterial(
-  attachment: AttachmentType
+export function getBackupMediaOuterEncryptionKeyMaterial(
+  attachment: BackupableAttachmentType
 ): BackupMediaKeyMaterialType {
   const mediaId = getMediaIdForAttachment(attachment);
   const backupKey = getBackupMediaRootKey();
@@ -63,14 +68,14 @@ function getBackupMediaOuterEncryptionKeyMaterial(
 }
 
 function getBackupThumbnailInnerEncryptionKeyMaterial(
-  attachment: AttachmentType
+  attachment: BackupableAttachmentType
 ): BackupMediaKeyMaterialType {
   const mediaId = getMediaIdForAttachmentThumbnail(attachment);
   const backupKey = getBackupMediaRootKey();
   return deriveBackupMediaKeyMaterial(backupKey, mediaId.bytes);
 }
 function getBackupThumbnailOuterEncryptionKeyMaterial(
-  attachment: AttachmentType
+  attachment: BackupableAttachmentType
 ): BackupMediaKeyMaterialType {
   const mediaId = getMediaIdForAttachmentThumbnail(attachment);
   const backupKey = getBackupMediaRootKey();
@@ -78,13 +83,9 @@ function getBackupThumbnailOuterEncryptionKeyMaterial(
 }
 
 export async function getCdnNumberForBackupTier(
-  attachment: ProcessedAttachment
+  attachment: BackupableAttachmentType
 ): Promise<number> {
-  strictAssert(
-    attachment.backupLocator,
-    'Attachment was missing backupLocator'
-  );
-  let backupCdnNumber = attachment.backupLocator.cdnNumber;
+  let { backupCdnNumber } = attachment;
 
   if (backupCdnNumber == null) {
     const mediaId = getMediaIdForAttachment(attachment);
@@ -92,7 +93,10 @@ export async function getCdnNumberForBackupTier(
     if (backupCdnInfo.isInBackupTier) {
       backupCdnNumber = backupCdnInfo.cdnNumber;
     } else {
-      backupCdnNumber = DEFAULT_BACKUP_CDN_NUMBER;
+      backupCdnNumber = parseIntOrThrow(
+        getValue('global.backups.mediaTierFallbackCdnNumber'),
+        'global.backups.mediaTierFallbackCdnNumber must be set'
+      );
     }
   }
   return backupCdnNumber;
@@ -100,34 +104,42 @@ export async function getCdnNumberForBackupTier(
 
 export async function downloadAttachment(
   server: WebAPIType,
-  attachment: ProcessedAttachment,
+  {
+    attachment,
+    mediaTier,
+  }:
+    | { attachment: AttachmentType; mediaTier: MediaTier.STANDARD }
+    | { attachment: BackupableAttachmentType; mediaTier: MediaTier.BACKUP },
   options: {
     disableRetries?: boolean;
     logPrefix?: string;
-    mediaTier?: MediaTier;
     onSizeUpdate: (totalBytes: number) => void;
     timeout?: number;
     variant: AttachmentVariant;
     abortSignal: AbortSignal;
   }
-): Promise<ReencryptedAttachmentV2 & { size?: number }> {
+): Promise<ReencryptedAttachmentV2> {
   const logId = `downloadAttachment/${options.logPrefix ?? ''}`;
 
-  const { digest, incrementalMac, chunkSize, key, size } = attachment;
+  const { digest, plaintextHash, incrementalMac, chunkSize, key, size } =
+    attachment;
 
-  strictAssert(digest, `${logId}: missing digest`);
-  strictAssert(key, `${logId}: missing key`);
-  strictAssert(isNumber(size), `${logId}: missing size`);
-
-  const mediaTier =
-    options?.mediaTier ??
-    (mightBeOnBackupTier(attachment) ? MediaTier.BACKUP : MediaTier.STANDARD);
+  try {
+    strictAssert(
+      digest || plaintextHash,
+      `${logId}: missing digest and plaintextHash`
+    );
+    strictAssert(key, `${logId}: missing key`);
+    strictAssert(isNumber(size), `${logId}: missing size`);
+  } catch (error) {
+    throw new AttachmentPermanentlyUndownloadableError(error.message);
+  }
 
   let downloadResult: Awaited<ReturnType<typeof downloadToDisk>>;
 
   let { downloadPath } = attachment;
   const absoluteDownloadPath = downloadPath
-    ? window.Signal.Migrations.getAbsoluteAttachmentPath(downloadPath)
+    ? window.Signal.Migrations.getAbsoluteDownloadsPath(downloadPath)
     : undefined;
   let downloadOffset = 0;
 
@@ -137,7 +149,7 @@ export async function downloadAttachment(
     } catch (error) {
       if (error.code !== 'ENOENT') {
         log.error(
-          'downloadAttachment: Failed to get file size for previous download',
+          'Failed to get file size for previous download',
           Errors.toLogFormat(error)
         );
         try {
@@ -151,13 +163,19 @@ export async function downloadAttachment(
 
   // Start over if we go over the size
   if (downloadOffset >= size && absoluteDownloadPath) {
-    log.warn('downloadAttachment: went over, retrying');
+    log.warn('went over, retrying');
     await safeUnlink(absoluteDownloadPath);
     downloadOffset = 0;
   }
 
   if (downloadOffset !== 0) {
     log.info(`${logId}: resuming from ${downloadOffset}`);
+  }
+  if (mediaTier === MediaTier.BACKUP) {
+    strictAssert(
+      hasRequiredInformationForBackup(attachment),
+      `${logId}: attachment missing critical information for backup tier`
+    );
   }
 
   if (mediaTier === MediaTier.STANDARD) {
@@ -187,6 +205,8 @@ export async function downloadAttachment(
       size,
     });
   } else {
+    strictAssert(mediaTier === MediaTier.BACKUP, 'backup media tier');
+
     const mediaId =
       options.variant === AttachmentVariant.ThumbnailFromBackup
         ? getMediaIdForAttachmentThumbnail(attachment)
@@ -234,6 +254,21 @@ export async function downloadAttachment(
       case AttachmentVariant.Default:
       case undefined: {
         const { aesKey, macKey } = splitKeys(Bytes.fromBase64(key));
+        let integrityCheck: IntegrityCheckType;
+        if (plaintextHash) {
+          integrityCheck = {
+            type: 'plaintext',
+            plaintextHash: Bytes.fromHex(plaintextHash),
+          };
+        } else if (digest) {
+          integrityCheck = {
+            type: 'encrypted',
+            digest: Bytes.fromBase64(digest),
+          };
+        } else {
+          throw new Error(`${logId}: missing both digest and plaintextHash`);
+        }
+
         return await decryptAndReencryptLocally({
           type: 'standard',
           ciphertextPath: cipherTextAbsolutePath,
@@ -241,7 +276,7 @@ export async function downloadAttachment(
           aesKey,
           macKey,
           size,
-          theirDigest: Bytes.fromBase64(digest),
+          integrityCheck,
           theirIncrementalMac: incrementalMac
             ? Bytes.fromBase64(incrementalMac)
             : undefined,
@@ -264,20 +299,17 @@ export async function downloadAttachment(
         // backup thumbnails don't get trimmed, so we just calculate the size as the
         // ciphertextSize, less IV and MAC
         const calculatedSize = downloadSize - IV_LENGTH - MAC_LENGTH;
-        return {
-          ...(await decryptAndReencryptLocally({
-            type: 'backupThumbnail',
-            ciphertextPath: cipherTextAbsolutePath,
-            idForLogging: logId,
-            size: calculatedSize,
-            ...thumbnailEncryptionKeys,
-            outerEncryption:
-              getBackupThumbnailOuterEncryptionKeyMaterial(attachment),
-            getAbsoluteAttachmentPath:
-              window.Signal.Migrations.getAbsoluteAttachmentPath,
-          })),
+        return decryptAndReencryptLocally({
+          type: 'backupThumbnail',
+          ciphertextPath: cipherTextAbsolutePath,
+          idForLogging: logId,
           size: calculatedSize,
-        };
+          ...thumbnailEncryptionKeys,
+          outerEncryption:
+            getBackupThumbnailOuterEncryptionKeyMaterial(attachment),
+          getAbsoluteAttachmentPath:
+            window.Signal.Migrations.getAbsoluteAttachmentPath,
+        });
       }
       default: {
         throw missingCaseError(options.variant);

@@ -5,21 +5,20 @@ import * as React from 'react';
 import { action } from '@storybook/addon-actions';
 import type { Meta } from '@storybook/react';
 import { EmojiPicker } from '../emoji/EmojiPicker';
-import { setupI18n } from '../../util/setupI18n';
 import { DurationInSeconds } from '../../util/durations';
-import enMessages from '../../../_locales/en/messages.json';
 import type { PropsType as TimelineItemProps } from './TimelineItem';
 import { TimelineItem } from './TimelineItem';
 import { UniversalTimerNotification } from './UniversalTimerNotification';
 import { CallMode } from '../../types/CallDisposition';
 import { AvatarColors } from '../../types/Colors';
-import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
+import { getDefaultConversation } from '../../test-helpers/getDefaultConversation';
 import { WidthBreakpoint } from '../_util';
 import { ThemeType } from '../../types/Util';
 import { PaymentEventKind } from '../../types/Payment';
 import { ErrorBoundary } from './ErrorBoundary';
+import { EmojiSkinTone } from '../fun/data/emojis';
 
-const i18n = setupI18n('en', enMessages);
+const { i18n } = window.SignalContext;
 
 const renderEmojiPicker: TimelineItemProps['renderEmojiPicker'] = ({
   onClose,
@@ -27,9 +26,11 @@ const renderEmojiPicker: TimelineItemProps['renderEmojiPicker'] = ({
   ref,
 }) => (
   <EmojiPicker
-    i18n={setupI18n('en', enMessages)}
-    skinTone={0}
-    onSetSkinTone={action('EmojiPicker::onSetSkinTone')}
+    i18n={i18n}
+    emojiSkinToneDefault={EmojiSkinTone.None}
+    onEmojiSkinToneDefaultChange={action(
+      'EmojiPicker::onEmojiSkinToneDefaultChange'
+    )}
     ref={ref}
     onClose={onClose}
     onPickEmoji={onPickEmoji}
@@ -109,6 +110,7 @@ const getDefaultProps = () => ({
   ),
   showAttachmentNotAvailableModal: action('showAttachmentNotAvailableModal'),
   showMediaNoLongerAvailableToast: action('showMediaNoLongerAvailableToast'),
+  showTapToViewNotAvailableModal: action('showTapToViewNotAvailableModal'),
   scrollToQuotedMessage: action('scrollToQuotedMessage'),
   showSpoiler: action('showSpoiler'),
   startConversation: action('startConversation'),

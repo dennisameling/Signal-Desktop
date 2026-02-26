@@ -90,16 +90,16 @@ export const GroupCallRemoteParticipant: React.FC<PropsType> = React.memo(
     } = props;
 
     const {
-      acceptedMessageRequest,
+      avatarPlaceholderGradient,
       addedTime,
       avatarUrl,
       color,
       demuxId,
+      hasAvatar,
       hasRemoteAudio,
       hasRemoteVideo,
       isHandRaised,
       isBlocked,
-      isMe,
       mediaKeysReceived,
       profileName,
       sharedGroupNames,
@@ -230,14 +230,18 @@ export const GroupCallRemoteParticipant: React.FC<PropsType> = React.memo(
 
         if (
           imageData?.width !== frameWidth ||
-          imageData?.height !== frameHeight
+          imageData?.height !== frameHeight ||
+          imageData?.data.buffer !== frameBuffer.buffer ||
+          imageData?.data.byteOffset !== frameBuffer.byteOffset
         ) {
-          imageData = new ImageData(frameWidth, frameHeight);
+          const view = new Uint8ClampedArray(
+            frameBuffer.buffer,
+            frameBuffer.byteOffset,
+            frameWidth * frameHeight * 4
+          );
+          imageData = new ImageData(view, frameWidth, frameHeight);
           imageDataRef.current = imageData;
         }
-        imageData.data.set(
-          frameBuffer.subarray(0, frameWidth * frameHeight * 4)
-        );
 
         // Screen share is at a slow FPS so updates slowly if we PiP then restore.
         // Cache the image data so we can quickly show the most recent frame.
@@ -353,9 +357,12 @@ export const GroupCallRemoteParticipant: React.FC<PropsType> = React.memo(
       };
 
       if ('top' in props) {
+        const isRTL = i18n.getLocaleDirection() === 'rtl';
+
         containerStyles.position = 'absolute';
-        containerStyles.insetInlineStart = `${props.left}px`;
-        containerStyles.top = `${props.top}px`;
+
+        const left = isRTL ? -props.left : props.left;
+        containerStyles.transform = `translate(${left}px, ${props.top}px)`;
       }
 
       const nameElement = (
@@ -455,14 +462,14 @@ export const GroupCallRemoteParticipant: React.FC<PropsType> = React.memo(
       } else {
         noVideoNode = (
           <Avatar
-            acceptedMessageRequest={acceptedMessageRequest}
+            avatarPlaceholderGradient={avatarPlaceholderGradient}
             avatarUrl={avatarUrl}
             badge={undefined}
             color={color || AvatarColors[0]}
             noteToSelf={false}
             conversationType="direct"
+            hasAvatar={hasAvatar}
             i18n={i18n}
-            isMe={isMe}
             profileName={profileName}
             title={title}
             sharedGroupNames={sharedGroupNames}
@@ -586,7 +593,9 @@ export const GroupCallRemoteParticipant: React.FC<PropsType> = React.memo(
               ref={canvasEl => {
                 remoteVideoRef.current = canvasEl;
                 if (canvasEl) {
-                  canvasContextRef.current = canvasEl.getContext('2d');
+                  canvasContextRef.current = canvasEl.getContext('2d', {
+                    alpha: false,
+                  });
                 } else {
                   canvasContextRef.current = null;
                 }

@@ -104,6 +104,9 @@ window.testUtilities = {
       callLinks: [],
       callHistory: [],
       callHistoryUnreadCount: 0,
+      gifs: {
+        recentGifs: [],
+      },
       mainWindowStats: {
         isFullScreen: false,
         isMaximized: false,
@@ -112,14 +115,22 @@ window.testUtilities = {
         development: false,
         devTools: false,
         includeSetup: false,
+        isNightly: false,
         isProduction: false,
         platform: 'test',
       },
+      notificationProfiles: [],
       recentEmoji: {
         recents: [],
       },
       stories: [],
       storyDistributionLists: [],
+      donations: {
+        didResumeWorkflowAtStartup: false,
+        currentWorkflow: undefined,
+        lastError: undefined,
+        receipts: [],
+      },
       stickers: {
         installedPack: null,
         packs: {},

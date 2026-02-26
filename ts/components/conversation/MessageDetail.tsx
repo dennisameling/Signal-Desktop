@@ -25,7 +25,7 @@ import {
   type VisibleSendStatus,
 } from '../../messages/MessageSendState';
 import { WidthBreakpoint } from '../_util';
-import * as log from '../../logging/log';
+import { createLogger } from '../../logging/log';
 import { formatDateTimeLong } from '../../util/timestamp';
 import { DurationInSeconds } from '../../util/durations';
 import { format as formatRelativeTime } from '../../util/expirationTimer';
@@ -36,6 +36,8 @@ import {
   ConversationDetailsIcon,
   IconType,
 } from './conversation-details/ConversationDetailsIcon';
+
+const log = createLogger('MessageDetail');
 
 export type Contact = Pick<
   ConversationType,
@@ -49,7 +51,6 @@ export type Contact = Pick<
   | 'profileName'
   | 'sharedGroupNames'
   | 'title'
-  | 'unblurredAvatarUrl'
 > & {
   status?: SendStatus;
   statusTimestamp?: number;
@@ -108,6 +109,7 @@ export type PropsReduxActions = Pick<
   | 'showLightboxForViewOnceMedia'
   | 'showMediaNoLongerAvailableToast'
   | 'showSpoiler'
+  | 'showTapToViewNotAvailableModal'
   | 'startConversation'
   | 'viewStory'
 > & {
@@ -157,6 +159,7 @@ export function MessageDetail({
   showLightboxForViewOnceMedia,
   showMediaNoLongerAvailableToast,
   showSpoiler,
+  showTapToViewNotAvailableModal,
   startConversation,
   theme,
   toggleSafetyNumberModal,
@@ -166,34 +169,28 @@ export function MessageDetail({
 
   function renderAvatar(contact: Contact): JSX.Element {
     const {
-      acceptedMessageRequest,
       avatarUrl,
       badges,
       color,
-      isMe,
       phoneNumber,
       profileName,
       sharedGroupNames,
       title,
-      unblurredAvatarUrl,
     } = contact;
 
     return (
       <Avatar
-        acceptedMessageRequest={acceptedMessageRequest}
         avatarUrl={avatarUrl}
         badge={getPreferredBadge(badges)}
         color={color}
         conversationType="direct"
         i18n={i18n}
-        isMe={isMe}
         phoneNumber={phoneNumber}
         profileName={profileName}
         theme={theme}
         title={title}
         sharedGroupNames={sharedGroupNames}
         size={AvatarSize.THIRTY_TWO}
-        unblurredAvatarUrl={unblurredAvatarUrl}
       />
     );
   }
@@ -366,13 +363,14 @@ export function MessageDetail({
             showConversation={showConversation}
             showSpoiler={showSpoiler}
             scrollToQuotedMessage={() => {
-              log.warn('MessageDetail: scrollToQuotedMessage called!');
+              log.warn('scrollToQuotedMessage called!');
             }}
             showContactModal={showContactModal}
             showAttachmentDownloadStillInProgressToast={
               showAttachmentDownloadStillInProgressToast
             }
             showAttachmentNotAvailableModal={showAttachmentNotAvailableModal}
+            showTapToViewNotAvailableModal={showTapToViewNotAvailableModal}
             showExpiredIncomingTapToViewToast={
               showExpiredIncomingTapToViewToast
             }

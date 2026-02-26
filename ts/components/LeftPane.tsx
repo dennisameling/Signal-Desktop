@@ -54,12 +54,16 @@ import {
   NavSidebarSearchHeader,
 } from './NavSidebar';
 import { ContextMenu } from './ContextMenu';
-import { EditState as ProfileEditorEditState } from './ProfileEditor';
 import type { UnreadStats } from '../util/countUnreadStats';
 import { BackupMediaDownloadProgress } from './BackupMediaDownloadProgress';
+import type { ServerAlertsType } from '../util/handleServerAlerts';
+import { getServerAlertDialog } from './ServerAlerts';
+import { NavTab, SettingsPage, ProfileEditorPage } from '../types/Nav';
+import type { Location } from '../types/Nav';
 
 export type PropsType = {
   backupMediaDownloadProgress: {
+    isBackupMediaEnabled: boolean;
     totalBytes: number;
     downloadedBytes: number;
     isIdle: boolean;
@@ -74,6 +78,7 @@ export type PropsType = {
   hasRelinkDialog: boolean;
   hasUpdateDialog: boolean;
   isUpdateDownloaded: boolean;
+  isOnline: boolean;
   unsupportedOSDialogType: 'error' | 'warning' | undefined;
   usernameCorrupted: boolean;
   usernameLinkCorrupted: boolean;
@@ -119,6 +124,7 @@ export type PropsType = {
 
   // Action Creators
   blockConversation: (conversationId: string) => void;
+  changeLocation: (location: Location) => void;
   clearConversationSearch: () => void;
   clearGroupCreationError: () => void;
   clearSearchQuery: () => void;
@@ -146,6 +152,7 @@ export type PropsType = {
   setComposeGroupName: (_: string) => void;
   setComposeSearchTerm: (composeSearchTerm: string) => void;
   setComposeSelectedRegion: (newRegion: string) => void;
+  serverAlerts?: ServerAlertsType;
   showArchivedConversations: () => void;
   showChooseGroupMembers: () => void;
   showFindByUsername: () => void;
@@ -159,7 +166,6 @@ export type PropsType = {
   toggleComposeEditingAvatar: () => unknown;
   toggleConversationInChooseMembers: (conversationId: string) => void;
   toggleNavTabsCollapse: (navTabsCollapsed: boolean) => void;
-  toggleProfileEditor: (initialEditState?: ProfileEditorEditState) => void;
   updateSearchTerm: (query: string) => void;
   updateFilterByUnread: (filterByUnread: boolean) => void;
 
@@ -191,6 +197,7 @@ export function LeftPane({
   blockConversation,
   cancelBackupMediaDownload,
   challengeStatus,
+  changeLocation,
   clearConversationSearch,
   clearGroupCreationError,
   clearSearchQuery,
@@ -213,6 +220,7 @@ export function LeftPane({
   i18n,
   lookupConversationWithoutServiceId,
   isMacOS,
+  isOnline,
   isUpdateDownloaded,
   modeSpecificProps,
   navTabsCollapsed,
@@ -239,7 +247,6 @@ export function LeftPane({
   selectedConversationId,
   targetedMessageId,
   toggleNavTabsCollapse,
-  toggleProfileEditor,
   setChallengeStatus,
   setComposeGroupAvatar,
   setComposeGroupExpireTimer,
@@ -254,6 +261,7 @@ export function LeftPane({
   showConversation,
   showInbox,
   showUserNotFoundModal,
+  serverAlerts,
   startComposing,
   startSearch,
   startSettingGroupMetadata,
@@ -599,6 +607,10 @@ export function LeftPane({
     scrollBehavior = ScrollBehavior.Hard;
   }
 
+  const maybeServerAlert = getServerAlertDialog(
+    serverAlerts,
+    commonDialogProps
+  );
   // Yellow dialogs
   let maybeYellowDialog: JSX.Element | undefined;
 
@@ -611,6 +623,8 @@ export function LeftPane({
     maybeYellowDialog = renderNetworkStatus(commonDialogProps);
   } else if (hasRelinkDialog) {
     maybeYellowDialog = renderRelinkDialog(commonDialogProps);
+  } else if (maybeServerAlert) {
+    maybeYellowDialog = maybeServerAlert;
   }
 
   // Update dialog
@@ -655,7 +669,13 @@ export function LeftPane({
         actionText={i18n('icu:LeftPane--corrupted-username--action-text')}
         onClick={() => {
           openUsernameReservationModal();
-          toggleProfileEditor(ProfileEditorEditState.Username);
+          changeLocation({
+            tab: NavTab.Settings,
+            details: {
+              page: SettingsPage.Profile,
+              state: ProfileEditorPage.Username,
+            },
+          });
         }}
       >
         {i18n('icu:LeftPane--corrupted-username--text')}
@@ -665,7 +685,15 @@ export function LeftPane({
     maybeBanner = (
       <LeftPaneBanner
         actionText={i18n('icu:LeftPane--corrupted-username-link--action-text')}
-        onClick={() => toggleProfileEditor(ProfileEditorEditState.UsernameLink)}
+        onClick={() => {
+          changeLocation({
+            tab: NavTab.Settings,
+            details: {
+              page: SettingsPage.Profile,
+              state: ProfileEditorPage.UsernameLink,
+            },
+          });
+        }}
       >
         {i18n('icu:LeftPane--corrupted-username-link--text')}
       </LeftPaneBanner>
@@ -685,7 +713,9 @@ export function LeftPane({
     modeSpecificProps.mode === LeftPaneMode.SetGroupMetadata;
 
   const showBackupMediaDownloadProgress =
-    !hideHeader && !backupMediaDownloadProgress.downloadBannerDismissed;
+    !hideHeader &&
+    backupMediaDownloadProgress.isBackupMediaEnabled &&
+    !backupMediaDownloadProgress.downloadBannerDismissed;
 
   const hasDialogs = dialogs.length ? !hideHeader : false;
 
@@ -791,6 +821,8 @@ export function LeftPane({
         {showBackupMediaDownloadProgress ? (
           <BackupMediaDownloadProgress
             i18n={i18n}
+            widthBreakpoint={widthBreakpoint}
+            isOnline={isOnline}
             {...backupMediaDownloadProgress}
             handleClose={dismissBackupMediaDownloadBanner}
             handlePause={pauseBackupMediaDownload}

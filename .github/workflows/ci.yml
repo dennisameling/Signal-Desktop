@@ -18,33 +18,31 @@ jobs:
     steps:
     - run: lsb_release -a
     - run: uname -a
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
     - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 10.3.0
+      uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4
     - name: Setup node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
       with:
         node-version-file: '.nvmrc'
         cache: 'pnpm'
         cache-dependency-path: 'pnpm-lock.yaml'
     - name: Cache .electron-gyp
-      uses: actions/cache@v4
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
       with:
         path: ~/.electron-gyp
         key: electron-gyp-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
-    - name: Setup sccache
-      uses: mozilla-actions/sccache-action@v0.0.7
-    - name: Restore sccache
-      uses: actions/cache@v4
-      with:
-        path: ${{ env.SCCACHE_PATH }}
-        key: sccache-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'patches/**') }}
+    # - name: Setup sccache
+    #   uses: mozilla-actions/sccache-action@054db53350805f83040bf3e6e9b8cf5a139aa7c9 # v0.0.7
+    # - name: Restore sccache
+    #   uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
+    #   with:
+    #     path: ${{ env.SCCACHE_PATH }}
+    #     key: sccache-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'patches/**') }}
 
     - name: Restore cached .eslintcache and tsconfig.tsbuildinfo
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
       id: cache-lint
       with:
         path: |
@@ -55,9 +53,9 @@ jobs:
     - name: Install Desktop node_modules
       run: pnpm install
       env:
-        CC: sccache gcc
-        CXX: sccache g++
-        SCCACHE_GHA_ENABLED: "true"
+        # CC: sccache gcc
+        # CXX: sccache g++
+        # SCCACHE_GHA_ENABLED: "true"
         NPM_CONFIG_LOGLEVEL: verbose
 
     - run: pnpm run generate
@@ -73,7 +71,7 @@ jobs:
     - run: git diff --exit-code
 
     - name: Update cached .eslintcache and tsconfig.tsbuildinfo
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
       if: github.ref == 'refs/heads/main'
       with:
         path: |
@@ -89,37 +87,35 @@ jobs:
 
     steps:
     - run: uname -a
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
     - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 10.3.0
+      uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4
     - name: Setup node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
       with:
         node-version-file: '.nvmrc'
         cache: 'pnpm'
         cache-dependency-path: 'pnpm-lock.yaml'
     - name: Cache .electron-gyp
-      uses: actions/cache@v4
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
       with:
         path: ~/.electron-gyp
         key: electron-gyp-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
-    - name: Setup sccache
-      uses: mozilla-actions/sccache-action@v0.0.7
-    - name: Restore sccache
-      uses: actions/cache@v4
-      with:
-        path: ${{ env.SCCACHE_PATH }}
-        key: sccache-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'patches/**') }}
+    # - name: Setup sccache
+    #   uses: mozilla-actions/sccache-action@054db53350805f83040bf3e6e9b8cf5a139aa7c9 # v0.0.7
+    # - name: Restore sccache
+    #   uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
+    #   with:
+    #     path: ${{ env.SCCACHE_PATH }}
+    #     key: sccache-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'patches/**') }}
 
     - name: Install Desktop node_modules
       run: pnpm install
       env:
-        CC: sccache clang
-        CXX: sccache clang++
-        SCCACHE_GHA_ENABLED: "true"
+        # CC: sccache clang
+        # CXX: sccache clang++
+        # SCCACHE_GHA_ENABLED: "true"
         NPM_CONFIG_LOGLEVEL: verbose
 
     - run: pnpm run generate
@@ -133,9 +129,9 @@ jobs:
     - run: touch noop.sh && chmod +x noop.sh
     - run: pnpm run build
       env:
-        CC: sccache clang
-        CXX: sccache clang++
-        SCCACHE_GHA_ENABLED: "true"
+        # CC: sccache clang
+        # CXX: sccache clang++
+        # SCCACHE_GHA_ENABLED: "true"
         DISABLE_INSPECT_FUSE: on
         SIGN_MACOS_SCRIPT: noop.sh
         ARTIFACTS_DIR: artifacts/macos
@@ -153,52 +149,61 @@ jobs:
 
     - name: Upload artifacts on failure
       if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
       with:
         path: artifacts
 
   linux:
     needs: lint
-    runs-on: ubuntu-22.04-8-cores
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04-8-cores
+            arch: x64
+          - os: ubuntu-22.04-arm64-4-cores
+            arch: arm64
     steps:
     - run: lsb_release -a
     - run: uname -a
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
     - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 10.3.0
+      uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4
     - name: Setup node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
       with:
         node-version-file: '.nvmrc'
         cache: 'pnpm'
         cache-dependency-path: 'pnpm-lock.yaml'
     - name: Cache .electron-gyp
-      uses: actions/cache@v4
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
       with:
         path: ~/.electron-gyp
         key: electron-gyp-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-    
+
     - name: Install xvfb and libpulse0
       run: sudo apt-get install xvfb libpulse0 || (sudo apt-get update && sudo apt-get install xvfb libpulse0)
 
-    - name: Setup sccache
-      uses: mozilla-actions/sccache-action@v0.0.7
-    - name: Restore sccache
-      uses: actions/cache@v4
-      with:
-        path: ${{ env.SCCACHE_PATH }}
-        key: sccache-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'patches/**') }}
+    # - name: Setup sccache
+    #   uses: mozilla-actions/sccache-action@054db53350805f83040bf3e6e9b8cf5a139aa7c9 # v0.0.7
+    # - name: Restore sccache
+    #   uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
+    #   with:
+    #     path: ${{ env.SCCACHE_PATH }}
+    #     key: sccache-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'patches/**') }}
+
+    # Needed because electron-builder's bundled FPM doesn't support arm64
+    - name: Install FPM (for packaging)
+      if: ${{ matrix.os == 'ubuntu-22.04-arm64-4-cores' }}
+      run: sudo gem install fpm
 
     - name: Install Desktop node_modules
       run: pnpm install
       env:
-        CC: sccache gcc
-        CXX: sccache g++
-        SCCACHE_GHA_ENABLED: "true"
+        # CC: sccache gcc
+        # CXX: sccache g++
+        # SCCACHE_GHA_ENABLED: "true"
         NPM_CONFIG_LOGLEVEL: verbose
 
     - run: pnpm run generate
@@ -215,32 +220,34 @@ jobs:
       run: pnpm run build:release --publish=never
       if: github.ref == 'refs/heads/main'
       env:
-        CC: sccache gcc
-        CXX: sccache g++
-        SCCACHE_GHA_ENABLED: "true"
+        # CC: sccache gcc
+        # CXX: sccache g++
+        # SCCACHE_GHA_ENABLED: "true"
         DISABLE_INSPECT_FUSE: on
+        USE_SYSTEM_FPM: ${{ matrix.os == 'ubuntu-22.04-arm64-4-cores' && 'true' || '' }}
     - name: Build without packaging .deb file
       run: pnpm run build:release --linux dir
       if: github.ref != 'refs/heads/main'
       env:
-        CC: sccache gcc
-        CXX: sccache g++
-        SCCACHE_GHA_ENABLED: "true"
+        # CC: sccache gcc
+        # CXX: sccache g++
+        # SCCACHE_GHA_ENABLED: "true"
         DISABLE_INSPECT_FUSE: on
+        USE_SYSTEM_FPM: ${{ matrix.os == 'ubuntu-22.04-arm64-4-cores' && 'true' || '' }}
 
     - name: Upload installer size
       if: ${{ github.repository == 'signalapp/Signal-Desktop-Private' && github.ref == 'refs/heads/main' }}
-      run: node ts/scripts/dd-installer-size.js linux
+      run: node ts/scripts/dd-installer-size.js linux-${{ matrix.arch }}
       env:
         DD_API_KEY: ${{ secrets.DATADOG_API_KEY }}
 
     - run: xvfb-run --auto-servernum pnpm run test-node
 
     - name: Clone backup integration tests
-      uses: actions/checkout@v4
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       with:
         repository: 'signalapp/Signal-Message-Backup-Tests'
-        ref: '2e22808478e08c72e11a7483900c9af6c9b1acf4'
+        ref: '316c3d5eb15ffc923b5ce2925094fd49b34e8203'
         path: 'backup-integration-tests'
 
     - run: xvfb-run --auto-servernum pnpm run test-electron
@@ -257,55 +264,37 @@ jobs:
 
     - name: Upload artifacts on failure
       if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
       with:
         path: artifacts
 
   windows:
     needs: lint
-    runs-on: windows-2019
+    runs-on: windows-latest
     timeout-minutes: 30
-
-    env:
-      BUILD_LOCATION: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\VC\\Tools\\MSVC\\14.29.30133\\lib\\x86\\store\\references\\"
-      SDK_LOCATION: "C:\\Program Files (x86)\\Windows Kits\\10\\UnionMetadata\\10.0.17134.0"
 
     steps:
     - run: systeminfo
     - run: git config --global core.autocrlf false
     - run: git config --global core.eol lf
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
     - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 10.3.0
+      uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4
     - name: Setup node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
       with:
         node-version-file: '.nvmrc'
+        cache: 'pnpm'
+        cache-dependency-path: 'pnpm-lock.yaml'
     - name: Cache .electron-gyp
-      uses: actions/cache@v4
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
       with:
         path: ${{ env.SCCACHE_PATH }}\.electron-gyp
         key: electron-gyp-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
     - run: pnpm install -g node-gyp@10.0.1
 
-    # Set things up so @nodert-win10-rs4 dependencies build properly
-    - run: dir "$env:BUILD_LOCATION"
-    - run: dir "$env:SDK_LOCATION"
-    - run: "copy \"$env:BUILD_LOCATION\\platform.winmd\" \"$env:SDK_LOCATION\""
-    - run: dir "$env:SDK_LOCATION"
-
-    - name: Cache Desktop node_modules
-      id: cache-desktop-modules
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'patches/**') }}
-
     - name: Install Desktop node_modules
-      if: steps.cache-desktop-modules.outputs.cache-hit != 'true'
       run: pnpm install
       env:
         CHILD_CONCURRENCY: 1
@@ -352,7 +341,7 @@ jobs:
 
     - name: Upload artifacts on failure
       if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
       with:
         path: artifacts
 
@@ -366,13 +355,11 @@ jobs:
         working-directory: sticker-creator
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
     - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 10.3.0
+      uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4
     - name: Setup node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
       with:
         node-version-file: '.nvmrc'
 
@@ -407,20 +394,18 @@ jobs:
       run: uname -a
 
     - name: Clone Desktop repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
     - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 10.3.0
+      uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4
     - name: Setup node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
       with:
         node-version-file: '.nvmrc'
         cache: 'pnpm'
         cache-dependency-path: 'pnpm-lock.yaml'
     - name: Cache .electron-gyp
-      uses: actions/cache@v4
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
       with:
         path: ~/.electron-gyp
         key: electron-gyp-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -428,20 +413,20 @@ jobs:
     - name: Install xvfb and libpulse0
       run: sudo apt-get install xvfb libpulse0 || (sudo apt-get update && sudo apt-get install xvfb libpulse0)
 
-    - name: Setup sccache
-      uses: mozilla-actions/sccache-action@v0.0.7
-    - name: Restore sccache
-      uses: actions/cache@v4
-      with:
-        path: ${{ env.SCCACHE_PATH }}
-        key: sccache-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'patches/**') }}
+    # - name: Setup sccache
+    #   uses: mozilla-actions/sccache-action@054db53350805f83040bf3e6e9b8cf5a139aa7c9 # v0.0.7
+    # - name: Restore sccache
+    #   uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
+    #   with:
+    #     path: ${{ env.SCCACHE_PATH }}
+    #     key: sccache-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'patches/**') }}
 
     - name: Install Desktop node_modules
       run: pnpm install
       env:
-        CC: sccache gcc
-        CXX: sccache g++
-        SCCACHE_GHA_ENABLED: "true"
+        # CC: sccache gcc
+        # CXX: sccache g++
+        # SCCACHE_GHA_ENABLED: "true"
         NPM_CONFIG_LOGLEVEL: verbose
 
     - name: Build typescript
@@ -457,7 +442,8 @@ jobs:
       run: |
         set -o pipefail
         xvfb-run --auto-servernum pnpm run test-mock
-      timeout-minutes: 10
+        xvfb-run --auto-servernum pnpm run test-mock-docker
+      timeout-minutes: 15
       env:
         NODE_ENV: production
         DEBUG: mock:test:*
@@ -465,7 +451,7 @@ jobs:
 
     - name: Upload mock server test logs on failure
       if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
       with:
         name: logs
         path: artifacts

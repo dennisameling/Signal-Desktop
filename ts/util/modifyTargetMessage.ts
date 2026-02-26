@@ -8,7 +8,7 @@ import type { MessageModel } from '../models/messages';
 import type { SendStateByConversationId } from '../messages/MessageSendState';
 
 import * as Edits from '../messageModifiers/Edits';
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import * as Deletes from '../messageModifiers/Deletes';
 import * as DeletesForMe from '../messageModifiers/DeletesForMe';
 import * as MessageReceipts from '../messageModifiers/MessageReceipts';
@@ -37,6 +37,8 @@ import {
 import { getMessageIdForLogging } from './idForLogging';
 import { markViewOnceMessageViewed } from '../services/MessageUpdater';
 import { handleReaction } from '../messageModifiers/Reactions';
+
+const log = createLogger('modifyTargetMessage');
 
 export enum ModifyTargetMessageResult {
   Modified = 'Modified',
@@ -229,7 +231,6 @@ export async function modifyTargetMessage(
       const markReadAt = message.pendingMarkRead;
       // eslint-disable-next-line no-param-reassign
       message.pendingMarkRead = undefined;
-      const newestSentAt = maybeSingleReadSync?.readSync.timestamp;
 
       // This is primarily to allow the conversation to mark all older
       // messages as read, as is done when we receive a read sync for
@@ -241,7 +242,7 @@ export async function modifyTargetMessage(
       drop(
         window.ConversationController.get(
           message.get('conversationId')
-        )?.onReadMessage(message.attributes, markReadAt, newestSentAt)
+        )?.onReadMessage(message.attributes, markReadAt)
       );
     }
 

@@ -67,6 +67,14 @@
     "messageformat": "Sent media quality",
     "description": "Title for the sent media quality setting"
   },
+  "icu:Preferences__sent-media-quality__description": {
+    "messageformat": "Sending high quality media will use more data.",
+    "description": "Additional detail about the sent media quality setting"
+  },
+  "icu:Preferences__DonateTitle": {
+    "messageformat": "Donate to Signal",
+    "description": "The title of the preferences pane for donating to signal"
+  },
   "icu:sentMediaQualityStandard": {
     "messageformat": "Standard",
     "description": "Label text for standard media quality option"
@@ -103,28 +111,36 @@
     "messageformat": "Unknown contact",
     "description": "Shown as the name of a contact if we don't have any displayable information about them"
   },
+  "icu:unknownContactShort": {
+    "messageformat": "Unknown",
+    "description": "Shown as the shortened name of a contact if we don't have any displayable information about them"
+  },
   "icu:unknownGroup": {
     "messageformat": "Unknown group",
     "description": "Shown as the name of a group if we don't have any information about it"
   },
+  "icu:cantOpenSignalError": {
+    "messageformat": "Can’t Open Signal",
+    "description": "Title of a popup if the app cannot start up properly"
+  },
+  "icu:cantOpenSignalError__detail": {
+    "messageformat": "To help fix the issue, follow the recovery guide on the support page or contact Signal support to help fix the issue.\n\nIf you need to use Signal right away, you can delete your data and relink this desktop. You will have the option to transfer message history from your phone.",
+    "description": "Description shown in a popup if the app cannot start up properly"
+  },
   "icu:databaseError": {
     "messageformat": "Database Error",
     "description": "Title of a popup if the database cannot start up properly"
-  },
-  "icu:databaseError__detail": {
-    "messageformat": "A database error occurred. You can copy the error and contact Signal support to help fix the issue. If you need to use Signal right away, you can delete your data and restart.\n\nContact support by visiting: {link}",
-    "description": "Description shown in a popup if the database cannot start up properly"
   },
   "icu:deleteAndRestart": {
     "messageformat": "Delete data and restart",
     "description": "Text of a button shown in a popup if the database cannot start up properly; allows user to delete all data in their database and restart"
   },
   "icu:databaseError__deleteDataConfirmation": {
-    "messageformat": "Permanently delete all data?",
+    "messageformat": "Permanently Delete All Data",
     "description": "Header of a confirmation popup shown if the database cannot start up properly and the user selects 'delete data and restart'"
   },
   "icu:databaseError__deleteDataConfirmation__detail": {
-    "messageformat": "All of your message history and media will be permanently deleted from this device. You will be able to use Signal on this device after relinking it. This will not delete any data from your phone.",
+    "messageformat": "All of your message history and media will be permanently deleted from this device. This will not delete any data from your phone.\n\nYou will be able to use Signal on this device after relinking it. You will have the option to transfer message history from your phone.",
     "description": "Description of a confirmation popup shown if the database cannot start up properly and the user selects 'delete data and restart'"
   },
   "icu:databaseError__startOldVersion": {
@@ -275,6 +291,10 @@
     "messageformat": "Set Up as Standalone Device",
     "description": "Only available on development modes, menu option to open up the standalone device setup sequence"
   },
+  "icu:menuStageLocalBackupForImport": {
+    "messageformat": "Stage Local Backup for Import…",
+    "description": "Only available on development modes before linking. Menu option to open file browser to pick a local backup folder for import during link."
+  },
   "icu:messageContextMenuButton": {
     "messageformat": "More actions",
     "description": "Label for context button next to each message"
@@ -302,10 +322,6 @@
   "icu:optimizingApplication": {
     "messageformat": "Optimizing application...",
     "description": "Message shown on the loading screen while we are doing application optimizations"
-  },
-  "icu:migratingToSQLCipher": {
-    "messageformat": "Optimizing messages... {status} complete.",
-    "description": "(Deleted 2025/02/06) Message shown on the loading screen while we are doing application optimizations"
   },
   "icu:archivedConversations": {
     "messageformat": "Archived Chats",
@@ -405,10 +421,6 @@
   },
   "icu:NavTabs__ItemLabel--Settings": {
     "messageformat": "Settings",
-    "description": "Nav Tabs > Settings Button > Label & Accessibility Text"
-  },
-  "icu:NavTabs__ItemLabel--Update": {
-    "messageformat": "Update Signal",
     "description": "Nav Tabs > Settings Button > Label & Accessibility Text"
   },
   "icu:NavTabs__ItemLabel--Profile": {
@@ -558,10 +570,6 @@
   "icu:unreadMessages": {
     "messageformat": "{count, plural, one {# Unread Message} other {# Unread Messages}}",
     "description": "Text for unread message separator, with count"
-  },
-  "icu:messageHistoryUnsynced": {
-    "messageformat": "For your security, chat history isn't transferred to new linked devices.",
-    "description": "(Deleted 2025/01/29) Shown in the conversation history when a user links a new device to explain what is not supported."
   },
   "icu:youMarkedAsVerified": {
     "messageformat": "You marked your Safety Number with {name} as verified",
@@ -796,6 +804,10 @@
     "messageformat": "Failed to send message with endorsements",
     "description": "An error popup when we attempted and failed to send a message using endorsements, only for internal users."
   },
+  "icu:Toast--SQLError": {
+    "messageformat": "Database error: please share your logs.",
+    "description": "An error popup when a database method fails, for internal & beta users"
+  },
   "icu:Toast--InvalidStorageServiceHeaders": {
     "messageformat": "Received invalid response from storage service. Please share your logs.",
     "description": "[Only shown to internal/beta users] An error popup when we noticed an invalid response (i.e. a web request response) from one of our servers"
@@ -803,6 +815,14 @@
   "icu:Toast--FailedToImportBackup": {
     "messageformat": "Failed to process some frames during backup import. Please share your logs.",
     "description": "[Only shown to internal users] An error popup when we failed to process some parts of a backup import."
+  },
+  "icu:Toast--ReceiptSaved": {
+    "messageformat": "Receipt saved",
+    "description": "Toast message shown when a donation receipt has been successfully saved to disk"
+  },
+  "icu:Toast--ReceiptSaveFailed": {
+    "messageformat": "Error saving receipt. Please try again.",
+    "description": "Toast message shown when a donation receipt fails to save to disk"
   },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "You can't select photos and videos along with files.",
@@ -883,10 +903,6 @@
     "messageformat": "Join the Beta",
     "description": "Item under the Help menu, takes you to an article describing how to install the beta release of Signal Desktop"
   },
-  "icu:signalDesktopPreferences": {
-    "messageformat": "Signal Desktop Preferences",
-    "description": "Title of the window that pops up with Signal Desktop preferences in it"
-  },
   "icu:signalDesktopStickerCreator": {
     "messageformat": "Sticker pack creator",
     "description": "Title of the window that pops up with Signal Desktop preferences in it"
@@ -954,10 +970,6 @@
   "icu:noSearchResultsOnlyUnreadFilter": {
     "messageformat": "No unread chats",
     "description": "Shown in the search left pane when no results were found with only filter by unread enabled"
-  },
-  "icu:noSearchResults--sms-only": {
-    "messageformat": "SMS/MMS contacts are not available on Desktop.",
-    "description": "(Deleted 2025/02/06) Shown in the search left pane when no results were found and primary device has SMS/MMS handling enabled"
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "No results for \"{searchTerm}\" in {conversationName}",
@@ -1526,10 +1538,6 @@
     "messageformat": "This media is not available",
     "description": "Shown in info toast for messages with old image and video attachments which are no longer available for download. Also used for accessibility label for the download attachment button."
   },
-  "icu:mediaNotAvailable--short": {
-    "messageformat": "Media not available",
-    "description": "(Deleted 2025/02/13) Title of info dialog shown for messages with missing old image and video attachments which are no longer available for download."
-  },
   "icu:attachmentNoLongerAvailable__learnMore": {
     "messageformat": "Learn more",
     "description": "Link in message placeholder and info toast for messages with old attachments which are no longer available for download."
@@ -1549,6 +1557,14 @@
   "icu:attachmentNotAvailable__voice": {
     "messageformat": "Voice message not available",
     "description": "Shown in chat timeline for messages with old audio attachments which are no longer available for download."
+  },
+  "icu:attachmentNotAvailable__tapToView": {
+    "messageformat": "View once media is not available",
+    "description": "Shown in chat timeline for expired View Once messages - never viewed before expiration"
+  },
+  "icu:attachmentNotAvailable__tapToViewCannotDownload": {
+    "messageformat": "Can't download view once media",
+    "description": "Shown in chat timeline for invalid View Once messages, or where the attachment cannot be downloaded otherwise"
   },
   "icu:AttachmentNotAvailableModal__title--file": {
     "messageformat": "File not available",
@@ -1589,6 +1605,26 @@
   "icu:AttachmentNotAvailableModal__body--voice-message": {
     "messageformat": "This voice message was not transferred from your phone when this device was linked. Media and files older than 45 days at the time of device linking can not be synced.",
     "description": "Body text for info dialog for messages with old voice messages which are no longer available for download."
+  },
+  "icu:TapToViewNotAvailableModal__body--expired": {
+    "messageformat": "This view once media is no longer available to download. Ask {name} to send it again.",
+    "description": "Body text for info dialog for messages with old view once media which are no longer available for download."
+  },
+  "icu:TapToViewNotAvailableModal__body--error": {
+    "messageformat": "Can’t download view once media. {name} will need to send it again.",
+    "description": "Body text for info dialog for messages with old view once media which are no longer available for download."
+  },
+  "icu:BackfillFailureModal__title": {
+    "messageformat": "Can’t download media",
+    "description": "Title for modal saying that message's attachments cannot be downloaded from the primary device"
+  },
+  "icu:BackfillFailureModal__body--timeout": {
+    "messageformat": "Check your desktop and phone’s internet connection. Open Signal on your phone, then try downloading again.",
+    "description": "Body for modal saying that message's attachments cannot be downloaded from the primary device due to timeout"
+  },
+  "icu:BackfillFailureModal__body--not-found": {
+    "messageformat": "This media is no longer available on your phone and can’t be downloaded.",
+    "description": "Body for modal saying that message's attachments cannot be downloaded from the primary device due to message not being available anymore"
   },
   "icu:save": {
     "messageformat": "Save",
@@ -1658,13 +1694,9 @@
     "messageformat": "Need help?",
     "description": "Shown on the install screen. Link takes users to a support page"
   },
-  "icu:Install__choose-device-name__description": {
-    "messageformat": "You'll see this name under \"Linked Devices\" on your phone",
-    "description": "(Deleted 2025/02/26) The subheader shown on the 'choose device name' screen in the device linking process"
-  },
-  "icu:Install__choose-device-name__placeholder": {
-    "messageformat": "My Computer",
-    "description": "(Deleted 2025/02/26) The placeholder for the 'choose device name' input"
+  "icu:Preferences--header": {
+    "messageformat": "Settings",
+    "description": "Shown at the top of the settings tab when open"
   },
   "icu:Preferences--phone-number": {
     "messageformat": "Phone Number",
@@ -1678,13 +1710,225 @@
     "messageformat": "To change the name of this device, open Signal on your phone and navigate to Settings > Linked devices",
     "description": "Shown in the Settings window below the read-only device name"
   },
-  "icu:chooseDeviceName": {
-    "messageformat": "Choose this device's name",
-    "description": "(Deleted 2025/02/26) The header shown on the 'choose device name' screen in the device linking process"
+  "icu:Preferences__EmojiSkinToneDefaultSetting__Label": {
+    "messageformat": "Emoji skin tone",
+    "description": "Preferences Window > Chats Tab > Emoji skin tone default setting > Label"
   },
-  "icu:finishLinkingPhone": {
-    "messageformat": "Finish linking phone",
-    "description": "(Deleted 2025/02/26) The text on the button to finish the linking process, after choosing the device name"
+  "icu:Preferences__ChatsPage__ChatFoldersSection__Title": {
+    "messageformat": "Chat folders",
+    "description": "Preferences > Chats Page > Chat Folders Section > Title"
+  },
+  "icu:Preferences__ChatsPage__ChatFoldersSection__AddChatFolderItem__Title": {
+    "messageformat": "Add a chat folder",
+    "description": "Preferences > Chats Page > Chat Folders Section > Add Chat Folder Item > Title"
+  },
+  "icu:Preferences__ChatsPage__ChatFoldersSection__AddChatFolderItem__Description": {
+    "messageformat": "Organize your chats into folders and quickly switch between them on your chat list.",
+    "description": "Preferences > Chats Page > Chat Folders Section > Add Chat Folder Item > Description"
+  },
+  "icu:Preferences__ChatsPage__ChatFoldersSection__ChatFolderItem__ContextMenu__EditFolder": {
+    "messageformat": "Edit folder",
+    "description": "Preferences > Chats Page > Chat Folders Section > Chat Folder Item > Context Menu > Edit Folder"
+  },
+  "icu:Preferences__ChatsPage__ChatFoldersSection__ChatFolderItem__ContextMenu__DeleteFolder": {
+    "messageformat": "Delete",
+    "description": "Preferences > Chats Page > Chat Folders Section > Chat Folder Item > Context Menu > Delete Folder"
+  },
+  "icu:Preferences__ChatsPage__DeleteChatFolderDialog__Title": {
+    "messageformat": "Delete folder?",
+    "description": "Preferences > Chats Page > Delete Chat Folder Dialog > Title"
+  },
+  "icu:Preferences__ChatsPage__DeleteChatFolderDialog__Description": {
+    "messageformat": "Do you want to delete the folder “{chatFolderTitle}”?",
+    "description": "Preferences > Chats Page > Delete Chat Folder Dialog > Description"
+  },
+  "icu:Preferences__ChatsPage__DeleteChatFolderDialog__DeleteButton": {
+    "messageformat": "Delete",
+    "description": "Preferences > Chats Page > Delete Chat Folder Dialog > Delete Button"
+  },
+  "icu:Preferences__ChatsPage__DeleteChatFolderDialog__CancelButton": {
+    "messageformat": "Cancel",
+    "description": "Preferences > Chats Page > Delete Chat Folder Dialog > Cancel Button"
+  },
+  "icu:Preferences__ChatFoldersPage__Title": {
+    "messageformat": "Chat folders",
+    "description": "Preferences > Chat Folders Page > Title"
+  },
+  "icu:Preferences__ChatFoldersPage__Description": {
+    "messageformat": "Organize your chats into folders and quickly switch between them on your chat list",
+    "description": "Preferences > Chat Folders Page > Description"
+  },
+  "icu:Preferences__ChatFoldersPage__FoldersSection__Title": {
+    "messageformat": "Folders",
+    "description": "Preferences > Chat Folders Page > Folders > Title"
+  },
+  "icu:Preferences__ChatFoldersPage__FoldersSection__AllChatsFolder__Title": {
+    "messageformat": "All chats",
+    "description": "Preferences > Chat Folders Page > Folders > All Chats Folder (Default folder, always present)"
+  },
+  "icu:Preferences__ChatFoldersPage__FoldersSection__CreateAFolderButton": {
+    "messageformat": "Create a folder",
+    "description": "Preferences > Chat Folders Page > Folders > Create A Folder Button"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__Title": {
+    "messageformat": "Suggested folders",
+    "description": "Preferences > Chat Folders Page > Suggested Folders > Title"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__AddButton": {
+    "messageformat": "Add",
+    "description": "Preferences > Chat Folders Page > Suggested Folders > Add Button"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__AddButton__Toast": {
+    "messageformat": "{chatFolderTitle} folder added",
+    "description": "Preferences > Chat Folders Page > Suggested Folders > Add Button > Toast"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__UnreadFolder__Title": {
+    "messageformat": "Unread",
+    "description": "Preferences > Chat Folders Page > Suggested Folders > Unread Folder > Title"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__UnreadFolder__Description": {
+    "messageformat": "Unread messages from all chats",
+    "description": "Preferences > Chat Folders Page > Suggested Folders > Unread Folder > Description"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__DirectChatsFolder__Title": {
+    "messageformat": "1:1 chats",
+    "description": "Preferences > Chat Folders Page > Suggested Folders > Direct chats Folder > Title"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__DirectChatsFolder__Description": {
+    "messageformat": "Only messages from direct chats",
+    "description": "Preferences > Chat Folders Page > Suggested Folders > Direct chats Folder > Description"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__GroupChatsFolder__Title": {
+    "messageformat": "Groups",
+    "description": "Preferences > Chat Folders Page > Suggested Folders > Group chats Folder > Title"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__GroupChatsFolder__Description": {
+    "messageformat": "Only messages from group chats",
+    "description": "Preferences > Chat Folders Page > Suggested Folders > Group chats Folder > Description"
+  },
+  "icu:Preferences__EditChatFolderPage__Title": {
+    "messageformat": "Create a folder",
+    "description": "Preferences > Edit Chat Folder Page > Title"
+  },
+  "icu:Preferences__EditChatFolderPage__FolderNameField__Label": {
+    "messageformat": "Folder name",
+    "description": "Preferences > Edit Chat Folder Page > Folder Name Field > Label"
+  },
+  "icu:Preferences__EditChatFolderPage__FolderNameField__Placeholder": {
+    "messageformat": "Folder name (required)",
+    "description": "Preferences > Edit Chat Folder Page > Folder Name Field > Placeholder"
+  },
+  "icu:Preferences__EditChatFolderPage__IncludedChatsSection__Title": {
+    "messageformat": "Included chats",
+    "description": "Preferences > Edit Chat Folder Page > Included Chats Section > Title"
+  },
+  "icu:Preferences__EditChatFolderPage__IncludedChatsSection__Help": {
+    "messageformat": "Choose chats that you want to appear in this folder",
+    "description": "Preferences > Edit Chat Folder Page > Included Chats Section > Help"
+  },
+  "icu:Preferences__EditChatFolderPage__IncludedChatsSection__AddChatsButton": {
+    "messageformat": "Add chats",
+    "description": "Preferences > Edit Chat Folder Page > Included Chats Section > Add Chats Button"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog--IncludedChats__Title": {
+    "messageformat": "Included chats",
+    "description": "Preferences > Edit Chat Folder Page > Select Chats Dialog (Included Chats Mode) > Title"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog--ExcludedChats__Title": {
+    "messageformat": "Excluded chats",
+    "description": "Preferences > Edit Chat Folder Page > Select Chats Dialog (Excluded Chats Mode) > Title"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog__Search__Placeholder": {
+    "messageformat": "Search",
+    "description": "Preferences > Edit Chat Folder Page > Select Chats Dialog > Search > Placeholder"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog__ChatTypesSection__Title": {
+    "messageformat": "Chat types",
+    "description": "Preferences > Edit Chat Folder Page > Select Chats Dialog > Chat Types Section > Title"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog__ChatTypesSection__DirectChats": {
+    "messageformat": "1:1 chats",
+    "description": "Preferences > Edit Chat Folder Page > Select Chats Dialog > Chat Types Section > Direct Chats"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog__ChatTypesSection__GroupChats": {
+    "messageformat": "Groups",
+    "description": "Preferences > Edit Chat Folder Page > Select Chats Dialog > Chat Types Section > Group Chats"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog__RecentChats__Title": {
+    "messageformat": "Recent chats",
+    "description": "Preferences > Edit Chat Folder Page > Select Chats Dialog > Recent Chats Section > Title"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog__DoneButton": {
+    "messageformat": "Done",
+    "description": "Preferences > Edit Chat Folder Page > Select Chats Dialog > Done Button"
+  },
+  "icu:Preferences__EditChatFolderPage__ExceptionsSection__Title": {
+    "messageformat": "Exceptions",
+    "description": "Preferences > Edit Chat Folder Page > Exceptions Section > Title"
+  },
+  "icu:Preferences__EditChatFolderPage__ExceptionsSection__Help": {
+    "messageformat": "Choose chats that you do not want to appear in this folder",
+    "description": "Preferences > Edit Chat Folder Page > Exceptions Section > Help"
+  },
+  "icu:Preferences__EditChatFolderPage__ExceptionsSection__ExcludeChatsButton": {
+    "messageformat": "Exclude chats",
+    "description": "Preferences > Edit Chat Folder Page > Exceptions Section > Exclude chats button"
+  },
+  "icu:Preferences__EditChatFolderPage__OnlyShowUnreadChatsCheckbox__Label": {
+    "messageformat": "Only show unread chats",
+    "description": "Preferences > Edit Chat Folder Page > Only Show Unread Chats Checkbox > Label"
+  },
+  "icu:Preferences__EditChatFolderPage__OnlyShowUnreadChatsCheckbox__Description": {
+    "messageformat": "Only chats with unread messages will be shown in this folder.",
+    "description": "Preferences > Edit Chat Folder Page > Only Show Unread Chats Checkbox > Description"
+  },
+  "icu:Preferences__EditChatFolderPage__IncludeMutedChatsCheckbox__Label": {
+    "messageformat": "Include muted chats",
+    "description": "Preferences > Edit Chat Folder Page > Include Muted Chats Checkbox > Label"
+  },
+  "icu:Preferences__EditChatFolderPage__DeleteFolderButton": {
+    "messageformat": "Delete folder",
+    "description": "Preferences > Edit Chat Folder Page > Delete Folder Button"
+  },
+  "icu:Preferences__EditChatFolderPage__DeleteChatFolderDialog__Title": {
+    "messageformat": "Delete this chat folder?",
+    "description": "Preferences > Delete Chat Folder Dialog > Title"
+  },
+  "icu:Preferences__EditChatFolderPage__DeleteChatFolderDialog__Description": {
+    "messageformat": "This folder will be removed from your chat list.",
+    "description": "Preferences > Delete Chat Folder Dialog > Description"
+  },
+  "icu:Preferences__EditChatFolderPage__DeleteChatFolderDialog__DeleteButton": {
+    "messageformat": "Delete",
+    "description": "Preferences > Delete Chat Folder Dialog > Delete Button"
+  },
+  "icu:Preferences__EditChatFolderPage__DeleteChatFolderDialog__CancelButton": {
+    "messageformat": "Cancel",
+    "description": "Preferences > Delete Chat Folder Dialog > Cancel Button"
+  },
+  "icu:Preferences__EditChatFolderPage__SaveChangesFolderDialog__Title": {
+    "messageformat": "Save changes?",
+    "description": "Preferences > Edit Chat Folder Page > Save Changes Folder Dialog > Title"
+  },
+  "icu:Preferences__EditChatFolderPage__SaveChangesFolderDialog__Description": {
+    "messageformat": "Do you want to save the changes you’ve made to this chat folder?",
+    "description": "Preferences > Edit Chat Folder Page > Save Changes Folder Dialog > Description"
+  },
+  "icu:Preferences__EditChatFolderPage__SaveChangesFolderDialog__SaveButton": {
+    "messageformat": "Save",
+    "description": "Preferences > Edit Chat Folder Page > Save Changes Folder Dialog > Save Button"
+  },
+  "icu:Preferences__EditChatFolderPage__SaveChangesFolderDialog__DiscardButton": {
+    "messageformat": "Discard",
+    "description": "Preferences > Edit Chat Folder Page > Save Changes Folder Dialog > Discard Button"
+  },
+  "icu:Preferences__EditChatFolderPage__SaveButton": {
+    "messageformat": "Save",
+    "description": "Preferences > Edit Chat Folder Page > Save Button"
+  },
+  "icu:Preferences__EditChatFolderPage__CancelButton": {
+    "messageformat": "Cancel",
+    "description": "Preferences > Edit Chat Folder Page > Cancel Button"
   },
   "icu:initialSync": {
     "messageformat": "Syncing contacts and groups",
@@ -2209,9 +2453,6 @@
     "messageformat": "{sender} in {group}",
     "description": "Displayed in notifications for messages in a group"
   },
-  "icu:notificationReaction": {
-    "messageformat": "{sender} reacted {emoji} to your message"
-  },
   "icu:notificationReactionMessage": {
     "messageformat": "{sender} reacted {emoji} to: {message}"
   },
@@ -2411,6 +2652,14 @@
     "messageformat": "Message",
     "description": "In conversation details, label for button to switch to the conversation view in order to draft a message in that converation"
   },
+  "icu:ConversationDetails--help-section": {
+    "messageformat": "Help",
+    "description": "Title of the help section in the conversation details screen"
+  },
+  "icu:ConversationDetails--support-center": {
+    "messageformat": "Support Center",
+    "description": "Label for the support center link in conversation details"
+  },
   "icu:SafetyNumberNotification__viewSafetyNumber": {
     "messageformat": "View Safety Number",
     "description": "In conversation, safety number change notification, label for button to view safety number, opens safety number modal"
@@ -2490,6 +2739,10 @@
   "icu:Toast--failed-to-fetch-phone-number": {
     "messageformat": "Failed to fetch phone number. Check your connection and try again.",
     "description": "Shown if request to Signal servers to find phone number fails"
+  },
+  "icu:Toast--download-failed": {
+    "messageformat": "Download failed",
+    "description": "Shown if user's manual request to download attachment fails"
   },
   "icu:ToastManager__CannotEditMessage_24": {
     "messageformat": "Edits can only be applied within 24 hours from the time you sent this message.",
@@ -3051,9 +3304,17 @@
     "messageformat": "No emoji found",
     "description": "FunPicker > Emojis Panel > Search Results > No Results Found (emoji plural)"
   },
+  "icu:FunPanelEmojis__SkinTonePicker__SelectSkinToneForSelectedEmoji": {
+    "messageformat": "Select skin tone for {emojiName}",
+    "description": "FunPicker > Emojis Panel > Skin Tone Picker > Select skin tone for the selected emoji"
+  },
   "icu:FunPanelEmojis__ChangeSkinToneButtonLabel": {
     "messageformat": "Change Skin Tone Preference",
     "description": "FunPicker > Emojis Panel > Change Skin Tone Button Label"
+  },
+  "icu:FunPanelEmojis__SkinTonePicker__LongPressAccessibilityDescription": {
+    "messageformat": "Long press to select skin tone",
+    "description": "FunPicker > Emojis Panel > Skin Tone Picker > Long press accessibility description"
   },
   "icu:FunPanelEmojis__SkinTonePicker__ChooseDefaultLabel": {
     "messageformat": "Choose your default skintone",
@@ -3062,6 +3323,10 @@
   "icu:FunPanelEmojis__SectionTitle--SearchResults": {
     "messageformat": "Search Results",
     "description": "FunPicker > Emojis Panel > Section Title > Search Results"
+  },
+  "icu:FunPanelEmojis__SectionTitle--ThisMessage": {
+    "messageformat": "This Message",
+    "description": "FunPicker > Emojis Panel > Section Title > Recents > This Message"
   },
   "icu:FunPanelEmojis__SectionTitle--Recents": {
     "messageformat": "Recently Used",
@@ -3099,6 +3364,10 @@
     "messageformat": "Flags",
     "description": "FunPicker > Emojis Panel > Section Title > Flags"
   },
+  "icu:FunPanelEmojis__CustomizeReactionsButtonLabel": {
+    "messageformat": "Customize reactions",
+    "description": "FunPicker (when rendered in ReactionPicker) > Emojis Panel > Customize Reactions Button > Accessibility Label"
+  },
   "icu:FunPanelStickers__SearchLabel": {
     "messageformat": "Search stickers",
     "description": "FunPicker > Stickers Panel > Search Input > Label"
@@ -3123,9 +3392,17 @@
     "messageformat": "Recently Used",
     "description": "FunPicker > Stickers Panel > Section Title > Recents"
   },
+  "icu:FunPanelStickers__SectionTitle--Featured": {
+    "messageformat": "Featured",
+    "description": "FunPicker > Stickers Panel > Section Title > Featured"
+  },
   "icu:FunPanelStickers__SearchResults__EmptyHeading": {
     "messageformat": "No stickers found",
     "description": "FunPicker > Stickers Panel > Search Results > Empty State > Heading"
+  },
+  "icu:FunPanelStickers__LightboxDialog__Label": {
+    "messageformat": "Sticker Preview",
+    "description": "FunPicker > Stickers Panel > Lightbox Dialog (long press on sticker to see large preview) > Label"
   },
   "icu:FunPanelGifs__SearchLabel--Tenor": {
     "messageformat": "Search GIFs via Tenor",
@@ -3191,6 +3468,54 @@
     "messageformat": "No GIFs found",
     "description": "FunPicker > Gifs Panel > Search Results > Empty State > Heading"
   },
+  "icu:FunPanelGifs__LightboxDialog__Label": {
+    "messageformat": "GIF Preview",
+    "description": "FunPicker > Gifs Panel > Lightbox Dialog (long press on gif to see large preview) > Label"
+  },
+  "icu:FunSearch__ClearButtonLabel": {
+    "messageformat": "Clear Search",
+    "description": "FunPicker > Search Field > Clear Search Button > Accessibility Label"
+  },
+  "icu:FunSkinTones__List": {
+    "messageformat": "Skin tone",
+    "description": "FunPicker > Emojis Panel > Skin Tone Picker > Accessibility label"
+  },
+  "icu:FunSkinTones__ListItem--None": {
+    "messageformat": "None",
+    "description": "FunPicker > Emojis Panel > Skin Tone Picker > Skin Tone Option: None > Accessibility label"
+  },
+  "icu:FunSkinTones__ListItem--Light": {
+    "messageformat": "Light skin tone",
+    "description": "Fun Picker > Emojis Panel > Skin Tone Picker > Skin Tone Option: Light skin tone > Accessibility label"
+  },
+  "icu:FunSkinTones__ListItem--MediumLight": {
+    "messageformat": "Medium-light skin tone",
+    "description": "Fun Picker > Emojis Panel > Skin Tone Picker > Skin Tone Option: Medium-light skin tone > Accessibility label"
+  },
+  "icu:FunSkinTones__ListItem--Medium": {
+    "messageformat": "Medium skin tone",
+    "description": "Fun Picker > Emojis Panel > Skin Tone Picker > Skin Tone Option: Medium skin tone > Accessibility label"
+  },
+  "icu:FunSkinTones__ListItem--MediumDark": {
+    "messageformat": "Medium-dark skin tone",
+    "description": "Fun Picker > Emojis Panel > Skin Tone Picker > Skin Tone Option: Medium-dark skin tone > Accessibility label"
+  },
+  "icu:FunSkinTones__ListItem--Dark": {
+    "messageformat": "Dark skin tone",
+    "description": "Fun Picker > Emojis Panel > Skin Tone Picker > Skin Tone Option: Dark skin tone > Accessibility label"
+  },
+  "icu:FunButton__Label--FunPicker": {
+    "messageformat": "Add an Emoji, Sticker, or GIF",
+    "description": "Fun Picker > Trigger Button > Accessibility label"
+  },
+  "icu:FunButton__Label--EmojiPicker": {
+    "messageformat": "Add an Emoji",
+    "description": "Emoji Picker > Trigger Button > Accessibility label"
+  },
+  "icu:FunButton__Label--StickerPicker": {
+    "messageformat": "Add a Sticker",
+    "description": "Sticker Picker > Trigger Button > Accessibility label"
+  },
   "icu:confirmation-dialog--Cancel": {
     "messageformat": "Cancel",
     "description": "Appears on the cancel button in confirmation dialogs."
@@ -3235,13 +3560,13 @@
     "messageformat": "Update Signal",
     "description": "Text for a button which will take user to Signal download page"
   },
-  "icu:Message--tap-to-view-expired": {
+  "icu:Message--tap-to-view--viewed": {
     "messageformat": "Viewed",
-    "description": "Text shown on messages with with individual timers, after user has viewed it"
+    "description": "Text shown on messages with individual timers, after user has viewed it"
   },
-  "icu:Message--tap-to-view--outgoing": {
-    "messageformat": "Media",
-    "description": "Text shown on outgoing messages with with individual timers (inaccessible)"
+  "icu:Message--tap-to-view--media": {
+    "messageformat": "View Once Media",
+    "description": "Text shown on outgoing messages with individual timers (inaccessible)"
   },
   "icu:Message--tap-to-view--incoming--expired-toast": {
     "messageformat": "You already viewed this message.",
@@ -3251,13 +3576,17 @@
     "messageformat": "View-once messages are not stored in your chat history.",
     "description": "Shown when user clicks on an expired outgoing view-once bubble"
   },
-  "icu:Message--tap-to-view--incoming": {
-    "messageformat": "View Photo",
-    "description": "Text shown on photo messages with with individual timers, before user has viewed it"
+  "icu:Message--tap-to-view--video": {
+    "messageformat": "View Once Video",
+    "description": "Text shown on video messages with individual timers, before user has viewed it"
   },
-  "icu:Message--tap-to-view--incoming-video": {
-    "messageformat": "View Video",
-    "description": "Text shown on video messages with with individual timers, before user has viewed it"
+  "icu:Message--tap-to-view--photo": {
+    "messageformat": "View Once Photo",
+    "description": "Text shown on photo messages with individual timers, before user has viewed it"
+  },
+  "icu:Message--tap-to-view--helper-text": {
+    "messageformat": "Click to view",
+    "description": "Text shown below 'View Once Photo' or 'View Once Video' after the file has been downloaded"
   },
   "icu:Conversation--getDraftPreview--attachment": {
     "messageformat": "(attachment)",
@@ -3337,6 +3666,10 @@
   },
   "icu:Keyboard--open-sticker-chooser": {
     "messageformat": "Open sticker chooser",
+    "description": "Shown in the shortcuts guide"
+  },
+  "icu:Keyboard--open-gif-chooser": {
+    "messageformat": "Open GIF chooser",
     "description": "Shown in the shortcuts guide"
   },
   "icu:Keyboard--begin-recording-voice-note": {
@@ -3515,6 +3848,10 @@
     "messageformat": "Toggle video on and off",
     "description": "Shown in the shortcuts guide"
   },
+  "icu:Keyboard--toggle-preview": {
+    "messageformat": "Toggle expanded preview on and off",
+    "description": "Shown in the shortcuts guide"
+  },
   "icu:Keyboard--accept-video-call": {
     "messageformat": "Answer call with video (video calls only)",
     "description": "Shown in the calling keyboard shortcuts guide"
@@ -3598,6 +3935,14 @@
   "icu:SafetyTipsModal__Description": {
     "messageformat": "Be careful when accepting message requests from people you don’t know. Watch out for:",
     "description": "Description of the safety tips modal"
+  },
+  "icu:SafetyTipsModal__TipTitle--Fake": {
+    "messageformat": "Fake names and accounts",
+    "description": "Title of the fake name safety tip"
+  },
+  "icu:SafetyTipsModal__TipDescription--Fake": {
+    "messageformat": "Signal will never contact you for your registration code or PIN. Be cautious of requests that impersonate others. Profile names are chosen by their account holder and aren't verified.",
+    "description": "Description of the fake name safety tip"
   },
   "icu:SafetyTipsModal__TipTitle--Crypto": {
     "messageformat": "Crypto or money scams",
@@ -3775,6 +4120,14 @@
     "messageformat": "Accept",
     "description": "Shown as a button to let the user accept a message request"
   },
+  "icu:MessageRequests--accept-confirm-title": {
+    "messageformat": "Accept Request?",
+    "description": "Title of confirmation dialog shown before accepting a message request"
+  },
+  "icu:MessageRequests--accept-confirm-body": {
+    "messageformat": "Review requests carefully. Profile names are chosen by their account owner and aren't verified.",
+    "description": "Body text of confirmation dialog shown before accepting a message request"
+  },
   "icu:MessageRequests--continue": {
     "messageformat": "Continue",
     "description": "Shown as a button to share your profile, necessary to continue messaging in a conversation"
@@ -3790,6 +4143,66 @@
   "icu:ConversationHero--members": {
     "messageformat": "{count, plural, one {# member} other {# members}}",
     "description": "Specifies the number of members in a group conversation"
+  },
+  "icu:ConversationHero--member-list-and-invited": {
+    "messageformat": "{memberList} (+{invitesCount, plural, one {# invited} other {# invited}})",
+    "description": "Text for a group with members and additional invited members"
+  },
+  "icu:ConversationHero--group-members-zero": {
+    "messageformat": "No group members",
+    "description": "Text for an empty group"
+  },
+  "icu:ConversationHero--group-members-only-you": {
+    "messageformat": "No other group members yet",
+    "description": "Text for group when you are the only member"
+  },
+  "icu:ConversationHero--group-members-one": {
+    "messageformat": "{member}",
+    "description": "Text for a group with one member (not you)"
+  },
+  "icu:ConversationHero--group-members-one-and-you": {
+    "messageformat": "{member} and you",
+    "description": "Text for a 2 member group where you are one of the members"
+  },
+  "icu:ConversationHero--group-members-two": {
+    "messageformat": "{member1} and {member2}",
+    "description": "Text for a 2 member group you are not in"
+  },
+  "icu:ConversationHero--group-members-two-and-you": {
+    "messageformat": "{member1}, {member2}, and you",
+    "description": "Text for a 3 member group where you are one of the members"
+  },
+  "icu:ConversationHero--group-members-three": {
+    "messageformat": "{member1}, {member2}, and {member3}",
+    "description": "Text for a 3 member group you are not in"
+  },
+  "icu:ConversationHero--group-members-other": {
+    "messageformat": "{member1}, {member2}, {member3}, and <clickable>{remainingCount, plural, one {# other} other {# others}}</clickable>",
+    "description": "Text for a group with more than 3 members that you are not in"
+  },
+  "icu:ConversationHero--group-members-other-and-you": {
+    "messageformat": "{member1}, {member2}, {member3}, and <clickable>{remainingCount, plural, one {# other} other {# others}}</clickable>",
+    "description": "Text for a group with more than 4 members where you are one of the members"
+  },
+  "icu:ConversationHero--review-carefully": {
+    "messageformat": "Review carefully",
+    "description": "Label shown in conversation hero to advise users to review the conversation carefully"
+  },
+  "icu:ConversationHero--group-names": {
+    "messageformat": "<clickable>Group names</clickable> are not verified",
+    "description": "Label for group names in the name verification warning in conversation hero"
+  },
+  "icu:ConversationHero--profile-names": {
+    "messageformat": "<clickable>Profile names</clickable> are not verified",
+    "description": "Label for profile names in the name verification warning in conversation hero"
+  },
+  "icu:ConversationHero--signal-official-chat": {
+    "messageformat": "This is the official and only chat from Signal",
+    "description": "Text indicating that this is the official Signal conversation"
+  },
+  "icu:ConversationHero--release-notes": {
+    "messageformat": "Keep up to date with news and release notes.",
+    "description": "Text explaining the purpose of the Signal official conversation"
   },
   "icu:member-of-1-group": {
     "messageformat": "Member of {group}",
@@ -3971,6 +4384,14 @@
     "messageformat": "Leave",
     "description": "Title for the hangup button for a group call."
   },
+  "icu:CallControls__JoinLeaveButton--hangup-1-1-tooltip": {
+    "messageformat": "End call",
+    "description": "The tooltip for the hangup button in the PIP for 1:1 calls"
+  },
+  "icu:CallControls__JoinLeaveButton--hangup-group-tooltip": {
+    "messageformat": "Leave call",
+    "description": "The tooltip for the hangup button in the PIP for group calls"
+  },
   "icu:CallControls__MutedToast--muted": {
     "messageformat": "Mic off",
     "description": "Shown in a call when the user mutes their audio input using the Mute toggle button."
@@ -3978,6 +4399,22 @@
   "icu:CallControls__MutedToast--unmuted": {
     "messageformat": "Mic on",
     "description": "Shown in a call when the user is muted and then unmutes their audio input using the Mute toggle button."
+  },
+  "icu:CallControls__MutedBySomeoneToast": {
+    "messageformat": "{otherName} muted you.",
+    "description": "Shown in a call when another client mutes this user"
+  },
+  "icu:CallControls__SomeoneMutedSomeoneToast": {
+    "messageformat": "{name} muted {otherName}.",
+    "description": "Shown in a call when one client mutes another client"
+  },
+  "icu:CallControls__YouMutedSomeoneToast": {
+    "messageformat": "You muted {otherName}.",
+    "description": "Shown in a call when you mute another client"
+  },
+  "icu:CallControls__YouMutedYourselfToast": {
+    "messageformat": "You muted yourself from another device.",
+    "description": "Shown in a call when you joined a call on two devices and mute one from the other."
   },
   "icu:CallControls__LowerHandSuggestionToast": {
     "messageformat": "Lower your hand?",
@@ -4075,6 +4512,14 @@
     "messageformat": "Fullscreen call",
     "description": "Title for picture-in-picture toggle"
   },
+  "icu:calling__preview--maximize": {
+    "messageformat": "Maximize preview",
+    "description": "Title for button to make in-call video preview bigger"
+  },
+  "icu:calling__preview--minimize": {
+    "messageformat": "Minimize preview",
+    "description": "Title for button to make in-call video preview smaller"
+  },
   "icu:calling__change-view": {
     "messageformat": "Change view",
     "description": "Tooltip for changing the in-call layout of remote participants in a group call"
@@ -4094,10 +4539,6 @@
   "icu:calling__view_mode--updated": {
     "messageformat": "View updated",
     "description": "Toast shown whenver the calling view mode is changed (e.g. paginated view -> speaker view)"
-  },
-  "icu:calling__hangup": {
-    "messageformat": "Leave call",
-    "description": "Title for hang up button"
   },
   "icu:calling__SelectPresentingSourcesModal--title": {
     "messageformat": "Share your screen",
@@ -4304,7 +4745,7 @@
     "description": "Shown if you click a group link and you have been forbidden from joining via the link"
   },
   "icu:GroupV2--join--link-forbidden": {
-    "messageformat": "You can't join this group via the group link because an admin removed you.",
+    "messageformat": "You can't join this group via the group link because an admin removed you. Contact an admin to be added back to the group.",
     "description": "Shown if you click a group link and you have been forbidden from joining via the link"
   },
   "icu:GroupV2--join--prompt-with-approval": {
@@ -5051,6 +5492,14 @@
     "messageformat": "Tap on \"Donate to Signal\" and subscribe",
     "description": "In the instructions for becoming a sustainer. Third instruction."
   },
+  "icu:ProfileMovedModal__title": {
+    "messageformat": "Your profile has moved",
+    "description": "Bolded text on modal that explains the move of Profile Editor into the new Settings Tab"
+  },
+  "icu:ProfileMovedModal__description": {
+    "messageformat": "Open the Settings tab to view and edit your profile.",
+    "description": "Description text on modal that explains the move of Profile Editor into the new Settings Tab"
+  },
   "icu:BackupImportScreen__title": {
     "messageformat": "Syncing messages",
     "description": "Title of backup import screen"
@@ -5115,28 +5564,12 @@
     "messageformat": "Retry",
     "description": "Text of the retry button of the error modal in the backup import screen"
   },
-  "icu:BackupImportScreen__skip": {
-    "messageformat": "Skip",
-    "description": "(Deleted 2025/02/13) Text of the Skip button in the error and skip confirmation modals in the backup import screen"
-  },
-  "icu:BackupImportScreen__skip-confirmation__title": {
-    "messageformat": "Skip message transfer?",
-    "description": "(Deleted 2025/02/13) Title of the cancel confirmation modal in the backup import screen"
-  },
-  "icu:BackupImportScreen__skip-confirmation__body": {
-    "messageformat": "If you choose to skip, you won’t have access to any of your messages or media on this device. You can start a new transfer after skipping from Settings > Chats > Transfer.",
-    "description": "(Deleted 2025/02/13) Body of the cancel confirmation modal in the backup import screen"
-  },
-  "icu:BackupImportScreen__skip-confirmation__cancel": {
-    "messageformat": "Cancel",
-    "description": "(Deleted 2025/02/13) Text of the cancel button of the skip confirmation modal in the backup import screen"
-  },
   "icu:BackupMediaDownloadProgress__title-in-progress": {
-    "messageformat": "Restoring media",
+    "messageformat": "Syncing media",
     "description": "Label next to a progress bar showing active media (attachment) download progress after restoring from backup"
   },
   "icu:BackupMediaDownloadProgress__title-paused": {
-    "messageformat": "Restore paused",
+    "messageformat": "Syncing paused",
     "description": "Label indicating media (attachment) download progress has been paused (due to user interaction)"
   },
   "icu:BackupMediaDownloadProgress__title-idle": {
@@ -5147,16 +5580,24 @@
     "messageformat": "Media will continue to download in the background",
     "description": "Description text when attachment download is idle, and will continue in the background"
   },
+  "icu:BackupMediaDownloadProgress__title-offline": {
+    "messageformat": "Restoring media paused",
+    "description": "Label indicating media (attachment) download progress when the computer is offline"
+  },
+  "icu:BackupMediaDownloadProgress__description-offline": {
+    "messageformat": "Waiting for Internet connection...",
+    "description": "Description text when attachment download in progress but offline"
+  },
   "icu:BackupMediaDownloadProgress__button-pause": {
-    "messageformat": "Pause transfer",
+    "messageformat": "Pause",
     "description": "Text for button to pause media (attachment) download after backup impor"
   },
   "icu:BackupMediaDownloadProgress__button-resume": {
-    "messageformat": "Resume transfer",
+    "messageformat": "Resume",
     "description": "Text for button to resume media (attachment) download after backup import"
   },
   "icu:BackupMediaDownloadProgress__button-cancel": {
-    "messageformat": "Cancel transfer",
+    "messageformat": "Cancel syncing",
     "description": "Text for button to cancel (pause) media (attachment) download after backup import"
   },
   "icu:BackupMediaDownloadProgress__button-more": {
@@ -5172,20 +5613,60 @@
     "description": "Hint under the progressbar showing media (attachment) download progress after restoring from backup"
   },
   "icu:BackupMediaDownloadCancelConfirmation__title": {
-    "messageformat": "Cancel media transfer?",
-    "description": "Text for button to cancel (pause) media (attachment) download after backup import"
+    "messageformat": "Cancel media syncing?",
+    "description": "Text for button to cancel media (attachment) download after backup import"
   },
   "icu:BackupMediaDownloadCancelConfirmation__description": {
-    "messageformat": "Your messages and media have not completed restoring. If you choose to cancel, you can transfer again from Settings.",
-    "description": "Text for button to cancel (pause) media (attachment) download after backup import"
+    "messageformat": "Your media has not completed syncing. If you choose to cancel, you can sync again by re-linking this device. <learnMoreLink>Learn more</learnMoreLink>.",
+    "description": "Text for button to cancel media (attachment) download after backup import"
   },
   "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
-    "messageformat": "Continue transfer",
+    "messageformat": "Continue syncing",
     "description": "Text for button to close confirmation dialog and continue media (attachment) download"
   },
   "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
-    "messageformat": "Cancel transfer",
+    "messageformat": "Cancel syncing",
     "description": "Text for button to confirm cancellation of media (attachment) download"
+  },
+  "icu:BackupMediaDownloadProgressSettings__paused--title": {
+    "messageformat": "Syncing paused",
+    "description": "Label indicating media (attachment) download progress when the transfer has been paused"
+  },
+  "icu:BackupMediaDownloadProgressSettings__paused--description": {
+    "messageformat": "Click “{resumeButtonText}” to continue syncing",
+    "description": "Shown below progress bar when the transfer has been paused. {resumeButtonText} will be 'icu:BackupMediaDownloadProgressSettings__button-resume'"
+  },
+  "icu:BackupMediaDownloadProgressSettings__button-resume": {
+    "messageformat": "Resume",
+    "description": "Text for button to resume media (attachment) download after backup import"
+  },
+  "icu:BackupMediaDownloadProgressSettings__button-pause": {
+    "messageformat": "Pause",
+    "description": "Text for button to pause media (attachment) download after backup import"
+  },
+  "icu:BackupMediaDownloadProgressSettings__title-in-progress": {
+    "messageformat": "Syncing media",
+    "description": "Label next to a progress bar showing active media (attachment) download progress after restoring from backup"
+  },
+  "icu:BackupMediaDownloadProgressSettings__progressbar-hint": {
+    "messageformat": "{currentSize} of {totalSize} ({fractionComplete, number, percent})...",
+    "description": "Hint under the progressbar in the backup import screen"
+  },
+  "icu:CriticalIdlePrimaryDeviceModal__title": {
+    "messageformat": "Account action required",
+    "description": "Title for modal shown when a user must use their idle primary device to retain their account"
+  },
+  "icu:CriticalIdlePrimaryDeviceModal__description": {
+    "messageformat": "You must open Signal on your phone to continue using this account. If you do not open Signal on your phone, your account will be deleted soon. <learnMoreLink>Learn more</learnMoreLink>",
+    "description": "Description for modal shown when a user must use their idle primary device to retain their account. Learn more link will link to a support page"
+  },
+  "icu:LowDiskSpaceBackupImportModal__title": {
+    "messageformat": "Can't restore media",
+    "description": "Title for modal shown when there is insufficient disk space to download media from backup"
+  },
+  "icu:LowDiskSpaceBackupImportModal__description": {
+    "messageformat": "Your device does not have enough free space. Free up {diskSpaceAmount} of space to restore your media.",
+    "description": "Description for modal shown when there is insufficient disk space to download media from backup. Example {diskSpaceAmount}: '1.23 GB', '512 MB'"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "Expand",
@@ -5215,9 +5696,17 @@
     "messageformat": "Send edited message",
     "description": "aria-label for send edit button"
   },
-  "icu:CompositionArea__FunButtonLabel": {
-    "messageformat": "Add an Emoji, Sticker, or GIF",
-    "description": "Composition Area > Fun Button > Accessibility label"
+  "icu:CompositionArea__ConfirmGifSelection__Title": {
+    "messageformat": "Replace attachment?",
+    "description": "Composition Area > GIF Picker > After selecting a GIF > When you already have an attachment > Confirm Dialog > Title"
+  },
+  "icu:CompositionArea__ConfirmGifSelection__Body": {
+    "messageformat": "Adding this GIF will replace the item in your current draft message.",
+    "description": "Composition Area > GIF Picker > After selecting a GIF > When you already have an attachment > Confirm Dialog > Body"
+  },
+  "icu:CompositionArea__ConfirmGifSelection__ReplaceButton": {
+    "messageformat": "Replace",
+    "description": "Composition Area > GIF Picker > After selecting a GIF > When you already have an attachment > Confirm Dialog > Replace Button"
   },
   "icu:CompositionInput__editing-message": {
     "messageformat": "Edit message",
@@ -5507,6 +5996,10 @@
     "messageformat": "Require an admin to approve new members joining via the group link",
     "description": "Description for the require new member admin approval select area"
   },
+  "icu:GroupLinkManagement__CopyGroupLinkButtonLabel": {
+    "messageformat": "Copy signal.group link to clipboard",
+    "description": "GroupLinkManagement > Header > Group link text > Button (looks like normal text) > Accessibility label"
+  },
   "icu:PendingInvites--tab-requests": {
     "messageformat": "Requests ({count, number})",
     "description": "Label for the tab to view pending requests"
@@ -5779,21 +6272,9 @@
     "messageformat": "Use this link to join a Signal call: {url}",
     "description": "Draft message text for sharing a call link"
   },
-  "icu:MessageRequestWarning__learn-more": {
-    "messageformat": "Learn more",
-    "description": "Shown on the message request warning. Clicking this button will open a dialog with more information"
-  },
   "icu:MessageRequestWarning__safety-tips": {
     "messageformat": "Safety Tips",
     "description": "Shown on the message request warning. Clicking this button will open a dialog with safety tips"
-  },
-  "icu:MessageRequestWarning__dialog__details": {
-    "messageformat": "You have no groups in common with this person. Review requests carefully before accepting to avoid unwanted messages.",
-    "description": "Shown in the message request warning dialog. Gives more information about message requests"
-  },
-  "icu:MessageRequestWarning__dialog__learn-even-more": {
-    "messageformat": "About Message Requests",
-    "description": "Shown in the message request warning dialog. Clicking this button will open a page on Signal's support site"
   },
   "icu:ContactSpoofing__same-name--link": {
     "messageformat": "Review requests carefully. Signal found another contact with the same name. <reviewRequestLink>Review request</reviewRequestLink>",
@@ -6331,6 +6812,10 @@
     "messageformat": "Your profile could not be updated. Please try again.",
     "description": "Error message when something goes wrong updating your profile."
   },
+  "icu:ProfileEditorModal--sharing": {
+    "messageformat": "Sharing",
+    "description": "Title for username QR code and link screen"
+  },
   "icu:AnnouncementsOnlyGroupBanner--modal": {
     "messageformat": "Message an admin",
     "description": "Modal title for the list of admins in a group"
@@ -6375,6 +6860,10 @@
     "messageformat": "General",
     "description": "Button to switch the settings view"
   },
+  "icu:Preferences__button--donate": {
+    "messageformat": "Donate to Signal",
+    "description": "Button to switch the settings view"
+  },
   "icu:Preferences__button--appearance": {
     "messageformat": "Appearance",
     "description": "Button to switch the settings view"
@@ -6394,6 +6883,74 @@
   "icu:Preferences__button--privacy": {
     "messageformat": "Privacy",
     "description": "Button to switch the settings view"
+  },
+  "icu:Preferences__button--data-usage": {
+    "messageformat": "Data usage",
+    "description": "Button to switch the settings view"
+  },
+  "icu:Preferences__media-auto-download": {
+    "messageformat": "Media auto-download",
+    "description": "Button to switch the settings view"
+  },
+  "icu:Preferences__media-auto-download__photos": {
+    "messageformat": "Photos",
+    "description": "A category of files for media auto-download"
+  },
+  "icu:Preferences__media-auto-download__videos": {
+    "messageformat": "Videos",
+    "description": "A category of files for media auto-download"
+  },
+  "icu:Preferences__media-auto-download__audio": {
+    "messageformat": "Audio",
+    "description": "A category of files for media auto-download"
+  },
+  "icu:Preferences__media-auto-download__documents": {
+    "messageformat": "Documents",
+    "description": "A category of files for media auto-download"
+  },
+  "icu:Preferences__media-auto-download__description": {
+    "messageformat": "Voice messages and stickers are always auto-downloaded.",
+    "description": "Additional clarification for how media auto-download will behave"
+  },
+  "icu:Preferences__button--backups": {
+    "messageformat": "Backups",
+    "description": "Button to switch the settings view to control message & media backups"
+  },
+  "icu:Preferences__button--internal": {
+    "messageformat": "Internal",
+    "description": "Button to switch the settings view to control internal configuration"
+  },
+  "icu:Preferences__button--manage": {
+    "messageformat": "Manage",
+    "description": "Button in the settings view to manage details of a feature or setting."
+  },
+  "icu:Preferences__button--choose-folder": {
+    "messageformat": "Choose folder",
+    "description": "Button in the settings view to choose a folder using the computer's file browser."
+  },
+  "icu:Preferences__button--set-up": {
+    "messageformat": "Set up",
+    "description": "Button in the settings view to initially setup a feature or setting."
+  },
+  "icu:Preferences__internal__local-backups": {
+    "messageformat": "Local backups",
+    "description": "Text header for internal local backup tools"
+  },
+  "icu:Preferences__internal__export-local-backup": {
+    "messageformat": "Export…",
+    "description": "Button to run internal local backup export tool"
+  },
+  "icu:Preferences__internal__export-local-backup--description": {
+    "messageformat": "Export local encrypted backup to a folder and validate it",
+    "description": "Description of the internal local backup export tool"
+  },
+  "icu:Preferences__internal__validate-backup--description": {
+    "messageformat": "Export encrypted backup to memory and run validation suite on it",
+    "description": "Description of the internal backup validation tool"
+  },
+  "icu:Preferences__internal__validate-backup": {
+    "messageformat": "Validate",
+    "description": "Button to run internal backup validation tool"
   },
   "icu:Preferences--lastSynced": {
     "messageformat": "Last import at {date} {time}",
@@ -6434,6 +6991,174 @@
   "icu:Preferences--blocked": {
     "messageformat": "Blocked",
     "description": "Label for blocked contacts setting"
+  },
+  "icu:Preferences--signal-backups": {
+    "messageformat": "Signal Backups",
+    "description": "Feature name for message backups using the Signal service."
+  },
+  "icu:Preferences--signal-backups-off-description": {
+    "messageformat": "Automatic backups with Signal’s secure, end-to-end encrypted storage service. Get started on your phone. <learnMoreLink>Learn more</learnMoreLink>.",
+    "description": "Description for message backups using the Signal service."
+  },
+  "icu:Preferences--backup-section-description": {
+    "messageformat": "Back up your message history so you never lose data when you get a new phone or reinstall Signal.",
+    "description": "Section description in the main backup settings section which summarizes the message backup feature."
+  },
+  "icu:Preferences--backup-details__header": {
+    "messageformat": "Backup details",
+    "description": "Section title for info on your current backup (created time & size)"
+  },
+  "icu:Preferences--backup-media-plan__description": {
+    "messageformat": "Text + all media backup",
+    "description": "Description of a backup plan that backups all of their messages (text) and media"
+  },
+  "icu:Preferences--backup-plan-not-found__description": {
+    "messageformat": "Your subscription was not found. Renew to continue using Signal Backups.",
+    "description": "Description when a backup subscription used to exist but is not active"
+  },
+  "icu:Preferences--backup-messages-plan__description": {
+    "messageformat": "Text + {mediaDayCount, plural, one {# day} other {# days}} media backup",
+    "description": "Description of a backup plan that backups all of their messages (text) and recent ~45 days of media"
+  },
+  "icu:Preferences--backup-messages-plan__cost-description": {
+    "messageformat": "Your backup plan is free",
+    "description": "Description of the cost of the user's (free!) backup plan"
+  },
+  "icu:Preferences--backup-plan__renewal-date": {
+    "messageformat": "Renews {date}",
+    "description": "Text describing the date at which the backup plan renews"
+  },
+  "icu:Preferences--backup-plan__expiry-date": {
+    "messageformat": "Expires {date}",
+    "description": "Text describing the date at which the backup plan expires"
+  },
+  "icu:Preferences--backup-plan__canceled": {
+    "messageformat": "Subscription canceled",
+    "description": "Description of plan when it has been canceled (i.e. not going to renew but still active)"
+  },
+  "icu:Preferences--backup-media-plan__note": {
+    "messageformat": "You can manage or cancel your Signal Backups subscription on your phone.",
+    "description": "Note next to backups plan summary"
+  },
+  "icu:Preferences--backup-messages-plan__note": {
+    "messageformat": "You can manage or upgrade Signal Backups on your phone.",
+    "description": "Note next to backups plan summary"
+  },
+  "icu:Preferences--backup-plan__not-found__note": {
+    "messageformat": "You can manage or renew your Signal Backups subscription on your phone.",
+    "description": "Note next to backups plan summary if we could not find their subscription"
+  },
+  "icu:Preferences--backup-created-at__label": {
+    "messageformat": "Last backup",
+    "description": "Label for the date that the last backup was created for this user"
+  },
+  "icu:Preferences--backup-created-by-phone": {
+    "messageformat": "Your phone",
+    "description": "Label for the primary device (your phone) that made the most recent cloud backup"
+  },
+  "icu:Preferences__local-backups": {
+    "messageformat": "Desktop backups",
+    "description": "Section title and button text for the on-device backups feature (also known as local backups)."
+  },
+  "icu:Preferences__local-backups-section__description": {
+    "messageformat": "Backups are encrypted with a key and stored on your computer.",
+    "description": "Description in the settings view for on-device backups."
+  },
+  "icu:Preferences--local-backups-off-description": {
+    "messageformat": "Create an end-to-end encrypted backup that you can restore on your phone. ",
+    "description": "Description for on-device local message backups when the feature is off."
+  },
+  "icu:Preferences--local-backups-restore-info": {
+    "messageformat": "To restore a backup, install a new copy of Signal. Open the app and tap Restore backup, then locate the backup folder. <learnMoreLink>Learn more.</learnMoreLink>",
+    "description": "Description for how to restore on-device local message backups."
+  },
+  "icu:Preferences--local-backups-setup-folder": {
+    "messageformat": "Choose a folder",
+    "description": "Title for picking a folder for on-device local message backups when setting it up for the first time."
+  },
+  "icu:Preferences--local-backups-setup-folder-description": {
+    "messageformat": "Choose a folder in your computer’s storage where your end-to-end encrypted backup will be stored.",
+    "description": "Description for picking a folder for on-device local message backups when setting it up for the first time."
+  },
+  "icu:Preferences--local-backups-setup-next": {
+    "messageformat": "Next",
+    "description": "Button to continue with setup of local on-device backups, shown while reviewing your backup key for the first time."
+  },
+  "icu:Preferences--local-backups-view-backup-key-done": {
+    "messageformat": "Done",
+    "description": "Button to dismiss the backup key viewer, shown when reviewing your backup key for local on-device backups."
+  },
+  "icu:Preferences--local-backups-backup-key-text-box": {
+    "messageformat": "Backup key text box",
+    "description": "ARIA label for the text box used to view or confirm the backup key for local message backups."
+  },
+  "icu:Preferences--local-backups-enter-backup-key": {
+    "messageformat": "Enter key",
+    "description": "Placeholder text for the text box used to confirm the backup key for local message backups."
+  },
+  "icu:Preferences--local-backups-record-backup-key": {
+    "messageformat": "Record your backup key",
+    "description": "Title for viewing the backup key for local message backups."
+  },
+  "icu:Preferences--local-backups-record-backup-key-description": {
+    "messageformat": "This key is required to recover your account and data. Store this key somewhere safe. If you lose it, you won’t be able to recover your account. <learnMoreLink>Learn more.</learnMoreLink>",
+    "description": "Description for viewing the backup key for local message backups."
+  },
+  "icu:Preferences--local-backups-confirm-backup-key": {
+    "messageformat": "Confirm your backup key",
+    "description": "Title for confirming the backup key for local message backups by re-entering it into a text box."
+  },
+  "icu:Preferences--local-backups-confirm-backup-key-description": {
+    "messageformat": "Enter the backup key that you just recorded",
+    "description": "Description for confirming the backup key for local message backups by re-entering it into a text box."
+  },
+  "icu:Preferences__local-backups-confirm-key-modal-title": {
+    "messageformat": "Keep your key safe",
+    "description": "Title of modal shown after you confirmed the backup key for local on-device backups in settings"
+  },
+  "icu:Preferences__local-backups-confirm-key-modal-body": {
+    "messageformat": "Signal will not be able to help you restore your backup if you lose your key. Store it somewhere safe and secure, and do not share it with others.",
+    "description": "Body text of modal shown after you confirmed the backup key for local on-device backups in settings"
+  },
+  "icu:Preferences__local-backups-confirm-key-modal-continue": {
+    "messageformat": "Continue",
+    "description": "Text of the primary button on modal shown after you confirmed the backup key for local on-device backups in settings"
+  },
+  "icu:Preferences--local-backups-see-backup-key-again": {
+    "messageformat": "See key again",
+    "description": "Link text to return to the previous backup key page, shown when confirming the backup key for local message backups."
+  },
+  "icu:Preferences__local-backups-folder": {
+    "messageformat": "Backup folder",
+    "description": "Label for current folder in which local on-device backups are stored."
+  },
+  "icu:Preferences__local-backups-folder__change": {
+    "messageformat": "Change",
+    "description": "Button to change the folder in which local on-device backups are stored."
+  },
+  "icu:Preferences__local-backups-copy-key": {
+    "messageformat": "Copy to clipboard",
+    "description": "Button label for copying the backup key to clipboard in the settings for local on-device backups"
+  },
+  "icu:Preferences__local-backups-copied-key": {
+    "messageformat": "Backup key copied",
+    "description": "Toast message after you copied the backup key to clipboard from settings for local on-device backups"
+  },
+  "icu:Preferences__view-key": {
+    "messageformat": "View key",
+    "description": "Button to view the backup key which is used to restore a message history backup"
+  },
+  "icu:Preferences__backup-key": {
+    "messageformat": "Backup key",
+    "description": "Name for the key code used to restore a message history backup"
+  },
+  "icu:Preferences__backup-key-description": {
+    "messageformat": "Your backup key is a 64-digit code used to restore your backup",
+    "description": "Description for the key code used to restore a message history backup"
+  },
+  "icu:Preferences__backup-other-ways": {
+    "messageformat": "Other ways to back up",
+    "description": "Heading on the backups settings view for alternative backup methods such as on-device backups."
   },
   "icu:Preferences--blocked-count": {
     "messageformat": "{num, plural, one {# contact} other {# contacts}}",
@@ -6591,6 +7316,30 @@
     "messageformat": "Restart",
     "description": "Button to restart Signal to apply language changes"
   },
+  "icu:Preferences__Privacy__Application": {
+    "messageformat": "Application",
+    "description": "Title of Application section in Settings > Privacy"
+  },
+  "icu:Preferences__content-protection--label": {
+    "messageformat": "Screen security",
+    "description": "Label of checkbox in Settings > Privacy > Application"
+  },
+  "icu:Preferences__content-protection--description": {
+    "messageformat": "Prevent screenshots of Signal on this computer for added privacy.",
+    "description": "Description of checkbox in Settings > Privacy > Application"
+  },
+  "icu:Preferences__content-protection__modal--title": {
+    "messageformat": "Disable screen security?",
+    "description": "Title of confirm disabling screen security modal in Settings > Privacy > Application"
+  },
+  "icu:Preferences__content-protection__modal--body": {
+    "messageformat": "If disabled, this may allow Microsoft Windows to capture screenshots of Signal and use them for features that may not be private.",
+    "description": "Body of confirm disabling screen security modal in Settings > Privacy > Application"
+  },
+  "icu:Preferences__content-protection__modal--disable": {
+    "messageformat": "Disable",
+    "description": "Text of the button confirm disabling screen security modal in Settings > Privacy > Application"
+  },
   "icu:DialogUpdate--version-available": {
     "messageformat": "Update to version {version} available",
     "description": "Tooltip for new update available"
@@ -6602,6 +7351,22 @@
   "icu:DialogUpdate__downloaded": {
     "messageformat": "Update Downloaded",
     "description": "The title of update dialog when update download is completed."
+  },
+  "icu:CriticalIdlePrimaryDevice__title": {
+    "messageformat": "Open Signal on your phone",
+    "description": "Title of a banner alerting users if their primary device (e.g. phone) has not been logged into recently."
+  },
+  "icu:CriticalIdlePrimaryDevice__body": {
+    "messageformat": "Your account will be deleted soon unless you open Signal on your phone. This message will go away if you've done it successfully. <learnMoreLink>Learn more</learnMoreLink>",
+    "description": "The text in a banner alerting users if their primary device (e.g. phone) has not been logged into recently. "
+  },
+  "icu:IdlePrimaryDevice__body": {
+    "messageformat": "Open Signal on your phone to keep your account active",
+    "description": "The text in a banner alerting users if their primary device (e.g. phone) has not been logged into recently. "
+  },
+  "icu:IdlePrimaryDevice__learnMore": {
+    "messageformat": "Learn more",
+    "description": "The text in a link that will open a support page URL with more information"
   },
   "icu:DialogNetworkStatus__outage": {
     "messageformat": "Signal is experiencing technical difficulties. We are working hard to restore service as quickly as possible.",
@@ -6788,6 +7553,38 @@
   "icu:MediaEditor__crop-preset--9-16": {
     "messageformat": "9:16",
     "description": "Media editor > image editing controls > crop tool > Crop presets > 9:16 (9 by 16)"
+  },
+  "icu:MediaPermissionsModal__title--microphone": {
+    "messageformat": "Allow access to your microphone",
+    "description": "Title of MediaPermissionsModal when notifying user about absent microphone permissions"
+  },
+  "icu:MediaPermissionsModal__title--camera": {
+    "messageformat": "Allow access to your camera",
+    "description": "Title of MediaPermissionsModal when notifying user about absent camera permissions"
+  },
+  "icu:MediaPermissionsModal__subtitle--call": {
+    "messageformat": "To join or start a call:",
+    "description": "Subtitle of MediaPermissionsModal when notifying user about insufficient microphone permissions for starting a call"
+  },
+  "icu:MediaPermissionsModal__subtitle--call--camera": {
+    "messageformat": "To enable your video:",
+    "description": "Subtitle of MediaPermissionsModal when notifying user about insufficient camera permissions for starting a call"
+  },
+  "icu:MediaPermissionsModal__subtitle--voice-note": {
+    "messageformat": "To send voice messages:",
+    "description": "Subtitle of MediaPermissionsModal when notifying user about insufficient media permissions for recording a voice note"
+  },
+  "icu:MediaPermissionsModal__step-1": {
+    "messageformat": "Click “{buttonName}” below",
+    "description": "Text of the first step of the instructions from MediaPermissionsModal"
+  },
+  "icu:MediaPermissionsModal__step-2": {
+    "messageformat": "Turn on “Signal”",
+    "description": "Text of the second step of the instructions from MediaPermissionsModal"
+  },
+  "icu:MediaPermissionsModal__open": {
+    "messageformat": "Go to settings",
+    "description": "Text of the button opening system media permissions preferences window"
   },
   "icu:MyStories__title": {
     "messageformat": "My Stories",
@@ -7569,10 +8366,6 @@
     "messageformat": "Reset",
     "description": "Text of button at the bottom of the username link modal"
   },
-  "icu:UsernameLinkModalBody__done": {
-    "messageformat": "Done",
-    "description": "Text of button at the bottom of the username link modal"
-  },
   "icu:UsernameLinkModalBody__color__radio": {
     "messageformat": "Username link color, {index, number} of {total, number}",
     "description": "ARIA label of button for selecting username link color"
@@ -7664,6 +8457,18 @@
   "icu:MessageMetadata__edited": {
     "messageformat": "Edited",
     "description": "label for an edited message"
+  },
+  "icu:DraftGifMessageSendModal__Title": {
+    "messageformat": "Add a message",
+    "description": "Draft GIF Message Send Modal > Title"
+  },
+  "icu:DraftGifMessageSendModal__SendButtonLabel": {
+    "messageformat": "Send",
+    "description": "Draft GIF Message Send Modal > Send Button > Label"
+  },
+  "icu:DraftGifMessageSendModal__CancelButtonLabel": {
+    "messageformat": "Cancel",
+    "description": "Draft GIF Message Send Modal > Cancel Button > Label"
   },
   "icu:EditHistoryMessagesModal__title": {
     "messageformat": "Edit history",
@@ -7957,9 +8762,185 @@
     "messageformat": "To change this setting, set “Who can see my number” to “Nobody”.",
     "description": "A toast displayed when user clicks disabled option in settings window"
   },
+  "icu:ProfileNameWarningModal__description--direct": {
+    "messageformat": "Profile names on Signal are chosen by their account holder:",
+    "description": "Description of how profile names work in the profile name warning modal for direct conversations"
+  },
+  "icu:ProfileNameWarningModal__list--item1--direct": {
+    "messageformat": "Profile names aren't verified",
+    "description": "First list item in profile name warning modal for direct conversations"
+  },
+  "icu:ProfileNameWarningModal__list--item2--direct": {
+    "messageformat": "Be cautious of accounts that impersonate others",
+    "description": "Second list item in profile name warning modal for direct conversations"
+  },
+  "icu:ProfileNameWarningModal__list--item3--direct": {
+    "messageformat": "Don't share personal information with people you don't know",
+    "description": "Third list item in profile name warning modal for direct conversations"
+  },
+  "icu:ProfileNameWarningModal__description--group": {
+    "messageformat": "Group names are chosen by members of the group.",
+    "description": "Description of how group names work in the profile name warning modal for group conversations"
+  },
+  "icu:ProfileNameWarningModal__list--item1--group": {
+    "messageformat": "Be cautious of groups that impersonate organizations and businesses",
+    "description": "First list item in profile name warning modal for group conversations"
+  },
+  "icu:ProfileNameWarningModal__list--item2--group": {
+    "messageformat": "Profile names of members in groups are not verified",
+    "description": "Second list item in profile name warning modal for group conversations"
+  },
+  "icu:ProfileNameWarningModal__list--item3--group": {
+    "messageformat": "Don't share personal information with people you don't know",
+    "description": "Third list item in profile name warning modal for group conversations"
+  },
+  "icu:SaveMultiDialog__title": {
+    "messageformat": "Save attachments",
+    "description": "Title of the dialog to save multiple attachments"
+  },
   "icu:WhatsNew__modal-title": {
     "messageformat": "What's New",
     "description": "Title for the whats new modal"
+  },
+  "icu:PreferencesDonations__title": {
+    "messageformat": "Privacy over Profit",
+    "description": "Title shown at the top of the donations preferences page"
+  },
+  "icu:PreferencesDonations__description": {
+    "messageformat": "Private messaging, funded by you. No ads, no tracking, no compromise. Donate now to support Signal. <learnMoreLink>Learn more</learnMoreLink>",
+    "description": "Description text explaining Signal's donation model with learn more link"
+  },
+  "icu:PreferencesDonations__donate-button": {
+    "messageformat": "Donate",
+    "description": "Button text to make a donation"
+  },
+  "icu:PreferencesDonations__donate-button-with-amount": {
+    "messageformat": "Donate {formattedCurrencyAmount}",
+    "description": "Button text to make a donation after selecting a currency amount. Amount includes the currency symbol and is formatted in the locale's standard format. Examples: Donate $10; Donate ¥1000; Donate €10"
+  },
+  "icu:PreferencesDonations__mobile-info": {
+    "messageformat": "Badges and monthly donations can be managed on your mobile device.",
+    "description": "(Deleted 2025/07/09) Information about donations receipt syncing limitations"
+  },
+  "icu:PreferencesDonations__receipts": {
+    "messageformat": "Receipts",
+    "description": "Menu item to view donation receipts"
+  },
+  "icu:PreferencesDonations__faqs": {
+    "messageformat": "Donation FAQs",
+    "description": "Menu item to view donation FAQs"
+  },
+  "icu:PreferencesDonations--receiptList__info": {
+    "messageformat": "Receipts do not sync across devices. If you have reinstalled Signal, receipts from previous donations will not be available.",
+    "description": "Information about donation receipts syncing limitations"
+  },
+  "icu:PreferencesDonations--receiptList__empty-title": {
+    "messageformat": "No Receipts",
+    "description": "Title shown when there are no donation receipts"
+  },
+  "icu:PreferencesDonations__ReceiptModal--title": {
+    "messageformat": "Details",
+    "description": "Title of the donation receipt details modal"
+  },
+  "icu:PreferencesDonations__ReceiptModal--download": {
+    "messageformat": "Download receipt",
+    "description": "Button text to download a donation receipt"
+  },
+  "icu:PreferencesDonations__ReceiptModal--type-label": {
+    "messageformat": "Type",
+    "description": "Label for the donation type in donation receipt modal"
+  },
+  "icu:PreferencesDonations__ReceiptModal--date-paid-label": {
+    "messageformat": "Date paid",
+    "description": "Label for the payment date in donation receipt modal"
+  },
+  "icu:DonationReceipt__title": {
+    "messageformat": "Donation receipt",
+    "description": "Title shown at the top of donation receipt documents"
+  },
+  "icu:DonationReceipt__amount-label": {
+    "messageformat": "Amount",
+    "description": "Label for the donation amount field on donation receipt"
+  },
+  "icu:DonationReceipt__type-label": {
+    "messageformat": "Type",
+    "description": "Label for the donation type field on donation receipt"
+  },
+  "icu:DonationReceipt__date-paid-label": {
+    "messageformat": "Date paid",
+    "description": "Label for the payment date field on donation receipt"
+  },
+  "icu:DonationReceipt__type-value--one-time": {
+    "messageformat": "One time",
+    "description": "Value shown for one-time donations on donation receipt"
+  },
+  "icu:DonationReceipt__footer-text": {
+    "messageformat": "Thank you for supporting Signal. Your contribution helps fuel the mission of protecting free expression and enabling secure global communication for millions around the world, through open source privacy technology. If you’re a resident of the United States, please retain this receipt for your tax records. Signal Technology Foundation is a tax-exempt nonprofit organization in the United States under section 501c3 of the Internal Revenue Code. Our Federal Tax ID is 82-4506840.",
+    "description": "Footer text shown on donation receipts explaining tax deductibility and Signal's mission"
+  },
+  "icu:Donations__Toast__Completed": {
+    "messageformat": "Donation completed",
+    "description": "Toast shown when a donation started processing after resuming on startup, and it completed successfully when the user is not on the Preferences/Donations screen"
+  },
+  "icu:Donations__Toast__Processing": {
+    "messageformat": "Processing donation",
+    "description": "Toast shown when a donation starts processing again after resuming on startup"
+  },
+  "icu:Donations__PaymentMethodDeclined": {
+    "messageformat": "Payment method declined",
+    "description": "Title of the dialog shown with the user's provided payment method has not worked"
+  },
+  "icu:Donations__PaymentMethodDeclined__Description": {
+    "messageformat": "Try another payment method or contact your bank for more information.",
+    "description": "An explanation for the 'payment declined' dialog"
+  },
+  "icu:Donations__ErrorProcessingDonation": {
+    "messageformat": "Error processing donation",
+    "description": "Title of the dialog shown when a user's donation didn't seem to complete"
+  },
+  "icu:Donations__ErrorProcessingDonation__Description": {
+    "messageformat": "Try another payment method or contact your bank for more information.",
+    "description": "An explanation for the 'error processing' dialog"
+  },
+  "icu:Donations__Failed3dsValidation": {
+    "messageformat": "Verification Failed",
+    "description": "Title of the dialog shown when something went wrong processing a user's 3ds verification with their bank"
+  },
+  "icu:Donations__Failed3dsValidation__Description": {
+    "messageformat": "Additional verification step failed. Please try again.",
+    "description": "An explanation for the 'verification failed' dialog"
+  },
+  "icu:Donations__GenericError": {
+    "messageformat": "An error occurred with your donation",
+    "description": "Title of the dialog shown when some unknown error has happened during a user's attempted donation"
+  },
+  "icu:Donations__GenericError__Description": {
+    "messageformat": "Your donation might not have been processed. Click on “Donate to Signal” and then “Donation Receipts” to check your receipts and confirm.",
+    "description": "An explanation for the 'error occurred' dialog"
+  },
+  "icu:Donations__Processing": {
+    "messageformat": "Processing donation...",
+    "description": "Explainer text for donation progress dialog"
+  },
+  "icu:Donations__StillProcessing": {
+    "messageformat": "Still processing",
+    "description": "Title of the dialog shown when the user has made a donation and it's taking some time to complete the process"
+  },
+  "icu:Donations__StillProcessing__Description": {
+    "messageformat": "Your donation is still being processed. This can take a few minutes.",
+    "description": "An explanation for the 'still processing' dialog"
+  },
+  "icu:Donations__3dsValidationNeeded": {
+    "messageformat": "Additional verification required",
+    "description": "Title of the dialog shown when the user's payment method requires a redirect to a verification website"
+  },
+  "icu:Donations__3dsValidationNeeded__Description": {
+    "messageformat": "Your credit card issuer requires an additional verification step in a web browser.",
+    "description": "An explanation for the 'verification required' dialog"
+  },
+  "icu:Donations__3dsValidationNeeded__OpenBrowser": {
+    "messageformat": "Open browser",
+    "description": "When external payment method validation is required, this button will open that external verification website"
   },
   "icu:WhatsNew__bugfixes": {
     "messageformat": "This version contains a number of small tweaks and bug fixes to keep Signal running smoothly.",
@@ -7996,12 +8977,20 @@
     "description": "Release notes for releases that only include bug fixes",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.44--0": {
-    "messageformat": "We fixed a minor animation bug during group calls. We apologize in advance if the most exciting part of your day was switching to grid view during a meeting and trying to catch the moment where the video squares from people who joined late sometimes partially obscured the slide deck your boss was presenting.",
-    "description": "(Deleted 2025/02/26) Release notes for version 7.44"
+  "icu:WhatsNew__v7.58--0": {
+    "messageformat": "A new section in the message reaction selector automatically displays all of the emoji reactions that a message has received. Now you can quickly jump on the bandwagon and add a standard sparkling heart just like everyone else already did, or you can follow your own heart and go with the anatomical heart instead.",
+    "description": "(Deleted 2025/06/20) Release notes for version 7.58"
   },
-  "icu:WhatsNew__v7.45--0": {
-    "messageformat": "Stickers should feel sticky, not stuck, so now you can click on a sticker on a newly linked Signal Desktop and that sticker download will automatically get prioritized even when other attachments are downloading too.",
-    "description": "Release notes for version 7.45"
+  "icu:WhatsNew__v7.59--0": {
+    "messageformat": "This update enables GPU acceleration on Linux for improved performance and smoother video playback on supported hardware.",
+    "description": "(Deleted 2025/06/25) Release notes for version 7.59"
+  },
+  "icu:WhatsNew__v7.61--0": {
+    "messageformat": "This update improves audio quality and reliability during voice and video calls, and introduces better automatic configuration of connected microphones and speakers. Thanks to <padenot></padenot>, <kinetiknz></kinetiknz>, and <Pehrsons></Pehrsons> at Mozilla for their help with this project.",
+    "description": "(Deleted 2025/07/09) Release notes for version 7.61"
+  },
+  "icu:WhatsNew__v7.62--0": {
+    "messageformat": "We fixed a rare bug that could prevent some contacts from synchronizing correctly.",
+    "description": "(Deleted 2025/07/16) Release notes for version 7.62"
   }
 }

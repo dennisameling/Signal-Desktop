@@ -106,6 +106,10 @@ Bootstrap.regressionBenchmark(
         const app = await bootstrap.startApp();
         const appLoadedInfo = await app.waitUntilLoaded();
 
+        if (!(await app.waitForPreloadCacheHit())) {
+          throw new Error('Preload cache miss');
+        }
+
         await app.close();
 
         return appLoadedInfo;
@@ -113,8 +117,9 @@ Bootstrap.regressionBenchmark(
 
       const [, info] = await Promise.all([queue(), run()]);
 
-      const { loadTime, preloadTime, connectTime } = info;
-      const messagesDuration = loadTime - preloadTime - connectTime;
+      const { loadTime, preloadTime, preloadCompileTime, connectTime } = info;
+      const messagesDuration =
+        loadTime - preloadTime - preloadCompileTime - connectTime;
 
       return {
         messagesDuration,

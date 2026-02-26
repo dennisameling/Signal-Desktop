@@ -6,7 +6,6 @@ import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { BackupLevel } from '@signalapp/libsignal-client/zkgroup';
-import { InputStream } from '@signalapp/libsignal-client/dist/io';
 import {
   ComparableBackup,
   Purpose,
@@ -16,28 +15,10 @@ import { assert } from 'chai';
 import { clearData } from './helpers';
 import { loadAllAndReinitializeRedux } from '../../services/allLoaders';
 import { backupsService, BackupType } from '../../services/backups';
+import { MemoryStream } from '../../services/backups/util/MemoryStream';
 import { initialize as initializeExpiringMessageService } from '../../services/expiringMessagesDeletion';
-import { DataWriter } from '../../sql/Client';
 
 const { BACKUP_INTEGRATION_DIR } = process.env;
-
-class MemoryStream extends InputStream {
-  #offset = 0;
-
-  constructor(private readonly buffer: Buffer) {
-    super();
-  }
-
-  public override async read(amount: number): Promise<Buffer> {
-    const result = this.buffer.slice(this.#offset, this.#offset + amount);
-    this.#offset += amount;
-    return result;
-  }
-
-  public override async skip(amount: number): Promise<void> {
-    this.#offset += amount;
-  }
-}
 
 describe('backup/integration', () => {
   before(async () => {
@@ -50,7 +31,7 @@ describe('backup/integration', () => {
   });
 
   afterEach(async () => {
-    await DataWriter.removeAll();
+    await clearData();
   });
 
   if (!BACKUP_INTEGRATION_DIR) {
@@ -75,7 +56,7 @@ describe('backup/integration', () => {
         backupType: BackupType.TestOnlyPlaintext,
       });
 
-      const exported = await backupsService.exportBackupData(
+      const { data: exported } = await backupsService.exportBackupData(
         BackupLevel.Paid,
         BackupType.TestOnlyPlaintext
       );
@@ -100,8 +81,7 @@ describe('backup/integration', () => {
       if (
         expectedString.includes('ReleaseChannelDonationRequest') ||
         // TODO (DESKTOP-8025) roundtrip these frames
-        fullPath.includes('chat_folder') ||
-        fullPath.includes('notification_profile')
+        fullPath.includes('chat_folder')
       ) {
         // Skip the unsupported tests
         return;

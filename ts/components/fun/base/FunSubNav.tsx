@@ -3,7 +3,7 @@
 import classNames from 'classnames';
 import type { Transition } from 'framer-motion';
 import { motion } from 'framer-motion';
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import React, {
   createContext,
   useCallback,
@@ -12,8 +12,9 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useId,
+  forwardRef,
 } from 'react';
-import { useId } from 'react-aria';
 import type { Selection } from 'react-aria-components';
 import { ListBox, ListBoxItem } from 'react-aria-components';
 import {
@@ -21,10 +22,13 @@ import {
   getScrollRightDistance,
   useScrollObserver,
 } from '../../../hooks/useSizeObserver';
-import * as log from '../../../logging/log';
+import { createLogger } from '../../../logging/log';
 import * as Errors from '../../../types/errors';
 import { strictAssert } from '../../../util/assert';
 import { FunImage } from './FunImage';
+import { FunTooltip } from './FunTooltip';
+
+const log = createLogger('FunSubNav');
 
 /**
  * Sub Nav
@@ -63,6 +67,25 @@ export function FunSubNavScroller(props: FunSubNavScrollerProps): JSX.Element {
       getScrollRightDistance(scroll, scrollOpacityThreshold)
     );
   });
+
+  useEffect(() => {
+    strictAssert(outerRef.current, 'Must have scroller ref');
+    const scroller = outerRef.current;
+
+    function onWheel(event: WheelEvent) {
+      event.preventDefault();
+      scroller.scrollBy({
+        left: event.deltaX + event.deltaY,
+        behavior: 'instant',
+      });
+    }
+
+    scroller.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      scroller.addEventListener('wheel', onWheel, { passive: false });
+    };
+  }, []);
 
   return (
     <div className="FunSubNav__Scroller">
@@ -203,12 +226,21 @@ function FunSubNavListBoxItemButton(props: {
 
   useEffect(() => {
     strictAssert(ref.current, 'Expected ref to be defined');
+    const element = ref.current;
+    let timer: ReturnType<typeof setTimeout>;
     if (props.isSelected) {
-      ref.current.scrollIntoView({
-        behavior: 'smooth',
-        inline: 'nearest',
-      });
+      // Needs setTimeout() for arrow key navigation to work.
+      // Might be something to do with native arrow key scroll handling.
+      timer = setTimeout(() => {
+        element.scrollIntoView({
+          behavior: 'smooth',
+          inline: 'nearest',
+        });
+      }, 1);
     }
+    return () => {
+      clearTimeout(timer);
+    };
   }, [props.isSelected]);
 
   return (
@@ -218,11 +250,30 @@ function FunSubNavListBoxItemButton(props: {
   );
 }
 
+const FunSubNavListBoxItemTooltipTarget = forwardRef(
+  function FunSubNavListBoxItemTooltipTarget(props, ref: Ref<HTMLSpanElement>) {
+    return (
+      <span
+        ref={ref}
+        {...props}
+        className="FunSubNav__ListBoxItem__TooltipTarget"
+      />
+    );
+  }
+);
+
 export function FunSubNavListBoxItem(
   props: FunSubNavListBoxItemProps
 ): JSX.Element {
   const context = useContext(FunSubNavListBoxContext);
   strictAssert(context, 'Must be wrapped with <FunSubNavListBox>');
+
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+
+  const handleTooltipOpenChange = useCallback((open: boolean) => {
+    setTooltipOpen(open);
+  }, []);
+
   return (
     <ListBoxItem
       id={props.id}
@@ -230,21 +281,37 @@ export function FunSubNavListBoxItem(
       aria-label={props.label}
       textValue={props.label}
     >
-      {({ isSelected }) => {
+      {({ isSelected, isFocusVisible }) => {
         return (
-          <FunSubNavListBoxItemButton isSelected={isSelected}>
-            <span className="FunSubNav__ListBoxItem__ButtonIcon">
-              {props.children}
-            </span>
-            {isSelected && (
-              <motion.div
-                className="FunSubNav__ListBoxItem__ButtonIndicator"
-                layoutId={`FunSubNav__ListBoxItem__ButtonIndicator--${context.id}`}
-                layoutDependency={context.selected}
-                transition={FunSubNavListBoxItemTransition}
-              />
-            )}
-          </FunSubNavListBoxItemButton>
+          <>
+            <FunTooltip
+              open={tooltipOpen || (isSelected && isFocusVisible)}
+              onOpenChange={handleTooltipOpenChange}
+              side="top"
+              content={props.label}
+              collisionBoundarySelector=".FunPanel"
+              collisionPadding={6}
+              disableHoverableContent
+            >
+              <FunSubNavListBoxItemTooltipTarget />
+            </FunTooltip>
+            <FunSubNavListBoxItemButton isSelected={isSelected}>
+              <span className="FunSubNav__ListBoxItem__ButtonIcon">
+                {props.children}
+              </span>
+              {isSelected && (
+                <motion.div
+                  className="FunSubNav__ListBoxItem__ButtonIndicator"
+                  layoutId={`FunSubNav__ListBoxItem__ButtonIndicator--${context.id}`}
+                  layoutDependency={context.selected}
+                  transition={FunSubNavListBoxItemTransition}
+                />
+              )}
+              {!isSelected && isFocusVisible && (
+                <div className="FunSubNav__ListBoxItem__ButtonIndicator" />
+              )}
+            </FunSubNavListBoxItemButton>
+          </>
         );
       }}
     </ListBoxItem>
@@ -279,8 +346,6 @@ export function FunSubNavImage(props: FunSubNavImageProps): JSX.Element {
       src={props.src}
       width={26}
       height={26}
-      // presentational
-      alt=""
     />
   );
 }

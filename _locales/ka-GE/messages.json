@@ -38,6 +38,12 @@
   "icu:Preferences__sent-media-quality": {
     "messageformat": "გაგზავნილი მედია-ფაილების ხარისხი"
   },
+  "icu:Preferences__sent-media-quality__description": {
+    "messageformat": "მაღალი ხარისხის მედია-ფაილის გაგზავნა უფრო მეტ მობილურ ინტერნეტს გამოიყენებს."
+  },
+  "icu:Preferences__DonateTitle": {
+    "messageformat": "Signal-ისთვის დონაციის გაკეთება"
+  },
   "icu:sentMediaQualityStandard": {
     "messageformat": "სტანდარტული"
   },
@@ -65,23 +71,29 @@
   "icu:unknownContact": {
     "messageformat": "უცნობი კონტაქტი"
   },
+  "icu:unknownContactShort": {
+    "messageformat": "უცნობი"
+  },
   "icu:unknownGroup": {
     "messageformat": "უცნობი ჯგუფი"
   },
+  "icu:cantOpenSignalError": {
+    "messageformat": "Signal-ის გახსნა შეუძლებელია"
+  },
+  "icu:cantOpenSignalError__detail": {
+    "messageformat": "პრობლემის გადასაჭრელად, მიჰყევი აღდგენის გზამკვლევს მხარდაჭერის გვერდზე ან დაუკავშირდი Signal-ის მხარდაჭერის გუნდს, რათა პრობლემის მოგვარებაში დაგეხმაროთ.\n\nთუ Signal-ის გამოყენება დაუყოვნებლივ გჭირდება, შეგიძლია, შენი მონაცემები წაშალო და ეს დესკტოპი თავიდან დააკავშირო. შესაძლებლობა გექნება, შენი მობილურიდან მიმოწერის ისტორია გადმოიტანო."
+  },
   "icu:databaseError": {
     "messageformat": "მონაცემთა ბაზის ხარვეზი"
-  },
-  "icu:databaseError__detail": {
-    "messageformat": "მონაცემთა ბაზის ხარვეზს გადავაწყდით. შეგიძლია შეცდომა დააკოპირო და Signal-ის მხარდაჭერის გუნდს დაუკავშირდე, რათა პრობლემის მოგვარებაში დაგეხმაროთ. თუ Signal-ის გამოყენება დაუყოვნებლივ გჭირდება, შეგიძლია შენი მონაცემები წაშალო და გადატვირთო.\n\nდაუკავშირდი მხარდაჭერის გუნდს: {link}"
   },
   "icu:deleteAndRestart": {
     "messageformat": "მონაცემთა წაშლა და გადატვირთვა"
   },
   "icu:databaseError__deleteDataConfirmation": {
-    "messageformat": "გსურს სამუდამოდ წაშალო ყველა მონაცემი?"
+    "messageformat": "ყველა მონაცემის სამუდამოდ წაშლა"
   },
   "icu:databaseError__deleteDataConfirmation__detail": {
-    "messageformat": "შენი მიმოწერის მთელი ისტორია და მედია ფაილები ამ მოწყობილობიდან სამუდამოდ წაიშლება. Signal-ის გამოყენებას ამ მოწყობილობაზე ხელახლა დაკავშირების შემდეგ შეძლებ. ეს შენი ტელეფონიდან არცერთ მონაცემს არ წაშლის."
+    "messageformat": "შენი მიმოწერის მთელი ისტორია და მედია ფაილები ამ მოწყობილობიდან სამუდამოდ წაიშლება. ეს შენი ტელეფონიდან არცერთ მონაცემს არ წაშლის.\n\nSignal-ის გამოყენებას ამ მოწყობილობაზე ხელახლა დაკავშირების შემდეგ შეძლებ. შესაძლებლობა გექნება, შენი მობილურიდან მიმოწერის ისტორია გადმოიტანო."
   },
   "icu:databaseError__startOldVersion": {
     "messageformat": "შენი მონაცემთა ბაზის ვერსია Signal-ის ამ ვერსიას არ ემთხვევა. დარწმუნდი, რომ შენს კომპიუტერში Signal-ის უახლეს ვერსიას ხსნი."
@@ -194,6 +206,9 @@
   "icu:menuSetupAsStandalone": {
     "messageformat": "დამოუკიდებელ მოწყობილობად დაყენება"
   },
+  "icu:menuStageLocalBackupForImport": {
+    "messageformat": "Stage Local Backup for Import…"
+  },
   "icu:messageContextMenuButton": {
     "messageformat": "მეტი მოქმედება"
   },
@@ -214,9 +229,6 @@
   },
   "icu:optimizingApplication": {
     "messageformat": "მიმდინარეობს აპლიკაციის ოპტიმიზაცია…"
-  },
-  "icu:migratingToSQLCipher": {
-    "messageformat": "მიმდინარეობს შეტყობინებების ოპტიმიზაცია… {status} დასრულებული."
   },
   "icu:archivedConversations": {
     "messageformat": "დაარქივებული ჩატები"
@@ -292,9 +304,6 @@
   },
   "icu:NavTabs__ItemLabel--Settings": {
     "messageformat": "პარამეტრები"
-  },
-  "icu:NavTabs__ItemLabel--Update": {
-    "messageformat": "Signal-ის განახლება"
   },
   "icu:NavTabs__ItemLabel--Profile": {
     "messageformat": "პროფილი"
@@ -406,9 +415,6 @@
   },
   "icu:unreadMessages": {
     "messageformat": "{count, plural, one {{count,number} წაუკითხავი შეტყობინება} other {{count,number} წაუკითხავი შეტყობინება}}"
-  },
-  "icu:messageHistoryUnsynced": {
-    "messageformat": "შენი უსაფრთხოებისთვის, ჩატის ისტორია ახალ მიბმულ მოწყობილობებზე არ გადაგვაქვს."
   },
   "icu:youMarkedAsVerified": {
     "messageformat": "შენი უსაფრთხოების ნომერი {name}-სთან ვერიფიცირებულად მონიშნე"
@@ -587,11 +593,20 @@
   "icu:Toast--FailedToSendWithEndorsements": {
     "messageformat": "Failed to send message with endorsements"
   },
+  "icu:Toast--SQLError": {
+    "messageformat": "მონაცემთა ბაზის შეცდომა: გთხოვთ, გაგვიზიარო შენი ჩანაწერები."
+  },
   "icu:Toast--InvalidStorageServiceHeaders": {
-    "messageformat": "Received invalid response from storage service. Please share your logs."
+    "messageformat": "შენახვის სერვისისგან არასწორი პასუხია მიღებული. გთხოვთ შენი ჩანაწერები გაგვიზიარო."
   },
   "icu:Toast--FailedToImportBackup": {
     "messageformat": "Failed to process some frames during backup import. Please share your logs."
+  },
+  "icu:Toast--ReceiptSaved": {
+    "messageformat": "ქვითარი შენახულია"
+  },
+  "icu:Toast--ReceiptSaveFailed": {
+    "messageformat": "ქვითრის შენახვის ხარვეზი. გთხოვთ, თავიდან სცადო."
   },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "ფოტოებსა და ვიდეოებს ფაილებთან ერთად ვერ აირჩევ."
@@ -653,9 +668,6 @@
   "icu:joinTheBeta": {
     "messageformat": "შეუერთდი ბეტა ვერსიას"
   },
-  "icu:signalDesktopPreferences": {
-    "messageformat": "Signal Desktop-ის პარამეტრები"
-  },
   "icu:signalDesktopStickerCreator": {
     "messageformat": "სტიკერების ნაკრების შემქმნელი"
   },
@@ -706,9 +718,6 @@
   },
   "icu:noSearchResultsOnlyUnreadFilter": {
     "messageformat": "წაუკითხავი ჩატები არ მოიძებნა"
-  },
-  "icu:noSearchResults--sms-only": {
-    "messageformat": "SMS/MMS კონტაქტები Desktop ვერსიაზე არაა ხელმისაწვდომი."
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "\"{searchTerm}\"-ზე {conversationName}-ში ვერაფერი მოიძებნა"
@@ -1145,9 +1154,6 @@
   "icu:mediaNotAvailable": {
     "messageformat": "ეს მედია ფაილი ხელმისაწვდომი არაა"
   },
-  "icu:mediaNotAvailable--short": {
-    "messageformat": "მედია ფაილი მიუწვდომელია"
-  },
   "icu:attachmentNoLongerAvailable__learnMore": {
     "messageformat": "გაიგე მეტი"
   },
@@ -1162,6 +1168,12 @@
   },
   "icu:attachmentNotAvailable__voice": {
     "messageformat": "ხმოვანი შეტყობინება მიუწვდომელია"
+  },
+  "icu:attachmentNotAvailable__tapToView": {
+    "messageformat": "ერთჯერადი მედია-ფაილი მიუწვდომელია"
+  },
+  "icu:attachmentNotAvailable__tapToViewCannotDownload": {
+    "messageformat": "ერთჯერადი მედია-ფაილის გადმოწერა ვერ მოხერხდა"
   },
   "icu:AttachmentNotAvailableModal__title--file": {
     "messageformat": "ფაილი მიუწვდომელია"
@@ -1192,6 +1204,21 @@
   },
   "icu:AttachmentNotAvailableModal__body--voice-message": {
     "messageformat": "ეს ხმოვანი შეტყობინება შენი მობილურიდან არ გადატანილა, როცა ეს მოწყობილობა მიბმული იყო. 45 დღეზე ძველი ფაილებისა და მედია ფაილების სინქრონიზაცია მოწყობილობის მიბმისას შეუძლებელია."
+  },
+  "icu:TapToViewNotAvailableModal__body--expired": {
+    "messageformat": "ერთჯერადი მედია-ფაილის გადმოწერა ხელმისაწვდომი აღარაა. {name}-ს სთხოვე თავიდან გამოგიგზავნოს."
+  },
+  "icu:TapToViewNotAvailableModal__body--error": {
+    "messageformat": "ერთჯერადი მედია-ფაილის გადმოწერა ვერ მოხერხდა. {name}-ს მისი თავიდან გამოგზავნა მოუწევს."
+  },
+  "icu:BackfillFailureModal__title": {
+    "messageformat": "მედია ფაილის ჩამოტვირთვა შეუძლებელია"
+  },
+  "icu:BackfillFailureModal__body--timeout": {
+    "messageformat": "შეამოწმე შენი დესკტოპის და მობილურის ინტერნეტ კავშირი. შედი Signal-ზე შენს მობილურში და თავიდან ჩამოტვირთვა სცადე."
+  },
+  "icu:BackfillFailureModal__body--not-found": {
+    "messageformat": "ეს მედია ფაილი შენს მობილურზე ხელმისაწვდომი აღარაა და ვერ ჩამოიტვირთება."
   },
   "icu:save": {
     "messageformat": "შენახვა"
@@ -1244,11 +1271,8 @@
   "icu:Install__support-link": {
     "messageformat": "დახმარება გჭირდება?"
   },
-  "icu:Install__choose-device-name__description": {
-    "messageformat": "ამ სახელს შენს ტელეფონზე \"დაკავშირებული მოწყობილობების\" ქვეშ დაინახავ"
-  },
-  "icu:Install__choose-device-name__placeholder": {
-    "messageformat": "ჩემი კომპიუტერი"
+  "icu:Preferences--header": {
+    "messageformat": "პარამეტრები"
   },
   "icu:Preferences--phone-number": {
     "messageformat": "ტელეფონის ნომერი"
@@ -1259,11 +1283,170 @@
   "icu:Preferences--device-name__description": {
     "messageformat": "ამ მოწყობილობის სახელის შესაცვლელად გახსენი Signal შენს მობილურში და აირჩიე პარამეტრები > დაკავშირებული მოწყობილობები"
   },
-  "icu:chooseDeviceName": {
-    "messageformat": "აირჩიე ამ მოწყობილობის სახელი"
+  "icu:Preferences__EmojiSkinToneDefaultSetting__Label": {
+    "messageformat": "Emoji-ის კანის ტონი"
   },
-  "icu:finishLinkingPhone": {
-    "messageformat": "დაასრულე ტელეფონთან დაკავშირება"
+  "icu:Preferences__ChatsPage__ChatFoldersSection__Title": {
+    "messageformat": "ჩატის საქაღალდეები"
+  },
+  "icu:Preferences__ChatsPage__ChatFoldersSection__AddChatFolderItem__Title": {
+    "messageformat": "ჩატის საქაღალდის დამატება"
+  },
+  "icu:Preferences__ChatsPage__ChatFoldersSection__AddChatFolderItem__Description": {
+    "messageformat": "გაანაწილე შენი ჩატები საქაღალდეებში და ჩატების სიაში სწრაფად გადადი ერთიდან მეორეზე."
+  },
+  "icu:Preferences__ChatsPage__ChatFoldersSection__ChatFolderItem__ContextMenu__EditFolder": {
+    "messageformat": "საქაღალდის რედაქტირება"
+  },
+  "icu:Preferences__ChatsPage__ChatFoldersSection__ChatFolderItem__ContextMenu__DeleteFolder": {
+    "messageformat": "წაშლა"
+  },
+  "icu:Preferences__ChatsPage__DeleteChatFolderDialog__Title": {
+    "messageformat": "წაიშალოს საქაღალდე?"
+  },
+  "icu:Preferences__ChatsPage__DeleteChatFolderDialog__Description": {
+    "messageformat": "\"{chatFolderTitle}\" საქაღალდის წაშლა გსურს?"
+  },
+  "icu:Preferences__ChatsPage__DeleteChatFolderDialog__DeleteButton": {
+    "messageformat": "წაშლა"
+  },
+  "icu:Preferences__ChatsPage__DeleteChatFolderDialog__CancelButton": {
+    "messageformat": "გაუქმება"
+  },
+  "icu:Preferences__ChatFoldersPage__Title": {
+    "messageformat": "ჩატის საქაღალდეები"
+  },
+  "icu:Preferences__ChatFoldersPage__Description": {
+    "messageformat": "გაანაწილე შენი ჩატები საქაღალდეებში და ჩატების სიაში სწრაფად გადადი ერთიდან მეორეზე"
+  },
+  "icu:Preferences__ChatFoldersPage__FoldersSection__Title": {
+    "messageformat": "საქაღალდეები"
+  },
+  "icu:Preferences__ChatFoldersPage__FoldersSection__AllChatsFolder__Title": {
+    "messageformat": "ყველა ჩატი"
+  },
+  "icu:Preferences__ChatFoldersPage__FoldersSection__CreateAFolderButton": {
+    "messageformat": "საქაღალდის შექმნა"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__Title": {
+    "messageformat": "შემოთავაზებული საქაღალდეები"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__AddButton": {
+    "messageformat": "დამატება"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__AddButton__Toast": {
+    "messageformat": "საქაღალდე {chatFolderTitle} დამატებულია"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__UnreadFolder__Title": {
+    "messageformat": "წაუკითხავი"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__UnreadFolder__Description": {
+    "messageformat": "წაუკითხავი შეტყობინებები ყველა ჩატიდან"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__DirectChatsFolder__Title": {
+    "messageformat": "ერთი ერთზე ჩატები"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__DirectChatsFolder__Description": {
+    "messageformat": "შეტყობინებები მხოლოდ პირდაპირი ჩატებიდან"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__GroupChatsFolder__Title": {
+    "messageformat": "ჯგუფები"
+  },
+  "icu:Preferences__ChatFoldersPage__SuggestedFoldersSection__GroupChatsFolder__Description": {
+    "messageformat": "მხოლოდ ჯგუფური ჩატების შეტყობინებები"
+  },
+  "icu:Preferences__EditChatFolderPage__Title": {
+    "messageformat": "საქაღალდის შექმნა"
+  },
+  "icu:Preferences__EditChatFolderPage__FolderNameField__Label": {
+    "messageformat": "საქაღალდის სახელი"
+  },
+  "icu:Preferences__EditChatFolderPage__FolderNameField__Placeholder": {
+    "messageformat": "საქაღალდის სახელი (სავალდებულო)"
+  },
+  "icu:Preferences__EditChatFolderPage__IncludedChatsSection__Title": {
+    "messageformat": "შემავალი ჩატები"
+  },
+  "icu:Preferences__EditChatFolderPage__IncludedChatsSection__Help": {
+    "messageformat": "აირჩიე ჩატები, რომელთა გამოჩენაც ამ საქაღალდეში გსურს"
+  },
+  "icu:Preferences__EditChatFolderPage__IncludedChatsSection__AddChatsButton": {
+    "messageformat": "დაამატე ჩატები"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog--IncludedChats__Title": {
+    "messageformat": "შემავალი ჩატები"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog--ExcludedChats__Title": {
+    "messageformat": "გამოტოვე ჩატები"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog__Search__Placeholder": {
+    "messageformat": "ძიება"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog__ChatTypesSection__Title": {
+    "messageformat": "ჩატის ტიპები"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog__ChatTypesSection__DirectChats": {
+    "messageformat": "ერთი ერთზე ჩატები"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog__ChatTypesSection__GroupChats": {
+    "messageformat": "ჯგუფები"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog__RecentChats__Title": {
+    "messageformat": "ბოლო ჩატები"
+  },
+  "icu:Preferences__EditChatFolderPage__SelectChatsDialog__DoneButton": {
+    "messageformat": "შესრულებულია"
+  },
+  "icu:Preferences__EditChatFolderPage__ExceptionsSection__Title": {
+    "messageformat": "გამონაკლისები"
+  },
+  "icu:Preferences__EditChatFolderPage__ExceptionsSection__Help": {
+    "messageformat": "აირჩიე ჩატები, რომელთა გამოჩენაც ამ საქაღალდეში არ გსურს"
+  },
+  "icu:Preferences__EditChatFolderPage__ExceptionsSection__ExcludeChatsButton": {
+    "messageformat": "გამოტოვე ჩატები"
+  },
+  "icu:Preferences__EditChatFolderPage__OnlyShowUnreadChatsCheckbox__Label": {
+    "messageformat": "მხოლოდ წაუკითხავი ჩატების ჩვენება"
+  },
+  "icu:Preferences__EditChatFolderPage__OnlyShowUnreadChatsCheckbox__Description": {
+    "messageformat": "ამ საქაღალდეში გამოჩნდება ჩატები წაუკითხავი წერილებით"
+  },
+  "icu:Preferences__EditChatFolderPage__IncludeMutedChatsCheckbox__Label": {
+    "messageformat": "შეიყვანე ხმა გამორთული ჩატები"
+  },
+  "icu:Preferences__EditChatFolderPage__DeleteFolderButton": {
+    "messageformat": "საქაღალდის წაშლა"
+  },
+  "icu:Preferences__EditChatFolderPage__DeleteChatFolderDialog__Title": {
+    "messageformat": "გსურს ჩატის ეს საქაღალდე წაშალო?"
+  },
+  "icu:Preferences__EditChatFolderPage__DeleteChatFolderDialog__Description": {
+    "messageformat": "ეს საქაღალდე შენი ჩატების სიიდან წაიშლება."
+  },
+  "icu:Preferences__EditChatFolderPage__DeleteChatFolderDialog__DeleteButton": {
+    "messageformat": "წაშლა"
+  },
+  "icu:Preferences__EditChatFolderPage__DeleteChatFolderDialog__CancelButton": {
+    "messageformat": "გაუქმება"
+  },
+  "icu:Preferences__EditChatFolderPage__SaveChangesFolderDialog__Title": {
+    "messageformat": "გსურს, ცვლილებების შენახვა?"
+  },
+  "icu:Preferences__EditChatFolderPage__SaveChangesFolderDialog__Description": {
+    "messageformat": "გსურს, ამ ჩატის საქაღალდეში შენ მიერ განხორციელებული ცვლილებები შეინახოს?"
+  },
+  "icu:Preferences__EditChatFolderPage__SaveChangesFolderDialog__SaveButton": {
+    "messageformat": "შენახვა"
+  },
+  "icu:Preferences__EditChatFolderPage__SaveChangesFolderDialog__DiscardButton": {
+    "messageformat": "გაუქმება"
+  },
+  "icu:Preferences__EditChatFolderPage__SaveButton": {
+    "messageformat": "შენახვა"
+  },
+  "icu:Preferences__EditChatFolderPage__CancelButton": {
+    "messageformat": "გაუქმება"
   },
   "icu:initialSync": {
     "messageformat": "მიმდინარეობს კონტაქტებისა და ჯგუფების სინქრონიზაცია"
@@ -1661,9 +1844,6 @@
   "icu:notificationSenderInGroup": {
     "messageformat": "{sender} {group}-ში"
   },
-  "icu:notificationReaction": {
-    "messageformat": "{sender}-მა შენს შეტყობინებას {emoji}-ით გამოეხმაურა"
-  },
   "icu:notificationReactionMessage": {
     "messageformat": "{sender} {emoji}-ით გამოეხმაურა {message}"
   },
@@ -1814,6 +1994,12 @@
   "icu:ConversationDetails__HeaderButton--Message": {
     "messageformat": "მიწერა"
   },
+  "icu:ConversationDetails--help-section": {
+    "messageformat": "დახმარება"
+  },
+  "icu:ConversationDetails--support-center": {
+    "messageformat": "მხარდაჭერის ცენტრი"
+  },
   "icu:SafetyNumberNotification__viewSafetyNumber": {
     "messageformat": "უსაფრთხოების ნომრის ნახვა"
   },
@@ -1873,6 +2059,9 @@
   },
   "icu:Toast--failed-to-fetch-phone-number": {
     "messageformat": "მობილურის ნომრის მიღება ვერ მოხერხდა. შეამოწმე შენი ინტერნეტ კავშირი და თავიდან სცადე."
+  },
+  "icu:Toast--download-failed": {
+    "messageformat": "ჩამოტვირთვა ვერ მოხერხდა"
   },
   "icu:ToastManager__CannotEditMessage_24": {
     "messageformat": "შეტყობინების რედაქტირება მისი გაგზავნიდან მხოლოდ 24 საათის განმავლობაშია შესაძლებელი."
@@ -2252,6 +2441,213 @@
   "icu:EmojiPicker__button--flag": {
     "messageformat": "დროშა"
   },
+  "icu:FunPicker__Tab--Emojis": {
+    "messageformat": "Emoji"
+  },
+  "icu:FunPicker__Tab--Stickers": {
+    "messageformat": "სტიკერები"
+  },
+  "icu:FunPicker__Tab--Gifs": {
+    "messageformat": "GIF-ები"
+  },
+  "icu:FunPanelEmojis__SearchLabel": {
+    "messageformat": "emoji-ის მოძებნა"
+  },
+  "icu:FunPanelEmojis__SearchPlaceholder": {
+    "messageformat": "emoji-ის მოძებნა"
+  },
+  "icu:FunPanelEmojis__SubNavLabel": {
+    "messageformat": "Emoji კატეგორიები"
+  },
+  "icu:FunPanelEmojis__SubNavCategoryLabel--Recents": {
+    "messageformat": "ბოლოს გამოყენებული"
+  },
+  "icu:FunPanelEmojis__SubNavCategoryLabel--SmileysAndPeople": {
+    "messageformat": "სმაილები & ადამიანები"
+  },
+  "icu:FunPanelEmojis__SubNavCategoryLabel--AnimalsAndNature": {
+    "messageformat": "ცხოველები & ბუნება"
+  },
+  "icu:FunPanelEmojis__SubNavCategoryLabel--FoodAndDrink": {
+    "messageformat": "საკვები & სასმელები"
+  },
+  "icu:FunPanelEmojis__SubNavCategoryLabel--Activities": {
+    "messageformat": "აქტივობები"
+  },
+  "icu:FunPanelEmojis__SubNavCategoryLabel--TravelAndPlaces": {
+    "messageformat": "მოგზაურობა & ადგილები"
+  },
+  "icu:FunPanelEmojis__SubNavCategoryLabel--Objects": {
+    "messageformat": "ობიექტები"
+  },
+  "icu:FunPanelEmojis__SubNavCategoryLabel--Symbols": {
+    "messageformat": "სიმბოლოები"
+  },
+  "icu:FunPanelEmojis__SubNavCategoryLabel--Flags": {
+    "messageformat": "დროშები"
+  },
+  "icu:FunPanelEmojis__SearchResults__EmptyHeading": {
+    "messageformat": "emoji არ მოიძებნა"
+  },
+  "icu:FunPanelEmojis__SkinTonePicker__SelectSkinToneForSelectedEmoji": {
+    "messageformat": "აირჩიე {emojiName}-ის კანის ტონი"
+  },
+  "icu:FunPanelEmojis__ChangeSkinToneButtonLabel": {
+    "messageformat": "შეცვალე კანის ტონის პრეფერენცია"
+  },
+  "icu:FunPanelEmojis__SkinTonePicker__LongPressAccessibilityDescription": {
+    "messageformat": "კანის ტონის ასარჩევად დიდ ხანს დააჭირე"
+  },
+  "icu:FunPanelEmojis__SkinTonePicker__ChooseDefaultLabel": {
+    "messageformat": "აირჩიე შენი კანის ნაგულისხმევი ტონი"
+  },
+  "icu:FunPanelEmojis__SectionTitle--SearchResults": {
+    "messageformat": "ძიების შედეგები"
+  },
+  "icu:FunPanelEmojis__SectionTitle--ThisMessage": {
+    "messageformat": "ეს შეტყობინება"
+  },
+  "icu:FunPanelEmojis__SectionTitle--Recents": {
+    "messageformat": "ბოლოს გამოყენებული"
+  },
+  "icu:FunPanelEmojis__SectionTitle--SmileysAndPeople": {
+    "messageformat": "სმაილები & ადამიანები"
+  },
+  "icu:FunPanelEmojis__SectionTitle--AnimalsAndNature": {
+    "messageformat": "ცხოველები & ბუნება"
+  },
+  "icu:FunPanelEmojis__SectionTitle--FoodAndDrink": {
+    "messageformat": "საკვები & სასმელები"
+  },
+  "icu:FunPanelEmojis__SectionTitle--TravelAndPlaces": {
+    "messageformat": "მოგზაურობა & ადგილები"
+  },
+  "icu:FunPanelEmojis__SectionTitle--Activities": {
+    "messageformat": "აქტივობები"
+  },
+  "icu:FunPanelEmojis__SectionTitle--Objects": {
+    "messageformat": "ობიექტები"
+  },
+  "icu:FunPanelEmojis__SectionTitle--Symbols": {
+    "messageformat": "სიმბოლოები"
+  },
+  "icu:FunPanelEmojis__SectionTitle--Flags": {
+    "messageformat": "დროშები"
+  },
+  "icu:FunPanelEmojis__CustomizeReactionsButtonLabel": {
+    "messageformat": "რეაქციების პერსონალიზირება"
+  },
+  "icu:FunPanelStickers__SearchLabel": {
+    "messageformat": "სტიკერების მოძებნა"
+  },
+  "icu:FunPanelStickers__SearchPlaceholder": {
+    "messageformat": "სტიკერების მოძებნა"
+  },
+  "icu:FunPanelSticker__SubNavLabel": {
+    "messageformat": "სტიკერების ნაკრები"
+  },
+  "icu:FunPanelStickers__SubNavCategoryLabel--Recents": {
+    "messageformat": "ბოლოს გამოყენებული"
+  },
+  "icu:FunPanelStickers__SectionTitle--SearchResults": {
+    "messageformat": "ძიების შედეგები"
+  },
+  "icu:FunPanelStickers__SectionTitle--Recents": {
+    "messageformat": "ბოლოს გამოყენებული"
+  },
+  "icu:FunPanelStickers__SectionTitle--Featured": {
+    "messageformat": "გამორჩეული"
+  },
+  "icu:FunPanelStickers__SearchResults__EmptyHeading": {
+    "messageformat": "სტიკერების მოძებნა ვერ მოხერხდა"
+  },
+  "icu:FunPanelStickers__LightboxDialog__Label": {
+    "messageformat": "სტიკერის წინასწარ ნახვა"
+  },
+  "icu:FunPanelGifs__SearchLabel--Tenor": {
+    "messageformat": "მოძებნე GIF-ები Tenor-ზე"
+  },
+  "icu:FunPanelGifs__SearchPlaceholder--Tenor": {
+    "messageformat": "ძებნა Tenor-ზე"
+  },
+  "icu:FunPanelGifs__SubNavLabel": {
+    "messageformat": "GIF-ების კატეგორიები"
+  },
+  "icu:FunPanelGifs__SubNavCategoryLabel--Recents": {
+    "messageformat": "ბოლოს გამოყენებული"
+  },
+  "icu:FunPanelGifs__SubNavCategoryLabel--Trending": {
+    "messageformat": "ტრენდული"
+  },
+  "icu:FunPanelGifs__SubNavCategoryLabel--Celebrate": {
+    "messageformat": "ზეიმი"
+  },
+  "icu:FunPanelGifs__SubNavCategoryLabel--Love": {
+    "messageformat": "სიყვარული"
+  },
+  "icu:FunPanelGifs__SubNavCategoryLabel--ThumbsUp": {
+    "messageformat": "მოწონება"
+  },
+  "icu:FunPanelGifs__SubNavCategoryLabel--Surprised": {
+    "messageformat": "გაოცებული"
+  },
+  "icu:FunPanelGifs__SubNavCategoryLabel--Excited": {
+    "messageformat": "გახარებული"
+  },
+  "icu:FunPanelGifs__SubNavCategoryLabel--Sad": {
+    "messageformat": "სევდიანი"
+  },
+  "icu:FunPanelGifs__SubNavCategoryLabel--Angry": {
+    "messageformat": "გაბრაზებული"
+  },
+  "icu:FunPanelGifs__SearchResults__LoadingLabel": {
+    "messageformat": "მიმდინარეობს GIF-ების ჩატვირთვა"
+  },
+  "icu:FunPanelGifs__SearchResults__ErrorHeading": {
+    "messageformat": "GIF-ების ჩატვირთვა ვერ მოხერხდა. შეამოწმე ინტერნეტ კავშირი და თავიდან სცადე"
+  },
+  "icu:FunPanelGifs__SearchResults__ErrorRetryButton": {
+    "messageformat": "თავიდან ცდა"
+  },
+  "icu:FunPanelGifs__SearchResults__EmptyHeading": {
+    "messageformat": "GIF-ები ვერ მოიძებნა"
+  },
+  "icu:FunPanelGifs__LightboxDialog__Label": {
+    "messageformat": "GIF-ის წინასწარ ნახვა"
+  },
+  "icu:FunSearch__ClearButtonLabel": {
+    "messageformat": "ძიების გასუფთავება"
+  },
+  "icu:FunSkinTones__List": {
+    "messageformat": "კანის ტონი"
+  },
+  "icu:FunSkinTones__ListItem--None": {
+    "messageformat": "არცერთი"
+  },
+  "icu:FunSkinTones__ListItem--Light": {
+    "messageformat": "კანის ღია ტონი"
+  },
+  "icu:FunSkinTones__ListItem--MediumLight": {
+    "messageformat": "კანის საშუალოდ ღია ტონი"
+  },
+  "icu:FunSkinTones__ListItem--Medium": {
+    "messageformat": "კანის საშუალო ტონი"
+  },
+  "icu:FunSkinTones__ListItem--MediumDark": {
+    "messageformat": "კანის საშუალოდ მუქი ტონი"
+  },
+  "icu:FunSkinTones__ListItem--Dark": {
+    "messageformat": "კანის მუქი ტონი"
+  },
+  "icu:FunButton__Label--FunPicker": {
+    "messageformat": "დაამატე Emoji, სტიკერი ან GIF"
+  },
+  "icu:FunButton__Label--EmojiPicker": {
+    "messageformat": "ემოჯის დამატება"
+  },
+  "icu:FunButton__Label--StickerPicker": {
+    "messageformat": "სტიკერის დამატება"
+  },
   "icu:confirmation-dialog--Cancel": {
     "messageformat": "გაუქმება"
   },
@@ -2288,11 +2684,11 @@
   "icu:Message--update-signal": {
     "messageformat": "Signal-ის განახლება"
   },
-  "icu:Message--tap-to-view-expired": {
+  "icu:Message--tap-to-view--viewed": {
     "messageformat": "ნანახია"
   },
-  "icu:Message--tap-to-view--outgoing": {
-    "messageformat": "მედია-ფაილები"
+  "icu:Message--tap-to-view--media": {
+    "messageformat": "ერთხელ სანახავი მედია-ფაილი"
   },
   "icu:Message--tap-to-view--incoming--expired-toast": {
     "messageformat": "ეს შეტყობინება უკვე ნანახი გაქვს."
@@ -2300,11 +2696,14 @@
   "icu:Message--tap-to-view--outgoing--expired-toast": {
     "messageformat": "ერთხელ სანახავი შეტყობინებები არ ინახება შენი მიმოწერის ისტორიაში."
   },
-  "icu:Message--tap-to-view--incoming": {
-    "messageformat": "ფოტოს ნახვა"
+  "icu:Message--tap-to-view--video": {
+    "messageformat": "ერთხელ სანახავი ვიდეო"
   },
-  "icu:Message--tap-to-view--incoming-video": {
-    "messageformat": "ვიდეოს ნახვა"
+  "icu:Message--tap-to-view--photo": {
+    "messageformat": "ერთხელ სანახავი ფოტო"
+  },
+  "icu:Message--tap-to-view--helper-text": {
+    "messageformat": "სანახავად დააწკაპუნე"
   },
   "icu:Conversation--getDraftPreview--attachment": {
     "messageformat": "(დანართი)"
@@ -2365,6 +2764,9 @@
   },
   "icu:Keyboard--open-sticker-chooser": {
     "messageformat": "სტიკერის ამომრჩევის გახსნა"
+  },
+  "icu:Keyboard--open-gif-chooser": {
+    "messageformat": "GIF-ების ამრჩევის გახსნა"
   },
   "icu:Keyboard--begin-recording-voice-note": {
     "messageformat": "ხმოვანი ჩანიშვნის ჩაწერის დაწყება"
@@ -2498,6 +2900,9 @@
   "icu:Keyboard--toggle-video": {
     "messageformat": "ვიდეოს ჩართვა და გამორთვა"
   },
+  "icu:Keyboard--toggle-preview": {
+    "messageformat": "გაფართოებული წინასწარ ნახვის ჩართვა და გამორთვა"
+  },
   "icu:Keyboard--accept-video-call": {
     "messageformat": "უპასუხე ზარს ვიდეოთი (მხოლოდ ვიდეო ზარები)"
   },
@@ -2560,6 +2965,12 @@
   },
   "icu:SafetyTipsModal__Description": {
     "messageformat": "ფრთხილად იყავი, როცა მიმოწერის მოთხოვნებს უცნობებისგან იღებ. უფრთხილდი:"
+  },
+  "icu:SafetyTipsModal__TipTitle--Fake": {
+    "messageformat": "ყალბი სახელები და ანგარიშები"
+  },
+  "icu:SafetyTipsModal__TipDescription--Fake": {
+    "messageformat": "Signal არასოდეს დაგიკავშირდება შენი სარეგისტრაციო კოდის ან პინ-კოდისთვის. ფრთხილად იყავი თხოვნებთან იმ ანგარიშებიდან, რომლებიც სხვებად ასაღებენ თავს. პროფილის სახელებს მათი ანგარიშის მფლობელი ირჩევს და ვერიფიცირებული არაა."
   },
   "icu:SafetyTipsModal__TipTitle--Crypto": {
     "messageformat": "კრიპტო ან ფულის თაღლითობები"
@@ -2693,6 +3104,12 @@
   "icu:MessageRequests--accept": {
     "messageformat": "დასტური"
   },
+  "icu:MessageRequests--accept-confirm-title": {
+    "messageformat": "გსურს მოთხოვნა დაადასტურო?"
+  },
+  "icu:MessageRequests--accept-confirm-body": {
+    "messageformat": "ყურადღებით გადახედე მოთხოვნებს. პროფილის სახელებს მათი ანგარიშის მფლობელი ირჩევს და ვერიფიცირებული არაა."
+  },
   "icu:MessageRequests--continue": {
     "messageformat": "გაგრძელება"
   },
@@ -2704,6 +3121,51 @@
   },
   "icu:ConversationHero--members": {
     "messageformat": "{count, plural, one {1 წევრი} other {{count,number} წევრი}}"
+  },
+  "icu:ConversationHero--member-list-and-invited": {
+    "messageformat": "{invitesCount, plural, one {{memberList} (+{invitesCount,number} მოწვეული)} other {{memberList} (+{invitesCount,number} მოწვეული)}}"
+  },
+  "icu:ConversationHero--group-members-zero": {
+    "messageformat": "ჯგუფის წევრები ვერ მოიძებნა"
+  },
+  "icu:ConversationHero--group-members-only-you": {
+    "messageformat": "ჯგუფის სხვა წევრები ჯერ არ არიან"
+  },
+  "icu:ConversationHero--group-members-one": {
+    "messageformat": "{member}"
+  },
+  "icu:ConversationHero--group-members-one-and-you": {
+    "messageformat": "{member} და შენ"
+  },
+  "icu:ConversationHero--group-members-two": {
+    "messageformat": "{member1} და {member2}"
+  },
+  "icu:ConversationHero--group-members-two-and-you": {
+    "messageformat": "{member1}, {member2} და შენ"
+  },
+  "icu:ConversationHero--group-members-three": {
+    "messageformat": "{member1}, {member2} და {member3}"
+  },
+  "icu:ConversationHero--group-members-other": {
+    "messageformat": "{remainingCount, plural, one {{member1}, {member2}, {member3} და <clickable>{remainingCount,number} სხვა</clickable>} other {{member1}, {member2}, {member3} და <clickable>{remainingCount,number} სხვა</clickable>}}"
+  },
+  "icu:ConversationHero--group-members-other-and-you": {
+    "messageformat": "{remainingCount, plural, one {{member1}, {member2}, {member3} და <clickable>{remainingCount,number} სხვა</clickable>} other {{member1}, {member2}, {member3} და <clickable>{remainingCount,number} სხვა</clickable>}}"
+  },
+  "icu:ConversationHero--review-carefully": {
+    "messageformat": "ყურადღებით გადახედე"
+  },
+  "icu:ConversationHero--group-names": {
+    "messageformat": "<clickable>ჯგუფის სახელები</clickable> ვერიფიცირებული არაა"
+  },
+  "icu:ConversationHero--profile-names": {
+    "messageformat": "<clickable>პროფილის სახელები</clickable> ვერიფიცირებული არაა"
+  },
+  "icu:ConversationHero--signal-official-chat": {
+    "messageformat": "ეს Signal-ის ოფიციალური და ერთადერთი ჩატია"
+  },
+  "icu:ConversationHero--release-notes": {
+    "messageformat": "გაიგე სიახლეები და გამოშვების შენიშვნები."
   },
   "icu:member-of-1-group": {
     "messageformat": "{group} -ის წევრი"
@@ -2840,11 +3302,29 @@
   "icu:CallControls__JoinLeaveButton--hangup-group": {
     "messageformat": "დატოვება"
   },
+  "icu:CallControls__JoinLeaveButton--hangup-1-1-tooltip": {
+    "messageformat": "ზარის დასრულება"
+  },
+  "icu:CallControls__JoinLeaveButton--hangup-group-tooltip": {
+    "messageformat": "ზარის დატოვება"
+  },
   "icu:CallControls__MutedToast--muted": {
     "messageformat": "მიკროფონი გამორთულია"
   },
   "icu:CallControls__MutedToast--unmuted": {
     "messageformat": "მიკროფონი ჩართულია"
+  },
+  "icu:CallControls__MutedBySomeoneToast": {
+    "messageformat": "{otherName}-მ ხმა გაგითიშა."
+  },
+  "icu:CallControls__SomeoneMutedSomeoneToast": {
+    "messageformat": "{name}-მა {otherName}-ს ხმა გაუთიშა."
+  },
+  "icu:CallControls__YouMutedSomeoneToast": {
+    "messageformat": "{otherName}-ს ხმა გაუთიშე."
+  },
+  "icu:CallControls__YouMutedYourselfToast": {
+    "messageformat": "შენს თავს ხმა სხვა მოწყობილობიდან გაუთიშე."
   },
   "icu:CallControls__LowerHandSuggestionToast": {
     "messageformat": "გსურს, ხელი ჩამოწიო?"
@@ -2918,6 +3398,12 @@
   "icu:calling__pip--off": {
     "messageformat": "ზარის ფანჯრის მთელს ეკრანზე გადიდება"
   },
+  "icu:calling__preview--maximize": {
+    "messageformat": "წინასწარ ნახვის ხედის გადიდება"
+  },
+  "icu:calling__preview--minimize": {
+    "messageformat": "წინასწარ ნახვის ხედის დაპატარავება"
+  },
   "icu:calling__change-view": {
     "messageformat": "ხედის შეცვლა"
   },
@@ -2932,9 +3418,6 @@
   },
   "icu:calling__view_mode--updated": {
     "messageformat": "ხედი განახლდა"
-  },
-  "icu:calling__hangup": {
-    "messageformat": "ზარის დატოვება"
   },
   "icu:calling__SelectPresentingSourcesModal--title": {
     "messageformat": "ეკრანის გაზიარება"
@@ -3090,7 +3573,7 @@
     "messageformat": "ჯგუფში გაწევრიანება ვერ მოხერხდა"
   },
   "icu:GroupV2--join--link-forbidden": {
-    "messageformat": "ამ ჯგუფის ბმულით ჯგუფს ვერ შეუერთდები, რადგან ადმინმა წაგშალა."
+    "messageformat": "ამ ჯგუფის ბმულით ჯგუფს ვერ შეუერთდები, რადგან ადმინისტრატორმა წაგშალა. დაეკონტაქტე ადმინისტრატორს, რომ ისევ დაგამატოს ჯგუფში."
   },
   "icu:GroupV2--join--prompt-with-approval": {
     "messageformat": "სანამ ამ ჯგუფს შეუერთდები, მისმა ადმინებმა უნდა დაადასტურონ შენი მოთხოვნა. როცა გაწევრიანებას ითხოვ, შენი სახელი და ფოტო ჯგუფის წევრებთან გაზიარდება."
@@ -3650,6 +4133,12 @@
   "icu:BadgeSustainerInstructions__instructions__3": {
     "messageformat": "დააჭირე \"Signal-ისთვის დონაციის გაკეთება“ და გამოიწერე"
   },
+  "icu:ProfileMovedModal__title": {
+    "messageformat": "შენი პროფილი გადატანილია"
+  },
+  "icu:ProfileMovedModal__description": {
+    "messageformat": "გახსენი პარამეტრების ჩანართი შენი პროფილის სანახავად და რედაქტირებისთვის."
+  },
   "icu:BackupImportScreen__title": {
     "messageformat": "მიმდინარეობს წერილების სინქრონიზება"
   },
@@ -3698,23 +4187,11 @@
   "icu:BackupImportScreen__error__confirm": {
     "messageformat": "თავიდან ცდა"
   },
-  "icu:BackupImportScreen__skip": {
-    "messageformat": "გამოტოვება"
-  },
-  "icu:BackupImportScreen__skip-confirmation__title": {
-    "messageformat": "გსურს გამოტოვო შეტყობინების გადატანა?"
-  },
-  "icu:BackupImportScreen__skip-confirmation__body": {
-    "messageformat": "თუ გამოტოვებ, ამ მოწყობილობაზე წვდომა არ გექნება არც ერთ შეტყობინებასა ან მედია ფაილზე. შეგიძლია, გამოტოვების შემდეგ ახალი გადატანა დაიწყო. აირჩიე: პარამეტრები > ჩატები > გადატანა."
-  },
-  "icu:BackupImportScreen__skip-confirmation__cancel": {
-    "messageformat": "გაუქმება"
-  },
   "icu:BackupMediaDownloadProgress__title-in-progress": {
-    "messageformat": "მედია ფაილების აღდგენა"
+    "messageformat": "მედია ფაილების სინქრონიზაცია"
   },
   "icu:BackupMediaDownloadProgress__title-paused": {
-    "messageformat": "აღდგენა დროებით შეჩერდა"
+    "messageformat": "სინქრონიზაცია შეჩერდა"
   },
   "icu:BackupMediaDownloadProgress__title-idle": {
     "messageformat": "{totalSize}-დან {currentSize} აღდგენილია"
@@ -3722,14 +4199,20 @@
   "icu:BackupMediaDownloadProgress__description-idle": {
     "messageformat": "მედია ფაილები ჩამოტვირთვას პარალელურად გააგრძელებს"
   },
+  "icu:BackupMediaDownloadProgress__title-offline": {
+    "messageformat": "მედია ფაილების აღდგენა შეჩერდა"
+  },
+  "icu:BackupMediaDownloadProgress__description-offline": {
+    "messageformat": "ველოდებით ინტერნეტ კავშირს..."
+  },
   "icu:BackupMediaDownloadProgress__button-pause": {
-    "messageformat": "გადატანის დროებით შეჩერება"
+    "messageformat": "დაპაუზება"
   },
   "icu:BackupMediaDownloadProgress__button-resume": {
-    "messageformat": "გადატანის გაგრძელება"
+    "messageformat": "გაგრძელება"
   },
   "icu:BackupMediaDownloadProgress__button-cancel": {
-    "messageformat": "გადატანის გაუქმება"
+    "messageformat": "სინქრონიზაციის გაუქმება"
   },
   "icu:BackupMediaDownloadProgress__button-more": {
     "messageformat": "მეტი ოფცია"
@@ -3741,16 +4224,46 @@
     "messageformat": "{currentSize} {totalSize}-დან"
   },
   "icu:BackupMediaDownloadCancelConfirmation__title": {
-    "messageformat": "გსურს, მედია ფაილების გადატანის გაუქმება?"
+    "messageformat": "მედია ფაილების სინქრონიზაციის გაუქმება გსურს?"
   },
   "icu:BackupMediaDownloadCancelConfirmation__description": {
-    "messageformat": "შენი შეტყობინებების და მედია ფაილების აღდგენა არ დასრულებულა. თუ გაუქმებას გადაწყვეტ, პარამეტრებიდან გადატანას ისევ შეძლებ."
+    "messageformat": "შენი მედია ფაილების სინქრონიზაცია არ დასრულებულა. თუ გაუქმებას აირჩევ, ხელახალ სინქრონიზაციას ამ მოწყობილობის თავიდან დაკავშირებით შეძლებ. <learnMoreLink>გაიგე მეტი</learnMoreLink>."
   },
   "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
-    "messageformat": "გადატანის გაგრძელება"
+    "messageformat": "სინქრონიზაციის გაგრძელება"
   },
   "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
-    "messageformat": "გადატანის გაუქმება"
+    "messageformat": "სინქრონიზაციის გაუქმება"
+  },
+  "icu:BackupMediaDownloadProgressSettings__paused--title": {
+    "messageformat": "სინქრონიზაცია შეჩერდა"
+  },
+  "icu:BackupMediaDownloadProgressSettings__paused--description": {
+    "messageformat": "სინქრონიზაციის გასაგრძელებლად დააჭირე ღილაკს {resumeButtonText}"
+  },
+  "icu:BackupMediaDownloadProgressSettings__button-resume": {
+    "messageformat": "გაგრძელება"
+  },
+  "icu:BackupMediaDownloadProgressSettings__button-pause": {
+    "messageformat": "დაპაუზება"
+  },
+  "icu:BackupMediaDownloadProgressSettings__title-in-progress": {
+    "messageformat": "მედია ფაილების სინქრონიზაცია"
+  },
+  "icu:BackupMediaDownloadProgressSettings__progressbar-hint": {
+    "messageformat": "{currentSize} {totalSize} -დან ({fractionComplete,number,percent})..."
+  },
+  "icu:CriticalIdlePrimaryDeviceModal__title": {
+    "messageformat": "ანგარიშთან დაკავშირებით საჭიროა მოქმედება"
+  },
+  "icu:CriticalIdlePrimaryDeviceModal__description": {
+    "messageformat": "ამ ანგარიშის გამოყენების გასაგრძელებლად შენს მობილურში Signal უნდა გახსნა. თუ შენს მობილურში Signal-ს არ გახსნი, მალე შენი ანგარიში წაიშლება. <learnMoreLink>გაიგე მეტი</learnMoreLink>"
+  },
+  "icu:LowDiskSpaceBackupImportModal__title": {
+    "messageformat": "მედია ფაილების აღდგენა ვერ მოხერხდა"
+  },
+  "icu:LowDiskSpaceBackupImportModal__description": {
+    "messageformat": "შენს მოწყობილობას საკმარისი თავისუფალი ადგილი არ აქვს. გაათავისუფლე {diskSpaceAmount} ადგილი, რათა შენი მედია ფაილები აღადგინო."
   },
   "icu:CompositionArea--expand": {
     "messageformat": "გაფართოება"
@@ -3772,6 +4285,15 @@
   },
   "icu:CompositionArea__edit-action--send": {
     "messageformat": "დარედაქტირებული შეტყობინების გაგზავნა"
+  },
+  "icu:CompositionArea__ConfirmGifSelection__Title": {
+    "messageformat": "გსურს დანართი ჩაანაცვლო?"
+  },
+  "icu:CompositionArea__ConfirmGifSelection__Body": {
+    "messageformat": "ამ GIF-ის დამატება შენი წერილის მიმდინარე მონახაზში არსებულ ერთეულს ჩაანაცვლებს."
+  },
+  "icu:CompositionArea__ConfirmGifSelection__ReplaceButton": {
+    "messageformat": "ჩანაცვლება"
   },
   "icu:CompositionInput__editing-message": {
     "messageformat": "შეტყობინების რედაქტირება"
@@ -3989,6 +4511,9 @@
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "მოითხოვე, რომ ადმინმა დაადასტუროს ახალი წევრები, ვინც ჯგუფის ბმულით ცდილობს გაწევრიანებას"
   },
+  "icu:GroupLinkManagement__CopyGroupLinkButtonLabel": {
+    "messageformat": "დააკოპირე signal.group ბმული კლავიატურაზე"
+  },
   "icu:PendingInvites--tab-requests": {
     "messageformat": "მოთხოვნები ({count,number})"
   },
@@ -4193,17 +4718,8 @@
   "icu:ShareCallLinkViaSignal__DraftMessageText": {
     "messageformat": "გამოიყენე ეს ბმული Signal-ის ზარზე შესასვლელად: {url}"
   },
-  "icu:MessageRequestWarning__learn-more": {
-    "messageformat": "გაიგე მეტი"
-  },
   "icu:MessageRequestWarning__safety-tips": {
     "messageformat": "რჩევები უსაფრთხოებაზე"
-  },
-  "icu:MessageRequestWarning__dialog__details": {
-    "messageformat": "შენ არ გაქვს საერთო ჯგუფი ამ ადამიანთან. დადასტურებამდე ყურადღებით განიხილე მოთხოვნები, რათა თავიდან აიცილო არასასურველი შეტყობინებები."
-  },
-  "icu:MessageRequestWarning__dialog__learn-even-more": {
-    "messageformat": "შეტყობინების მოთხოვნების შესახებ"
   },
   "icu:ContactSpoofing__same-name--link": {
     "messageformat": "ყურადღებით გადახედე მოთხოვნებს. Signal-მა სხვა კონტაქტიც იპოვა იმავე სახელით. <reviewRequestLink>მოთხოვნის განხილვა</reviewRequestLink>"
@@ -4350,7 +4866,7 @@
     "messageformat": "გრადიენტის დასრულება"
   },
   "icu:GIF--download": {
-    "messageformat": "Download GIF attachment"
+    "messageformat": "დართული GIF-ის ჩამოტვირთვა"
   },
   "icu:customDisappearingTimeOption": {
     "messageformat": "არასტანდარტული დრო…"
@@ -4607,6 +5123,9 @@
   "icu:ProfileEditorModal--error": {
     "messageformat": "შენი პროფილის განახლება ვერ მოხერხდა. გთხოვთ კიდევ სცადო."
   },
+  "icu:ProfileEditorModal--sharing": {
+    "messageformat": "გაზიარება"
+  },
   "icu:AnnouncementsOnlyGroupBanner--modal": {
     "messageformat": "ადმინისთვის მიწერა"
   },
@@ -4640,6 +5159,9 @@
   "icu:Preferences__button--general": {
     "messageformat": "ზოგადი"
   },
+  "icu:Preferences__button--donate": {
+    "messageformat": "Signal-ისთვის დონაციის გაკეთება"
+  },
   "icu:Preferences__button--appearance": {
     "messageformat": "ვიზუალი"
   },
@@ -4654,6 +5176,57 @@
   },
   "icu:Preferences__button--privacy": {
     "messageformat": "კონფიდენციალურობა"
+  },
+  "icu:Preferences__button--data-usage": {
+    "messageformat": "მონაცემთა გამოყენება"
+  },
+  "icu:Preferences__media-auto-download": {
+    "messageformat": "მედია-ფაილების ავტომატური ჩამოტვირთვა"
+  },
+  "icu:Preferences__media-auto-download__photos": {
+    "messageformat": "ფოტოები"
+  },
+  "icu:Preferences__media-auto-download__videos": {
+    "messageformat": "ვიდეოები"
+  },
+  "icu:Preferences__media-auto-download__audio": {
+    "messageformat": "აუდიო"
+  },
+  "icu:Preferences__media-auto-download__documents": {
+    "messageformat": "დოკუმენტები"
+  },
+  "icu:Preferences__media-auto-download__description": {
+    "messageformat": "ხმოვანი შეტყობინებები და სტიკერები ყოველთვის ავტომატურად იტვირთება."
+  },
+  "icu:Preferences__button--backups": {
+    "messageformat": "სარეზერვო კოპიები"
+  },
+  "icu:Preferences__button--internal": {
+    "messageformat": "შიდა"
+  },
+  "icu:Preferences__button--manage": {
+    "messageformat": "მართვა"
+  },
+  "icu:Preferences__button--choose-folder": {
+    "messageformat": "აირჩიე შენახვის ადგილი"
+  },
+  "icu:Preferences__button--set-up": {
+    "messageformat": "დაყენება"
+  },
+  "icu:Preferences__internal__local-backups": {
+    "messageformat": "ადგილობრივი სათადარიგო ასლები"
+  },
+  "icu:Preferences__internal__export-local-backup": {
+    "messageformat": "ექსპორტი…"
+  },
+  "icu:Preferences__internal__export-local-backup--description": {
+    "messageformat": "ადგილობრივი დაშიფრული სათადარიგო ასლის საქაღალდეში ექსპორტირება და მისი დადასტურება"
+  },
+  "icu:Preferences__internal__validate-backup--description": {
+    "messageformat": "გადაიტანე დაშიფრული სათადარიგო ასლი მეხსიერებაში და გაუშვი მასზე დადასტურების ნაკრები"
+  },
+  "icu:Preferences__internal__validate-backup": {
+    "messageformat": "დადასტურება"
   },
   "icu:Preferences--lastSynced": {
     "messageformat": "ბოლო იმპორტირება {date} -ში {time}-ზე"
@@ -4684,6 +5257,132 @@
   },
   "icu:Preferences--blocked": {
     "messageformat": "დაბლოკილია"
+  },
+  "icu:Preferences--signal-backups": {
+    "messageformat": "Signal-ის სარეზერვო კოპიები"
+  },
+  "icu:Preferences--signal-backups-off-description": {
+    "messageformat": "შექმენი სათადარიგო ასლები Signal-ის დაშიფრული შენახვის სერვისით. დაიწყე შენს ტელეფონზე. <learnMoreLink>გაიგე მეტი</learnMoreLink>."
+  },
+  "icu:Preferences--backup-section-description": {
+    "messageformat": "შექმენი შენი მიმოწერის ისტორიის სათადარიგო ასლები, რათა ახალი მობილურის შეძენისას ან Signal-ის თავიდან გადმოწერისას მონაცემები არ დაკარგო."
+  },
+  "icu:Preferences--backup-details__header": {
+    "messageformat": "სარეზერვო კოპიების დეტალები"
+  },
+  "icu:Preferences--backup-media-plan__description": {
+    "messageformat": "ტექსტისა და ყველა მედია ფაილის სათადარიგო ასლი"
+  },
+  "icu:Preferences--backup-plan-not-found__description": {
+    "messageformat": "შენი გამოწერა ვერ მოიძებნა. განაახლე Signal-ის სათადარიგო ასლების გამოყენების გასაგრძელებლად."
+  },
+  "icu:Preferences--backup-messages-plan__description": {
+    "messageformat": "{mediaDayCount, plural, one {{mediaDayCount,number} დღის ტექსტის + მედია ფაილების სათადარიგო ასლი} other {{mediaDayCount,number} დღის ტექსტის + მედია ფაილების სათადარიგო ასლი}}"
+  },
+  "icu:Preferences--backup-messages-plan__cost-description": {
+    "messageformat": "შენი სათადარიგო ასლების გამოწერა უფასოა"
+  },
+  "icu:Preferences--backup-plan__renewal-date": {
+    "messageformat": "განახლდება {date}-ში"
+  },
+  "icu:Preferences--backup-plan__expiry-date": {
+    "messageformat": "ვადის ამოწურვამდე დარჩა {date}"
+  },
+  "icu:Preferences--backup-plan__canceled": {
+    "messageformat": "გამოწერა გაუქმებულია"
+  },
+  "icu:Preferences--backup-media-plan__note": {
+    "messageformat": "ახლა უკვე შეგიძლია, Signal-ის სათადარიგო ასლების გამოწერა შენს მობილურში მართო ან განაახლო."
+  },
+  "icu:Preferences--backup-messages-plan__note": {
+    "messageformat": "შეგიძლია, Signal-ის სათადარიგო ასლების გამოწერა შენს მობილურში მართო ან განაახლო."
+  },
+  "icu:Preferences--backup-plan__not-found__note": {
+    "messageformat": "შეგიძლია, Signal-ის სათადარიგო ასლების გამოწერა შენს მობილურში მართო ან განაახლო."
+  },
+  "icu:Preferences--backup-created-at__label": {
+    "messageformat": "ბოლოს შექმნილი სარეზერვო კოპია"
+  },
+  "icu:Preferences--backup-created-by-phone": {
+    "messageformat": "შენი მობილური"
+  },
+  "icu:Preferences__local-backups": {
+    "messageformat": "დესკტოპის სათადარიგო ასლები"
+  },
+  "icu:Preferences__local-backups-section__description": {
+    "messageformat": "სარეზერვო ასლები დაშიფრულია გასაღებით და შენს კომპიუტერში ინახება."
+  },
+  "icu:Preferences--local-backups-off-description": {
+    "messageformat": "შექმენი დაშიფრული სათადარიგო ასლი, რომლის აღდგენაც შეგიძლია შენს ტელეფონზე. "
+  },
+  "icu:Preferences--local-backups-restore-info": {
+    "messageformat": "სათადარიგო ასლის აღსადგენად, დააინსტალირე Signal-ის ახალი ასლი. გახსენი აპი და დააჭირე „სათადარიგო ასლის აღდგენა“-ს, შემდეგ იპოვე სათადარიგო საქაღალდე. <learnMoreLink>გაიგე მეტი.</learnMoreLink>"
+  },
+  "icu:Preferences--local-backups-setup-folder": {
+    "messageformat": "აირჩიე საქაღალდე"
+  },
+  "icu:Preferences--local-backups-setup-folder-description": {
+    "messageformat": "შენს კომპიუტერში აირჩიე ფოლდერი, რომელშიც შენი დაშიფრული სათადარიგო ასლები შეინახება."
+  },
+  "icu:Preferences--local-backups-setup-next": {
+    "messageformat": "შემდეგი"
+  },
+  "icu:Preferences--local-backups-view-backup-key-done": {
+    "messageformat": "შესრულებულია"
+  },
+  "icu:Preferences--local-backups-backup-key-text-box": {
+    "messageformat": "სათადარიგო ასლების გასაღები ტექსტის ველი"
+  },
+  "icu:Preferences--local-backups-enter-backup-key": {
+    "messageformat": "შეიყვანე გასაღები"
+  },
+  "icu:Preferences--local-backups-record-backup-key": {
+    "messageformat": "ჩაიწერე შენი სათადარიგო ჩანაწერების გასაღები"
+  },
+  "icu:Preferences--local-backups-record-backup-key-description": {
+    "messageformat": "ეს გასაღები საჭიროა შენი ანგარიშისა და მონაცემების აღსადგენად. შეინახე გასაღები უსაფრთხო ადგილას. თუ მას დაკარგავ, შენი ანგარიშის აღდგენას ვეღარ შეძლებ. <learnMoreLink>გაიგე მეტი.</learnMoreLink>"
+  },
+  "icu:Preferences--local-backups-confirm-backup-key": {
+    "messageformat": "დაადასტურე შენი სათადარიგო ასლების გასაღები"
+  },
+  "icu:Preferences--local-backups-confirm-backup-key-description": {
+    "messageformat": "შეიყვანე სათადარიგო ასლების გასაღები, რომელიც ახლახანს ჩაიწერე"
+  },
+  "icu:Preferences__local-backups-confirm-key-modal-title": {
+    "messageformat": "უსაფრთხოდ შეინახე შენი გასაღები"
+  },
+  "icu:Preferences__local-backups-confirm-key-modal-body": {
+    "messageformat": "გასაღების დაკარგვის შემთხვევაში, მის აღდგენაში Signal-ი ვერ დაგეხმარება. ის სადმე დაცულ ადგილას შეინახე და არავის გაუზიარო."
+  },
+  "icu:Preferences__local-backups-confirm-key-modal-continue": {
+    "messageformat": "გაგრძელება"
+  },
+  "icu:Preferences--local-backups-see-backup-key-again": {
+    "messageformat": "გასაღების თავიდან ნახვა"
+  },
+  "icu:Preferences__local-backups-folder": {
+    "messageformat": "სარეზერვო კოპიების შენახვის ადგილი"
+  },
+  "icu:Preferences__local-backups-folder__change": {
+    "messageformat": "შეცვლა"
+  },
+  "icu:Preferences__local-backups-copy-key": {
+    "messageformat": "ბუფერში ჩაკოპირება"
+  },
+  "icu:Preferences__local-backups-copied-key": {
+    "messageformat": "სათადარიგო ასლების გასაღები დაკოპირებულია"
+  },
+  "icu:Preferences__view-key": {
+    "messageformat": "გასაღების ნახვა"
+  },
+  "icu:Preferences__backup-key": {
+    "messageformat": "სათადარიგო ასლების გასაღები"
+  },
+  "icu:Preferences__backup-key-description": {
+    "messageformat": "შენი სათადარიგო ასლების გასაღები 64 ციფრიანი კოდია, რომელიც შენი ასლების აღსადგენადაა საჭირო"
+  },
+  "icu:Preferences__backup-other-ways": {
+    "messageformat": "სათადარიგო ასლების შექმნის სხვა გზები"
   },
   "icu:Preferences--blocked-count": {
     "messageformat": "{num, plural, one {{num,number} კონტაქტი} other {{num,number} კონტაქტი}}"
@@ -4802,6 +5501,24 @@
   "icu:Preferences__LanguageModal__Restart__Button": {
     "messageformat": "გადატვირთვა"
   },
+  "icu:Preferences__Privacy__Application": {
+    "messageformat": "აპლიკაცია"
+  },
+  "icu:Preferences__content-protection--label": {
+    "messageformat": "ეკრანის უსაფრთხოება"
+  },
+  "icu:Preferences__content-protection--description": {
+    "messageformat": "დამატებითი კონფიდენციალურობისთვის, ამ კომპიუტერზე Signal-ის სქრინშოთების პრევენცია."
+  },
+  "icu:Preferences__content-protection__modal--title": {
+    "messageformat": "გსურს ეკრანის უსაფრთხოების გათიშვა?"
+  },
+  "icu:Preferences__content-protection__modal--body": {
+    "messageformat": "გამორთვის შემთხვევაში, Microsoft Windows-ს საშუალება ექნება Signal-ის სქრინშოთები გადაიღოს და ისინი არაკონფიდენციალური ფუნქციებისთვის გამოიყენოს."
+  },
+  "icu:Preferences__content-protection__modal--disable": {
+    "messageformat": "გამორთვა"
+  },
   "icu:DialogUpdate--version-available": {
     "messageformat": "განახლება ვერსია {version}-ზე ხელმისაწვდომია"
   },
@@ -4810,6 +5527,18 @@
   },
   "icu:DialogUpdate__downloaded": {
     "messageformat": "განახლება გადმოწერილია"
+  },
+  "icu:CriticalIdlePrimaryDevice__title": {
+    "messageformat": "გახსენი Signal-ი შენს ტელეფონში"
+  },
+  "icu:CriticalIdlePrimaryDevice__body": {
+    "messageformat": "თუ შენს მობილურზე Signal-ს არ გახსნი, შენი ანგარიში მალე წაიშლება. თუ ამას წარმატებით გააკეთებ, ეს შეტყობინება გაქრება. <learnMoreLink>გაიგე მეტი</learnMoreLink>"
+  },
+  "icu:IdlePrimaryDevice__body": {
+    "messageformat": "შედი Signal-ზე შენს მობილურში შენი ანგარიშის აქტივობის შესანარჩუნებლად"
+  },
+  "icu:IdlePrimaryDevice__learnMore": {
+    "messageformat": "გაიგე მეტი"
   },
   "icu:DialogNetworkStatus__outage": {
     "messageformat": "Signal-ი ტექნიკურ სირთულეებს განიცდის. ჩვენ ბევრს ვმუშაობთ სერვისის რაც შეიძლება სწრაფად აღდგენისთვის."
@@ -4951,6 +5680,30 @@
   },
   "icu:MediaEditor__crop-preset--9-16": {
     "messageformat": "9:16"
+  },
+  "icu:MediaPermissionsModal__title--microphone": {
+    "messageformat": "მიკროფონზე წვდომის მიცემა"
+  },
+  "icu:MediaPermissionsModal__title--camera": {
+    "messageformat": "შენს კამერაზე წვდომის მიცემა"
+  },
+  "icu:MediaPermissionsModal__subtitle--call": {
+    "messageformat": "ზარზე შესასვლელად ან მის დასაწყებად:"
+  },
+  "icu:MediaPermissionsModal__subtitle--call--camera": {
+    "messageformat": "შენი ვიდეოს ჩასართავად:"
+  },
+  "icu:MediaPermissionsModal__subtitle--voice-note": {
+    "messageformat": "ხმოვანი შეტყობინებების გასაგზავნად:"
+  },
+  "icu:MediaPermissionsModal__step-1": {
+    "messageformat": "ქვემოთ მოცემულ \"{buttonName}-ზე\" დააწკაპუნე"
+  },
+  "icu:MediaPermissionsModal__step-2": {
+    "messageformat": "ჩართე \"Signal\""
+  },
+  "icu:MediaPermissionsModal__open": {
+    "messageformat": "შედი პარამეტრებში"
   },
   "icu:MyStories__title": {
     "messageformat": "ჩემი Stories-ები"
@@ -5538,9 +6291,6 @@
   "icu:UsernameLinkModalBody__reset": {
     "messageformat": "ახლიდან დაყენება"
   },
-  "icu:UsernameLinkModalBody__done": {
-    "messageformat": "შესრულებულია"
-  },
   "icu:UsernameLinkModalBody__color__radio": {
     "messageformat": "მომხმარებლის სახელის ბმულის ფერი, {total,number}-დან {index,number}"
   },
@@ -5609,6 +6359,15 @@
   },
   "icu:MessageMetadata__edited": {
     "messageformat": "დარედაქტებული"
+  },
+  "icu:DraftGifMessageSendModal__Title": {
+    "messageformat": "შეტყობინების დამატება"
+  },
+  "icu:DraftGifMessageSendModal__SendButtonLabel": {
+    "messageformat": "გაგზავნა"
+  },
+  "icu:DraftGifMessageSendModal__CancelButtonLabel": {
+    "messageformat": "გაუქმება"
   },
   "icu:EditHistoryMessagesModal__title": {
     "messageformat": "რედაქტირების ისტორია"
@@ -5829,8 +6588,134 @@
   "icu:WhoCanFindMeReadOnlyToast": {
     "messageformat": "ამ პარამეტრის შესაცვლელად, დააყენე \"ვინ ხედავს ჩემს ნომერს\" \"არავინ\"-ზე."
   },
+  "icu:ProfileNameWarningModal__description--direct": {
+    "messageformat": "Signal-ზე პროფილის სახელებს ანგარიშის მფლობელები ირჩევენ:"
+  },
+  "icu:ProfileNameWarningModal__list--item1--direct": {
+    "messageformat": "პროფილის სახელები დადასტურებული არაა"
+  },
+  "icu:ProfileNameWarningModal__list--item2--direct": {
+    "messageformat": "ფრთხილად იყავი ანგარიშებთან, რომლებიც სხვებად ასაღებენ თავს"
+  },
+  "icu:ProfileNameWarningModal__list--item3--direct": {
+    "messageformat": "არ გაუზიარო პირადი ინფორმაცია უცნობებს"
+  },
+  "icu:ProfileNameWarningModal__description--group": {
+    "messageformat": "ჯგუფის სახელებს ჯგუფის წევრები ირჩევენ."
+  },
+  "icu:ProfileNameWarningModal__list--item1--group": {
+    "messageformat": "ფრთხილად იყავი ჯგუფებთან, რომლებიც ორგანიზაციებად და ბიზნესებად ასაღებენ თავს"
+  },
+  "icu:ProfileNameWarningModal__list--item2--group": {
+    "messageformat": "ჯგუფების წევრების პროფილის სახელები დადასტურებული არ არის"
+  },
+  "icu:ProfileNameWarningModal__list--item3--group": {
+    "messageformat": "არ გაუზიარო პირადი ინფორმაცია უცნობებს"
+  },
+  "icu:SaveMultiDialog__title": {
+    "messageformat": "დანართების შენახვა"
+  },
   "icu:WhatsNew__modal-title": {
     "messageformat": "რა არის ახალი"
+  },
+  "icu:PreferencesDonations__title": {
+    "messageformat": "ჩვენთვის კონფიდენციალურობა მოგებაზე მაღლა დგას"
+  },
+  "icu:PreferencesDonations__description": {
+    "messageformat": "კონფიდენციალური მიმოწერა, რომელიც შენით ფინანსდება. არანაირი რეკლამა, არანაირი ტრეკერები, არანაირი კომპრომისი. გააკეთე დონაცია ახლა, რათა მხარი დაუჭირო Signal-ს. <learnMoreLink>გაიგე მეტი</learnMoreLink>"
+  },
+  "icu:PreferencesDonations__donate-button": {
+    "messageformat": "გააკეთე დონაცია"
+  },
+  "icu:PreferencesDonations__donate-button-with-amount": {
+    "messageformat": "Donate {formattedCurrencyAmount}"
+  },
+  "icu:PreferencesDonations__mobile-info": {
+    "messageformat": "ემბლემებისა და ყოველთვიური დონაციების მართვა შენს მობილურ მოწყობილობაზეა შესაძლებელი."
+  },
+  "icu:PreferencesDonations__receipts": {
+    "messageformat": "ქვითრები"
+  },
+  "icu:PreferencesDonations__faqs": {
+    "messageformat": "დონაციის ხდკ"
+  },
+  "icu:PreferencesDonations--receiptList__info": {
+    "messageformat": "ქვითრები სხვადასხვა მოწყობილობაზე არ სინქრონიზდება. თუ Signal-ი ხელახლა გადმოწერე, წინა დონაციების ქვითრები არ იქნება ხელმისაწვდომი."
+  },
+  "icu:PreferencesDonations--receiptList__empty-title": {
+    "messageformat": "ქვითრები ვერ მოიძებნა"
+  },
+  "icu:PreferencesDonations__ReceiptModal--title": {
+    "messageformat": "Details"
+  },
+  "icu:PreferencesDonations__ReceiptModal--download": {
+    "messageformat": "ჩამოტვირთე ქვითარი"
+  },
+  "icu:PreferencesDonations__ReceiptModal--type-label": {
+    "messageformat": "ტიპი"
+  },
+  "icu:PreferencesDonations__ReceiptModal--date-paid-label": {
+    "messageformat": "გადახდის დღე"
+  },
+  "icu:DonationReceipt__title": {
+    "messageformat": "დონაციის ქვითარი"
+  },
+  "icu:DonationReceipt__amount-label": {
+    "messageformat": "თანხა"
+  },
+  "icu:DonationReceipt__type-label": {
+    "messageformat": "ტიპი"
+  },
+  "icu:DonationReceipt__date-paid-label": {
+    "messageformat": "გადახდის დღე"
+  },
+  "icu:DonationReceipt__type-value--one-time": {
+    "messageformat": "ერთჯერადად"
+  },
+  "icu:DonationReceipt__footer-text": {
+    "messageformat": "მადლობა Signal-ის მხარდაჭერისთვის. შენი წვლილი ხელს უწყობს გამოხატვის თავისუფლების დაცვისა და მთელ მსოფლიოში მილიონობით ადამიანისთვის უსაფრთხო გლობალური კომუნიკაციის უზრუნველყოფის მისიის განხორციელებას ღია კოდის კონფიდენციალურობის ტექნოლოგიების მეშვეობით. თუ შეერთებული შტატების რეზიდენტი ხარ, გთხოვთ, ეს ქვითარი შენი საგადასახადო ჩანაწერებისთვის შეინახო. Signal-ის ტექნოლოგიების ფონდი არის გადასახადებისგან გათავისუფლებული არაკომერციული ორგანიზაცია შეერთებულ შტატებში, Internal Revenue Code-ის 501c3 მუხლის შესაბამისად. ჩვენი ფედერალური საგადასახადო ID არის 82-4506840."
+  },
+  "icu:Donations__PaymentMethodDeclined": {
+    "messageformat": "Payment method declined"
+  },
+  "icu:Donations__PaymentMethodDeclined__Description": {
+    "messageformat": "Try another payment method or contact your bank for more information."
+  },
+  "icu:Donations__ErrorProcessingDonation": {
+    "messageformat": "Error processing donation"
+  },
+  "icu:Donations__ErrorProcessingDonation__Description": {
+    "messageformat": "Try another payment method or contact your bank for more information."
+  },
+  "icu:Donations__Failed3dsValidation": {
+    "messageformat": "Verification Failed"
+  },
+  "icu:Donations__Failed3dsValidation__Description": {
+    "messageformat": "Additional verification step failed. Please try again."
+  },
+  "icu:Donations__GenericError": {
+    "messageformat": "An error occurred with your donation"
+  },
+  "icu:Donations__GenericError__Description": {
+    "messageformat": "Your donation might not have been processed. Click on “Donate to Signal” and then “Donation Receipts” to check your receipts and confirm."
+  },
+  "icu:Donations__Processing": {
+    "messageformat": "Processing donation..."
+  },
+  "icu:Donations__StillProcessing": {
+    "messageformat": "Still processing"
+  },
+  "icu:Donations__StillProcessing__Description": {
+    "messageformat": "Your donation is still being processed. This can take a few minutes."
+  },
+  "icu:Donations__3dsValidationNeeded": {
+    "messageformat": "Additional verification required"
+  },
+  "icu:Donations__3dsValidationNeeded__Description": {
+    "messageformat": "Your credit card issuer requires an additional verification step in a web browser."
+  },
+  "icu:Donations__3dsValidationNeeded__OpenBrowser": {
+    "messageformat": "Open browser"
   },
   "icu:WhatsNew__bugfixes": {
     "messageformat": "ეს ვერსია შეიცავს უამრავ მცირე შესწორებას და ბაგების გამოსწორებებს Signal-ის შეუფერხებლად მუშაობის შესანარჩუნებლად.",
@@ -5860,10 +6745,16 @@
     "messageformat": "მცირე შესწორებები, ბაგების გამოსწორება და წარმადობის გაუმჯობესება. მადლობას გიხდით სიგნალის გამოყენებისთვის!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.44--0": {
-    "messageformat": "ჯგუფური ზარების დროს დაფიქსირებული ანიმაციის პატარა ბაგი გამოვასწორეთ. ბოდიშს გიხდით წინასწარ, თუ შენი დღის ყველაზე საინტერესო ნაწილი გრიდ ვიუზე გადასვლა და იმ მომენტის დაჭერა იყო, როცა შეხვედრაზე გვიან შემოსული მონაწილეების ვიდეო ფანჯრები შენი უფროსის პრეზენტაციის სლაიდებს ფარავდა."
+  "icu:WhatsNew__v7.58--0": {
+    "messageformat": "შეტყობინებებზე რეაქციის ასარჩევში ახალი სექცია ავტომატურად აჩვენებს ყველა ემოჯი რეაქციას, რაც შეტყობინებამ მიიღო. ახლა უსწრაფესად შეგიძლია შეუერთდე რეაქციებს და სტანდარტული ბრჭყვიალა გული დაამატო ან შეგიძლია შენი გულის თქმას მიჰყვე და ანატომიური გულით ჩაანაცვლო."
   },
-  "icu:WhatsNew__v7.45--0": {
-    "messageformat": "Stickers should feel sticky, not stuck, so now you can click on a sticker on a newly linked Signal Desktop and that sticker download will automatically get prioritized even when other attachments are downloading too."
+  "icu:WhatsNew__v7.59--0": {
+    "messageformat": "ახალი ვერსია უზრუნველყოფს GPU აჩქარებას Linux-ზე გაუმჯობესებული პერფორმანსისა და ვიდეოს ყურების უფრო უნაკლო გამოცდილებისთვის."
+  },
+  "icu:WhatsNew__v7.61--0": {
+    "messageformat": "ამ განახლებაში გავაუმჯობესეთ აუდიოს ხარისხი და საიმედოობა ხმოვანი თუ ვიდეო ზარების დროს. ასევე, დავნერგეთ დაკავშირებული მიკროფონებისა და დინამიკების უკეთესი ავტომატური კონფიგურაცია. მადლობა <padenot></padenot>-ს, <kinetiknz></kinetiknz>-სა და <Pehrsons></Pehrsons>-ს Mozilla-დან ამ პროექტში გაწეული დახმარებისთვის."
+  },
+  "icu:WhatsNew__v7.62--0": {
+    "messageformat": "ჩვენ გამოვასწორეთ იშვიათი ბაგი, რომელიც ზოგიერთ კონტაქტს სწორ სინქრონიზაციაში ხელს უშლიდა."
   }
 }

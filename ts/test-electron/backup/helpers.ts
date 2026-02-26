@@ -65,7 +65,6 @@ function sortAndNormalize(
       changedId,
       conversationId,
       editHistory,
-      key_changed: keyChanged,
       reactions,
       sendStateByConversationId,
       verifiedChanged,
@@ -111,9 +110,6 @@ function sortAndNormalize(
     return JSON.parse(
       JSON.stringify({
         // Defaults
-        hasAttachments: false,
-        hasFileAttachments: false,
-        hasVisualMediaAttachments: false,
         isErased: false,
         isViewOnce: false,
         mentionsMe: false,
@@ -132,7 +128,6 @@ function sortAndNormalize(
           };
         }),
         changedId: mapConvoId(changedId),
-        key_changed: mapConvoId(keyChanged),
         verifiedChanged: mapConvoId(verifiedChanged),
         sendStateByConverationId: mapSendState(sendStateByConversationId),
         editHistory: editHistory?.map(history => {
@@ -280,11 +275,4 @@ export async function setupBasics(): Promise<void> {
     systemGivenName: 'ME',
     profileKey: Bytes.toBase64(PROFILE_KEY),
   });
-
-  window.Events = {
-    ...window.Events,
-    getTypingIndicatorSetting: () =>
-      window.storage.get('typingIndicators', false),
-    getLinkPreviewSetting: () => window.storage.get('linkPreviews', false),
-  };
 }

@@ -31,16 +31,6 @@ export class EmptyEvent extends Event {
   }
 }
 
-export class ProgressEvent extends Event {
-  public readonly count: number;
-
-  constructor({ count }: { count: number }) {
-    super('progress');
-
-    this.count = count;
-  }
-}
-
 export type TypingEventData = Readonly<{
   typingMessage: Proto.ITypingMessage;
   timestamp: number;
@@ -146,12 +136,9 @@ export type SuccessfulDecryptEventData = Readonly<{
   timestamp: number;
 }>;
 
-export class SuccessfulDecryptEvent extends ConfirmableEvent {
-  constructor(
-    public readonly data: SuccessfulDecryptEventData,
-    confirm: ConfirmCallback
-  ) {
-    super('successful-decrypt', confirm);
+export class SuccessfulDecryptEvent extends Event {
+  constructor(public readonly data: SuccessfulDecryptEventData) {
+    super('successful-decrypt');
   }
 }
 
@@ -338,6 +325,9 @@ export type MessageRequestResponseOptions = {
   messageRequestResponseType: Proto.SyncMessage.IMessageRequestResponse['type'];
   groupId?: string;
   groupV2Id?: string;
+  receivedAtCounter: number;
+  receivedAtMs: number;
+  sentAt: number;
 };
 
 export class MessageRequestResponseEvent extends ConfirmableEvent {
@@ -351,6 +341,12 @@ export class MessageRequestResponseEvent extends ConfirmableEvent {
 
   public readonly envelopeId?: string;
 
+  public readonly receivedAtMs: number;
+
+  public readonly receivedAtCounter: number;
+
+  public readonly sentAt: number;
+
   constructor(
     {
       envelopeId,
@@ -358,6 +354,9 @@ export class MessageRequestResponseEvent extends ConfirmableEvent {
       messageRequestResponseType,
       groupId,
       groupV2Id,
+      receivedAtMs,
+      receivedAtCounter,
+      sentAt,
     }: MessageRequestResponseOptions,
     confirm: ConfirmCallback
   ) {
@@ -368,6 +367,9 @@ export class MessageRequestResponseEvent extends ConfirmableEvent {
     this.messageRequestResponseType = messageRequestResponseType;
     this.groupId = groupId;
     this.groupV2Id = groupV2Id;
+    this.receivedAtMs = receivedAtMs;
+    this.receivedAtCounter = receivedAtCounter;
+    this.sentAt = sentAt;
   }
 }
 
@@ -491,7 +493,7 @@ export class DeviceNameChangeSyncEvent extends ConfirmableEvent {
   }
 }
 
-const messageToDeleteSchema = z.union([
+const addressableMessageSchema = z.union([
   z.object({
     type: z.literal('aci').readonly(),
     authorAci: z.string().refine(isAciString),
@@ -509,9 +511,9 @@ const messageToDeleteSchema = z.union([
   }),
 ]);
 
-export type MessageToDelete = z.infer<typeof messageToDeleteSchema>;
+export type AddressableMessage = z.infer<typeof addressableMessageSchema>;
 
-const conversationToDeleteSchema = z.union([
+const conversationIdentifierSchema = z.union([
   z.object({
     type: z.literal('aci').readonly(),
     aci: z.string().refine(isAciString),
@@ -530,32 +532,34 @@ const conversationToDeleteSchema = z.union([
   }),
 ]);
 
-export type ConversationToDelete = z.infer<typeof conversationToDeleteSchema>;
+export type ConversationIdentifier = z.infer<
+  typeof conversationIdentifierSchema
+>;
 
 export const deleteMessageSchema = z.object({
   type: z.literal('delete-message').readonly(),
-  conversation: conversationToDeleteSchema,
-  message: messageToDeleteSchema,
+  conversation: conversationIdentifierSchema,
+  message: addressableMessageSchema,
   timestamp: z.number(),
 });
 export type DeleteMessageSyncTarget = z.infer<typeof deleteMessageSchema>;
 export const deleteConversationSchema = z.object({
   type: z.literal('delete-conversation').readonly(),
-  conversation: conversationToDeleteSchema,
-  mostRecentMessages: z.array(messageToDeleteSchema),
-  mostRecentNonExpiringMessages: z.array(messageToDeleteSchema).optional(),
+  conversation: conversationIdentifierSchema,
+  mostRecentMessages: z.array(addressableMessageSchema),
+  mostRecentNonExpiringMessages: z.array(addressableMessageSchema).optional(),
   isFullDelete: z.boolean(),
   timestamp: z.number(),
 });
 export const deleteLocalConversationSchema = z.object({
   type: z.literal('delete-local-conversation').readonly(),
-  conversation: conversationToDeleteSchema,
+  conversation: conversationIdentifierSchema,
   timestamp: z.number(),
 });
 export const deleteAttachmentSchema = z.object({
   type: z.literal('delete-single-attachment').readonly(),
-  conversation: conversationToDeleteSchema,
-  message: messageToDeleteSchema,
+  conversation: conversationIdentifierSchema,
+  message: addressableMessageSchema,
   clientUuid: z.string().optional(),
   fallbackDigest: z.string().optional(),
   fallbackPlaintextHash: z.string().optional(),
@@ -580,6 +584,41 @@ export class DeleteForMeSyncEvent extends ConfirmableEvent {
     confirm: ConfirmCallback
   ) {
     super('deleteForMeSync', confirm);
+  }
+}
+
+export type AttachmentBackfillAttachmentType = Readonly<
+  | {
+      attachment: ProcessedAttachment;
+    }
+  | {
+      status: Proto.SyncMessage.AttachmentBackfillResponse.AttachmentData.Status;
+    }
+>;
+
+export type AttachmentBackfillResponseSyncEventData = Readonly<
+  {
+    targetMessage: AddressableMessage;
+    targetConversation: ConversationIdentifier;
+  } & (
+    | {
+        error: Proto.SyncMessage.AttachmentBackfillResponse.Error;
+      }
+    | {
+        attachments: ReadonlyArray<AttachmentBackfillAttachmentType>;
+        longText: AttachmentBackfillAttachmentType | undefined;
+      }
+  )
+>;
+
+export class AttachmentBackfillResponseSyncEvent extends ConfirmableEvent {
+  constructor(
+    public readonly response: AttachmentBackfillResponseSyncEventData,
+    public readonly timestamp: number,
+    public readonly envelopeId: string,
+    confirm: ConfirmCallback
+  ) {
+    super('attachmentBackfillResponseSync', confirm);
   }
 }
 

@@ -7,18 +7,17 @@ import type { Meta } from '@storybook/react';
 import { IMAGE_JPEG } from '../types/MIME';
 import type { Props } from './CompositionArea';
 import { CompositionArea } from './CompositionArea';
-import { setupI18n } from '../util/setupI18n';
-import enMessages from '../../_locales/en/messages.json';
 import { StorybookThemeContext } from '../../.storybook/StorybookThemeContext';
 
-import { fakeDraftAttachment } from '../test-both/helpers/fakeAttachment';
+import { fakeDraftAttachment } from '../test-helpers/fakeAttachment';
 import { landscapeGreenUrl } from '../storybook/Fixtures';
 import { RecordingState } from '../types/AudioRecorder';
 import { ConversationColors } from '../types/Colors';
-import { getDefaultConversation } from '../test-both/helpers/getDefaultConversation';
+import { getDefaultConversation } from '../test-helpers/getDefaultConversation';
 import { PaymentEventKind } from '../types/Payment';
+import { EmojiSkinTone } from './fun/data/emojis';
 
-const i18n = setupI18n('en', enMessages);
+const { i18n } = window.SignalContext;
 
 export default {
   title: 'Components/CompositionArea',
@@ -86,9 +85,9 @@ export default {
     sortedGroupMembers: [],
     // EmojiButton
     onPickEmoji: action('onPickEmoji'),
-    onSetSkinTone: action('onSetSkinTone'),
+    onEmojiSkinToneDefaultChange: action('onEmojiSkinToneDefaultChange'),
     recentEmojis: [],
-    skinTone: 1,
+    emojiSkinToneDefault: EmojiSkinTone.Type1,
     // StickerButton
     knownPacks: [],
     receivedPacks: [],

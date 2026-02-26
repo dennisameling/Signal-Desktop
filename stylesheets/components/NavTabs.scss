@@ -25,6 +25,7 @@ $NavTabs__ProfileAvatar__size: 28px;
   width: variables.$NavTabs__width;
   height: 100%;
   padding-top: var(--title-bar-drag-area-height);
+  padding-bottom: 8px;
   @include mixins.light-theme {
     background-color: variables.$color-gray-04;
     border-inline-end: 1px solid variables.$color-black-alpha-16;
@@ -141,12 +142,17 @@ $NavTabs__ProfileAvatar__size: 28px;
 .NavTabs__ItemUpdateBadge {
   background: variables.$color-ultramarine;
   border-radius: 100%;
-  border: 1px solid variables.$color-white;
   height: 8px;
   width: 8px;
   position: absolute;
   top: 0;
   inset-inline-end: 0;
+  @include mixins.light-theme {
+    border: 1px solid variables.$color-white;
+  }
+  @include mixins.dark-theme {
+    border: 1px solid variables.$color-gray-80;
+  }
 }
 
 .NavTabs__ItemIcon {
@@ -170,6 +176,10 @@ $NavTabs__ProfileAvatar__size: 28px;
 
 .NavTabs__ItemIcon--Settings {
   @include NavTabs__Icon('../images/icons/v3/settings/settings.svg');
+  .NavTabs__Item:active &,
+  .NavTabs__Item[aria-selected='true'] & {
+    @include NavTabs__Icon('../images/icons/v3/settings/settings-fill.svg');
+  }
 }
 
 .NavTabs__ItemIcon--Chats {
@@ -201,11 +211,29 @@ $NavTabs__ProfileAvatar__size: 28px;
 }
 
 .NavTabs__TabList {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows:
+    [Chats] auto
+    [Calls] auto
+    [Stories] auto
+    1fr
+    [Settings] auto;
   align-items: center;
   width: 100%;
   flex: 1;
+}
+
+.NavTabs__Item--Chats {
+  grid-row: Chats;
+}
+.NavTabs__Item--Calls {
+  grid-row: Calls;
+}
+.NavTabs__Item--Stories {
+  grid-row: Stories;
+}
+.NavTabs__Item--Settings {
+  grid-row: Settings;
 }
 
 .NavTabs__Misc {
@@ -213,7 +241,6 @@ $NavTabs__ProfileAvatar__size: 28px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-bottom: 8px;
 }
 
 .NavTabs__TabPanel {

@@ -22,7 +22,7 @@ import {
 } from '../messages/MessageSendState';
 import { DataReader, DataWriter } from '../sql/Client';
 import type { DeleteSentProtoRecipientOptionsType } from '../sql/Interface';
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import { getSourceServiceId } from '../messages/helpers';
 import { getMessageSentTimestamp } from '../util/getMessageSentTimestamp';
 import { getMessageIdForLogging } from '../util/idForLogging';
@@ -34,8 +34,12 @@ import {
 import { drop } from '../util/drop';
 import { getMessageById } from '../messages/getMessageById';
 import { MessageModel } from '../models/messages';
+import { areStoryViewReceiptsEnabled } from '../types/Stories';
 
-const { deleteSentProtoRecipient, removeSyncTaskById } = DataWriter;
+const log = createLogger('MessageReceipts');
+
+const { deleteSentProtoRecipient, removeSyncTasks, removeSyncTaskById } =
+  DataWriter;
 
 export const messageReceiptTypeSchema = z.enum(['Delivery', 'Read', 'View']);
 
@@ -160,7 +164,7 @@ const processReceiptBatcher = createWaitBatcher({
             // Nope, no target message was found
             const { receiptSync } = receipt;
             log.info(
-              'MessageReceipts.processReceiptBatcher: No message for receipt',
+              'processReceiptBatcher: No message for receipt',
               receiptSync.messageSentAt,
               receiptSync.type,
               receiptSync.sourceConversationId,
@@ -197,9 +201,21 @@ async function processReceiptsForMessage(
     );
   }
 
-  const { validReceipts } = await updateMessageWithReceipts(message, receipts);
+  const { droppedReceipts, validReceipts } = await updateMessageWithReceipts(
+    message,
+    receipts
+  );
 
-  await window.MessageCache.saveMessage(message.attributes);
+  await Promise.all([
+    window.MessageCache.saveMessage(message.attributes),
+    removeSyncTasks(
+      droppedReceipts.map(item => {
+        const { syncTaskId } = item;
+        cachedReceipts.delete(syncTaskId);
+        return syncTaskId;
+      })
+    ),
+  ]);
 
   // Confirm/remove receipts, and delete sent protos
   for (const receipt of validReceipts) {
@@ -219,6 +235,7 @@ async function updateMessageWithReceipts(
   message: MessageModel,
   receipts: Array<MessageReceiptAttributesType>
 ): Promise<{
+  droppedReceipts: Array<MessageReceiptAttributesType>;
   validReceipts: Array<MessageReceiptAttributesType>;
 }> {
   const logId = `updateMessageWithReceipts(timestamp=${message.get('timestamp')})`;
@@ -244,7 +261,8 @@ async function updateMessageWithReceipts(
 
   log.info(
     `${logId}: batch processing ${receipts.length}` +
-      ` receipt${receipts.length === 1 ? '' : 's'}`
+      ` receipt${receipts.length === 1 ? '' : 's'}` +
+      `, dropped count: ${droppedReceipts.length}`
   );
 
   // Generate the updated message synchronously
@@ -257,7 +275,7 @@ async function updateMessageWithReceipts(
   }
   message.set(attributes);
 
-  return { validReceipts: receiptsToProcess };
+  return { droppedReceipts, validReceipts: receiptsToProcess };
 }
 
 const deleteSentProtoBatcher = createWaitBatcher({
@@ -265,9 +283,7 @@ const deleteSentProtoBatcher = createWaitBatcher({
   wait: DELETE_SENT_PROTO_BATCHER_WAIT_MS,
   maxSize: 30,
   async processBatch(items: Array<DeleteSentProtoRecipientOptionsType>) {
-    log.info(
-      `MessageReceipts: Batching ${items.length} sent proto recipients deletes`
-    );
+    log.info(`Batching ${items.length} sent proto recipients deletes`);
     const { successfulPhoneNumberShares } =
       await deleteSentProtoRecipient(items);
 
@@ -277,10 +293,7 @@ const deleteSentProtoBatcher = createWaitBatcher({
         continue;
       }
 
-      log.info(
-        'MessageReceipts: unsetting shareMyPhoneNumber ' +
-          `for ${convo.idForLogging()}`
-      );
+      log.info(`unsetting shareMyPhoneNumber for ${convo.idForLogging()}`);
 
       // `deleteSentProtoRecipient` has already updated the database so there
       // is no need in calling `updateConversation`
@@ -334,7 +347,7 @@ function getTargetMessage({
         UNDELIVERED_SEND_STATUSES.includes(sendStatus)
       ) {
         log.warn(
-          'MessageReceipts.getTargetMessage: received receipt for undelivered message, ' +
+          'getTargetMessage: received receipt for undelivered message, ' +
             `status: ${sendStatus}, ` +
             `sourceConversationId: ${sourceConversationId}, ` +
             `message: ${getMessageIdForLogging(msg)}.`
@@ -383,7 +396,7 @@ const shouldDropReceipt = (
       return !window.storage.get('read-receipt-setting');
     case messageReceiptTypeSchema.Enum.View:
       if (isStory(message)) {
-        return !window.Events.getStoryViewReceiptsEnabled();
+        return !areStoryViewReceiptsEnabled();
       }
       return !window.storage.get('read-receipt-setting');
     default:
@@ -543,7 +556,7 @@ async function addToDeleteSentProtoBatcher(
       });
     } else {
       log.warn(
-        `MessageReceipts.deleteSentProto(sentAt=${messageSentAt}): ` +
+        `deleteSentProto(sentAt=${messageSentAt}): ` +
           `Missing serviceId or deviceId for deliveredTo ${sourceConversationId}`
       );
     }

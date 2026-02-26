@@ -40,6 +40,7 @@ import type {
 import { EditConversationAttributesModal } from './EditConversationAttributesModal';
 import { RequestState } from './util';
 import { getCustomColorStyle } from '../../../util/getCustomColorStyle';
+import { openLinkInWebBrowser } from '../../../util/openLinkInWebBrowser';
 import { ConfirmationDialog } from '../../ConfirmationDialog';
 import { ConversationNotificationsModal } from './ConversationNotificationsModal';
 import type {
@@ -52,7 +53,7 @@ import { isConversationMuted } from '../../../util/isConversationMuted';
 import { ConversationDetailsGroups } from './ConversationDetailsGroups';
 import { PanelType } from '../../../types/Panels';
 import { type CallHistoryGroup } from '../../../types/CallDisposition';
-import { NavTab } from '../../../state/ducks/nav';
+import { NavTab } from '../../../types/Nav';
 import { ContextMenu } from '../../ContextMenu';
 import { canHaveNicknameAndNote } from '../../../util/nicknames';
 import { CallHistoryGroupPanelSection } from './CallHistoryGroupPanelSection';
@@ -60,9 +61,11 @@ import {
   InAnotherCallTooltip,
   getTooltipContent,
 } from '../InAnotherCallTooltip';
+import { BadgeSustainerInstructionsDialog } from '../../BadgeSustainerInstructionsDialog';
 
 enum ModalState {
   AddingGroupMembers,
+  BecomeSustainer,
   ConfirmDeleteNicknameAndNote,
   EditingGroupDescription,
   EditingGroupTitle,
@@ -90,8 +93,10 @@ export type StateProps = {
   maxRecommendedGroupSize: number;
   memberships: ReadonlyArray<GroupV2Membership>;
   pendingApprovalMemberships: ReadonlyArray<GroupV2RequestingMembership>;
+  pendingAvatarDownload?: boolean;
   pendingMemberships: ReadonlyArray<GroupV2PendingMembership>;
   selectedNavTab: NavTab;
+  startAvatarDownload: () => void;
   theme: ThemeType;
   userAvatarData: ReadonlyArray<AvatarDataType>;
   renderChooseGroupMembersModal: (
@@ -193,6 +198,7 @@ export function ConversationDetails({
   onOutgoingAudioCallInConversation,
   onOutgoingVideoCallInConversation,
   pendingApprovalMemberships,
+  pendingAvatarDownload,
   pendingMemberships,
   pushPanelForConversation,
   renderChooseGroupMembersModal,
@@ -206,6 +212,7 @@ export function ConversationDetails({
   showContactModal,
   showConversation,
   showLightbox,
+  startAvatarDownload,
   theme,
   toggleAboutContactModal,
   toggleSafetyNumberModal,
@@ -244,6 +251,11 @@ export function ConversationDetails({
   switch (modalState) {
     case ModalState.NothingOpen:
       modalNode = undefined;
+      break;
+    case ModalState.BecomeSustainer:
+      modalNode = (
+        <BadgeSustainerInstructionsDialog i18n={i18n} onClose={onCloseModal} />
+      );
       break;
     case ModalState.EditingGroupDescription:
     case ModalState.EditingGroupTitle:
@@ -401,6 +413,8 @@ export function ConversationDetails({
         isGroup={isGroup}
         isSignalConversation={isSignalConversation}
         membersCount={conversation.membersCount ?? null}
+        pendingAvatarDownload={pendingAvatarDownload ?? false}
+        startAvatarDownload={startAvatarDownload}
         startEditing={(isGroupTitle: boolean) => {
           setModalState(
             isGroupTitle
@@ -472,6 +486,70 @@ export function ConversationDetails({
           </Button>
         )}
       </div>
+
+      {isSignalConversation && (
+        <>
+          <PanelSection>
+            <PanelRow
+              icon={
+                <ConversationDetailsIcon
+                  ariaLabel={i18n('icu:ConversationHero--signal-official-chat')}
+                  icon={IconType.official}
+                />
+              }
+              label={i18n('icu:ConversationHero--signal-official-chat')}
+            />
+            <PanelRow
+              icon={
+                <ConversationDetailsIcon
+                  ariaLabel={i18n('icu:ConversationHero--release-notes')}
+                  icon={IconType.bell}
+                />
+              }
+              label={i18n('icu:ConversationHero--release-notes')}
+            />
+          </PanelSection>
+
+          <PanelSection title={i18n('icu:ConversationDetails--help-section')}>
+            <PanelRow
+              icon={
+                <ConversationDetailsIcon
+                  ariaLabel={i18n('icu:ConversationDetails--support-center')}
+                  icon={IconType.help}
+                />
+              }
+              label={i18n('icu:ConversationDetails--support-center')}
+              onClick={() => {
+                openLinkInWebBrowser('https://support.signal.org');
+              }}
+            />
+            <PanelRow
+              icon={
+                <ConversationDetailsIcon
+                  ariaLabel={i18n('icu:contactUs')}
+                  icon={IconType.invite}
+                />
+              }
+              label={i18n('icu:contactUs')}
+              onClick={() => {
+                openLinkInWebBrowser(
+                  'https://support.signal.org/hc/requests/new?desktop'
+                );
+              }}
+            />
+            <PanelRow
+              icon={
+                <ConversationDetailsIcon
+                  ariaLabel={i18n('icu:BadgeDialog__become-a-sustainer-button')}
+                  icon={IconType.heart}
+                />
+              }
+              label={i18n('icu:BadgeDialog__become-a-sustainer-button')}
+              onClick={() => setModalState(ModalState.BecomeSustainer)}
+            />
+          </PanelSection>
+        </>
+      )}
 
       {callHistoryGroup && (
         <CallHistoryGroupPanelSection

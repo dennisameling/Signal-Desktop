@@ -11,13 +11,11 @@ import { CallingAdhocCallInfo } from './CallingAdhocCallInfo';
 import { AvatarColors } from '../types/Colors';
 import type { GroupCallRemoteParticipantType } from '../types/Calling';
 import { generateAci } from '../types/ServiceId';
-import { getDefaultConversation } from '../test-both/helpers/getDefaultConversation';
-import { setupI18n } from '../util/setupI18n';
-import enMessages from '../../_locales/en/messages.json';
+import { getDefaultConversation } from '../test-helpers/getDefaultConversation';
 import type { CallLinkType } from '../types/CallLink';
 import { CallLinkRestrictions } from '../types/CallLink';
 
-const i18n = setupI18n('en', enMessages);
+const { i18n } = window.SignalContext;
 
 const OUR_ACI = generateAci();
 

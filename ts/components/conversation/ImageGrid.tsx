@@ -11,12 +11,11 @@ import type {
 import {
   areAllAttachmentsVisual,
   getAlt,
-  getImageDimensions,
+  getImageDimensionsForTimeline,
   getThumbnailUrl,
   getUrl,
   isDownloadable,
   isIncremental,
-  isPermanentlyUndownloadable,
   isVideoAttachment,
 } from '../../types/Attachment';
 
@@ -159,8 +158,8 @@ export function ImageGrid({
   );
 
   const showAttachmentOrNoLongerAvailableToast = React.useCallback(
-    attachmentIndex =>
-      isPermanentlyUndownloadable(attachments[attachmentIndex])
+    (attachmentIndex: number) =>
+      attachments[attachmentIndex].isPermanentlyUndownloadable
         ? showMediaNoLongerAvailableToast
         : showVisualAttachment,
     [attachments, showVisualAttachment, showMediaNoLongerAvailableToast]
@@ -190,7 +189,7 @@ export function ImageGrid({
   });
 
   if (attachments.length === 1 || !areAllAttachmentsVisual(attachments)) {
-    const { height, width } = getImageDimensions(
+    const { height, width } = getImageDimensionsForTimeline(
       attachments[0],
       isSticker ? stickerSize : undefined
     );

@@ -9,7 +9,7 @@ import {
   toTaggedPni,
   isUntaggedPniString,
 } from '../../types/ServiceId';
-import { SignalService as Proto } from '../../protobuf';
+import { Migrations as Proto } from '../../protobuf';
 import { sql } from '../util';
 import type { WritableDB } from '../Interface';
 import { getOurUuid } from './41-uuid-keys';
@@ -116,20 +116,22 @@ export function updateToSchemaVersion1280(
       }
 
       try {
-        const decoded = Proto.Envelope.decode(Buffer.from(envelope, 'base64'));
+        const decoded = Proto.Envelope.decode(
+          Buffer.from(String(envelope), 'base64')
+        );
         if (!decoded.content) {
           throw new Error('Missing envelope content');
         }
 
         const content = decrypted
-          ? Buffer.from(decrypted, 'base64')
+          ? Buffer.from(String(decrypted), 'base64')
           : decoded.content;
 
         insertStmt.run({
           ...rest,
           id,
           type: decoded.type ?? Proto.Envelope.Type.UNKNOWN,
-          content,
+          content: content ?? null,
           isEncrypted: decrypted ? 0 : 1,
           timestamp: timestamp || Date.now(),
           attempts: attempts || 0,
@@ -138,16 +140,17 @@ export function updateToSchemaVersion1280(
           story: story ? 1 : 0,
           serverGuid: serverGuid || getGuid(),
           serverTimestamp: serverTimestamp || 0,
-          destinationServiceId: normalizeServiceId(
-            decoded.destinationServiceId || ourAci,
-            'Envelope.destinationServiceId'
-          ),
+          destinationServiceId:
+            normalizeServiceId(
+              decoded.destinationServiceId || ourAci,
+              'Envelope.destinationServiceId'
+            ) ?? null,
           updatedPni: isUntaggedPniString(decoded.updatedPni)
             ? normalizePni(
                 toTaggedPni(decoded.updatedPni),
                 'Envelope.updatedPni'
               )
-            : undefined,
+            : null,
           // Sadly not captured previously
           messageAgeSec: 0,
           reportingToken: decoded.reportSpamToken?.length

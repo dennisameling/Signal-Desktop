@@ -8,18 +8,15 @@ import { Blurhash } from 'react-blurhash';
 
 import { Spinner } from '../Spinner';
 import type { LocalizerType, ThemeType } from '../../types/Util';
-import type {
-  AttachmentForUIType,
-  AttachmentType,
-} from '../../types/Attachment';
+import type { AttachmentForUIType } from '../../types/Attachment';
 import {
   defaultBlurHash,
   isIncremental,
-  isPermanentlyUndownloadable,
   isReadyToView,
 } from '../../types/Attachment';
 import { ProgressCircle } from '../ProgressCircle';
 import { useUndownloadableMediaHandler } from '../../hooks/useUndownloadableMediaHandler';
+import { roundFractionForProgressBar } from '../../util/numbers';
 
 export enum CurveType {
   None = 0,
@@ -58,10 +55,10 @@ export type Props = {
   i18n: LocalizerType;
   theme?: ThemeType;
   showMediaNoLongerAvailableToast?: () => void;
-  showVisualAttachment?: (attachment: AttachmentType) => void;
+  showVisualAttachment?: (attachment: AttachmentForUIType) => void;
   cancelDownload?: () => void;
   startDownload?: () => void;
-  onClickClose?: (attachment: AttachmentType) => void;
+  onClickClose?: (attachment: AttachmentForUIType) => void;
   onError?: () => void;
 };
 
@@ -204,7 +201,7 @@ export function Image({
       </button>
     ) : undefined;
 
-  const isUndownloadable = isPermanentlyUndownloadable(attachment);
+  const isUndownloadable = attachment.isPermanentlyUndownloadable;
 
   // eslint-disable-next-line no-nested-ternary
   const startDownloadOrUnavailableButton = startDownload ? (
@@ -345,7 +342,9 @@ export function getSpinner({
     !isIncremental(attachment) &&
     attachment.size &&
     attachment.totalDownloaded
-      ? attachment.totalDownloaded / attachment.size
+      ? roundFractionForProgressBar(
+          attachment.totalDownloaded / attachment.size
+        )
       : undefined;
 
   if (downloadFraction) {

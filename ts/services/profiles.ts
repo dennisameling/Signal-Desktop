@@ -6,6 +6,7 @@ import type {
   ProfileKeyCredentialRequestContext,
 } from '@signalapp/libsignal-client/zkgroup';
 import PQueue from 'p-queue';
+import { IdentityChange } from '@signalapp/libsignal-client';
 
 import type { ReadonlyDeep } from 'type-fest';
 import type { ConversationModel } from '../models/conversations';
@@ -13,7 +14,7 @@ import type { CapabilitiesType, ProfileType } from '../textsecure/WebAPI';
 import MessageSender from '../textsecure/SendMessage';
 import type { ServiceIdString } from '../types/ServiceId';
 import { DataWriter } from '../sql/Client';
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import * as Errors from '../types/errors';
 import * as Bytes from '../Bytes';
 import { explodePromise } from '../util/explodePromise';
@@ -26,7 +27,6 @@ import {
   handleProfileKeyCredential,
 } from '../util/zkgroup';
 import { isMe } from '../util/whatTypeOfConversation';
-import { getUserLanguages } from '../util/userLanguages';
 import { parseBadgesFromServer } from '../badges/parseBadgesFromServer';
 import { strictAssert } from '../util/assert';
 import { drop } from '../util/drop';
@@ -43,6 +43,8 @@ import {
   maybeCreateGroupSendEndorsementState,
   onFailedToSendWithEndorsements,
 } from '../util/groupSendEndorsements';
+
+const log = createLogger('profiles');
 
 type JobType = {
   resolve: () => void;
@@ -70,6 +72,7 @@ type JobType = {
 const OBSERVED_CAPABILITY_KEYS = Object.keys({
   deleteSync: true,
   ssre2: true,
+  attachmentBackfill: true,
 } satisfies CapabilitiesType) as ReadonlyArray<keyof CapabilitiesType>;
 
 export class ProfileService {
@@ -131,7 +134,11 @@ export class ProfileService {
         await this.fetchProfile(conversation, groupId);
         resolve();
       } catch (error) {
-        reject(error);
+        log.error(
+          `ProfileServices.get: Error was thrown fetching ${conversation.idForLogging()}!`,
+          Errors.toLogFormat(error)
+        );
+        resolve();
 
         if (this.#isPaused) {
           return;
@@ -228,11 +235,6 @@ export const profileService = new ProfileService();
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace ProfileFetchOptions {
-  type Base = ReadonlyDeep<{
-    request: {
-      userLanguages: ReadonlyArray<string>;
-    };
-  }>;
   type WithVersioned = ReadonlyDeep<{
     profileKey: string;
     profileCredentialRequestContext: ProfileKeyCredentialRequestContext | null;
@@ -267,16 +269,16 @@ namespace ProfileFetchOptions {
 
   export type Unauth =
     // versioned (unauth)
-    | (Base & WithVersioned & WithUnauthAccessKey)
+    | (WithVersioned & WithUnauthAccessKey)
     // unversioned (unauth)
-    | (Base & WithUnversioned & WithUnauthAccessKey)
-    | (Base & WithUnversioned & WithUnauthGroupSendToken);
+    | (WithUnversioned & WithUnauthAccessKey)
+    | (WithUnversioned & WithUnauthGroupSendToken);
 
   export type Auth =
     // unversioned (auth) -- Using lastProfile
-    | (Base & WithVersioned & WithAuth)
+    | (WithVersioned & WithAuth)
     // unversioned (auth)
-    | (Base & WithUnversioned & WithAuth);
+    | (WithUnversioned & WithAuth);
 }
 
 export type ProfileFetchUnauthRequestOptions =
@@ -300,11 +302,6 @@ async function buildProfileFetchOptions({
 }): Promise<ProfileFetchOptions.Auth | ProfileFetchOptions.Unauth> {
   const logId = `buildGetProfileOptions(${conversation.idForLogging()})`;
 
-  const userLanguages = getUserLanguages(
-    window.SignalContext.getPreferredSystemLocales(),
-    window.SignalContext.getResolvedMessagesLocale()
-  );
-
   const profileKey = conversation.get('profileKey');
   const profileKeyVersion = conversation.deriveProfileKeyVersion();
   const accessKey = conversation.get('accessKey');
@@ -322,7 +319,6 @@ async function buildProfileFetchOptions({
         profileKey,
         profileCredentialRequestContext: null,
         request: {
-          userLanguages,
           accessKey,
           groupSendToken: null,
           profileKeyVersion,
@@ -342,7 +338,6 @@ async function buildProfileFetchOptions({
       profileKey,
       profileCredentialRequestContext: result.context,
       request: {
-        userLanguages,
         accessKey,
         groupSendToken: null,
         profileKeyVersion,
@@ -366,7 +361,6 @@ async function buildProfileFetchOptions({
       profileKey: lastProfile.profileKey,
       profileCredentialRequestContext: null,
       request: {
-        userLanguages,
         accessKey: null,
         groupSendToken: null,
         profileKeyVersion: lastProfile.profileKeyVersion,
@@ -395,7 +389,6 @@ async function buildProfileFetchOptions({
         profileKey: null,
         profileCredentialRequestContext: null,
         request: {
-          userLanguages,
           accessKey: null,
           groupSendToken,
           profileKeyVersion: null,
@@ -410,7 +403,6 @@ async function buildProfileFetchOptions({
     profileKey: null,
     profileCredentialRequestContext: null,
     request: {
-      userLanguages,
       accessKey: null,
       groupSendToken: null,
       profileKeyVersion: null,
@@ -515,9 +507,9 @@ async function doGetProfile(
       profile = await messaging.server.getProfile(serviceId, request);
     }
   } catch (error) {
-    log.error(`${logId}: Failed to fetch profile`, Errors.toLogFormat(error));
-
     if (error instanceof HTTPError) {
+      log.warn(`${logId}: Failed to fetch profile. Code:`, error.code);
+
       // Unauthorized/Forbidden
       if (error.code === 401 || error.code === 403) {
         if (request.groupSendToken != null) {
@@ -554,9 +546,6 @@ async function doGetProfile(
             });
           }
         }
-
-        // TODO: Is it safe to ignore these errors?
-        return;
       }
 
       // Not Found
@@ -570,6 +559,8 @@ async function doGetProfile(
           c.setUnregistered();
         }
       }
+
+      return;
     }
 
     // throw all unhandled errors
@@ -783,10 +774,10 @@ async function doGetProfile(
   try {
     if (requestDecryptionKey != null) {
       // Note: Fetches avatar
-      await c.setAndMaybeFetchProfileAvatar(
-        profile.avatar,
-        requestDecryptionKey
-      );
+      await c.setAndMaybeFetchProfileAvatar({
+        avatarUrl: profile.avatar,
+        decryptionKey: requestDecryptionKey,
+      });
     }
   } catch (error) {
     if (error instanceof HTTPError) {
@@ -833,12 +824,13 @@ export async function updateIdentityKey(
     return false;
   }
 
-  const changed = await window.textsecure.storage.protocol.saveIdentity(
+  const saveOutcome = await window.textsecure.storage.protocol.saveIdentity(
     new Address(serviceId, 1),
     identityKey,
     false,
     { noOverwrite }
   );
+  const changed = saveOutcome === IdentityChange.ReplacedExisting;
   if (changed) {
     log.info(`updateIdentityKey(${serviceId}): changed`);
     // save identity will close all sessions except for .1, so we

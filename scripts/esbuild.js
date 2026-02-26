@@ -34,7 +34,7 @@ const bundleDefaults = {
     '@signalapp/libsignal-client',
     '@signalapp/libsignal-client/zkgroup',
     '@signalapp/ringrtc',
-    '@signalapp/better-sqlite3',
+    '@signalapp/sqlcipher',
     '@indutny/mac-screen-share',
     'electron',
     'fs-xattr',
@@ -46,7 +46,6 @@ const bundleDefaults = {
 
     // Things that don't bundle well
     'got',
-    'jquery',
     'node-fetch',
     'pino',
     'proxy-agent',
@@ -135,7 +134,6 @@ async function sandboxedEnv() {
         path.join(ROOT_DIR, 'ts', 'windows', 'loading', 'start.ts'),
         path.join(ROOT_DIR, 'ts', 'windows', 'permissions', 'app.tsx'),
         path.join(ROOT_DIR, 'ts', 'windows', 'screenShare', 'app.tsx'),
-        path.join(ROOT_DIR, 'ts', 'windows', 'settings', 'app.tsx'),
         path.join(
           ROOT_DIR,
           'ts',
@@ -147,7 +145,7 @@ async function sandboxedEnv() {
     },
     preloadConfig: {
       ...sandboxedPreloadDefaults,
-      mainFields: ['main'],
+      mainFields: ['browser', 'main'],
       entryPoints: [
         path.join(ROOT_DIR, 'ts', 'windows', 'about', 'preload.ts'),
         path.join(ROOT_DIR, 'ts', 'windows', 'debuglog', 'preload.ts'),
@@ -155,7 +153,6 @@ async function sandboxedEnv() {
         path.join(ROOT_DIR, 'ts', 'windows', 'permissions', 'preload.ts'),
         path.join(ROOT_DIR, 'ts', 'windows', 'calling-tools', 'preload.ts'),
         path.join(ROOT_DIR, 'ts', 'windows', 'screenShare', 'preload.ts'),
-        path.join(ROOT_DIR, 'ts', 'windows', 'settings', 'preload.ts'),
       ],
       format: 'cjs',
       outdir: 'bundles',

@@ -6,15 +6,14 @@ import * as React from 'react';
 import '@signalapp/quill-cjs/dist/quill.core.css';
 import { action } from '@storybook/addon-actions';
 import type { Meta } from '@storybook/react';
-import { getDefaultConversation } from '../test-both/helpers/getDefaultConversation';
+import { getDefaultConversation } from '../test-helpers/getDefaultConversation';
 import type { Props } from './CompositionInput';
 import { CompositionInput } from './CompositionInput';
-import { setupI18n } from '../util/setupI18n';
 import { generateAci } from '../types/ServiceId';
-import enMessages from '../../_locales/en/messages.json';
 import { StorybookThemeContext } from '../../.storybook/StorybookThemeContext';
+import { EmojiSkinTone } from './fun/data/emojis';
 
-const i18n = setupI18n('en', enMessages);
+const { i18n } = window.SignalContext;
 
 export default {
   title: 'Components/CompositionInput',
@@ -48,7 +47,8 @@ const useProps = (overrideProps: Partial<Props> = {}): Props => {
     quotedMessageId: null,
     sendCounter: 0,
     sortedGroupMembers: overrideProps.sortedGroupMembers ?? [],
-    skinTone: overrideProps.skinTone ?? null,
+    emojiSkinToneDefault:
+      overrideProps.emojiSkinToneDefault ?? EmojiSkinTone.None,
     theme: React.useContext(StorybookThemeContext),
     inputApi: null,
     shouldHidePopovers: null,

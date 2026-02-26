@@ -4,7 +4,7 @@
 import { usernames, LibSignalErrorBase } from '@signalapp/libsignal-client';
 
 import type { UserNotFoundModalStateType } from '../state/ducks/globalModals';
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import type { AciString } from '../types/ServiceId';
 import * as Errors from '../types/errors';
 import { ToastType } from '../types/Toast';
@@ -12,6 +12,8 @@ import { HTTPError } from '../textsecure/Errors';
 import { strictAssert } from './assert';
 import type { UUIDFetchStateKeyType } from './uuidFetchState';
 import { getServiceIdsForE164s } from './getServiceIdsForE164s';
+
+const log = createLogger('lookupConversationWithoutServiceId');
 
 export type LookupConversationWithoutServiceIdActionsType = Readonly<{
   lookupConversationWithoutServiceId: typeof lookupConversationWithoutServiceId;
@@ -141,9 +143,14 @@ export async function lookupConversationWithoutServiceId(
 export async function checkForUsername(
   username: string
 ): Promise<FoundUsernameType | undefined> {
-  let hash: Buffer;
+  let hash: Uint8Array;
+  let fixedUsername = username;
+  if (fixedUsername.startsWith('@')) {
+    fixedUsername = fixedUsername.slice(1);
+  }
+
   try {
-    hash = usernames.hash(username);
+    hash = usernames.hash(fixedUsername);
   } catch (error) {
     log.error('checkForUsername: invalid username', Errors.toLogFormat(error));
     return undefined;
@@ -166,7 +173,7 @@ export async function checkForUsername(
 
     return {
       aci: account.uuid,
-      username,
+      username: fixedUsername,
     };
   } catch (error) {
     if (error instanceof HTTPError) {

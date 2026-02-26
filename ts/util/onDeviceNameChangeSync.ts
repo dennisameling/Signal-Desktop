@@ -6,9 +6,11 @@ import type { DeviceNameChangeSyncEvent } from '../textsecure/messageReceiverEve
 import { MINUTE } from './durations';
 import { strictAssert } from './assert';
 import { parseIntOrThrow } from './parseIntOrThrow';
-import * as log from '../logging/log';
+import { createLogger } from '../logging/log';
 import { toLogFormat } from '../types/errors';
 import { drop } from './drop';
+
+const log = createLogger('onDeviceNameChangeSync');
 
 const deviceNameFetchQueue = new PQueue({
   concurrency: 1,
@@ -82,6 +84,7 @@ async function fetchAndUpdateDeviceName() {
   }
 
   await window.storage.user.setDeviceName(newName);
+  window.Whisper.events.trigger('deviceNameChanged');
   log.info(
     'fetchAndUpdateDeviceName: successfully updated new device name locally'
   );
